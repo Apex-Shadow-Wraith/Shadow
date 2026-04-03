@@ -373,32 +373,42 @@ class Grimoire:
             ConnectionError: If Ollama isn't running
             requests.HTTPError: If the embedding model isn't pulled
         """
-        try:
-            response = requests.post(
-                f"{self.ollama_url}/api/embeddings",
-                json={
-                    "model": self.embed_model,
-                    "prompt": text
-                },
-                timeout=30  # Don't wait forever if Ollama is stuck
-            )
-            response.raise_for_status()  # Raises exception for HTTP errors
-            return response.json()["embedding"]
-            
-        except requests.ConnectionError:
-            # Ollama probably isn't running
-            raise ConnectionError(
-                "[Grimoire] Cannot connect to Ollama at "
-                f"{self.ollama_url}. Is Ollama running? "
-                "Start it with: ollama serve"
-            )
-        except requests.HTTPError as e:
-            # Model might not be pulled
-            raise RuntimeError(
-                f"[Grimoire] Embedding failed: {e}. "
-                f"Is '{self.embed_model}' pulled? "
-                f"Run: ollama pull {self.embed_model}"
-            )
+        import time
+
+        # Truncate to ~2000 chars — embeddings don't need full content
+        truncated = text[:2000]
+
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                response = requests.post(
+                    f"{self.ollama_url}/api/embeddings",
+                    json={
+                        "model": self.embed_model,
+                        "prompt": truncated
+                    },
+                    timeout=30
+                )
+                response.raise_for_status()
+                return response.json()["embedding"]
+
+            except requests.ConnectionError:
+                raise ConnectionError(
+                    "[Grimoire] Cannot connect to Ollama at "
+                    f"{self.ollama_url}. Is Ollama running? "
+                    "Start it with: ollama serve"
+                )
+            except requests.HTTPError as e:
+                if attempt < max_retries - 1:
+                    wait = 2 * (attempt + 1)
+                    print(f"[Grimoire] Embedding retry {attempt + 1}/{max_retries} in {wait}s...")
+                    time.sleep(wait)
+                else:
+                    raise RuntimeError(
+                        f"[Grimoire] Embedding failed after {max_retries} attempts: {e}. "
+                        f"Is '{self.embed_model}' pulled? "
+                        f"Run: ollama pull {self.embed_model}"
+                    )
 
     # =========================================================================
     # WRITE PIPELINE — Storing memories
