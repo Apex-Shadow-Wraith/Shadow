@@ -1,0 +1,7 @@
+shadow_env/
+*.db
+.env
+__pycache__/
+data/
+logs/
+*.pyc
