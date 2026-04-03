@@ -7,7 +7,7 @@ does follows the stealth and safety rules in config.py.
 
 DESIGN PRINCIPLES:
     1. Reaper COLLECTS and EVALUATES. Grimoire STORES.
-    2. Two search backends: SearXNG (primary) → DuckDuckGo (fallback)
+    2. Three search backends: SearXNG (primary) → DuckDuckGo → Bing scraper
     3. Every request uses stealth basics (user agent rotation, delays, clean headers)
     4. Download safety layer protects until Sentinel is built
     5. Relevance gate prevents Grimoire from filling with noise
@@ -74,6 +74,7 @@ from .config import (
     DDG_MAX_RESULTS, QUERY_EXPANSION_COUNT,
     OLLAMA_URL, LLM_MODEL,
     TEMP_RELEVANCE_SCORING, TEMP_SUMMARIZATION, TEMP_QUERY_EXPANSION,
+    BING_MAX_RESULTS, BING_SEARCH_URL,
 )
 
 
@@ -190,15 +191,17 @@ class Reaper:
         # Check which search backends are available
         self.searxng_available = self._check_searxng()
         self.ddg_available = HAS_DDG
+        self.bing_available = HAS_BS4  # Bing scraping only needs BeautifulSoup
 
         print(f"[Reaper] Initialized")
         print(f"[Reaper] SearXNG: {'✅ Available' if self.searxng_available else '❌ Not running'}")
         print(f"[Reaper] DuckDuckGo: {'✅ Available' if self.ddg_available else '❌ Not installed'}")
+        print(f"[Reaper] Bing scraper: {'✅ Available' if self.bing_available else '❌ beautifulsoup4 not installed'}")
         print(f"[Reaper] Standing topics: {len(STANDING_TOPICS)}")
 
-        if not self.searxng_available and not self.ddg_available:
+        if not self.searxng_available and not self.ddg_available and not self.bing_available:
             print("[Reaper] ⚠️  NO SEARCH BACKEND AVAILABLE")
-            print("[Reaper] Start SearXNG or: pip install duckduckgo-search")
+            print("[Reaper] Start SearXNG, or: pip install duckduckgo-search beautifulsoup4")
 
     # =========================================================================
     # SEARCH BACKENDS
@@ -219,7 +222,7 @@ class Reaper:
     def search(self, query, max_results=10):
         """
         Search the web using best available backend.
-        Tries SearXNG first (better results), falls back to DuckDuckGo.
+        Cascade: SearXNG → DuckDuckGo → Bing scraper.
 
         Args:
             query: Search query string
@@ -238,7 +241,13 @@ class Reaper:
 
         # Fall back to DuckDuckGo
         if self.ddg_available:
-            return self._search_ddg(query, max_results)
+            results = self._search_ddg(query, max_results)
+            if results:
+                return results
+
+        # Final fallback: Bing scraping
+        if self.bing_available:
+            return self._search_bing(query, max_results)
 
         print(f"[Reaper] No search backend available for: '{query}'")
         return []
@@ -306,6 +315,63 @@ class Reaper:
 
         except Exception as e:
             print(f"[Reaper] DuckDuckGo error: {e}")
+            return []
+
+    def _search_bing(self, query, max_results=10):
+        """
+        Search using Bing by scraping the results page.
+        Second fallback — no API key needed, uses requests + BeautifulSoup.
+        Respects Reaper's stealth settings (user agent rotation, delays, referrers).
+        """
+        if not HAS_BS4:
+            return []
+
+        self._stealth_delay()
+
+        try:
+            headers = self._get_stealth_headers()
+            # Bing expects a Referer from within bing.com for organic-looking requests
+            headers["Referer"] = "https://www.bing.com/"
+
+            response = requests.get(
+                BING_SEARCH_URL,
+                params={"q": query, "count": min(max_results, BING_MAX_RESULTS)},
+                headers=headers,
+                timeout=15,
+            )
+            response.raise_for_status()
+
+            soup = BeautifulSoup(response.text, "html.parser")
+
+            results = []
+            # Each organic result lives in a <li class="b_algo"> block
+            for item in soup.select("li.b_algo")[:max_results]:
+                # Title + URL come from the <h2><a> inside the block
+                anchor = item.select_one("h2 a")
+                if not anchor:
+                    continue
+                title = anchor.get_text(strip=True)
+                url = anchor.get("href", "")
+                if not url or not url.startswith("http"):
+                    continue
+
+                # Snippet is in .b_caption p or .b_algoSlug
+                snippet_tag = item.select_one(".b_caption p") or item.select_one(".b_algoSlug")
+                snippet = snippet_tag.get_text(strip=True) if snippet_tag else ""
+
+                results.append({
+                    "title": title,
+                    "url": url,
+                    "snippet": snippet,
+                    "engine": "bing",
+                    "source_eval": evaluate_source(url),
+                })
+
+            print(f"[Reaper] Bing: {len(results)} results for '{query[:50]}'")
+            return results
+
+        except Exception as e:
+            print(f"[Reaper] Bing error: {e}")
             return []
 
     # =========================================================================

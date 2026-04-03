@@ -240,8 +240,12 @@ ALWAYS_SKIP_PATTERNS = [
 SEARXNG_URL = "http://localhost:8888"
 SEARXNG_TIMEOUT = 15  # seconds
 
-# DuckDuckGo (fallback) — no setup needed, always available
+# DuckDuckGo (first fallback) — no setup needed, always available
 DDG_MAX_RESULTS = 20
+
+# Bing scraping (second fallback) — no API key, uses requests + BeautifulSoup
+BING_MAX_RESULTS = 20
+BING_SEARCH_URL = "https://www.bing.com/search"
 
 # Query expansion — how many search variants per original query
 QUERY_EXPANSION_COUNT = 3  # Original + 2 variants
