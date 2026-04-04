@@ -171,6 +171,16 @@ class Orchestrator:
                 classification.brain.value,
             )
 
+            # Fast response: skip LLM for trivial inputs
+            fast_response = self._fast_response(user_input, classification)
+            if fast_response is not None:
+                logger.info("Fast response — skipping Steps 3-6")
+                await self._step7_log(user_input, classification, fast_response, loop_start)
+                self._conversation_history.append({"role": "user", "content": user_input})
+                self._conversation_history.append({"role": "assistant", "content": fast_response})
+                self._save_state()
+                return fast_response
+
             # Step 3 — Load Context
             context = await self._step3_load_context(user_input, classification)
             logger.info("Step 3 — Context loaded: %d items", len(context))
@@ -220,6 +230,12 @@ class Orchestrator:
 
         Phase 1: LLM classification via phi4-mini with keyword fallback.
         """
+        # Fast-path: skip LLM for obvious inputs
+        fast = self._fast_path_classify(user_input)
+        if fast is not None:
+            logger.info("Fast-path classified: %s → %s", user_input[:50], fast.task_type.value)
+            return fast
+
         # Build available modules list for the router
         available_modules = self.registry.online_modules
 
@@ -308,6 +324,181 @@ User input: {user_input}"""
             priority=1,
         )
 
+    @staticmethod
+    def _extract_search_query(user_input: str) -> str:
+        """Strip command prefixes to extract the actual search query.
+
+        'search for RTX 5090 restock' → 'RTX 5090 restock'
+        'look up Python async tutorials' → 'Python async tutorials'
+        'what is the price of DDR5' → 'price of DDR5'
+        """
+        lower = user_input.lower().strip()
+
+        # Command prefixes to strip — ordered longest-first so
+        # 'search the web for' matches before 'search'
+        prefixes = [
+            "search the web for ",
+            "search online for ",
+            "search for info on ",
+            "search for info about ",
+            "can you search for ",
+            "can you look up ",
+            "can you find ",
+            "please search for ",
+            "please look up ",
+            "please find ",
+            "search for ",
+            "look up ",
+            "find me ",
+            "find info on ",
+            "find info about ",
+            "look into ",
+            "research ",
+            "google ",
+            "find ",
+            "what is the ",
+            "what are the ",
+            "what is ",
+            "what are ",
+            "who is ",
+            "who are ",
+            "tell me about ",
+            "tell me ",
+        ]
+
+        for prefix in prefixes:
+            if lower.startswith(prefix):
+                extracted = user_input[len(prefix):].strip()
+                if extracted:
+                    return extracted
+
+        return user_input.strip()
+
+    def _fast_path_classify(self, user_input: str) -> TaskClassification | None:
+        """Try to classify without calling the LLM router.
+
+        Returns a TaskClassification if the input is obvious,
+        or None if the LLM should handle it.
+
+        This saves ~6 seconds per input on phi4-mini for cases
+        where keyword matching is unambiguous.
+        """
+        stripped = user_input.strip()
+        lower = stripped.lower()
+
+        # --- System commands (slash commands) ---
+        if stripped.startswith("/"):
+            return TaskClassification(
+                task_type=TaskType.SYSTEM,
+                complexity="simple",
+                target_module="direct",
+                brain=BrainType.ROUTER,
+                safety_flag=False,
+                priority=1,
+            )
+
+        # --- Greetings and short conversation ---
+        greetings = {
+            "hi", "hello", "hey", "sup", "yo", "howdy",
+            "good morning", "good afternoon", "good evening",
+            "good night", "gm", "thanks", "thank you", "thx",
+            "ok", "okay", "cool", "nice", "got it", "bye",
+            "goodbye", "see ya", "later",
+        }
+        if lower in greetings:
+            return TaskClassification(
+                task_type=TaskType.CONVERSATION,
+                complexity="simple",
+                target_module="direct",
+                brain=BrainType.FAST,
+                safety_flag=False,
+                priority=1,
+            )
+
+        # --- Explicit memory commands ---
+        memory_starters = [
+            "remember that ", "remember this", "remember my ",
+            "don't forget ", "forget about ", "forget that ",
+            "what do you know about ", "what do you remember about ",
+        ]
+        if any(lower.startswith(ms) for ms in memory_starters):
+            if any(lower.startswith(s) for s in ["what do you know", "what do you remember"]):
+                return TaskClassification(
+                    task_type=TaskType.MEMORY,
+                    complexity="simple",
+                    target_module="grimoire",
+                    brain=BrainType.FAST,
+                    safety_flag=False,
+                    priority=1,
+                )
+            return TaskClassification(
+                task_type=TaskType.MEMORY,
+                complexity="simple",
+                target_module="grimoire",
+                brain=BrainType.FAST,
+                safety_flag=False,
+                priority=1,
+            )
+
+        # --- Explicit search commands ---
+        search_starters = [
+            "search for ", "search the web", "look up ",
+            "google ", "find me ", "research ",
+        ]
+        if any(lower.startswith(ss) for ss in search_starters):
+            return TaskClassification(
+                task_type=TaskType.RESEARCH,
+                complexity="moderate",
+                target_module="reaper",
+                brain=BrainType.FAST,
+                safety_flag=False,
+                priority=1,
+            )
+
+        # --- Not obvious — let the LLM decide ---
+        return None
+
+    @staticmethod
+    def _fast_response(user_input: str, classification: TaskClassification) -> str | None:
+        """Return a canned response for trivial inputs. No LLM needed.
+
+        Returns None if the input needs full LLM processing.
+        """
+        if classification.task_type != TaskType.CONVERSATION:
+            return None
+        if classification.complexity != "simple":
+            return None
+
+        lower = user_input.strip().lower()
+
+        responses = {
+            "hi": "Hey.",
+            "hello": "Hey.",
+            "hey": "Hey, what's up?",
+            "sup": "Not much. What do you need?",
+            "yo": "Yo. What's up?",
+            "howdy": "Hey. What can I do for you?",
+            "good morning": "Morning. What's on the agenda?",
+            "good afternoon": "Afternoon. What do you need?",
+            "good evening": "Evening. What's up?",
+            "good night": "Night.",
+            "gm": "Morning. What's on the agenda?",
+            "thanks": "Anytime.",
+            "thank you": "Anytime.",
+            "thx": "Anytime.",
+            "ok": "Got it.",
+            "okay": "Got it.",
+            "cool": "Cool.",
+            "nice": "Right on.",
+            "got it": "Good.",
+            "bye": "Later.",
+            "goodbye": "Later.",
+            "see ya": "Later.",
+            "later": "Later.",
+        }
+
+        return responses.get(lower)
+
     # --- Step 3: Load Context ---
 
     async def _step3_load_context(
@@ -322,7 +513,7 @@ User input: {user_input}"""
         context_items: list[dict[str, Any]] = []
 
         # Skip memory loading for simple conversation — no context needed
-        if classification.target_module == "direct" and classification.complexity == "simple":
+        if classification.task_type == TaskType.CONVERSATION and classification.complexity == "simple":
             context_items.append({
                 "type": "available_tools",
                 "content": [t["name"] for t in self.registry.list_tools()],
@@ -396,12 +587,13 @@ User input: {user_input}"""
         steps = []
 
         if classification.task_type == TaskType.RESEARCH:
+            query = self._extract_search_query(user_input)
             steps = [
                 {
                     "step": 1,
                     "description": "Search for information",
                     "tool": "web_search",
-                    "params": {"query": user_input},
+                    "params": {"query": query},
                 },
                 {
                     "step": 2,

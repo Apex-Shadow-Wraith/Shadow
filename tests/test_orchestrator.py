@@ -155,6 +155,73 @@ class TestFallbackClassifier:
         assert result.task_type == TaskType.RESEARCH
 
 
+class TestFastPathClassifier:
+    """Test fast-path classification that skips the LLM."""
+
+    def test_greeting_fast_path(self, config: dict):
+        orch = Orchestrator(config)
+        result = orch._fast_path_classify("hello")
+        assert result is not None
+        assert result.task_type == TaskType.CONVERSATION
+        assert result.target_module == "direct"
+
+    def test_slash_command_fast_path(self, config: dict):
+        orch = Orchestrator(config)
+        result = orch._fast_path_classify("/status")
+        assert result is not None
+        assert result.task_type == TaskType.SYSTEM
+
+    def test_search_command_fast_path(self, config: dict):
+        orch = Orchestrator(config)
+        result = orch._fast_path_classify("search for RTX 5090")
+        assert result is not None
+        assert result.task_type == TaskType.RESEARCH
+        assert result.target_module == "reaper"
+
+    def test_memory_command_fast_path(self, config: dict):
+        orch = Orchestrator(config)
+        result = orch._fast_path_classify("remember that I like coffee")
+        assert result is not None
+        assert result.task_type == TaskType.MEMORY
+        assert result.target_module == "grimoire"
+
+    def test_ambiguous_input_returns_none(self, config: dict):
+        orch = Orchestrator(config)
+        result = orch._fast_path_classify("explain quantum computing")
+        assert result is None
+
+    def test_case_insensitive(self, config: dict):
+        orch = Orchestrator(config)
+        result = orch._fast_path_classify("HELLO")
+        assert result is not None
+        assert result.task_type == TaskType.CONVERSATION
+
+
+class TestQueryExtraction:
+    """Test search query extraction from user input."""
+
+    def test_strips_search_for(self):
+        assert Orchestrator._extract_search_query("search for RTX 5090") == "RTX 5090"
+
+    def test_strips_look_up(self):
+        assert Orchestrator._extract_search_query("look up Python tutorials") == "Python tutorials"
+
+    def test_strips_what_is(self):
+        assert Orchestrator._extract_search_query("what is the price of DDR5") == "price of DDR5"
+
+    def test_preserves_case(self):
+        assert Orchestrator._extract_search_query("search for NVIDIA RTX") == "NVIDIA RTX"
+
+    def test_no_prefix_passthrough(self):
+        assert Orchestrator._extract_search_query("quantum computing") == "quantum computing"
+
+    def test_empty_after_prefix_returns_original(self):
+        assert Orchestrator._extract_search_query("search for ") == "search for"
+
+    def test_strips_please_prefix(self):
+        assert Orchestrator._extract_search_query("please search for AI news") == "AI news"
+
+
 # --- State Persistence Tests ---
 
 class TestStatePersistence:
