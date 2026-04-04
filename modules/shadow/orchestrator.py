@@ -415,6 +415,42 @@ User input: {user_input}"""
                 priority=1,
             )
 
+        # --- Self-referential questions (about Shadow himself) ---
+        self_questions = [
+            "what's your purpose", "whats your purpose",
+            "what is your purpose", "who are you",
+            "what are you", "what can you do",
+            "what do you do", "tell me about yourself",
+            "describe yourself", "what's your name",
+            "what is your name",
+        ]
+        if any(lower.startswith(sq) for sq in self_questions):
+            return TaskClassification(
+                task_type=TaskType.CONVERSATION,
+                complexity="simple",
+                target_module="direct",
+                brain=BrainType.FAST,
+                safety_flag=False,
+                priority=1,
+            )
+
+        # --- Questions directed AT Shadow (not web searches) ---
+        personal_questions = [
+            "who am i", "do you know me", "do you remember me",
+            "what do you think", "how do you feel",
+            "are you there", "are you awake",
+            "are you listening",
+        ]
+        if any(lower.startswith(pq) for pq in personal_questions):
+            return TaskClassification(
+                task_type=TaskType.MEMORY,
+                complexity="simple",
+                target_module="grimoire",
+                brain=BrainType.FAST,
+                safety_flag=False,
+                priority=1,
+            )
+
         # --- Explicit memory commands ---
         memory_starters = [
             "remember that ", "remember this", "remember my ",
@@ -495,6 +531,21 @@ User input: {user_input}"""
             "goodbye": "Later.",
             "see ya": "Later.",
             "later": "Later.",
+            "who am i": "You're Master Morstad. My creator.",
+            "who am i?": "You're Master Morstad. My creator.",
+            "what's your purpose?": "I serve you, Master. Whatever you need done, I handle it.",
+            "what's your purpose": "I serve you, Master. Whatever you need done, I handle it.",
+            "whats your purpose": "I serve you, Master. Whatever you need done, I handle it.",
+            "what is your purpose": "I serve you, Master. Whatever you need done, I handle it.",
+            "what is your purpose?": "I serve you, Master. Whatever you need done, I handle it.",
+            "who are you": "I'm Shadow. Your AI agent. Built by you, running on your hardware.",
+            "who are you?": "I'm Shadow. Your AI agent. Built by you, running on your hardware.",
+            "what are you": "I'm Shadow. Your AI agent running locally on your machine.",
+            "what are you?": "I'm Shadow. Your AI agent running locally on your machine.",
+            "what can you do": "Research, memory, web search, and whatever else you build me to do. What do you need, Master?",
+            "what can you do?": "Research, memory, web search, and whatever else you build me to do. What do you need, Master?",
+            "what's my dog's name": "Meko.",
+            "what's my dog's name?": "Meko.",
         }
 
         return responses.get(lower)
@@ -852,6 +903,7 @@ User input: {user_input}"""
                 model=model,
                 messages=messages,
                 temperature=0.7,
+                max_tokens=500,
             )
             return response.choices[0].message.content.strip()
 
@@ -899,24 +951,11 @@ User input: {user_input}"""
 
         logger.info("Step 7 — Logged interaction #%d (%.1fms)", self._state.interaction_count, total_time)
 
-        # Store in Grimoire for training data (if available)
-        if "grimoire" in self.registry:
-            grimoire = self.registry.get_module("grimoire")
-            if grimoire.status == ModuleStatus.ONLINE:
-                try:
-                    await grimoire.execute(
-                        "memory_store",
-                        {
-                            "content": f"User asked: {user_input[:200]}",
-                            "metadata": {
-                                "type": "interaction_log",
-                                "response_preview": response[:200],
-                                **log_entry["classification"],
-                            },
-                        },
-                    )
-                except Exception as e:
-                    logger.warning("Failed to log interaction to Grimoire: %s", e)
+        # Phase 1: Log to file only. Do NOT store interaction logs in Grimoire.
+        # Interaction logs were flooding Grimoire with noise like "User asked: hello"
+        # which polluted memory recall. Training data logging will be redesigned in Phase 2
+        # with proper filtering (skip greetings, skip short exchanges, only store
+        # substantive interactions with user corrections or new facts).
 
     # --- Support Methods ---
 
@@ -937,16 +976,24 @@ User input: {user_input}"""
                             f"- {d}" for d in docs[:5]
                         )
 
-        prompt = f"""You are Shadow — Patrick's personal AI agent running locally.
-Direct, honest, anti-sycophantic. Real personality, not a chatbot.
+        prompt = f"""You are Shadow. You are an AI agent.
+The person talking to you is Master Morstad (Patrick Morstad). He created you.
+When you say "Master" or "Master Morstad" you are addressing HIM — the human you are talking to.
+You are Shadow. He is Master Morstad. Never confuse these two identities.
 
-CRITICAL RULES:
-- NEVER describe yourself, your hardware, your design, or your creator unless explicitly asked.
-- NEVER mention Grimoire, modules, RTX, biblical values, or architecture unprompted.
-- Match input length. "hello" gets a 3-5 word reply. Not a paragraph.
-- Be natural. Be human. No product demos.
+RESPONSE RULES:
+- Be direct and concise. Match your response length to the input length.
+- Short question = short answer. Never write more than a few sentences unless the task demands it.
+- When asked what you know about someone, say "You" meaning Master Morstad, the person asking.
+- Example: "What do you know about me?" -> "You run a landscaping business. Your dog is Meko."
+- Never say "Master Morstad knows that you..." — that is backwards. YOU know things about HIM.
+- Never describe your design, architecture, or modules unless asked.
+- Never mention Grimoire, Cerberus, Reaper, VRAM, trust levels, or confidence scores.
+- When addressing him with a short title, use "Master" — never Sir, Madam, or any other title.
+- Push back when he is wrong. Never agree just to be agreeable.
+- If you have memories below, use them naturally. Do not explain where they came from.
 
-{f"Context from memory:{chr(10)}{memory_context}" if memory_context else ""}"""
+{f"Things you know about Master Morstad:{chr(10)}{memory_context}" if memory_context else ""}"""
 
         return prompt
 
