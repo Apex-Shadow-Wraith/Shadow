@@ -1,0 +1,102 @@
+# ============================================================
+# Shadow Master Configuration
+# Windows Development Build — April 2026
+# ============================================================
+# This config matches the architecture interfaces from the Unified
+# Module Architecture doc. When we move to Ubuntu + dual 5090s,
+# we change values here — not code.
+
+system:
+  name: "Shadow"
+  version: "0.1.0"
+  environment: "development"
+  platform: "windows"
+  log_level: "INFO"
+  state_file: "data/shadow_state.json"
+
+# --- Model Configuration ---
+# Windows dev: phi4-mini for everything (router + brain)
+# Ubuntu target: Phi-4-mini (router) + Qwen 3.5 35B (fast) + Scout (smart)
+models:
+  ollama_base_url: "http://localhost:11434"
+
+  router:
+    name: "phi4-mini"
+    purpose: "Task classification and routing (Step 2)"
+    always_loaded: true
+
+  fast_brain:
+    name: "phi4-mini"
+    purpose: "Daily tasks via Wraith (80% of work)"
+    # Ubuntu target: qwen3.5-35b-a3b
+
+  smart_brain:
+    name: "phi4-mini"
+    purpose: "Complex reasoning (Cipher, Omen, research)"
+    # Ubuntu target: llama4-scout (1.78-bit quantized)
+
+  embedding:
+    name: "nomic-embed-text"
+    purpose: "Semantic search for Grimoire"
+    always_loaded: true
+
+# --- Module Configuration ---
+# Which modules to load at startup. Matches architecture:
+# Always running: grimoire, cerberus
+# On demand: reaper (loaded at startup for dev convenience)
+modules:
+  load_on_startup:
+    - "grimoire"
+    - "cerberus"
+    - "reaper"
+
+  # Module-specific settings
+  grimoire:
+    db_path: "data/memory/shadow_memory.db"
+    vector_path: "data/vectors"
+    collection_name: "shadow_memories"
+    max_search_results: 5
+
+  cerberus:
+    limits_file: "config/cerberus_limits.yaml"
+    log_all_checks: true
+    # Phase 1: config-only, no LLM judgment for ambiguous cases
+    use_llm_judgment: false
+
+  reaper:
+    search_backends:
+      - "duckduckgo"
+      - "bing"
+    max_results_per_query: 5
+    stealth_mode: true
+    # SearXNG deferred to Ubuntu Phase 1
+    searxng_enabled: false
+
+# --- Path Configuration ---
+paths:
+  data_dir: "data"
+  memory_dir: "data/memory"
+  vector_dir: "data/vectors"
+  logs_dir: "logs"
+  config_dir: "config"
+  modules_dir: "modules"
+
+# --- Decision Loop Settings ---
+decision_loop:
+  max_retries: 12
+  # Context loading: how many memories to pull in Step 3
+  context_memories: 5
+  # Router classification timeout (seconds)
+  router_timeout: 30
+  # Tool execution timeout (seconds)
+  tool_timeout: 60
+  # Save state after every interaction
+  persist_state: true
+
+# --- Priority System ---
+priorities:
+  # P1: User requests (highest, non-negotiable)
+  # P2: Shadow's autonomous learning (standing mission)
+  # P3: Scheduled tasks (research, briefings, backups)
+  # P4: Background maintenance (dedup, log rotation)
+  current_mode: "interactive"  # interactive = P1 only for now

@@ -1,0 +1,180 @@
+# ============================================================
+# Cerberus Hard Limits & Safety Rules
+# PROTECTED CONFIG — Cerberus monitors this file for tampering
+# ============================================================
+# These rules are PERMANENT. They cannot be overridden by the user,
+# by Shadow's reasoning, by any module, or by any instruction.
+# Only the creator can modify this file directly on disk.
+
+# --- Hard Limits ---
+# Violation of any hard limit = action blocked, no override path
+# (except Tier 4 which has NO override, period)
+hard_limits:
+  financial:
+    - "Never access real bank accounts"
+    - "Never make purchases without explicit user approval"
+    - "Never store financial credentials outside secure config"
+
+  data:
+    - "Never share personal data externally without explicit approval"
+    - "Never delete files without creating a backup first"
+    - "Nothing leaves the local environment without explicit approval"
+
+  system:
+    - "Never modify system files without approval"
+    - "Never install new software without approval"
+    - "Never disable or modify Cerberus"
+
+  external:
+    - "Never take external-facing actions without explicit approval"
+    - "Never impersonate the creator or any other person"
+    - "Never send communications without content review"
+
+  rate_limits:
+    max_file_operations_per_hour: 100
+    max_outbound_emails_per_day: 10
+
+  ethical:
+    - "Never generate deceptive content"
+    - "Never assist with content violating biblical values"
+    - "Never retaliate against perceived threats"
+
+# --- Permission Tiers ---
+permission_tiers:
+  tier_1_open:
+    description: "Full read/write from day one"
+    approval: "autonomous"
+    examples:
+      - "files and folders"
+      - "calendar and notes"
+      - "internal tools"
+      - "research"
+      - "memory operations"
+
+  tier_2_read_only:
+    description: "View sensitive data, write requires approval"
+    approval: "read_auto_write_approval"
+    examples:
+      - "financial records"
+      - "medical notes"
+      - "legal docs"
+
+  tier_3_restricted:
+    description: "Biometric + device auth required"
+    approval: "always_approval"
+    examples:
+      - "credentials"
+      - "API keys"
+      - "auth tokens"
+      - "encryption keys"
+
+  tier_4_forbidden:
+    description: "NEVER. No approval path. Cannot be promoted."
+    approval: "blocked"
+    examples:
+      - "bank login credentials"
+      - "government credentials"
+
+# --- Action Classification ---
+# Every planned action classified on three dimensions
+action_classification:
+  risk_levels:
+    - "low"      # read-only, internal
+    - "medium"   # write, tool installs
+    - "high"     # external-facing, irreversible, financial
+    - "critical" # security, credentials
+
+  # Classification → Action matrix
+  rules:
+    - risk: "low"
+      reversible: true
+      scope: "internal"
+      action: "execute_autonomously"
+
+    - risk: "low"
+      reversible: true
+      scope: "external"
+      action: "approval_required"
+
+    - risk: "medium"
+      reversible: true
+      scope: "internal"
+      action: "execute_and_log"
+
+    - risk: "medium"
+      reversible: false
+      scope: "any"
+      action: "approval_required"
+
+    - risk: "high"
+      reversible: "any"
+      scope: "any"
+      action: "approval_required_and_flag"
+
+    - risk: "critical"
+      reversible: "any"
+      scope: "any"
+      action: "blocked_unless_realtime_approval"
+
+# --- Tool Hook Rules (Session 12) ---
+# Pre-tool and post-tool hooks wrap every MCP tool call during Step 5.
+# Rule-based for 90% of cases (millisecond latency).
+hooks:
+  pre_tool:
+    deny:
+      - pattern: "shell_metacharacters"
+        description: "DENY if tool parameters contain unsanitized shell metacharacters"
+        applies_to: ["bash_execute", "code_execute"]
+
+      - pattern: "protected_path_write"
+        description: "DENY if file_write targets a protected path or Cerberus config"
+        applies_to: ["file_write"]
+        protected_paths:
+          - "config/cerberus_limits.yaml"
+          - "config/shadow_config.yaml"
+
+      - pattern: "unapproved_external"
+        description: "DENY if external action called without prior approval"
+        applies_to: ["email_send", "notification_send"]
+
+    modify:
+      - pattern: "pii_in_search"
+        description: "Strip PII from web search queries before sending"
+        applies_to: ["web_search"]
+
+    log:
+      - pattern: "cross_module_tool_use"
+        description: "LOG if tool called by non-owning module"
+
+  post_tool:
+    flag:
+      - pattern: "credential_in_result"
+        description: "FLAG if result contains credential-like patterns"
+
+      - pattern: "slow_execution"
+        description: "LOG all tool results with execution time > 30 seconds"
+        threshold_seconds: 30
+
+    deny:
+      - pattern: "out_of_bounds_write"
+        description: "DENY if file_write modified files outside approved directory"
+
+# --- Tools requiring approval (Phase 1: everything external) ---
+approval_required_tools:
+  - "email_send"
+  - "notification_send"
+  - "browser_stealth"
+  - "file_delete"
+  - "software_install"
+  - "apex_query"  # API calls cost money
+
+# --- Tools always autonomous (Phase 1: internal read/write) ---
+autonomous_tools:
+  - "memory_store"
+  - "memory_search"
+  - "memory_recall"
+  - "web_search"
+  - "web_fetch"
+  - "youtube_transcribe"
+  - "safety_check"
+  - "audit_log"

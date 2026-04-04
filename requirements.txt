@@ -1,0 +1,31 @@
+# Shadow — Python Dependencies
+# Install: pip install -r requirements.txt
+
+# --- Core ---
+openai              # Ollama-compatible API client
+pyyaml              # Config file loading
+pydantic            # Data validation (future use)
+python-dotenv       # Environment variables
+
+# --- Memory (Grimoire) ---
+chromadb            # Vector database for semantic search
+
+# --- Research (Reaper) ---
+duckduckgo-search   # DDG search (ddgs package)
+beautifulsoup4      # Web scraping
+requests            # HTTP client
+playwright          # Stealth browser automation
+yt-dlp              # YouTube subtitle download
+praw                # Reddit API
+
+# --- Monitoring ---
+watchdog            # File system monitoring
+rich                # Terminal formatting
+
+# --- API (future) ---
+fastapi             # REST API server
+uvicorn             # ASGI server
+
+# --- Testing ---
+pytest              # Test framework
+pytest-asyncio      # Async test support
