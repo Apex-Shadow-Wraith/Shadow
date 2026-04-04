@@ -48,7 +48,10 @@ except ImportError:
     print("[Reaper] WARNING: beautifulsoup4 not installed → pip install beautifulsoup4")
 
 try:
-    from duckduckgo_search import DDGS
+    try:
+        from ddgs import DDGS
+    except ImportError:
+        from duckduckgo_search import DDGS
     HAS_DDG = True
 except ImportError:
     HAS_DDG = False

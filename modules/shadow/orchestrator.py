@@ -621,6 +621,32 @@ User input: {user_input}"""
                     "params": {"query": user_input},
                 }]
 
+        elif classification.task_type == TaskType.QUESTION:
+            # Questions that reached a module need tools
+            if classification.target_module == "reaper":
+                query = self._extract_search_query(user_input)
+                # Long inputs are discussions, not search queries — truncate to key terms
+                if len(query) > 200:
+                    query = query[:200].rsplit(" ", 1)[0]
+                steps = [{
+                    "step": 1,
+                    "description": "Search for answer",
+                    "tool": "web_search",
+                    "params": {"query": query},
+                }, {
+                    "step": 2,
+                    "description": "Synthesize answer from results",
+                    "tool": None,
+                    "params": {},
+                }]
+            else:
+                steps = [{
+                    "step": 1,
+                    "description": "Answer question directly",
+                    "tool": None,
+                    "params": {},
+                }]
+
         else:
             # Default: single-step plan
             steps = [{
