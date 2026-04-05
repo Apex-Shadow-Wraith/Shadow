@@ -20,10 +20,19 @@ from pathlib import Path
 import yaml
 
 from modules.base import ModuleRegistry, ModuleStatus
+from modules.apex.apex import Apex
 from modules.cerberus.cerberus import Cerberus
+from modules.cipher.cipher import Cipher
 from modules.grimoire.grimoire_module import GrimoireModule
+from modules.harbinger.harbinger import Harbinger
+from modules.morpheus.morpheus import Morpheus
+from modules.nova.nova import Nova
+from modules.omen.omen import Omen
 from modules.reaper.reaper_module import ReaperModule
+from modules.sentinel.sentinel import Sentinel
 from modules.shadow.orchestrator import Orchestrator
+from modules.void.void import Void
+from modules.wraith.wraith import Wraith
 
 
 def setup_logging(level: str = "INFO") -> None:
@@ -69,9 +78,23 @@ async def startup(config: dict, logger: logging.Logger) -> Orchestrator:
     module_configs = config.get("modules", {})
 
     # Step 1: Create module instances
+    # --- Core (always running) ---
     grimoire = GrimoireModule(module_configs.get("grimoire", {}))
     cerberus = Cerberus(module_configs.get("cerberus", {}))
+
+    # --- Operations ---
+    wraith = Wraith(module_configs.get("wraith", {}))
     reaper = ReaperModule(module_configs.get("reaper", {}))
+    harbinger = Harbinger(module_configs.get("harbinger", {}))
+
+    # --- Specialized ---
+    apex = Apex(module_configs.get("apex", {}))
+    cipher = Cipher(module_configs.get("cipher", {}))
+    omen = Omen(module_configs.get("omen", {}))
+    sentinel = Sentinel(module_configs.get("sentinel", {}))
+    void = Void(module_configs.get("void", {}))
+    nova = Nova(module_configs.get("nova", {}))
+    morpheus = Morpheus(module_configs.get("morpheus", {}))
 
     # Step 2: Initialize Grimoire first (Reaper depends on it)
     try:
@@ -88,7 +111,11 @@ async def startup(config: dict, logger: logging.Logger) -> Orchestrator:
         logger.warning("Grimoire not available — Reaper will start without memory")
 
     # Step 4: Initialize remaining modules
-    for module in [cerberus, reaper]:
+    all_modules = [
+        cerberus, wraith, reaper, harbinger,
+        apex, cipher, omen, sentinel, void, nova, morpheus,
+    ]
+    for module in all_modules:
         try:
             await module.initialize()
             logger.info("Module '%s' initialized: %s", module.name, module.status.value)
@@ -97,7 +124,7 @@ async def startup(config: dict, logger: logging.Logger) -> Orchestrator:
 
     # Step 5: Create orchestrator and register modules
     orchestrator = Orchestrator(config)
-    for module in [grimoire, cerberus, reaper]:
+    for module in [grimoire] + all_modules:
         orchestrator.registry.register(module)
         logger.info("Registered module: %s", module.name)
 

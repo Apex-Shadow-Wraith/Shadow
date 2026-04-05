@@ -48,7 +48,16 @@ modules:
   load_on_startup:
     - "grimoire"
     - "cerberus"
+    - "wraith"
     - "reaper"
+    - "harbinger"
+    - "apex"
+    - "cipher"
+    - "omen"
+    - "sentinel"
+    - "void"
+    - "nova"
+    - "morpheus"
 
   # Module-specific settings
   grimoire:
