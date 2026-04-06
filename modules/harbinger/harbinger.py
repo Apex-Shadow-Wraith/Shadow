@@ -15,7 +15,7 @@ report compilation. Telegram dispatch logged but not sent.
 import json
 import logging
 import time
-from datetime import datetime, time as dtime
+from datetime import datetime, time as dtime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -225,6 +225,25 @@ class Harbinger(BaseModule):
             "date": now.strftime("%A, %B %d, %Y"),
             "sections": [],
         }
+
+        # If modules are provided for evening, use assemble_evening_summary
+        modules = params.get("modules")
+        if briefing_type == "evening" and modules is not None:
+            summary = self.assemble_evening_summary(modules)
+            # Convert assembled sections into briefing_compile format
+            for section in summary["sections"]:
+                briefing["sections"].append({
+                    "name": section["title"].lower().replace(" ", "_"),
+                    "title": section["title"],
+                    "content": section["content"],
+                    "source": section.get("source", "harbinger"),
+                })
+            return ToolResult(
+                success=True,
+                content=briefing,
+                tool_name="briefing_compile",
+                module=self.name,
+            )
 
         if briefing_type == "morning":
             # Morning briefing has 10 sections per architecture
@@ -677,6 +696,12 @@ class Harbinger(BaseModule):
         # 6. Harbinger — pending decision queue
         sections.append(self._pull_decision_queue())
 
+        # 7. Task Tracker — active/recent tasks
+        sections.append(self._pull_task_tracker(modules.get("task_tracker")))
+
+        # 8. Daily Safety Report — Cerberus audit summary
+        sections.append(self._pull_safety_report())
+
         # Sort by priority (1 = highest)
         sections.sort(key=lambda s: s["priority"])
 
@@ -733,6 +758,226 @@ class Harbinger(BaseModule):
 
         lines.append(f"=== END BRIEFING ({briefing.get('section_count', 0)} sections) ===")
         return "\n".join(lines)
+
+    # --- Evening summary assembly ---
+
+    def assemble_evening_summary(self, modules: dict[str, Any]) -> dict[str, Any]:
+        """Pull data from available modules and assemble a structured evening summary.
+
+        Mirrors assemble_morning_briefing() but focuses on what happened today,
+        what's still pending, and what's coming tomorrow.
+
+        Args:
+            modules: Dict of module_name -> module_instance.
+
+        Returns:
+            Structured dict with 5 sections: completed_today, pending_items,
+            tomorrow_preview, shadow_activity, overnight_plan.
+        """
+        now = datetime.now()
+        today_str = now.strftime("%Y-%m-%d")
+        sections: list[dict[str, Any]] = []
+
+        # 1. Completed Today
+        sections.append(self._pull_completed_today(modules.get("task_tracker"), today_str))
+
+        # 2. Pending Items
+        sections.append(self._pull_pending_items(modules.get("task_tracker")))
+
+        # 3. Tomorrow Preview
+        sections.append(self._pull_tomorrow_preview(modules.get("task_tracker")))
+
+        # 4. Shadow Activity
+        sections.append(self._pull_shadow_activity(modules.get("void"), modules.get("reaper")))
+
+        # 5. Overnight Plan
+        sections.append(self._pull_overnight_plan())
+
+        # Sort by priority (1 = highest)
+        sections.sort(key=lambda s: s["priority"])
+
+        return {
+            "type": "evening_summary",
+            "compiled_at": now.isoformat(),
+            "date": now.strftime("%A, %B %d, %Y"),
+            "section_count": len(sections),
+            "sections": sections,
+        }
+
+    def format_evening_summary(self, summary: dict[str, Any]) -> str:
+        """Render a structured evening summary into readable, scannable text.
+
+        Args:
+            summary: Output from assemble_evening_summary().
+
+        Returns:
+            Formatted string for end-of-day review.
+        """
+        lines: list[str] = []
+        lines.append("=== SHADOW EVENING SUMMARY ===")
+        lines.append(f"Date: {summary.get('date', 'Unknown')}")
+        lines.append(f"Compiled: {summary.get('compiled_at', 'Unknown')}")
+        lines.append("")
+
+        for i, section in enumerate(summary.get("sections", []), 1):
+            priority_label = {1: "HIGH", 2: "MEDIUM", 3: "LOW"}.get(
+                section["priority"], "INFO"
+            )
+            lines.append(f"--- {i}. {section['title']} [{priority_label}] ---")
+
+            content = section.get("content")
+            if content is None or content == "Module not available":
+                lines.append("  [Not available]")
+            elif isinstance(content, dict):
+                for key, value in content.items():
+                    if isinstance(value, list):
+                        lines.append(f"  {key}: {len(value)} item(s)")
+                        for item in value[:5]:
+                            if isinstance(item, dict):
+                                desc = item.get("description", item.get("content", str(item)))
+                                lines.append(f"    - {str(desc)[:80]}")
+                            else:
+                                lines.append(f"    - {str(item)[:80]}")
+                    else:
+                        lines.append(f"  {key}: {value}")
+            elif isinstance(content, str):
+                lines.append(f"  {content}")
+            else:
+                lines.append(f"  {content}")
+
+            lines.append("")
+
+        lines.append(f"=== END SUMMARY ({summary.get('section_count', 0)} sections) ===")
+        return "\n".join(lines)
+
+    # --- Evening summary data pullers (private) ---
+
+    def _pull_completed_today(self, task_tracker: Any, today_str: str) -> dict[str, Any]:
+        """Pull tasks completed today from TaskTracker."""
+        if task_tracker is None:
+            return self._empty_section("Completed Today", 2)
+        try:
+            completed = task_tracker.list_tasks(status_filter="completed")
+            today_completed = [
+                t for t in completed
+                if t.get("completed_at", "")[:10] == today_str
+            ]
+            return {
+                "title": "Completed Today",
+                "priority": 2,
+                "source": "task_tracker",
+                "content": {
+                    "count": len(today_completed),
+                    "tasks": today_completed,
+                },
+            }
+        except Exception as e:
+            logger.warning("Failed to pull completed tasks: %s", e)
+            return self._error_section("Completed Today", 2, str(e))
+
+    def _pull_pending_items(self, task_tracker: Any) -> dict[str, Any]:
+        """Pull pending tasks and decision queue items."""
+        pending_tasks: list[dict[str, Any]] = []
+        task_error = None
+
+        if task_tracker is not None:
+            try:
+                for status in ("queued", "running"):
+                    pending_tasks.extend(task_tracker.list_tasks(status_filter=status))
+            except Exception as e:
+                task_error = str(e)
+                logger.warning("Failed to pull pending tasks: %s", e)
+
+        decision_count = len(self._pending_items)
+
+        if task_tracker is None and decision_count == 0:
+            return self._empty_section("Pending Items", 2)
+
+        priority = 1 if pending_tasks or decision_count > 0 else 2
+
+        content: dict[str, Any] = {
+            "task_count": len(pending_tasks),
+            "tasks": pending_tasks,
+            "decision_queue_count": decision_count,
+        }
+        if task_error:
+            content["task_error"] = task_error
+
+        return {
+            "title": "Pending Items",
+            "priority": priority,
+            "source": "task_tracker",
+            "content": content,
+        }
+
+    def _pull_tomorrow_preview(self, task_tracker: Any) -> dict[str, Any]:
+        """Preview tomorrow's workload. Phase 1: show queued task count and high-priority items."""
+        if task_tracker is None:
+            return self._empty_section("Tomorrow Preview", 3)
+        try:
+            queued = task_tracker.list_tasks(status_filter="queued")
+            high_priority = [t for t in queued if t.get("priority", 5) <= 3]
+            return {
+                "title": "Tomorrow Preview",
+                "priority": 3,
+                "source": "task_tracker",
+                "content": {
+                    "queued_count": len(queued),
+                    "high_priority_count": len(high_priority),
+                    "high_priority_tasks": high_priority,
+                },
+            }
+        except Exception as e:
+            logger.warning("Failed to pull tomorrow preview: %s", e)
+            return self._error_section("Tomorrow Preview", 3, str(e))
+
+    def _pull_shadow_activity(self, void: Any, reaper: Any) -> dict[str, Any]:
+        """Pull background activity summary from Void and Reaper."""
+        activity: dict[str, Any] = {}
+
+        if void is not None:
+            try:
+                result = void._system_health({})
+                content = result.content if hasattr(result, "content") else result
+                if isinstance(content, dict):
+                    activity["system_health"] = {
+                        "cpu_percent": content.get("cpu_percent"),
+                        "ram_percent": content.get("ram_percent"),
+                        "disk_percent": content.get("disk_percent"),
+                    }
+            except Exception as e:
+                activity["system_health_error"] = str(e)
+                logger.warning("Failed to pull Void data for evening summary: %s", e)
+
+        if reaper is not None:
+            try:
+                data = reaper.get_briefing_data()
+                if isinstance(data, dict):
+                    research = data.get("research", [])
+                    activity["research_completed"] = len(research)
+                    activity["research_items"] = research[:5]
+            except Exception as e:
+                activity["research_error"] = str(e)
+                logger.warning("Failed to pull Reaper data for evening summary: %s", e)
+
+        if not activity:
+            return self._empty_section("Shadow Activity", 3)
+
+        return {
+            "title": "Shadow Activity",
+            "priority": 3,
+            "source": "void/reaper",
+            "content": activity,
+        }
+
+    def _pull_overnight_plan(self) -> dict[str, Any]:
+        """Return overnight plan. Phase 1: static message."""
+        return {
+            "title": "Overnight Plan",
+            "priority": 3,
+            "source": "harbinger",
+            "content": "No overnight autonomy in Phase 1. Background monitoring only.",
+        }
 
     # --- Module data pullers (private) ---
 
@@ -880,6 +1125,79 @@ class Harbinger(BaseModule):
                 "items": sorted(pending, key=lambda x: x.get("importance", 0), reverse=True),
             },
         }
+
+    def _pull_task_tracker(self, task_tracker: Any) -> dict[str, Any]:
+        """Pull active and recent task data from the TaskTracker."""
+        if task_tracker is None:
+            return self._empty_section("Tasks & Queue", 2)
+        try:
+            active = []
+            for status in ("queued", "running"):
+                active.extend(task_tracker.list_tasks(status_filter=status))
+
+            # Recently completed/failed (last 24h)
+            cutoff = time.time() - 86400
+            recent = []
+            for status in ("completed", "failed"):
+                for t in task_tracker.list_tasks(status_filter=status):
+                    if t.get("updated_at", 0) >= cutoff:
+                        recent.append(t)
+
+            failed = [t for t in recent if t.get("status") == "failed"]
+            overdue = [
+                t for t in active
+                if t.get("status") == "running"
+                and t.get("created_at", time.time()) < cutoff
+            ]
+
+            return {
+                "title": "Tasks & Queue",
+                "priority": 2 if not failed and not overdue else 1,
+                "source": "task_tracker",
+                "content": {
+                    "active_count": len(active),
+                    "active_tasks": active,
+                    "recent_completed": [t for t in recent if t.get("status") == "completed"],
+                    "failed_tasks": failed,
+                    "overdue_tasks": overdue,
+                },
+            }
+        except Exception as e:
+            logger.warning("Failed to pull TaskTracker data: %s", e)
+            return self._error_section("Tasks & Queue", 2, str(e))
+
+    def _pull_safety_report(self) -> dict[str, Any]:
+        """Pull daily safety report from Cerberus audit logs."""
+        try:
+            from modules.harbinger.safety_report import DailySafetyReport
+
+            db_path = Path(
+                self._config.get("cerberus_audit_db", "data/cerberus_audit.db")
+            )
+            if not db_path.exists():
+                return self._empty_section("Safety Report", 2)
+
+            report = DailySafetyReport().generate(
+                date=datetime.now().date(), db_path=db_path
+            )
+            formatted = DailySafetyReport.format_for_harbinger(report)
+
+            summary = report.get("summary", {})
+            return {
+                "title": "Safety Report",
+                "priority": 1 if report.get("anomalies") else 2,
+                "source": "safety_report",
+                "content": {
+                    "summary": summary,
+                    "anomaly_count": len(report.get("anomalies", [])),
+                    "anomalies": report.get("anomalies", []),
+                    "calibration_alerts": report.get("calibration_alerts", []),
+                    "formatted_text": formatted,
+                },
+            }
+        except Exception as e:
+            logger.warning("Failed to pull safety report: %s", e)
+            return self._error_section("Safety Report", 2, str(e))
 
     def _empty_section(self, title: str, priority: int) -> dict[str, Any]:
         """Return a section placeholder when a module is not available."""

@@ -1,0 +1,528 @@
+21:19:17 | shadow.grimoire      | INFO    | Grimoire initialized. DB: data/memory/shadow_memory.db
+21:19:17 | shadow               | INFO    | Grimoire initialized: online
+21:19:17 | shadow               | INFO    | Reaper wired to Grimoire
+21:19:17 | shadow.cerberus      | INFO    | Cerberus initialized. Config hash: e59bab82470eef12
+21:19:17 | shadow               | INFO    | Module 'cerberus' initialized: online
+21:19:21 | shadow.reaper        | INFO    | Reaper initialized. Search backends ready.
+21:19:21 | shadow               | INFO    | Module 'reaper' initialized: online
+21:19:22 | shadow               | INFO    | Registered module: grimoire
+21:19:22 | shadow               | INFO    | Registered module: cerberus
+21:19:22 | shadow               | INFO    | Registered module: reaper
+21:20:01 | shadow.orchestrator  | INFO    | Step 1 — Receive: 'hello'
+21:20:09 | httpx                | INFO    | HTTP Request: POST http://localhost:11434/v1/chat/completions "HTTP/1.1 200 OK"
+21:20:09 | shadow.orchestrator  | WARNING | Router classification failed ('' is not a valid BrainType), using fallback
+21:20:09 | shadow.orchestrator  | INFO    | Step 2 — Route: type=conversation, module=direct, brain=fast_brain
+21:20:12 | shadow.orchestrator  | INFO    | Step 3 — Context loaded: 2 items
+21:20:12 | shadow.orchestrator  | INFO    | Step 4 — Plan: 1 steps, cerberus=True
+21:20:13 | httpx                | INFO    | HTTP Request: POST http://localhost:11434/v1/chat/completions "HTTP/1.1 200 OK"
+21:20:13 | shadow.orchestrator  | INFO    | Step 7 — Logged interaction #1 (12672.9ms)
+21:20:43 | shadow.orchestrator  | INFO    | Step 1 — Receive: 'what do you know about me'
+21:20:46 | httpx                | INFO    | HTTP Request: POST http://localhost:11434/v1/chat/completions "HTTP/1.1 200 OK"
+21:20:46 | shadow.orchestrator  | INFO    | Step 2 — Route: type=question, module=grimoire, brain=fast_brain
+21:20:48 | shadow.orchestrator  | INFO    | Step 3 — Context loaded: 3 items
+21:20:48 | shadow.orchestrator  | INFO    | Step 4 — Plan: 1 steps, cerberus=True
+21:20:50 | httpx                | INFO    | HTTP Request: POST http://localhost:11434/v1/chat/completions "HTTP/1.1 200 OK"
+21:20:50 | shadow.orchestrator  | INFO    | Step 7 — Logged interaction #2 (6672.1ms)
+21:27:43 | shadow.orchestrator  | INFO    | Step 1 — Receive: 'hello'
+21:27:48 | httpx                | INFO    | HTTP Request: POST http://localhost:11434/v1/chat/completions "HTTP/1.1 200 OK"
+21:27:48 | shadow.orchestrator  | WARNING | Router classification failed ('' is not a valid BrainType), using fallback
+21:27:48 | shadow.orchestrator  | INFO    | Step 2 — Route: type=conversation, module=direct, brain=fast_brain
+21:27:51 | shadow.orchestrator  | INFO    | Step 3 — Context loaded: 3 items
+21:27:51 | shadow.orchestrator  | INFO    | Step 4 — Plan: 1 steps, cerberus=True
+21:27:52 | httpx                | INFO    | HTTP Request: POST http://localhost:11434/v1/chat/completions "HTTP/1.1 200 OK"
+21:27:52 | shadow.orchestrator  | INFO    | Step 7 — Logged interaction #3 (9372.3ms)
+21:30:32 | shadow.orchestrator  | INFO    | Shadow shutting down...
+21:30:32 | shadow.grimoire      | INFO    | Grimoire shutting down. Memories persist on disk.
+21:30:32 | shadow.cerberus      | INFO    | Cerberus shutting down. Checks: 0, Denials: 0, False positives: 0
+21:30:32 | shadow.reaper        | INFO    | Reaper shutting down.
+21:30:32 | shadow.orchestrator  | INFO    | Shadow offline.
+21:33:06 | shadow.grimoire      | INFO    | Grimoire initialized. DB: data/memory/shadow_memory.db
+21:33:06 | shadow               | INFO    | Grimoire initialized: online
+21:33:06 | shadow               | INFO    | Reaper wired to Grimoire
+21:33:06 | shadow.cerberus      | INFO    | Cerberus initialized. Config hash: e59bab82470eef12
+21:33:06 | shadow               | INFO    | Module 'cerberus' initialized: online
+21:33:10 | shadow.reaper        | INFO    | Reaper initialized. Search backends ready.
+21:33:10 | shadow               | INFO    | Module 'reaper' initialized: online
+21:33:11 | shadow               | INFO    | Registered module: grimoire
+21:33:11 | shadow               | INFO    | Registered module: cerberus
+21:33:11 | shadow               | INFO    | Registered module: reaper
+21:33:11 | shadow.orchestrator  | INFO    | State loaded. Interaction count: 3
+21:33:34 | shadow.orchestrator  | INFO    | Step 1 — Receive: 'hello'
+21:33:40 | httpx                | INFO    | HTTP Request: POST http://localhost:11434/v1/chat/completions "HTTP/1.1 200 OK"
+21:33:40 | shadow.orchestrator  | WARNING | Router classification failed ('' is not a valid BrainType), using fallback
+21:33:40 | shadow.orchestrator  | INFO    | Step 2 — Route: type=conversation, module=direct, brain=fast_brain
+21:33:40 | shadow.orchestrator  | INFO    | Step 3 — Context loaded: 1 items
+21:33:40 | shadow.orchestrator  | INFO    | Step 4 — Plan: 1 steps, cerberus=True
+21:33:40 | httpx                | INFO    | HTTP Request: POST http://localhost:11434/v1/chat/completions "HTTP/1.1 200 OK"
+21:33:40 | shadow.orchestrator  | INFO    | Step 7 — Logged interaction #4 (5998.1ms)
+21:35:45 | shadow.orchestrator  | INFO    | Step 1 — Receive: 'what do you know about me'
+21:35:47 | httpx                | INFO    | HTTP Request: POST http://localhost:11434/v1/chat/completions "HTTP/1.1 200 OK"
+21:35:47 | shadow.orchestrator  | INFO    | Step 2 — Route: type=question, module=grimoire, brain=fast_brain
+21:35:50 | shadow.orchestrator  | INFO    | Step 3 — Context loaded: 3 items
+21:35:50 | shadow.orchestrator  | INFO    | Step 4 — Plan: 1 steps, cerberus=True
+21:35:51 | httpx                | INFO    | HTTP Request: POST http://localhost:11434/v1/chat/completions "HTTP/1.1 200 OK"
+21:35:51 | shadow.orchestrator  | INFO    | Step 7 — Logged interaction #5 (6229.2ms)
+21:36:08 | shadow.orchestrator  | INFO    | Step 1 — Receive: 'what do you know about me?'
+21:36:12 | httpx                | INFO    | HTTP Request: POST http://localhost:11434/v1/chat/completions "HTTP/1.1 200 OK"
+21:36:12 | shadow.orchestrator  | INFO    | Step 2 — Route: type=memory, module=grimoire, brain=fast_brain
+21:36:14 | shadow.orchestrator  | INFO    | Step 3 — Context loaded: 3 items
+21:36:14 | shadow.orchestrator  | INFO    | Step 4 — Plan: 1 steps, cerberus=True
+21:36:18 | httpx                | INFO    | HTTP Request: POST http://localhost:11434/v1/chat/completions "HTTP/1.1 200 OK"
+21:36:18 | shadow.orchestrator  | INFO    | Step 7 — Logged interaction #6 (9636.7ms)
+21:36:53 | shadow.orchestrator  | INFO    | Step 1 — Receive: 'I am Patrick your creator'
+21:36:56 | httpx                | INFO    | HTTP Request: POST http://localhost:11434/v1/chat/completions "HTTP/1.1 200 OK"
+21:36:56 | shadow.orchestrator  | INFO    | Step 2 — Route: type=conversation, module=direct, brain=fast_brain
+21:36:56 | shadow.orchestrator  | INFO    | Step 3 — Context loaded: 1 items
+21:36:56 | shadow.orchestrator  | INFO    | Step 4 — Plan: 1 steps, cerberus=True
+21:36:57 | httpx                | INFO    | HTTP Request: POST http://localhost:11434/v1/chat/completions "HTTP/1.1 200 OK"
+21:36:57 | shadow.orchestrator  | INFO    | Step 7 — Logged interaction #7 (3828.4ms)
+21:37:29 | shadow.orchestrator  | INFO    | Step 1 — Receive: 'search for RTX 5090 restock news'
+21:37:32 | httpx                | INFO    | HTTP Request: POST http://localhost:11434/v1/chat/completions "HTTP/1.1 200 OK"
+21:37:32 | shadow.orchestrator  | INFO    | Step 2 — Route: type=research, module=reaper, brain=fast_brain
+21:37:34 | shadow.orchestrator  | INFO    | Step 3 — Context loaded: 3 items
+21:37:34 | shadow.orchestrator  | INFO    | Step 4 — Plan: 2 steps, cerberus=True
+21:37:36 | primp                | INFO    | response: https://www.bing.com/search?q=search+for+RTX+5090+restock+news 200
+21:37:40 | httpx                | INFO    | HTTP Request: POST http://localhost:11434/v1/chat/completions "HTTP/1.1 200 OK"
+21:37:40 | shadow.orchestrator  | INFO    | Step 7 — Logged interaction #8 (11393.7ms)
+21:38:50 | shadow.orchestrator  | INFO    | Step 1 — Receive: 'remember that i prefer morning briefings at 5:00am'
+21:38:53 | httpx                | INFO    | HTTP Request: POST http://localhost:11434/v1/chat/completions "HTTP/1.1 200 OK"
+21:38:53 | shadow.orchestrator  | INFO    | Step 2 — Route: type=memory, module=grimoire, brain=fast_brain
+21:38:55 | shadow.orchestrator  | INFO    | Step 3 — Context loaded: 3 items
+21:38:55 | shadow.orchestrator  | INFO    | Step 4 — Plan: 1 steps, cerberus=True
+21:39:00 | httpx                | INFO    | HTTP Request: POST http://localhost:11434/v1/chat/completions "HTTP/1.1 200 OK"
+21:39:00 | shadow.orchestrator  | INFO    | Step 7 — Logged interaction #9 (9598.7ms)
+21:45:33 | shadow.orchestrator  | INFO    | Shadow shutting down...
+21:45:33 | shadow.grimoire      | INFO    | Grimoire shutting down. Memories persist on disk.
+21:45:33 | shadow.cerberus      | INFO    | Cerberus shutting down. Checks: 3, Denials: 0, False positives: 0
+21:45:33 | shadow.reaper        | INFO    | Reaper shutting down.
+21:45:33 | shadow.orchestrator  | INFO    | Shadow offline.
+22:01:14 | shadow.grimoire      | INFO    | Grimoire initialized. DB: data/memory/shadow_memory.db
+22:01:14 | shadow               | INFO    | Grimoire initialized: online
+22:01:14 | shadow               | INFO    | Reaper wired to Grimoire
+22:01:14 | shadow.cerberus      | INFO    | Cerberus initialized. Config hash: e59bab82470eef12
+22:01:14 | shadow               | INFO    | Module 'cerberus' initialized: online
+22:01:18 | shadow.reaper        | INFO    | Reaper initialized. Search backends ready.
+22:01:18 | shadow               | INFO    | Module 'reaper' initialized: online
+22:01:19 | shadow               | INFO    | Registered module: grimoire
+22:01:19 | shadow               | INFO    | Registered module: cerberus
+22:01:19 | shadow               | INFO    | Registered module: reaper
+22:01:19 | shadow.orchestrator  | INFO    | State loaded. Interaction count: 9
+22:01:23 | shadow.orchestrator  | INFO    | Step 1 — Receive: 'hello'
+22:01:23 | shadow.orchestrator  | INFO    | Fast-path classified: hello → conversation
+22:01:23 | shadow.orchestrator  | INFO    | Step 2 — Route: type=conversation, module=direct, brain=fast_brain
+22:01:23 | shadow.orchestrator  | INFO    | Step 3 — Context loaded: 1 items
+22:01:23 | shadow.orchestrator  | INFO    | Step 4 — Plan: 1 steps, cerberus=True
+22:01:28 | httpx                | INFO    | HTTP Request: POST http://localhost:11434/v1/chat/completions "HTTP/1.1 200 OK"
+22:01:28 | shadow.orchestrator  | INFO    | Step 7 — Logged interaction #10 (5160.4ms)
+22:01:58 | shadow.orchestrator  | INFO    | Step 1 — Receive: 'search for RTX 5090 restock'
+22:01:58 | shadow.orchestrator  | INFO    | Fast-path classified: search for RTX 5090 restock → research
+22:01:58 | shadow.orchestrator  | INFO    | Step 2 — Route: type=research, module=reaper, brain=fast_brain
+22:02:00 | shadow.orchestrator  | INFO    | Step 3 — Context loaded: 3 items
+22:02:00 | shadow.orchestrator  | INFO    | Step 4 — Plan: 2 steps, cerberus=True
+22:02:03 | primp                | INFO    | response: https://www.bing.com/search?q=RTX+5090+restock 200
+22:02:09 | httpx                | INFO    | HTTP Request: POST http://localhost:11434/v1/chat/completions "HTTP/1.1 200 OK"
+22:02:09 | shadow.orchestrator  | INFO    | Step 7 — Logged interaction #11 (11060.6ms)
+22:02:30 | shadow.orchestrator  | INFO    | Step 1 — Receive: 'explain quantum computing'
+22:02:33 | httpx                | INFO    | HTTP Request: POST http://localhost:11434/v1/chat/completions "HTTP/1.1 200 OK"
+22:02:33 | shadow.orchestrator  | INFO    | Step 2 — Route: type=research, module=reaper, brain=fast_brain
+22:02:35 | shadow.orchestrator  | INFO    | Step 3 — Context loaded: 3 items
+22:02:35 | shadow.orchestrator  | INFO    | Step 4 — Plan: 2 steps, cerberus=True
+22:02:38 | primp                | INFO    | response: https://www.bing.com/search?q=explain+quantum+computing 200
+22:02:47 | httpx                | INFO    | HTTP Request: POST http://localhost:11434/v1/chat/completions "HTTP/1.1 200 OK"
+22:02:47 | shadow.orchestrator  | INFO    | Step 7 — Logged interaction #12 (17106.4ms)
+22:04:55 | shadow.orchestrator  | INFO    | Shadow shutting down...
+22:04:55 | shadow.grimoire      | INFO    | Grimoire shutting down. Memories persist on disk.
+22:04:55 | shadow.cerberus      | INFO    | Cerberus shutting down. Checks: 2, Denials: 0, False positives: 0
+22:04:55 | shadow.reaper        | INFO    | Reaper shutting down.
+22:04:55 | shadow.orchestrator  | INFO    | Shadow offline.
+22:05:04 | shadow.grimoire      | INFO    | Grimoire initialized. DB: data/memory/shadow_memory.db
+22:05:04 | shadow               | INFO    | Grimoire initialized: online
+22:05:04 | shadow               | INFO    | Reaper wired to Grimoire
+22:05:04 | shadow.cerberus      | INFO    | Cerberus initialized. Config hash: e59bab82470eef12
+22:05:04 | shadow               | INFO    | Module 'cerberus' initialized: online
+22:05:08 | shadow.reaper        | INFO    | Reaper initialized. Search backends ready.
+22:05:08 | shadow               | INFO    | Module 'reaper' initialized: online
+22:05:09 | shadow               | INFO    | Registered module: grimoire
+22:05:09 | shadow               | INFO    | Registered module: cerberus
+22:05:09 | shadow               | INFO    | Registered module: reaper
+22:05:09 | shadow.orchestrator  | INFO    | State loaded. Interaction count: 12
+22:05:10 | shadow.orchestrator  | INFO    | Step 1 — Receive: 'hello'
+22:05:10 | shadow.orchestrator  | INFO    | Fast-path classified: hello → conversation
+22:05:10 | shadow.orchestrator  | INFO    | Step 2 — Route: type=conversation, module=direct, brain=fast_brain
+22:05:10 | shadow.orchestrator  | INFO    | Fast response — skipping Steps 3-6
+22:05:10 | shadow.orchestrator  | INFO    | Step 7 — Logged interaction #13 (0.7ms)
+22:05:59 | shadow.orchestrator  | INFO    | Step 1 — Receive: 'type C:\Shadow\tests\test_orchestrator.py'
+22:06:03 | httpx                | INFO    | HTTP Request: POST http://localhost:11434/v1/chat/completions "HTTP/1.1 200 OK"
+22:06:03 | shadow.orchestrator  | INFO    | Step 2 — Route: type=research, module=reaper, brain=fast_brain
+22:06:05 | shadow.orchestrator  | INFO    | Step 3 — Context loaded: 3 items
+22:06:05 | shadow.orchestrator  | INFO    | Step 4 — Plan: 2 steps, cerberus=True
+22:06:06 | primp                | INFO    | response: https://www.bing.com/search?q=type+C%3A%5CShadow%5Ctests%5Ctest_orchestrator.py 200
+22:06:12 | httpx                | INFO    | HTTP Request: POST http://localhost:11434/v1/chat/completions "HTTP/1.1 200 OK"
+22:06:12 | shadow.orchestrator  | INFO    | Step 7 — Logged interaction #14 (12823.9ms)
+22:06:28 | shadow.orchestrator  | INFO    | Shadow shutting down...
+22:06:28 | shadow.grimoire      | INFO    | Grimoire shutting down. Memories persist on disk.
+22:06:28 | shadow.cerberus      | INFO    | Cerberus shutting down. Checks: 1, Denials: 0, False positives: 0
+22:06:28 | shadow.reaper        | INFO    | Reaper shutting down.
+22:06:28 | shadow.orchestrator  | INFO    | Shadow offline.
+22:11:51 | shadow.grimoire      | INFO    | Grimoire initialized. DB: data/memory/shadow_memory.db
+22:11:51 | shadow               | INFO    | Grimoire initialized: online
+22:11:51 | shadow               | INFO    | Reaper wired to Grimoire
+22:11:51 | shadow.cerberus      | INFO    | Cerberus initialized. Config hash: e59bab82470eef12
+22:11:51 | shadow               | INFO    | Module 'cerberus' initialized: online
+22:11:55 | shadow.reaper        | INFO    | Reaper initialized. Search backends ready.
+22:11:55 | shadow               | INFO    | Module 'reaper' initialized: online
+22:11:55 | shadow               | INFO    | Registered module: grimoire
+22:11:55 | shadow               | INFO    | Registered module: cerberus
+22:11:55 | shadow               | INFO    | Registered module: reaper
+22:11:55 | shadow.orchestrator  | INFO    | State loaded. Interaction count: 14
+22:11:56 | shadow.orchestrator  | INFO    | Step 1 — Receive: 'what do you know about me?'
+22:11:56 | shadow.orchestrator  | INFO    | Fast-path classified: what do you know about me? → memory
+22:11:56 | shadow.orchestrator  | INFO    | Step 2 — Route: type=memory, module=grimoire, brain=fast_brain
+22:11:59 | shadow.orchestrator  | INFO    | Step 3 — Context loaded: 2 items
+22:11:59 | shadow.orchestrator  | INFO    | Step 4 — Plan: 1 steps, cerberus=True
+22:12:11 | httpx                | INFO    | HTTP Request: POST http://localhost:11434/v1/chat/completions "HTTP/1.1 200 OK"
+22:12:11 | shadow.orchestrator  | INFO    | Step 7 — Logged interaction #15 (14239.5ms)
+22:14:01 | shadow.orchestrator  | INFO    | Step 1 — Receive: 'remember that my dog's name is Rex'
+22:14:01 | shadow.orchestrator  | INFO    | Fast-path classified: remember that my dog's name is Rex → memory
+22:14:01 | shadow.orchestrator  | INFO    | Step 2 — Route: type=memory, module=grimoire, brain=fast_brain
+22:14:03 | shadow.orchestrator  | INFO    | Step 3 — Context loaded: 3 items
+22:14:03 | shadow.orchestrator  | INFO    | Step 4 — Plan: 1 steps, cerberus=True
+22:14:18 | httpx                | INFO    | HTTP Request: POST http://localhost:11434/v1/chat/completions "HTTP/1.1 200 OK"
+22:14:18 | shadow.orchestrator  | INFO    | Step 7 — Logged interaction #16 (17165.5ms)
+22:15:06 | shadow.orchestrator  | INFO    | Step 1 — Receive: 'look up latest Ollama updates'
+22:15:06 | shadow.orchestrator  | INFO    | Fast-path classified: look up latest Ollama updates → research
+22:15:06 | shadow.orchestrator  | INFO    | Step 2 — Route: type=research, module=reaper, brain=fast_brain
+22:15:10 | shadow.orchestrator  | INFO    | Step 3 — Context loaded: 3 items
+22:15:10 | shadow.orchestrator  | INFO    | Step 4 — Plan: 2 steps, cerberus=True
+22:15:13 | primp                | INFO    | response: https://www.bing.com/search?q=latest+Ollama+updates 200
+22:15:18 | httpx                | INFO    | HTTP Request: POST http://localhost:11434/v1/chat/completions "HTTP/1.1 200 OK"
+22:15:18 | shadow.orchestrator  | INFO    | Step 7 — Logged interaction #17 (11945.5ms)
+22:16:01 | shadow.orchestrator  | INFO    | Step 1 — Receive: 'who is the president'
+22:16:05 | httpx                | INFO    | HTTP Request: POST http://localhost:11434/v1/chat/completions "HTTP/1.1 200 OK"
+22:16:05 | shadow.orchestrator  | INFO    | Step 2 — Route: type=question, module=reaper, brain=fast_brain
+22:16:07 | shadow.orchestrator  | INFO    | Step 3 — Context loaded: 3 items
+22:16:07 | shadow.orchestrator  | INFO    | Step 4 — Plan: 1 steps, cerberus=True
+22:16:09 | httpx                | INFO    | HTTP Request: POST http://localhost:11434/v1/chat/completions "HTTP/1.1 200 OK"
+22:16:09 | shadow.orchestrator  | INFO    | Step 7 — Logged interaction #18 (7933.9ms)
+22:16:33 | shadow.orchestrator  | INFO    | Step 1 — Receive: 'help me write a Python script'
+22:16:36 | httpx                | INFO    | HTTP Request: POST http://localhost:11434/v1/chat/completions "HTTP/1.1 200 OK"
+22:16:36 | shadow.orchestrator  | INFO    | Step 2 — Route: type=creation, module=reaper, brain=smart_brain
+22:16:38 | shadow.orchestrator  | INFO    | Step 3 — Context loaded: 3 items
+22:16:38 | shadow.orchestrator  | INFO    | Step 4 — Plan: 1 steps, cerberus=True
+22:16:43 | httpx                | INFO    | HTTP Request: POST http://localhost:11434/v1/chat/completions "HTTP/1.1 200 OK"
+22:16:43 | shadow.orchestrator  | INFO    | Step 7 — Logged interaction #19 (10175.4ms)
+22:19:52 | shadow.orchestrator  | INFO    | Step 1 — Receive: 'The Creation of the World 1 In the beginning, God created the heavens and the earth. 2 The earth was'
+22:19:55 | httpx                | INFO    | HTTP Request: POST http://localhost:11434/v1/chat/completions "HTTP/1.1 200 OK"
+22:19:55 | shadow.orchestrator  | INFO    | Step 2 — Route: type=research, module=reaper, brain=fast_brain
+22:19:57 | shadow.orchestrator  | INFO    | Step 3 — Context loaded: 3 items
+22:19:57 | shadow.orchestrator  | INFO    | Step 4 — Plan: 2 steps, cerberus=True
+22:19:59 | primp                | INFO    | response: https://www.bing.com/search?q=The+Creation+of+the+World+1+In+the+beginning%2C+God+created+the+heavens+and+the+earth.+2+The+earth+was+without+form+and+void%2C+and+darkness+was+over+the+face+of+the+deep.+And+the+Spirit+of+God+was+hovering+over+the+face+of+the+waters.+3+And+God+said%2C+%E2%80%9CLet+there+be+light%2C%E2%80%9D+and+there+was+light.+4+And+God+saw+that+the+light+was+good.+And+God+separated+the+light+from+the+darkness.+5+God+called+the+light+Day%2C+and+the+darkness+he+called+Night.+And+there+was+evening+and+there+was+morning%2C+the+first+day.+6+And+God+said%2C+%E2%80%9CLet+there+be+an+expanse1+in+the+midst+of+the+waters%2C+and+let+it+separate+the+waters+from+the+waters.%E2%80%9D+7+And+God+made2+the+expanse+and+separated+the+waters+that+were+under+the+expanse+from+the+waters+that+were+above+the+expanse.+And+it+was+so.+8+And+God+called+the+expanse+Heaven.3+And+there+was+evening+and+there+was+morning%2C+the+second+day. 200
+22:20:09 | httpx                | INFO    | HTTP Request: POST http://localhost:11434/v1/chat/completions "HTTP/1.1 200 OK"
+22:20:09 | shadow.orchestrator  | INFO    | Step 7 — Logged interaction #20 (16492.9ms)
+22:21:12 | shadow.orchestrator  | INFO    | Step 1 — Receive: 'It's actually from the ESV version of the Bible. Let me tell you something else, I am your creator P'
+22:21:15 | httpx                | INFO    | HTTP Request: POST http://localhost:11434/v1/chat/completions "HTTP/1.1 200 OK"
+22:21:15 | shadow.orchestrator  | INFO    | Step 2 — Route: type=conversation, module=direct, brain=fast_brain
+22:21:15 | shadow.orchestrator  | INFO    | Step 3 — Context loaded: 1 items
+22:21:15 | shadow.orchestrator  | INFO    | Step 4 — Plan: 1 steps, cerberus=True
+22:21:19 | httpx                | INFO    | HTTP Request: POST http://localhost:11434/v1/chat/completions "HTTP/1.1 200 OK"
+22:21:19 | shadow.orchestrator  | INFO    | Step 7 — Logged interaction #21 (6746.7ms)
+22:24:07 | shadow.orchestrator  | INFO    | Shadow shutting down...
+22:24:07 | shadow.grimoire      | INFO    | Grimoire shutting down. Memories persist on disk.
+22:24:07 | shadow.cerberus      | INFO    | Cerberus shutting down. Checks: 4, Denials: 0, False positives: 0
+22:24:07 | shadow.reaper        | INFO    | Reaper shutting down.
+22:24:07 | shadow.orchestrator  | INFO    | Shadow offline.
+22:26:58 | shadow.grimoire      | INFO    | Grimoire initialized. DB: data/memory/shadow_memory.db
+22:26:58 | shadow               | INFO    | Grimoire initialized: online
+22:26:58 | shadow               | INFO    | Reaper wired to Grimoire
+22:26:58 | shadow.cerberus      | INFO    | Cerberus initialized. Config hash: e59bab82470eef12
+22:26:58 | shadow               | INFO    | Module 'cerberus' initialized: online
+22:27:02 | shadow.reaper        | INFO    | Reaper initialized. Search backends ready.
+22:27:02 | shadow               | INFO    | Module 'reaper' initialized: online
+22:27:02 | shadow               | INFO    | Registered module: grimoire
+22:27:02 | shadow               | INFO    | Registered module: cerberus
+22:27:02 | shadow               | INFO    | Registered module: reaper
+22:27:02 | shadow.orchestrator  | INFO    | State loaded. Interaction count: 21
+22:27:10 | shadow.orchestrator  | INFO    | Step 1 — Receive: 'who is the president'
+22:27:16 | httpx                | INFO    | HTTP Request: POST http://localhost:11434/v1/chat/completions "HTTP/1.1 200 OK"
+22:27:16 | shadow.orchestrator  | INFO    | Step 2 — Route: type=question, module=reaper, brain=fast_brain
+22:27:19 | shadow.orchestrator  | INFO    | Step 3 — Context loaded: 2 items
+22:27:19 | shadow.orchestrator  | INFO    | Step 4 — Plan: 2 steps, cerberus=True
+22:27:21 | primp                | INFO    | response: https://en.wikipedia.org/w/api.php?action=opensearch&profile=fuzzy&limit=1&search=the%20president 200
+22:27:21 | primp                | INFO    | response: https://grokipedia.com/api/typeahead?query=the+president&limit=1 200
+22:27:21 | primp                | INFO    | response: https://en.wikipedia.org/w/api.php?action=query&format=json&prop=extracts&titles=The%20president&explaintext=0&exintro=0&redirects=1 200
+22:27:22 | primp                | INFO    | response: https://html.duckduckgo.com/html/ 200
+22:27:29 | httpx                | INFO    | HTTP Request: POST http://localhost:11434/v1/chat/completions "HTTP/1.1 200 OK"
+22:27:29 | shadow.orchestrator  | INFO    | Step 7 — Logged interaction #22 (18635.0ms)
+22:27:50 | shadow.orchestrator  | INFO    | Step 1 — Receive: 'what do you know about me?'
+22:27:50 | shadow.orchestrator  | INFO    | Fast-path classified: what do you know about me? → memory
+22:27:50 | shadow.orchestrator  | INFO    | Step 2 — Route: type=memory, module=grimoire, brain=fast_brain
+22:27:52 | shadow.orchestrator  | INFO    | Step 3 — Context loaded: 3 items
+22:27:52 | shadow.orchestrator  | INFO    | Step 4 — Plan: 1 steps, cerberus=True
+22:28:00 | httpx                | INFO    | HTTP Request: POST http://localhost:11434/v1/chat/completions "HTTP/1.1 200 OK"
+22:28:00 | shadow.orchestrator  | INFO    | Step 7 — Logged interaction #23 (10009.0ms)
+22:31:43 | shadow.orchestrator  | INFO    | Shadow shutting down...
+22:31:43 | shadow.grimoire      | INFO    | Grimoire shutting down. Memories persist on disk.
+22:31:43 | shadow.cerberus      | INFO    | Cerberus shutting down. Checks: 2, Denials: 0, False positives: 0
+22:31:43 | shadow.reaper        | INFO    | Reaper shutting down.
+22:31:43 | shadow.orchestrator  | INFO    | Shadow offline.
+22:32:14 | shadow.grimoire      | INFO    | Grimoire initialized. DB: data/memory/shadow_memory.db
+22:32:14 | shadow               | INFO    | Grimoire initialized: online
+22:32:14 | shadow               | INFO    | Reaper wired to Grimoire
+22:32:14 | shadow.cerberus      | INFO    | Cerberus initialized. Config hash: e59bab82470eef12
+22:32:14 | shadow               | INFO    | Module 'cerberus' initialized: online
+22:32:18 | shadow.reaper        | INFO    | Reaper initialized. Search backends ready.
+22:32:18 | shadow               | INFO    | Module 'reaper' initialized: online
+22:32:18 | shadow               | INFO    | Registered module: grimoire
+22:32:18 | shadow               | INFO    | Registered module: cerberus
+22:32:18 | shadow               | INFO    | Registered module: reaper
+22:32:18 | shadow.orchestrator  | INFO    | State loaded. Interaction count: 23
+22:32:23 | shadow.orchestrator  | INFO    | Step 1 — Receive: 'hello'
+22:32:23 | shadow.orchestrator  | INFO    | Fast-path classified: hello → conversation
+22:32:23 | shadow.orchestrator  | INFO    | Step 2 — Route: type=conversation, module=direct, brain=fast_brain
+22:32:23 | shadow.orchestrator  | INFO    | Fast response — skipping Steps 3-6
+22:32:23 | shadow.orchestrator  | INFO    | Step 7 — Logged interaction #24 (0.9ms)
+22:32:32 | shadow.orchestrator  | INFO    | Step 1 — Receive: 'what do you know about me'
+22:32:32 | shadow.orchestrator  | INFO    | Fast-path classified: what do you know about me → memory
+22:32:32 | shadow.orchestrator  | INFO    | Step 2 — Route: type=memory, module=grimoire, brain=fast_brain
+22:32:34 | shadow.orchestrator  | INFO    | Step 3 — Context loaded: 3 items
+22:32:34 | shadow.orchestrator  | INFO    | Step 4 — Plan: 1 steps, cerberus=True
+22:32:41 | httpx                | INFO    | HTTP Request: POST http://localhost:11434/v1/chat/completions "HTTP/1.1 200 OK"
+22:32:41 | shadow.orchestrator  | INFO    | Step 7 — Logged interaction #25 (8303.5ms)
+22:34:03 | shadow.orchestrator  | INFO    | Step 1 — Receive: 'who am i'
+22:34:06 | httpx                | INFO    | HTTP Request: POST http://localhost:11434/v1/chat/completions "HTTP/1.1 200 OK"
+22:34:06 | shadow.orchestrator  | INFO    | Step 2 — Route: type=question, module=reaper, brain=fast_brain
+22:34:08 | shadow.orchestrator  | INFO    | Step 3 — Context loaded: 3 items
+22:34:08 | shadow.orchestrator  | INFO    | Step 4 — Plan: 2 steps, cerberus=True
+22:34:10 | primp                | INFO    | response: https://en.wikipedia.org/w/api.php?action=opensearch&profile=fuzzy&limit=1&search=who%20am%20i 200
+22:34:10 | primp                | INFO    | response: https://grokipedia.com/api/typeahead?query=who+am+i&limit=1 200
+22:34:10 | primp                | INFO    | response: https://en.wikipedia.org/w/api.php?action=query&format=json&prop=extracts&titles=Who%20Am%20I%3F%20%28Pale%20Waves%20album%29&explaintext=0&exintro=0&redirects=1 200
+22:34:11 | primp                | INFO    | response: https://html.duckduckgo.com/html/ 200
+22:34:12 | httpx                | INFO    | HTTP Request: POST http://localhost:11434/v1/chat/completions "HTTP/1.1 200 OK"
+22:34:12 | shadow.orchestrator  | INFO    | Step 7 — Logged interaction #26 (9466.7ms)
+22:35:11 | shadow.orchestrator  | INFO    | Step 1 — Receive: 'what's your purpose?'
+22:35:14 | httpx                | INFO    | HTTP Request: POST http://localhost:11434/v1/chat/completions "HTTP/1.1 200 OK"
+22:35:14 | shadow.orchestrator  | INFO    | Step 2 — Route: type=question, module=reaper, brain=fast_brain
+22:35:16 | shadow.orchestrator  | INFO    | Step 3 — Context loaded: 3 items
+22:35:16 | shadow.orchestrator  | INFO    | Step 4 — Plan: 2 steps, cerberus=True
+22:35:19 | primp                | INFO    | response: https://en.wikipedia.org/w/api.php?action=opensearch&profile=fuzzy&limit=1&search=what%27s%20your%20purpose%3F 200
+22:35:19 | primp                | INFO    | response: https://grokipedia.com/api/typeahead?query=what%27s+your+purpose%3F&limit=1 200
+22:35:20 | primp                | INFO    | response: https://search.yahoo.com/search;_ylt=OIjZTdKjIroQbUwA_AomDIEB;_ylu=904LdHTol9y3hOPG4ofAwO6QdAOML_4TAWhU_x64USL5E2M?p=what%27s+your+purpose%3F 200
+22:35:21 | primp                | INFO    | response: https://search.brave.com/search?q=what%27s+your+purpose%3F&source=web 200
+22:35:36 | httpx                | INFO    | HTTP Request: POST http://localhost:11434/v1/chat/completions "HTTP/1.1 200 OK"
+22:35:36 | shadow.orchestrator  | INFO    | Step 7 — Logged interaction #27 (24555.6ms)
+22:39:00 | shadow.orchestrator  | INFO    | Shadow shutting down...
+22:39:00 | shadow.grimoire      | INFO    | Grimoire shutting down. Memories persist on disk.
+22:39:00 | shadow.cerberus      | INFO    | Cerberus shutting down. Checks: 3, Denials: 0, False positives: 0
+22:39:00 | shadow.reaper        | INFO    | Reaper shutting down.
+22:39:00 | shadow.orchestrator  | INFO    | Shadow offline.
+22:40:24 | shadow.grimoire      | INFO    | Grimoire initialized. DB: data/memory/shadow_memory.db
+22:40:24 | shadow               | INFO    | Grimoire initialized: online
+22:40:24 | shadow               | INFO    | Reaper wired to Grimoire
+22:40:24 | shadow.cerberus      | INFO    | Cerberus initialized. Config hash: e59bab82470eef12
+22:40:24 | shadow               | INFO    | Module 'cerberus' initialized: online
+22:40:28 | shadow.reaper        | INFO    | Reaper initialized. Search backends ready.
+22:40:28 | shadow               | INFO    | Module 'reaper' initialized: online
+22:40:29 | shadow               | INFO    | Registered module: grimoire
+22:40:29 | shadow               | INFO    | Registered module: cerberus
+22:40:29 | shadow               | INFO    | Registered module: reaper
+22:40:29 | shadow.orchestrator  | INFO    | State loaded. Interaction count: 27
+22:40:33 | shadow.orchestrator  | INFO    | Step 1 — Receive: 'hello'
+22:40:33 | shadow.orchestrator  | INFO    | Fast-path classified: hello → conversation
+22:40:33 | shadow.orchestrator  | INFO    | Step 2 — Route: type=conversation, module=direct, brain=fast_brain
+22:40:33 | shadow.orchestrator  | INFO    | Fast response — skipping Steps 3-6
+22:40:33 | shadow.orchestrator  | INFO    | Step 7 — Logged interaction #28 (0.7ms)
+22:40:39 | shadow.orchestrator  | INFO    | Step 1 — Receive: 'who am I?'
+22:40:39 | shadow.orchestrator  | INFO    | Fast-path classified: who am I? → memory
+22:40:39 | shadow.orchestrator  | INFO    | Step 2 — Route: type=memory, module=grimoire, brain=fast_brain
+22:40:41 | shadow.orchestrator  | INFO    | Step 3 — Context loaded: 3 items
+22:40:41 | shadow.orchestrator  | INFO    | Step 4 — Plan: 1 steps, cerberus=True
+22:40:49 | httpx                | INFO    | HTTP Request: POST http://localhost:11434/v1/chat/completions "HTTP/1.1 200 OK"
+22:40:49 | shadow.orchestrator  | INFO    | Step 7 — Logged interaction #29 (9925.3ms)
+22:41:06 | shadow.orchestrator  | INFO    | Step 1 — Receive: 'what's your purpose?'
+22:41:06 | shadow.orchestrator  | INFO    | Fast-path classified: what's your purpose? → conversation
+22:41:06 | shadow.orchestrator  | INFO    | Step 2 — Route: type=conversation, module=direct, brain=fast_brain
+22:41:06 | shadow.orchestrator  | INFO    | Step 3 — Context loaded: 1 items
+22:41:06 | shadow.orchestrator  | INFO    | Step 4 — Plan: 1 steps, cerberus=True
+22:41:09 | httpx                | INFO    | HTTP Request: POST http://localhost:11434/v1/chat/completions "HTTP/1.1 200 OK"
+22:41:09 | shadow.orchestrator  | INFO    | Step 7 — Logged interaction #30 (2858.1ms)
+22:42:46 | shadow.orchestrator  | INFO    | Step 1 — Receive: 'what do you know about me?'
+22:42:46 | shadow.orchestrator  | INFO    | Fast-path classified: what do you know about me? → memory
+22:42:46 | shadow.orchestrator  | INFO    | Step 2 — Route: type=memory, module=grimoire, brain=fast_brain
+22:42:48 | shadow.orchestrator  | INFO    | Step 3 — Context loaded: 3 items
+22:42:48 | shadow.orchestrator  | INFO    | Step 4 — Plan: 1 steps, cerberus=True
+22:42:54 | httpx                | INFO    | HTTP Request: POST http://localhost:11434/v1/chat/completions "HTTP/1.1 200 OK"
+22:42:54 | shadow.orchestrator  | INFO    | Step 7 — Logged interaction #31 (7767.3ms)
+22:44:05 | shadow.orchestrator  | INFO    | Shadow shutting down...
+22:44:05 | shadow.grimoire      | INFO    | Grimoire shutting down. Memories persist on disk.
+22:44:05 | shadow.cerberus      | INFO    | Cerberus shutting down. Checks: 2, Denials: 0, False positives: 0
+22:44:05 | shadow.reaper        | INFO    | Reaper shutting down.
+22:44:05 | shadow.orchestrator  | INFO    | Shadow offline.
+22:51:46 | shadow.grimoire      | INFO    | Grimoire initialized. DB: data/memory/shadow_memory.db
+22:51:46 | shadow               | INFO    | Grimoire initialized: online
+22:51:46 | shadow               | INFO    | Reaper wired to Grimoire
+22:51:46 | shadow.cerberus      | INFO    | Cerberus initialized. Config hash: e59bab82470eef12
+22:51:46 | shadow               | INFO    | Module 'cerberus' initialized: online
+22:51:50 | shadow.reaper        | INFO    | Reaper initialized. Search backends ready.
+22:51:50 | shadow               | INFO    | Module 'reaper' initialized: online
+22:51:50 | shadow               | INFO    | Registered module: grimoire
+22:51:50 | shadow               | INFO    | Registered module: cerberus
+22:51:50 | shadow               | INFO    | Registered module: reaper
+22:51:50 | shadow.orchestrator  | INFO    | State loaded. Interaction count: 31
+22:51:52 | shadow.orchestrator  | INFO    | Step 1 — Receive: 'hello'
+22:51:52 | shadow.orchestrator  | INFO    | Fast-path classified: hello → conversation
+22:51:52 | shadow.orchestrator  | INFO    | Step 2 — Route: type=conversation, module=direct, brain=fast_brain
+22:51:52 | shadow.orchestrator  | INFO    | Fast response — skipping Steps 3-6
+22:51:52 | shadow.orchestrator  | INFO    | Step 7 — Logged interaction #32 (0.7ms)
+22:51:58 | shadow.orchestrator  | INFO    | Step 1 — Receive: 'who am I?'
+22:51:58 | shadow.orchestrator  | INFO    | Fast-path classified: who am I? → memory
+22:51:58 | shadow.orchestrator  | INFO    | Step 2 — Route: type=memory, module=grimoire, brain=fast_brain
+22:52:00 | shadow.orchestrator  | INFO    | Step 3 — Context loaded: 3 items
+22:52:00 | shadow.orchestrator  | INFO    | Step 4 — Plan: 1 steps, cerberus=True
+22:52:08 | httpx                | INFO    | HTTP Request: POST http://localhost:11434/v1/chat/completions "HTTP/1.1 200 OK"
+22:52:08 | shadow.orchestrator  | INFO    | Step 7 — Logged interaction #33 (10061.9ms)
+22:52:28 | shadow.orchestrator  | INFO    | Step 1 — Receive: 'what's your purpose?'
+22:52:28 | shadow.orchestrator  | INFO    | Fast-path classified: what's your purpose? → conversation
+22:52:28 | shadow.orchestrator  | INFO    | Step 2 — Route: type=conversation, module=direct, brain=fast_brain
+22:52:28 | shadow.orchestrator  | INFO    | Fast response — skipping Steps 3-6
+22:52:28 | shadow.orchestrator  | INFO    | Step 7 — Logged interaction #34 (0.9ms)
+22:53:39 | shadow.orchestrator  | INFO    | Step 1 — Receive: 'what do you know about me'
+22:53:39 | shadow.orchestrator  | INFO    | Fast-path classified: what do you know about me → memory
+22:53:39 | shadow.orchestrator  | INFO    | Step 2 — Route: type=memory, module=grimoire, brain=fast_brain
+22:53:41 | shadow.orchestrator  | INFO    | Step 3 — Context loaded: 3 items
+22:53:41 | shadow.orchestrator  | INFO    | Step 4 — Plan: 1 steps, cerberus=True
+22:53:47 | httpx                | INFO    | HTTP Request: POST http://localhost:11434/v1/chat/completions "HTTP/1.1 200 OK"
+22:53:47 | shadow.orchestrator  | INFO    | Step 7 — Logged interaction #35 (7952.6ms)
+22:54:25 | shadow.orchestrator  | INFO    | Step 1 — Receive: 'what's my dog's name?'
+22:54:28 | httpx                | INFO    | HTTP Request: POST http://localhost:11434/v1/chat/completions "HTTP/1.1 200 OK"
+22:54:28 | shadow.orchestrator  | INFO    | Step 2 — Route: type=memory, module=grimoire, brain=fast_brain
+22:54:30 | shadow.orchestrator  | INFO    | Step 3 — Context loaded: 3 items
+22:54:30 | shadow.orchestrator  | INFO    | Step 4 — Plan: 1 steps, cerberus=True
+22:54:33 | httpx                | INFO    | HTTP Request: POST http://localhost:11434/v1/chat/completions "HTTP/1.1 200 OK"
+22:54:33 | shadow.orchestrator  | INFO    | Step 7 — Logged interaction #36 (8319.2ms)
+22:55:45 | shadow.orchestrator  | INFO    | Shadow shutting down...
+22:55:45 | shadow.grimoire      | INFO    | Grimoire shutting down. Memories persist on disk.
+22:55:45 | shadow.cerberus      | INFO    | Cerberus shutting down. Checks: 3, Denials: 0, False positives: 0
+22:55:45 | shadow.reaper        | INFO    | Reaper shutting down.
+22:55:45 | shadow.orchestrator  | INFO    | Shadow offline.
+22:57:04 | shadow.grimoire      | INFO    | Grimoire initialized. DB: data/memory/shadow_memory.db
+22:57:04 | shadow               | INFO    | Grimoire initialized: online
+22:57:04 | shadow               | INFO    | Reaper wired to Grimoire
+22:57:04 | shadow.cerberus      | INFO    | Cerberus initialized. Config hash: e59bab82470eef12
+22:57:04 | shadow               | INFO    | Module 'cerberus' initialized: online
+22:57:08 | shadow.reaper        | INFO    | Reaper initialized. Search backends ready.
+22:57:08 | shadow               | INFO    | Module 'reaper' initialized: online
+22:57:08 | shadow               | INFO    | Registered module: grimoire
+22:57:08 | shadow               | INFO    | Registered module: cerberus
+22:57:08 | shadow               | INFO    | Registered module: reaper
+22:57:08 | shadow.orchestrator  | INFO    | State loaded. Interaction count: 36
+22:57:11 | shadow.orchestrator  | INFO    | Step 1 — Receive: 'hello'
+22:57:11 | shadow.orchestrator  | INFO    | Fast-path classified: hello → conversation
+22:57:11 | shadow.orchestrator  | INFO    | Step 2 — Route: type=conversation, module=direct, brain=fast_brain
+22:57:11 | shadow.orchestrator  | INFO    | Fast response — skipping Steps 3-6
+22:57:11 | shadow.orchestrator  | INFO    | Step 7 — Logged interaction #37 (0.8ms)
+22:57:17 | shadow.orchestrator  | INFO    | Step 1 — Receive: 'who am i?'
+22:57:17 | shadow.orchestrator  | INFO    | Fast-path classified: who am i? → memory
+22:57:17 | shadow.orchestrator  | INFO    | Step 2 — Route: type=memory, module=grimoire, brain=fast_brain
+22:57:19 | shadow.orchestrator  | INFO    | Step 3 — Context loaded: 3 items
+22:57:19 | shadow.orchestrator  | INFO    | Step 4 — Plan: 1 steps, cerberus=True
+22:57:24 | httpx                | INFO    | HTTP Request: POST http://localhost:11434/v1/chat/completions "HTTP/1.1 200 OK"
+22:57:24 | shadow.orchestrator  | INFO    | Step 7 — Logged interaction #38 (7428.0ms)
+22:57:29 | shadow.orchestrator  | INFO    | Step 1 — Receive: 'what's your purpose?'
+22:57:29 | shadow.orchestrator  | INFO    | Fast-path classified: what's your purpose? → conversation
+22:57:29 | shadow.orchestrator  | INFO    | Step 2 — Route: type=conversation, module=direct, brain=fast_brain
+22:57:29 | shadow.orchestrator  | INFO    | Fast response — skipping Steps 3-6
+22:57:29 | shadow.orchestrator  | INFO    | Step 7 — Logged interaction #39 (0.8ms)
+22:57:36 | shadow.orchestrator  | INFO    | Step 1 — Receive: 'what do you know about me?'
+22:57:36 | shadow.orchestrator  | INFO    | Fast-path classified: what do you know about me? → memory
+22:57:36 | shadow.orchestrator  | INFO    | Step 2 — Route: type=memory, module=grimoire, brain=fast_brain
+22:57:39 | shadow.orchestrator  | INFO    | Step 3 — Context loaded: 3 items
+22:57:39 | shadow.orchestrator  | INFO    | Step 4 — Plan: 1 steps, cerberus=True
+22:58:44 | httpx                | INFO    | HTTP Request: POST http://localhost:11434/v1/chat/completions "HTTP/1.1 200 OK"
+22:58:44 | shadow.orchestrator  | INFO    | Step 7 — Logged interaction #40 (67638.7ms)
+22:58:46 | shadow.orchestrator  | INFO    | Step 1 — Receive: 'what's my dog's name?'
+22:58:47 | httpx                | INFO    | HTTP Request: POST http://localhost:11434/v1/chat/completions "HTTP/1.1 200 OK"
+22:58:47 | shadow.orchestrator  | INFO    | Step 2 — Route: type=memory, module=grimoire, brain=fast_brain
+22:58:49 | shadow.orchestrator  | INFO    | Step 3 — Context loaded: 3 items
+22:58:49 | shadow.orchestrator  | INFO    | Step 4 — Plan: 1 steps, cerberus=True
+22:58:53 | httpx                | INFO    | HTTP Request: POST http://localhost:11434/v1/chat/completions "HTTP/1.1 200 OK"
+22:58:53 | shadow.orchestrator  | INFO    | Step 7 — Logged interaction #41 (6394.3ms)
+23:01:10 | shadow.orchestrator  | INFO    | Shadow shutting down...
+23:01:10 | shadow.grimoire      | INFO    | Grimoire shutting down. Memories persist on disk.
+23:01:10 | shadow.cerberus      | INFO    | Cerberus shutting down. Checks: 3, Denials: 0, False positives: 0
+23:01:10 | shadow.reaper        | INFO    | Reaper shutting down.
+23:01:10 | shadow.orchestrator  | INFO    | Shadow offline.
+23:01:43 | shadow.grimoire      | INFO    | Grimoire initialized. DB: data/memory/shadow_memory.db
+23:01:43 | shadow               | INFO    | Grimoire initialized: online
+23:01:43 | shadow               | INFO    | Reaper wired to Grimoire
+23:01:43 | shadow.cerberus      | INFO    | Cerberus initialized. Config hash: e59bab82470eef12
+23:01:43 | shadow               | INFO    | Module 'cerberus' initialized: online
+23:01:47 | shadow.reaper        | INFO    | Reaper initialized. Search backends ready.
+23:01:47 | shadow               | INFO    | Module 'reaper' initialized: online
+23:01:47 | shadow               | INFO    | Registered module: grimoire
+23:01:47 | shadow               | INFO    | Registered module: cerberus
+23:01:47 | shadow               | INFO    | Registered module: reaper
+23:01:47 | shadow.orchestrator  | INFO    | State loaded. Interaction count: 41
+23:01:54 | shadow.orchestrator  | INFO    | Step 1 — Receive: 'what do you know about me?'
+23:01:54 | shadow.orchestrator  | INFO    | Fast-path classified: what do you know about me? → memory
+23:01:54 | shadow.orchestrator  | INFO    | Step 2 — Route: type=memory, module=grimoire, brain=fast_brain
+23:01:56 | shadow.orchestrator  | INFO    | Step 3 — Context loaded: 2 items
+23:01:56 | shadow.orchestrator  | INFO    | Step 4 — Plan: 1 steps, cerberus=True
+23:02:02 | httpx                | INFO    | HTTP Request: POST http://localhost:11434/v1/chat/completions "HTTP/1.1 200 OK"
+23:02:02 | shadow.orchestrator  | INFO    | Step 7 — Logged interaction #42 (8538.7ms)
+23:02:49 | shadow.orchestrator  | INFO    | Step 1 — Receive: 'tell me something interesting'
+23:02:52 | httpx                | INFO    | HTTP Request: POST http://localhost:11434/v1/chat/completions "HTTP/1.1 200 OK"
+23:02:52 | shadow.orchestrator  | INFO    | Step 2 — Route: type=question, module=reaper, brain=fast_brain
+23:02:54 | shadow.orchestrator  | INFO    | Step 3 — Context loaded: 3 items
+23:02:54 | shadow.orchestrator  | INFO    | Step 4 — Plan: 2 steps, cerberus=True
+23:02:56 | primp                | INFO    | response: https://grokipedia.com/api/typeahead?query=something+interesting&limit=1 200
+23:02:56 | primp                | INFO    | response: https://en.wikipedia.org/w/api.php?action=opensearch&profile=fuzzy&limit=1&search=something%20interesting 200
+23:02:56 | ddgs.ddgs            | INFO    | Error in engine yahoo: DDGSException("RequestError: RequestError('error sending request for url (https://search.yahoo.com/search;_ylt=xOmP4r0VyFV18JP7c0acvGcW;_ylu=5gHYzVIwYZ6cKxiwPnbqq3zK2bxw5ccY7MY3ajVQ_Hlo8z0?p=something+interesting)', 'https://search.yahoo.com/search;_ylt=xOmP4r0VyFV18JP7c0acvGcW;_ylu=5gHYzVIwYZ6cKxiwPnbqq3zK2bxw5ccY7MY3ajVQ_Hlo8z0?p=something+interesting')")
+23:02:56 | primp                | INFO    | response: https://www.google.com/search?q=something+interesting&filter=1&start=0&hl=en-US&lr=lang_en&cr=countryUS 200
+23:03:00 | httpx                | INFO    | HTTP Request: POST http://localhost:11434/v1/chat/completions "HTTP/1.1 200 OK"
+23:03:00 | shadow.orchestrator  | INFO    | Step 7 — Logged interaction #43 (11068.6ms)
+23:04:30 | shadow.orchestrator  | INFO    | Shadow shutting down...
+23:04:30 | shadow.grimoire      | INFO    | Grimoire shutting down. Memories persist on disk.
+23:04:30 | shadow.cerberus      | INFO    | Cerberus shutting down. Checks: 2, Denials: 0, False positives: 0
+23:04:30 | shadow.reaper        | INFO    | Reaper shutting down.
+23:04:30 | shadow.orchestrator  | INFO    | Shadow offline.
+23:04:42 | shadow.grimoire      | INFO    | Grimoire initialized. DB: data/memory/shadow_memory.db
+23:04:42 | shadow               | INFO    | Grimoire initialized: online
+23:04:42 | shadow               | INFO    | Reaper wired to Grimoire
+23:04:42 | shadow.cerberus      | INFO    | Cerberus initialized. Config hash: e59bab82470eef12
+23:04:42 | shadow               | INFO    | Module 'cerberus' initialized: online
+23:04:46 | shadow.reaper        | INFO    | Reaper initialized. Search backends ready.
+23:04:46 | shadow               | INFO    | Module 'reaper' initialized: online
+23:04:46 | shadow               | INFO    | Registered module: grimoire
+23:04:46 | shadow               | INFO    | Registered module: cerberus
+23:04:46 | shadow               | INFO    | Registered module: reaper
+23:04:46 | shadow.orchestrator  | INFO    | State loaded. Interaction count: 43
+23:04:54 | shadow.orchestrator  | INFO    | Step 1 — Receive: 'what do you know about me?'
+23:04:54 | shadow.orchestrator  | INFO    | Fast-path classified: what do you know about me? → memory
+23:04:54 | shadow.orchestrator  | INFO    | Step 2 — Route: type=memory, module=grimoire, brain=fast_brain
+23:04:56 | shadow.orchestrator  | INFO    | Step 3 — Context loaded: 2 items
+23:04:56 | shadow.orchestrator  | INFO    | Step 4 — Plan: 1 steps, cerberus=True
+23:05:04 | httpx                | INFO    | HTTP Request: POST http://localhost:11434/v1/chat/completions "HTTP/1.1 200 OK"
+23:05:04 | shadow.orchestrator  | INFO    | Step 7 — Logged interaction #44 (9907.3ms)
+23:05:22 | shadow.orchestrator  | INFO    | Step 1 — Receive: 'who am I?'
+23:05:22 | shadow.orchestrator  | INFO    | Fast-path classified: who am I? → memory
+23:05:22 | shadow.orchestrator  | INFO    | Step 2 — Route: type=memory, module=grimoire, brain=fast_brain
+23:05:24 | shadow.orchestrator  | INFO    | Step 3 — Context loaded: 3 items
+23:05:24 | shadow.orchestrator  | INFO    | Step 4 — Plan: 1 steps, cerberus=True
+23:05:31 | httpx                | INFO    | HTTP Request: POST http://localhost:11434/v1/chat/completions "HTTP/1.1 200 OK"
+23:05:31 | shadow.orchestrator  | INFO    | Step 7 — Logged interaction #45 (9276.4ms)
+23:05:57 | shadow.orchestrator  | INFO    | Step 1 — Receive: 'tell me about my business'
+23:06:00 | httpx                | INFO    | HTTP Request: POST http://localhost:11434/v1/chat/completions "HTTP/1.1 200 OK"
+23:06:00 | shadow.orchestrator  | INFO    | Step 2 — Route: type=research, module=reaper, brain=fast_brain
+23:06:02 | shadow.orchestrator  | INFO    | Step 3 — Context loaded: 3 items
+23:06:02 | shadow.orchestrator  | INFO    | Step 4 — Plan: 2 steps, cerberus=True
+23:06:05 | primp                | INFO    | response: https://grokipedia.com/api/typeahead?query=my+business&limit=1 200
+23:06:05 | primp                | INFO    | response: https://en.wikipedia.org/w/api.php?action=opensearch&profile=fuzzy&limit=1&search=my%20business 200
+23:06:05 | primp                | INFO    | response: https://en.wikipedia.org/w/api.php?action=query&format=json&prop=extracts&titles=My%20Business&explaintext=0&exintro=0&redirects=1 200
+23:06:06 | primp                | INFO    | response: https://search.brave.com/search?q=my+business&source=web 200
+23:06:14 | httpx                | INFO    | HTTP Request: POST http://localhost:11434/v1/chat/completions "HTTP/1.1 200 OK"
+23:06:14 | shadow.orchestrator  | INFO    | Step 7 — Logged interaction #46 (16597.3ms)
+23:10:26 | shadow.orchestrator  | INFO    | Shadow shutting down...
+23:10:26 | shadow.grimoire      | INFO    | Grimoire shutting down. Memories persist on disk.
+23:10:26 | shadow.cerberus      | INFO    | Cerberus shutting down. Checks: 3, Denials: 0, False positives: 0
+23:10:26 | shadow.reaper        | INFO    | Reaper shutting down.
+23:10:26 | shadow.orchestrator  | INFO    | Shadow offline.

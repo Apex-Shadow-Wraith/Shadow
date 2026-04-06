@@ -1,9 +1,14 @@
 """Tests for Harbinger morning briefing assembly pipeline."""
 
+import sqlite3
+import time
+from datetime import datetime
+
 import pytest
 from unittest.mock import MagicMock, PropertyMock
 
 from modules.harbinger.harbinger import Harbinger
+from modules.harbinger.safety_report import AUDIT_TABLE_DDL
 from modules.base import ToolResult
 
 
@@ -127,8 +132,8 @@ class TestAssembleMorningBriefing:
         assert briefing["type"] == "morning_briefing"
         assert "compiled_at" in briefing
         assert "date" in briefing
-        assert briefing["section_count"] == 6
-        assert len(briefing["sections"]) == 6
+        assert briefing["section_count"] == 8
+        assert len(briefing["sections"]) == 8
 
     def test_sections_have_required_fields(self, harbinger, all_modules):
         """Every section has title, content, and priority."""
@@ -152,22 +157,26 @@ class TestAssembleMorningBriefing:
         partial = {"grimoire": mock_grimoire, "cerberus": mock_cerberus}
         briefing = harbinger.assemble_morning_briefing(partial)
 
-        assert briefing["section_count"] == 6
+        assert briefing["section_count"] == 8
         sources = {s.get("source") for s in briefing["sections"]}
         assert "grimoire" in sources
         assert "cerberus" in sources
-        # Missing modules should have None source
+        # Missing modules should have None source (wraith, void, reaper, task_tracker + safety_report may be empty)
         unavailable = [s for s in briefing["sections"] if s["source"] is None]
-        assert len(unavailable) == 3  # wraith, void, reaper missing
+        assert len(unavailable) >= 3  # wraith, void, reaper missing at minimum
 
     def test_no_modules(self, harbinger):
         """Briefing with empty modules dict still returns valid structure."""
         briefing = harbinger.assemble_morning_briefing({})
 
         assert briefing["type"] == "morning_briefing"
-        assert briefing["section_count"] == 6
+        assert briefing["section_count"] == 8
         for section in briefing["sections"]:
-            assert section["content"] == "Module not available" or section["source"] == "harbinger"
+            assert (
+                section["content"] == "Module not available"
+                or section["source"] == "harbinger"
+                or section["source"] is None
+            )
 
     def test_grimoire_data_in_briefing(self, harbinger, all_modules):
         """Grimoire memory stats appear in briefing."""
@@ -255,7 +264,7 @@ class TestAssembleMorningBriefing:
 
         briefing = harbinger.assemble_morning_briefing({"grimoire": broken_grimoire})
 
-        assert briefing["section_count"] == 6
+        assert briefing["section_count"] == 8
         error_section = next(s for s in briefing["sections"] if s["title"] == "Memory Status")
         assert "Error" in str(error_section["content"])
 
@@ -327,7 +336,7 @@ class TestFormatBriefingText:
         briefing = harbinger.assemble_morning_briefing(all_modules)
         text = harbinger.format_briefing_text(briefing)
 
-        assert "6 sections" in text
+        assert "8 sections" in text
 
     def test_date_in_header(self, harbinger, all_modules):
         """Formatted text includes the date."""
@@ -336,3 +345,157 @@ class TestFormatBriefingText:
 
         assert "Date:" in text
         assert "2026" in text  # Current year
+
+
+class TestTaskTrackerInBriefing:
+    """Tests for task tracker integration in morning briefing."""
+
+    def test_task_data_appears_in_briefing(self, harbinger):
+        """Task tracker data appears when a tracker is provided."""
+        tracker = MagicMock()
+        now = time.time()
+        tracker.list_tasks.side_effect = lambda status_filter=None: {
+            "queued": [
+                {"task_id": "aaa", "description": "Run backups", "status": "queued",
+                 "priority": 2, "created_at": now, "updated_at": now},
+            ],
+            "running": [
+                {"task_id": "bbb", "description": "Sync vectors", "status": "running",
+                 "priority": 3, "created_at": now, "updated_at": now},
+            ],
+            "completed": [
+                {"task_id": "ccc", "description": "Index memories", "status": "completed",
+                 "priority": 5, "created_at": now, "updated_at": now},
+            ],
+            "failed": [],
+        }.get(status_filter, [])
+
+        briefing = harbinger.assemble_morning_briefing({"task_tracker": tracker})
+        task_section = next(s for s in briefing["sections"] if s["source"] == "task_tracker")
+
+        assert task_section["title"] == "Tasks & Queue"
+        assert task_section["content"]["active_count"] == 2
+        assert len(task_section["content"]["active_tasks"]) == 2
+        assert len(task_section["content"]["recent_completed"]) == 1
+
+    def test_task_tracker_graceful_degradation(self, harbinger):
+        """Briefing works when task tracker is not available."""
+        briefing = harbinger.assemble_morning_briefing({})
+        task_section = next(s for s in briefing["sections"] if s["title"] == "Tasks & Queue")
+
+        assert task_section["content"] == "Module not available"
+        assert task_section["source"] is None
+
+    def test_task_tracker_exception_handled(self, harbinger):
+        """Briefing handles task tracker exceptions gracefully."""
+        tracker = MagicMock()
+        tracker.list_tasks.side_effect = RuntimeError("DB locked")
+
+        briefing = harbinger.assemble_morning_briefing({"task_tracker": tracker})
+        task_section = next(s for s in briefing["sections"] if s["title"] == "Tasks & Queue")
+
+        assert "Error" in str(task_section["content"])
+        assert task_section["source"] == "error"
+
+    def test_failed_tasks_elevate_priority(self, harbinger):
+        """Failed tasks cause the section to get priority 1."""
+        tracker = MagicMock()
+        now = time.time()
+        tracker.list_tasks.side_effect = lambda status_filter=None: {
+            "queued": [],
+            "running": [],
+            "completed": [],
+            "failed": [
+                {"task_id": "fff", "description": "Broken job", "status": "failed",
+                 "priority": 1, "created_at": now, "updated_at": now},
+            ],
+        }.get(status_filter, [])
+
+        briefing = harbinger.assemble_morning_briefing({"task_tracker": tracker})
+        task_section = next(s for s in briefing["sections"] if s["source"] == "task_tracker")
+        assert task_section["priority"] == 1
+        assert len(task_section["content"]["failed_tasks"]) == 1
+
+
+class TestSafetyReportInBriefing:
+    """Tests for safety report integration in morning briefing."""
+
+    def test_safety_report_appears_in_briefing(self, harbinger, tmp_path):
+        """Safety report data appears when audit DB exists."""
+        db_path = tmp_path / "cerberus_audit.db"
+        conn = sqlite3.connect(str(db_path))
+        conn.execute(AUDIT_TABLE_DDL)
+        # Insert a test entry for today
+        now = datetime.now().isoformat()
+        conn.execute(
+            "INSERT INTO cerberus_audit_log (timestamp, type, tool, module, reason, verdict) "
+            "VALUES (?, 'allow', 'test_tool', 'wraith', 'Autonomous action', 'allow')",
+            (now,),
+        )
+        conn.commit()
+        conn.close()
+
+        h = Harbinger(config={
+            "queue_file": str(tmp_path / "q.json"),
+            "cerberus_audit_db": str(db_path),
+        })
+        briefing = h.assemble_morning_briefing({})
+        report_section = next(s for s in briefing["sections"] if s["source"] == "safety_report")
+
+        assert report_section["title"] == "Safety Report"
+        assert report_section["content"]["summary"]["total_actions"] == 1
+        assert "formatted_text" in report_section["content"]
+
+    def test_safety_report_graceful_degradation_no_db(self, harbinger):
+        """Briefing works when audit DB does not exist."""
+        h = Harbinger(config={
+            "queue_file": "data/test_q.json",
+            "cerberus_audit_db": "data/nonexistent_audit.db",
+        })
+        briefing = h.assemble_morning_briefing({})
+        report_section = next(s for s in briefing["sections"] if s["title"] == "Safety Report")
+
+        assert report_section["content"] == "Module not available"
+        assert report_section["source"] is None
+
+    def test_safety_report_anomalies_elevate_priority(self, harbinger, tmp_path):
+        """Anomalies in safety report cause priority 1."""
+        db_path = tmp_path / "cerberus_audit.db"
+        conn = sqlite3.connect(str(db_path))
+        conn.execute(AUDIT_TABLE_DDL)
+        now_hour = datetime.now().strftime("%Y-%m-%dT%H")
+        # Insert enough denials in one hour to trigger denial_spike anomaly
+        for i in range(6):
+            conn.execute(
+                "INSERT INTO cerberus_audit_log (timestamp, type, tool, module, reason, verdict) "
+                "VALUES (?, 'denial', 'bad_tool', 'sentinel', 'Blocked', 'deny')",
+                (f"{now_hour}:{i:02d}:00",),
+            )
+        conn.commit()
+        conn.close()
+
+        h = Harbinger(config={
+            "queue_file": str(tmp_path / "q.json"),
+            "cerberus_audit_db": str(db_path),
+        })
+        briefing = h.assemble_morning_briefing({})
+        report_section = next(s for s in briefing["sections"] if s["source"] == "safety_report")
+
+        assert report_section["priority"] == 1
+        assert report_section["content"]["anomaly_count"] > 0
+
+    def test_safety_report_exception_handled(self, harbinger, tmp_path):
+        """Briefing handles safety report exceptions gracefully."""
+        # Point to a file that exists but is not a valid SQLite DB
+        bad_db = tmp_path / "bad.db"
+        bad_db.write_text("not a database")
+
+        h = Harbinger(config={
+            "queue_file": str(tmp_path / "q.json"),
+            "cerberus_audit_db": str(bad_db),
+        })
+        briefing = h.assemble_morning_briefing({})
+        report_section = next(s for s in briefing["sections"] if s["title"] == "Safety Report")
+
+        assert "Error" in str(report_section["content"])
+        assert report_section["source"] == "error"

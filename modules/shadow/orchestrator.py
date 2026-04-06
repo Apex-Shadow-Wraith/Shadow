@@ -35,6 +35,14 @@ from modules.shadow.task_tracker import TaskTracker
 
 logger = logging.getLogger("shadow.orchestrator")
 
+# Graceful import — orchestrator still starts if injection_detector is missing
+try:
+    from modules.cerberus.injection_detector import PromptInjectionDetector, InjectionResult
+    _INJECTION_DETECTOR_AVAILABLE = True
+except ImportError:
+    logger.warning("PromptInjectionDetector not available — injection screening disabled")
+    _INJECTION_DETECTOR_AVAILABLE = False
+
 
 class TaskType(Enum):
     """Classification of incoming tasks."""
@@ -114,6 +122,12 @@ class Orchestrator:
         task_db = Path(config["system"].get("task_db", "data/shadow_tasks.db"))
         self._task_tracker = TaskTracker(db_path=task_db)
 
+        # Injection detector — pre-classification screening
+        if _INJECTION_DETECTOR_AVAILABLE:
+            self._injection_detector = PromptInjectionDetector()
+        else:
+            self._injection_detector = None
+
     async def start(self) -> None:
         """Initialize all registered modules and load state."""
         logger.info("Shadow starting up...")
@@ -157,11 +171,17 @@ class Orchestrator:
     # THE SEVEN-STEP DECISION LOOP
     # ================================================================
 
-    async def process_input(self, user_input: str) -> str:
+    async def process_input(self, user_input: str, source: str = "user") -> str:
         """Process a single user input through the full decision loop.
 
         This is the main entry point. Every interaction flows through
         these seven steps, no exceptions.
+
+        Args:
+            user_input: The text input to process.
+            source: Where this input came from. One of: "user",
+                "telegram_message", "discord_message", "scheduled_task",
+                "module_alert", "webhook".
         """
         loop_start = time.time()
         self._state.interaction_count += 1
@@ -171,8 +191,36 @@ class Orchestrator:
             # Step 1 — Receive Input
             logger.info("Step 1 — Receive: '%s'", user_input[:100])
 
+            # Step 1.5 — Injection Screen
+            injection_result = self._step1_5_injection_screen(user_input, source)
+            if injection_result is not None and injection_result.action == "block":
+                refusal = (
+                    "I've flagged this input as potentially unsafe. "
+                    "If this was a legitimate request, please rephrase it."
+                )
+                await self._step7_log(
+                    user_input,
+                    TaskClassification(
+                        task_type=TaskType.SYSTEM,
+                        complexity="simple",
+                        target_module="cerberus",
+                        brain=BrainType.ROUTER,
+                        safety_flag=True,
+                        priority=1,
+                    ),
+                    refusal,
+                    loop_start,
+                )
+                self._save_state()
+                return refusal
+
             # Step 2 — Classify & Route
             classification = await self._step2_classify(user_input)
+
+            # Apply injection warning flag to classification
+            if injection_result is not None and injection_result.action == "warn":
+                classification.safety_flag = True
+
             logger.info(
                 "Step 2 — Route: type=%s, module=%s, brain=%s",
                 classification.task_type.value,
@@ -227,6 +275,59 @@ class Orchestrator:
         except Exception as e:
             logger.error("Decision loop error: %s", e, exc_info=True)
             return f"Shadow encountered an error: {e}"
+
+    # --- Step 1.5: Injection Screen ---
+
+    def _step1_5_injection_screen(self, user_input: str, source: str):
+        """Screen input for prompt injection before classification.
+
+        Returns an InjectionResult if the detector is available, or None
+        if injection screening is disabled (graceful degradation).
+        """
+        if self._injection_detector is None:
+            return None
+
+        # Build recent request history from conversation history
+        recent_history = [
+            {"text": msg["content"]}
+            for msg in self._conversation_history
+            if msg.get("role") == "user"
+        ][-10:]
+
+        result = self._injection_detector.analyze(user_input, source, recent_history)
+
+        if result.action == "block":
+            logger.warning(
+                "Step 1.5 — BLOCKED injection (score=%.2f, flags=%s)",
+                result.score,
+                result.flags,
+            )
+            # Log to Cerberus audit if available
+            if "cerberus" in self.registry:
+                cerberus = self.registry.get_module("cerberus")
+                if cerberus.status == ModuleStatus.ONLINE:
+                    try:
+                        import asyncio
+                        asyncio.get_event_loop().create_task(
+                            cerberus.execute("audit_log", {
+                                "event": "injection_blocked",
+                                "input": user_input[:200],
+                                "score": result.score,
+                                "flags": result.flags,
+                                "source": source,
+                            })
+                        )
+                    except Exception:
+                        pass  # Best-effort audit logging
+
+        elif result.action == "warn":
+            logger.info(
+                "Step 1.5 — WARNING injection (score=%.2f, flags=%s)",
+                result.score,
+                result.flags,
+            )
+
+        return result
 
     # --- Step 2: Classify & Route ---
 
