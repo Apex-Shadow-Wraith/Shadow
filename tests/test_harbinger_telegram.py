@@ -8,7 +8,7 @@ All tests mock the network — no real Telegram API calls.
 """
 
 import pytest
-from datetime import time as dtime
+from datetime import datetime, time as dtime
 from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock, patch
@@ -161,14 +161,18 @@ class TestHarbingerTelegramIntegration:
         assert harbinger_no_telegram._telegram.is_configured() is False
 
     @pytest.mark.asyncio
+    @patch("modules.harbinger.harbinger.datetime")
     @patch("modules.harbinger.telegram.requests.post")
     async def test_notification_sends_via_telegram(
-        self, mock_post: MagicMock, harbinger_with_telegram: Harbinger,
+        self, mock_post: MagicMock, mock_dt: MagicMock,
+        harbinger_with_telegram: Harbinger,
     ):
+        mock_dt.now.return_value.time.return_value = dtime(12, 0)
         mock_post.return_value = MagicMock(
             status_code=200,
             json=lambda: {"ok": True, "result": {"message_id": 1}},
         )
+        mock_dt.now.return_value.isoformat.return_value = "2026-04-05T12:00:00"
         await harbinger_with_telegram.initialize()
         result = await harbinger_with_telegram.execute("notification_send", {
             "message": "Test alert",
@@ -211,11 +215,15 @@ class TestHarbingerTelegramIntegration:
             mock_post.assert_not_called()
 
     @pytest.mark.asyncio
+    @patch("modules.harbinger.harbinger.datetime")
     @patch("modules.harbinger.telegram.requests.post")
     async def test_telegram_failure_queues_decision(
-        self, mock_post: MagicMock, harbinger_with_telegram: Harbinger,
+        self, mock_post: MagicMock, mock_dt: MagicMock,
+        harbinger_with_telegram: Harbinger,
     ):
         """When Telegram delivery fails, a decision queue item is created."""
+        mock_dt.now.return_value.time.return_value = dtime(12, 0)
+        mock_dt.now.return_value.isoformat.return_value = "2026-04-05T12:00:00"
         mock_post.return_value = MagicMock(
             status_code=500,
             text="Server Error",
