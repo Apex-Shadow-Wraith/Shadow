@@ -7,15 +7,16 @@ Design Principle: Void detects and reports. When Void sees something
 wrong, he sends the alert to the appropriate module. Void is the
 sensor array, not the response team.
 
-Phase 1: psutil-based health checks, trend snapshots, service
-watchdog, alert thresholds.
+Phase 1: psutil-based health checks, SQLite metric storage, threshold
+alerts, service watchdog, structured reports for Harbinger.
 """
 
-import json
 import logging
+import os
+import sqlite3
 import subprocess
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -31,12 +32,13 @@ class Void(BaseModule):
     tracks trends, and escalates anomalies to Harbinger.
     """
 
-    # Alert thresholds (percent)
-    THRESHOLDS = {
-        "cpu_percent": 90.0,
-        "ram_percent": 85.0,
-        "disk_percent": 90.0,
-        "gpu_temp_c": 80.0,
+    DEFAULT_THRESHOLDS = {
+        "cpu_warning": 80.0,
+        "cpu_critical": 95.0,
+        "ram_warning": 85.0,
+        "ram_critical": 95.0,
+        "disk_warning": 90.0,
+        "disk_critical": 95.0,
     }
 
     def __init__(self, config: dict[str, Any] | None = None) -> None:
@@ -50,18 +52,39 @@ class Void(BaseModule):
             description="24/7 passive monitoring — system health, trends, alerts",
         )
         self._config = config or {}
-        self._trends_file = Path(
-            self._config.get("trends_file", "data/void_trends.json")
+        self._db_path = Path(
+            self._config.get("db_path", "data/void_metrics.db")
         )
-        self._trends: list[dict[str, Any]] = []
+        self._thresholds = dict(self.DEFAULT_THRESHOLDS)
+        # Override defaults with any thresholds from config
+        if "thresholds" in self._config:
+            self._thresholds.update(self._config["thresholds"])
+        self._conn: sqlite3.Connection | None = None
 
     async def initialize(self) -> None:
-        """Start Void."""
+        """Start Void. Create DB and metrics table."""
         self.status = ModuleStatus.STARTING
         try:
-            self._load_trends()
+            self._db_path.parent.mkdir(parents=True, exist_ok=True)
+            self._conn = sqlite3.connect(str(self._db_path))
+            self._conn.row_factory = sqlite3.Row
+            self._conn.execute("""
+                CREATE TABLE IF NOT EXISTS void_metrics (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    metric_name TEXT NOT NULL,
+                    value REAL NOT NULL,
+                    unit TEXT NOT NULL,
+                    timestamp TEXT NOT NULL
+                )
+            """)
+            self._conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_metric_time
+                ON void_metrics(metric_name, timestamp)
+            """)
+            self._conn.commit()
             self.status = ModuleStatus.ONLINE
-            logger.info("Void online. %d trend snapshots loaded.", len(self._trends))
+            self._initialized_at = datetime.now()
+            logger.info("Void online. Metrics DB at %s", self._db_path)
         except Exception as e:
             self.status = ModuleStatus.ERROR
             logger.error("Void failed to initialize: %s", e)
@@ -72,13 +95,12 @@ class Void(BaseModule):
         start = time.time()
         try:
             handlers = {
-                "system_health": self._system_health,
-                "gpu_status": self._gpu_status,
-                "process_list": self._process_list,
-                "service_status": self._service_status,
-                "disk_usage": self._disk_usage,
-                "backup_status": self._backup_status,
-                "trend_snapshot": self._trend_snapshot,
+                "system_snapshot": self._system_snapshot,
+                "health_check": self._health_check,
+                "metric_history": self._metric_history,
+                "service_check": self._service_check,
+                "set_threshold": self._set_threshold,
+                "void_report": self._void_report,
             }
 
             handler = handlers.get(tool_name)
@@ -104,53 +126,55 @@ class Void(BaseModule):
             )
 
     async def shutdown(self) -> None:
-        """Shut down Void. Save trends."""
-        self._save_trends()
+        """Shut down Void. Close DB connection."""
+        if self._conn:
+            self._conn.close()
+            self._conn = None
         self.status = ModuleStatus.OFFLINE
-        logger.info("Void offline. Trends saved.")
+        logger.info("Void offline. DB connection closed.")
 
     def get_tools(self) -> list[dict[str, Any]]:
         """Return Void's tool definitions."""
         return [
             {
-                "name": "system_health",
-                "description": "Get CPU/RAM/disk/network stats",
+                "name": "system_snapshot",
+                "description": "Collect all system metrics (CPU, RAM, disk, GPU, process memory) and store to DB",
                 "parameters": {},
                 "permission_level": "autonomous",
             },
             {
-                "name": "gpu_status",
-                "description": "GPU utilization and temperature",
+                "name": "health_check",
+                "description": "Compare current metrics against warning/critical thresholds",
                 "parameters": {},
                 "permission_level": "autonomous",
             },
             {
-                "name": "process_list",
-                "description": "Running processes with resource usage",
-                "parameters": {"top_n": "int"},
+                "name": "metric_history",
+                "description": "Query stored metrics by name and time range",
+                "parameters": {
+                    "metric_name": "str — metric to query (e.g., cpu_percent)",
+                    "hours": "int — how many hours back to query (default 24)",
+                },
                 "permission_level": "autonomous",
             },
             {
-                "name": "service_status",
-                "description": "Check if specific services are running",
-                "parameters": {"services": "list"},
-                "permission_level": "autonomous",
-            },
-            {
-                "name": "disk_usage",
-                "description": "Storage usage across all drives",
+                "name": "service_check",
+                "description": "Check if Ollama and Shadow process are healthy",
                 "parameters": {},
                 "permission_level": "autonomous",
             },
             {
-                "name": "backup_status",
-                "description": "Check backup integrity and recency",
-                "parameters": {"backup_dir": "str"},
-                "permission_level": "autonomous",
+                "name": "set_threshold",
+                "description": "Update warning/critical thresholds for a metric",
+                "parameters": {
+                    "metric": "str — threshold key (e.g., cpu_warning, ram_critical)",
+                    "value": "float — new threshold value (percent)",
+                },
+                "permission_level": "approval_required",
             },
             {
-                "name": "trend_snapshot",
-                "description": "Save current metrics for trend tracking",
+                "name": "void_report",
+                "description": "Compile full system report with metrics, alerts, and history for Harbinger",
                 "parameters": {},
                 "permission_level": "autonomous",
             },
@@ -158,13 +182,74 @@ class Void(BaseModule):
 
     # --- Tool implementations ---
 
-    def _system_health(self, params: dict[str, Any]) -> ToolResult:
-        """Get overall system health metrics."""
+    def _system_snapshot(self, params: dict[str, Any]) -> ToolResult:
+        """Collect all system metrics and store to DB."""
         try:
             import psutil
         except ImportError:
             return ToolResult(
-                success=False, content=None, tool_name="system_health",
+                success=False, content=None, tool_name="system_snapshot",
+                module=self.name, error="psutil not installed",
+            )
+
+        now = datetime.now().isoformat()
+
+        # CPU
+        cpu = psutil.cpu_percent(interval=0.1)
+        # RAM
+        ram = psutil.virtual_memory()
+        # Disk
+        disk = psutil.disk_usage("/")
+        # Python process memory
+        process = psutil.Process(os.getpid())
+        proc_mem = process.memory_info()
+        proc_mem_mb = proc_mem.rss / (1024 ** 2)
+
+        # GPU (graceful failure)
+        gpu_data = self._query_gpu()
+
+        # Store metrics to DB
+        metrics = [
+            ("cpu_percent", cpu, "percent", now),
+            ("ram_percent", ram.percent, "percent", now),
+            ("ram_used_gb", round(ram.used / (1024 ** 3), 2), "GB", now),
+            ("disk_percent", disk.percent, "percent", now),
+            ("disk_used_gb", round(disk.used / (1024 ** 3), 2), "GB", now),
+            ("process_memory_mb", round(proc_mem_mb, 2), "MB", now),
+        ]
+
+        if gpu_data.get("available"):
+            for i, gpu in enumerate(gpu_data["gpus"]):
+                metrics.append((f"gpu_{i}_temp_c", gpu["temperature_c"], "celsius", now))
+                metrics.append((f"gpu_{i}_util_percent", gpu["utilization_percent"], "percent", now))
+
+        self._store_metrics(metrics)
+
+        snapshot = {
+            "cpu_percent": cpu,
+            "ram_percent": ram.percent,
+            "ram_total_gb": round(ram.total / (1024 ** 3), 2),
+            "ram_used_gb": round(ram.used / (1024 ** 3), 2),
+            "disk_percent": disk.percent,
+            "disk_total_gb": round(disk.total / (1024 ** 3), 2),
+            "disk_used_gb": round(disk.used / (1024 ** 3), 2),
+            "process_memory_mb": round(proc_mem_mb, 2),
+            "gpu": gpu_data,
+            "timestamp": now,
+        }
+
+        return ToolResult(
+            success=True, content=snapshot,
+            tool_name="system_snapshot", module=self.name,
+        )
+
+    def _health_check(self, params: dict[str, Any]) -> ToolResult:
+        """Compare current metrics against thresholds."""
+        try:
+            import psutil
+        except ImportError:
+            return ToolResult(
+                success=False, content=None, tool_name="health_check",
                 module=self.name, error="psutil not installed",
             )
 
@@ -173,35 +258,220 @@ class Void(BaseModule):
         disk = psutil.disk_usage("/")
 
         alerts = []
-        if cpu > self.THRESHOLDS["cpu_percent"]:
-            alerts.append(f"CPU at {cpu}% (threshold: {self.THRESHOLDS['cpu_percent']}%)")
-        if ram.percent > self.THRESHOLDS["ram_percent"]:
-            alerts.append(f"RAM at {ram.percent}% (threshold: {self.THRESHOLDS['ram_percent']}%)")
-        if disk.percent > self.THRESHOLDS["disk_percent"]:
-            alerts.append(f"Disk at {disk.percent}% (threshold: {self.THRESHOLDS['disk_percent']}%)")
+        checks = [
+            ("cpu", cpu, self._thresholds["cpu_warning"], self._thresholds["cpu_critical"]),
+            ("ram", ram.percent, self._thresholds["ram_warning"], self._thresholds["ram_critical"]),
+            ("disk", disk.percent, self._thresholds["disk_warning"], self._thresholds["disk_critical"]),
+        ]
+
+        for metric, value, warning, critical in checks:
+            if value >= critical:
+                alerts.append({
+                    "metric": metric,
+                    "value": value,
+                    "threshold": critical,
+                    "severity": "critical",
+                })
+            elif value >= warning:
+                alerts.append({
+                    "metric": metric,
+                    "value": value,
+                    "threshold": warning,
+                    "severity": "warning",
+                })
+
+        status = "healthy"
+        if any(a["severity"] == "critical" for a in alerts):
+            status = "critical"
+        elif alerts:
+            status = "warning"
 
         return ToolResult(
             success=True,
             content={
-                "cpu_percent": cpu,
-                "ram_total_gb": round(ram.total / (1024**3), 2),
-                "ram_used_gb": round(ram.used / (1024**3), 2),
-                "ram_percent": ram.percent,
-                "disk_total_gb": round(disk.total / (1024**3), 2),
-                "disk_used_gb": round(disk.used / (1024**3), 2),
-                "disk_percent": disk.percent,
+                "status": status,
                 "alerts": alerts,
+                "current": {
+                    "cpu_percent": cpu,
+                    "ram_percent": ram.percent,
+                    "disk_percent": disk.percent,
+                },
+                "thresholds": dict(self._thresholds),
                 "timestamp": datetime.now().isoformat(),
             },
-            tool_name="system_health",
-            module=self.name,
+            tool_name="health_check", module=self.name,
         )
 
-    def _gpu_status(self, params: dict[str, Any]) -> ToolResult:
-        """Get GPU status via nvidia-smi.
+    def _metric_history(self, params: dict[str, Any]) -> ToolResult:
+        """Query stored metrics by name and time range."""
+        metric_name = params.get("metric_name")
+        if not metric_name:
+            return ToolResult(
+                success=False, content=None, tool_name="metric_history",
+                module=self.name, error="metric_name is required",
+            )
 
-        Gracefully handles absence of GPU or nvidia-smi.
-        """
+        hours = params.get("hours", 24)
+        cutoff = (datetime.now() - timedelta(hours=hours)).isoformat()
+
+        if not self._conn:
+            return ToolResult(
+                success=False, content=None, tool_name="metric_history",
+                module=self.name, error="Database not connected",
+            )
+
+        rows = self._conn.execute(
+            """SELECT timestamp, value FROM void_metrics
+               WHERE metric_name = ? AND timestamp >= ?
+               ORDER BY timestamp ASC""",
+            (metric_name, cutoff),
+        ).fetchall()
+
+        history = [{"timestamp": row["timestamp"], "value": row["value"]} for row in rows]
+
+        return ToolResult(
+            success=True,
+            content={
+                "metric_name": metric_name,
+                "hours": hours,
+                "data_points": len(history),
+                "history": history,
+            },
+            tool_name="metric_history", module=self.name,
+        )
+
+    def _service_check(self, params: dict[str, Any]) -> ToolResult:
+        """Check if key services are running."""
+        services = {}
+
+        # Check Ollama
+        try:
+            result = subprocess.run(
+                ["ollama", "list"],
+                capture_output=True, text=True, timeout=5,
+            )
+            services["ollama"] = {
+                "running": result.returncode == 0,
+                "detail": "responding" if result.returncode == 0 else "error",
+            }
+        except FileNotFoundError:
+            services["ollama"] = {"running": False, "detail": "not installed"}
+        except subprocess.TimeoutExpired:
+            services["ollama"] = {"running": False, "detail": "timed out"}
+
+        # Check Shadow process health
+        try:
+            import psutil
+            process = psutil.Process(os.getpid())
+            proc_mem = process.memory_info()
+            services["shadow_process"] = {
+                "running": True,
+                "detail": "healthy",
+                "pid": os.getpid(),
+                "memory_mb": round(proc_mem.rss / (1024 ** 2), 2),
+            }
+        except ImportError:
+            services["shadow_process"] = {
+                "running": True,
+                "detail": "psutil unavailable — limited info",
+                "pid": os.getpid(),
+            }
+        except Exception as e:
+            services["shadow_process"] = {
+                "running": True,
+                "detail": f"error reading process info: {e}",
+                "pid": os.getpid(),
+            }
+
+        return ToolResult(
+            success=True,
+            content={
+                "services": services,
+                "checked_at": datetime.now().isoformat(),
+            },
+            tool_name="service_check", module=self.name,
+        )
+
+    def _set_threshold(self, params: dict[str, Any]) -> ToolResult:
+        """Update a threshold value."""
+        metric = params.get("metric")
+        value = params.get("value")
+
+        if not metric or value is None:
+            return ToolResult(
+                success=False, content=None, tool_name="set_threshold",
+                module=self.name, error="Both 'metric' and 'value' are required",
+            )
+
+        if metric not in self._thresholds:
+            valid_keys = ", ".join(sorted(self._thresholds.keys()))
+            return ToolResult(
+                success=False, content=None, tool_name="set_threshold",
+                module=self.name,
+                error=f"Unknown threshold '{metric}'. Valid keys: {valid_keys}",
+            )
+
+        try:
+            value = float(value)
+        except (TypeError, ValueError):
+            return ToolResult(
+                success=False, content=None, tool_name="set_threshold",
+                module=self.name, error=f"Value must be a number, got: {value}",
+            )
+
+        old_value = self._thresholds[metric]
+        self._thresholds[metric] = value
+
+        return ToolResult(
+            success=True,
+            content={
+                "metric": metric,
+                "old_value": old_value,
+                "new_value": value,
+                "thresholds": dict(self._thresholds),
+            },
+            tool_name="set_threshold", module=self.name,
+        )
+
+    def _void_report(self, params: dict[str, Any]) -> ToolResult:
+        """Compile full system report for Harbinger."""
+        # Get current health check
+        health = self._health_check({})
+        if not health.success:
+            return ToolResult(
+                success=False, content=None, tool_name="void_report",
+                module=self.name, error=f"Health check failed: {health.error}",
+            )
+
+        # Get snapshot
+        snapshot = self._system_snapshot({})
+
+        # Count stored metrics
+        metric_count = 0
+        if self._conn:
+            row = self._conn.execute(
+                "SELECT COUNT(*) as cnt FROM void_metrics"
+            ).fetchone()
+            metric_count = row["cnt"] if row else 0
+
+        report = {
+            "generated_at": datetime.now().isoformat(),
+            "system_status": health.content["status"],
+            "alerts": health.content["alerts"],
+            "snapshot": snapshot.content if snapshot.success else {"error": snapshot.error},
+            "stored_metrics_count": metric_count,
+            "thresholds": dict(self._thresholds),
+        }
+
+        return ToolResult(
+            success=True, content=report,
+            tool_name="void_report", module=self.name,
+        )
+
+    # --- Internal helpers ---
+
+    def _query_gpu(self) -> dict[str, Any]:
+        """Query GPU status via nvidia-smi. Graceful failure if unavailable."""
         try:
             result = subprocess.run(
                 [
@@ -213,244 +483,34 @@ class Void(BaseModule):
             )
 
             if result.returncode != 0:
-                return ToolResult(
-                    success=True,
-                    content={"available": False, "reason": "nvidia-smi returned error"},
-                    tool_name="gpu_status",
-                    module=self.name,
-                )
+                return {"available": False, "reason": "nvidia-smi returned error"}
 
             gpus = []
             for line in result.stdout.strip().split("\n"):
                 parts = [p.strip() for p in line.split(",")]
                 if len(parts) >= 5:
-                    temp = float(parts[1])
-                    alerts = []
-                    if temp > self.THRESHOLDS["gpu_temp_c"]:
-                        alerts.append(f"GPU temp {temp}C exceeds threshold")
                     gpus.append({
                         "name": parts[0],
-                        "temperature_c": temp,
+                        "temperature_c": float(parts[1]),
                         "utilization_percent": float(parts[2]),
                         "memory_used_mb": float(parts[3]),
                         "memory_total_mb": float(parts[4]),
-                        "alerts": alerts,
                     })
 
-            return ToolResult(
-                success=True,
-                content={"available": True, "gpus": gpus},
-                tool_name="gpu_status",
-                module=self.name,
-            )
+            return {"available": True, "gpus": gpus}
 
         except FileNotFoundError:
-            return ToolResult(
-                success=True,
-                content={"available": False, "reason": "nvidia-smi not found"},
-                tool_name="gpu_status",
-                module=self.name,
-            )
+            return {"available": False, "reason": "nvidia-smi not found"}
         except subprocess.TimeoutExpired:
-            return ToolResult(
-                success=True,
-                content={"available": False, "reason": "nvidia-smi timed out"},
-                tool_name="gpu_status",
-                module=self.name,
-            )
+            return {"available": False, "reason": "nvidia-smi timed out"}
 
-    def _process_list(self, params: dict[str, Any]) -> ToolResult:
-        """List top processes by CPU usage."""
-        try:
-            import psutil
-        except ImportError:
-            return ToolResult(
-                success=False, content=None, tool_name="process_list",
-                module=self.name, error="psutil not installed",
-            )
-
-        top_n = params.get("top_n", 10)
-        processes = []
-
-        for proc in psutil.process_iter(["pid", "name", "cpu_percent", "memory_percent"]):
-            try:
-                info = proc.info
-                processes.append({
-                    "pid": info["pid"],
-                    "name": info["name"],
-                    "cpu_percent": info["cpu_percent"] or 0.0,
-                    "memory_percent": round(info["memory_percent"] or 0.0, 2),
-                })
-            except (psutil.NoSuchProcess, psutil.AccessDenied):
-                continue
-
-        processes.sort(key=lambda p: p["cpu_percent"], reverse=True)
-
-        return ToolResult(
-            success=True,
-            content={"processes": processes[:top_n], "total": len(processes)},
-            tool_name="process_list",
-            module=self.name,
+    def _store_metrics(self, metrics: list[tuple[str, float, str, str]]) -> None:
+        """Store a batch of metrics to the DB."""
+        if not self._conn:
+            logger.warning("Cannot store metrics — DB not connected")
+            return
+        self._conn.executemany(
+            "INSERT INTO void_metrics (metric_name, value, unit, timestamp) VALUES (?, ?, ?, ?)",
+            metrics,
         )
-
-    def _service_status(self, params: dict[str, Any]) -> ToolResult:
-        """Check if specific services are running.
-
-        Args:
-            params: 'services' (list of process names to check).
-        """
-        try:
-            import psutil
-        except ImportError:
-            return ToolResult(
-                success=False, content=None, tool_name="service_status",
-                module=self.name, error="psutil not installed",
-            )
-
-        services = params.get("services", ["ollama", "docker"])
-        running_names = set()
-        for proc in psutil.process_iter(["name"]):
-            try:
-                running_names.add(proc.info["name"].lower())
-            except (psutil.NoSuchProcess, psutil.AccessDenied):
-                continue
-
-        results = {}
-        for svc in services:
-            results[svc] = any(svc.lower() in name for name in running_names)
-
-        return ToolResult(
-            success=True,
-            content={"services": results, "checked_at": datetime.now().isoformat()},
-            tool_name="service_status",
-            module=self.name,
-        )
-
-    def _disk_usage(self, params: dict[str, Any]) -> ToolResult:
-        """Get disk usage for all mounted partitions."""
-        try:
-            import psutil
-        except ImportError:
-            return ToolResult(
-                success=False, content=None, tool_name="disk_usage",
-                module=self.name, error="psutil not installed",
-            )
-
-        partitions = []
-        for part in psutil.disk_partitions(all=False):
-            try:
-                usage = psutil.disk_usage(part.mountpoint)
-                partitions.append({
-                    "device": part.device,
-                    "mountpoint": part.mountpoint,
-                    "fstype": part.fstype,
-                    "total_gb": round(usage.total / (1024**3), 2),
-                    "used_gb": round(usage.used / (1024**3), 2),
-                    "free_gb": round(usage.free / (1024**3), 2),
-                    "percent": usage.percent,
-                })
-            except (PermissionError, OSError):
-                continue
-
-        return ToolResult(
-            success=True,
-            content={"partitions": partitions, "count": len(partitions)},
-            tool_name="disk_usage",
-            module=self.name,
-        )
-
-    def _backup_status(self, params: dict[str, Any]) -> ToolResult:
-        """Check backup directory for recency and integrity.
-
-        Args:
-            params: 'backup_dir' (str) — path to backup directory.
-        """
-        backup_dir = Path(params.get("backup_dir", "data/backups"))
-
-        if not backup_dir.exists():
-            return ToolResult(
-                success=True,
-                content={
-                    "exists": False,
-                    "message": f"Backup directory not found: {backup_dir}",
-                },
-                tool_name="backup_status",
-                module=self.name,
-            )
-
-        files = sorted(backup_dir.iterdir(), key=lambda f: f.stat().st_mtime, reverse=True)
-        backup_files = [f for f in files if f.is_file()]
-
-        latest = None
-        if backup_files:
-            newest = backup_files[0]
-            latest = {
-                "name": newest.name,
-                "size_mb": round(newest.stat().st_size / (1024**2), 2),
-                "modified": datetime.fromtimestamp(newest.stat().st_mtime).isoformat(),
-            }
-
-        return ToolResult(
-            success=True,
-            content={
-                "exists": True,
-                "file_count": len(backup_files),
-                "latest": latest,
-                "directory": str(backup_dir),
-            },
-            tool_name="backup_status",
-            module=self.name,
-        )
-
-    def _trend_snapshot(self, params: dict[str, Any]) -> ToolResult:
-        """Save current system metrics for trend tracking."""
-        try:
-            import psutil
-        except ImportError:
-            return ToolResult(
-                success=False, content=None, tool_name="trend_snapshot",
-                module=self.name, error="psutil not installed",
-            )
-
-        snapshot = {
-            "timestamp": datetime.now().isoformat(),
-            "cpu_percent": psutil.cpu_percent(interval=0.1),
-            "ram_percent": psutil.virtual_memory().percent,
-            "disk_percent": psutil.disk_usage("/").percent,
-        }
-
-        self._trends.append(snapshot)
-        # Keep last 1440 snapshots (1 per minute = 24 hours)
-        if len(self._trends) > 1440:
-            self._trends = self._trends[-1440:]
-        self._save_trends()
-
-        return ToolResult(
-            success=True,
-            content={
-                "snapshot": snapshot,
-                "total_snapshots": len(self._trends),
-            },
-            tool_name="trend_snapshot",
-            module=self.name,
-        )
-
-    # --- Internal helpers ---
-
-    def _load_trends(self) -> None:
-        """Load trend data from disk."""
-        if self._trends_file.exists():
-            try:
-                with open(self._trends_file, "r", encoding="utf-8") as f:
-                    self._trends = json.load(f)
-            except (json.JSONDecodeError, OSError):
-                self._trends = []
-
-    def _save_trends(self) -> None:
-        """Persist trend data to disk."""
-        self._trends_file.parent.mkdir(parents=True, exist_ok=True)
-        try:
-            with open(self._trends_file, "w", encoding="utf-8") as f:
-                json.dump(self._trends, f)
-        except OSError as e:
-            logger.error("Failed to save trends: %s", e)
+        self._conn.commit()

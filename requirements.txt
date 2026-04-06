@@ -19,6 +19,7 @@ yt-dlp              # YouTube subtitle download
 praw                # Reddit API
 
 # --- Monitoring ---
+psutil              # System metrics (CPU, RAM, disk, process)
 watchdog            # File system monitoring
 rich                # Terminal formatting
 
