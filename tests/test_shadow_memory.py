@@ -105,7 +105,7 @@ def test_grimoire_basics(grimoire):
         print("  ✅ Semantic search working!")
     else:
         print("  ❌ No results found — check Ollama and nomic-embed-text")
-        return False
+        assert False, "Semantic search returned no results"
     
     # ── Test correction ──
     print("\n  Testing correction system...")
@@ -122,16 +122,14 @@ def test_grimoire_basics(grimoire):
         print("  ✅ Corrections working! Trust level = 1.0")
     else:
         print("  ❌ Correction trust level issue")
-        return False
-    
+        assert False, "Correction trust level not set to TRUST_USER_CORRECTION"
+
     # ── Test pointer index ──
     print("\n  Testing pointer index...")
     index = grimoire.get_pointer_index()
     print_result("  Total memories", index['total_memories'])
     print_result("  Categories", list(index['categories'].keys()))
     print("  ✅ Pointer index working!")
-    
-    return True
 
 
 def test_reaper_source_eval():
@@ -163,13 +161,9 @@ def test_reaper_source_eval():
               f"{result['source_type']:12s} — {result['domain']}")
         if not passed:
             all_passed = False
-    
-    if all_passed:
-        print("\n  ✅ All source evaluations correct!")
-    else:
-        print("\n  ❌ Some evaluations failed")
-    
-    return all_passed
+
+    assert all_passed, "Some source evaluations did not match expected values"
+    print("\n  ✅ All source evaluations correct!")
 
 
 def test_reaper_summarize(reaper):
@@ -190,12 +184,10 @@ def test_reaper_summarize(reaper):
         summary = reaper.summarize(test_text)
         print(f"  Original: {len(test_text)} chars")
         print(f"  Summary:  {summary[:200]}")
+        assert summary, "Summarization returned empty result"
         print("  ✅ Summarization working!")
-        return True
     except Exception as e:
-        print(f"  ❌ Summarization failed: {e}")
-        print("  (Is phi4-mini pulled? Run: ollama pull phi4-mini)")
-        return False
+        pytest.skip(f"Summarization requires phi4-mini: {e}")
 
 
 def seed_shadow_identity(grimoire):

@@ -11,7 +11,9 @@ Phase 1: Subprocess-based code execution, linting, testing, and git
 operations. All execution sandboxed with timeouts.
 """
 
+import fnmatch
 import logging
+import re
 import subprocess
 import sys
 import tempfile
@@ -33,6 +35,11 @@ class Omen(BaseModule):
 
     DEFAULT_TIMEOUT = 30  # seconds
     MAX_TIMEOUT = 120
+    MAX_GLOB_RESULTS = 500
+    MAX_FILE_SIZE = 100 * 1024  # 100KB
+    ALWAYS_EXCLUDE = {"__pycache__", ".git", "node_modules", "shadow_env", "venv"}
+    BINARY_EXTENSIONS = {".bin", ".db", ".sqlite3", ".png", ".jpg", ".whl", ".egg", ".pickle"}
+    PROTECTED_PATHS = {"config", ".git", ".env"}
 
     def __init__(self, config: dict[str, Any] | None = None) -> None:
         """Initialize Omen.
@@ -77,6 +84,10 @@ class Omen(BaseModule):
                 "git_status": self._git_status,
                 "git_commit": self._git_commit,
                 "dependency_check": self._dependency_check,
+                "code_glob": self._code_glob,
+                "code_grep": self._code_grep,
+                "code_edit": self._code_edit,
+                "code_read": self._code_read,
             }
 
             handler = handlers.get(tool_name)
@@ -149,6 +160,35 @@ class Omen(BaseModule):
                 "name": "dependency_check",
                 "description": "Scan for outdated or vulnerable dependencies",
                 "parameters": {},
+                "permission_level": "autonomous",
+            },
+            {
+                "name": "code_glob",
+                "description": "Find files matching a glob pattern",
+                "parameters": {"pattern": "str", "root_dir": "str"},
+                "permission_level": "autonomous",
+            },
+            {
+                "name": "code_grep",
+                "description": "Search for text/regex in code files",
+                "parameters": {
+                    "pattern": "str",
+                    "file_glob": "str",
+                    "root_dir": "str",
+                    "max_results": "int",
+                },
+                "permission_level": "autonomous",
+            },
+            {
+                "name": "code_edit",
+                "description": "Apply a find-and-replace edit to a file",
+                "parameters": {"file_path": "str", "old_text": "str", "new_text": "str"},
+                "permission_level": "autonomous",
+            },
+            {
+                "name": "code_read",
+                "description": "Read a file with line numbers",
+                "parameters": {"file_path": "str", "start_line": "int", "end_line": "int"},
                 "permission_level": "autonomous",
             },
         ]
@@ -508,3 +548,322 @@ class Omen(BaseModule):
                 success=False, content=None, tool_name="dependency_check",
                 module=self.name, error="Dependency check timed out",
             )
+
+    # --- Code-aware tools ---
+
+    def _load_gitignore_patterns(self, root: Path) -> list[str]:
+        """Load .gitignore patterns from a directory.
+
+        Args:
+            root: Directory containing .gitignore.
+
+        Returns:
+            List of gitignore patterns.
+        """
+        gitignore = root / ".gitignore"
+        if not gitignore.exists():
+            return []
+        try:
+            lines = gitignore.read_text(encoding="utf-8").splitlines()
+            return [
+                line.strip().rstrip("/")
+                for line in lines
+                if line.strip() and not line.strip().startswith("#")
+            ]
+        except OSError:
+            return []
+
+    def _is_excluded(self, path: Path, root: Path, gitignore_patterns: list[str]) -> bool:
+        """Check if a path should be excluded from glob/grep results.
+
+        Args:
+            path: Path to check.
+            root: Root directory for relative path calculation.
+            gitignore_patterns: Patterns from .gitignore.
+
+        Returns:
+            True if the path should be excluded.
+        """
+        # Check always-excluded directories
+        for part in path.relative_to(root).parts:
+            if part in self.ALWAYS_EXCLUDE:
+                return True
+        # Check .pyc extension
+        if path.suffix == ".pyc":
+            return True
+        # Check gitignore patterns
+        rel = str(path.relative_to(root))
+        for pattern in gitignore_patterns:
+            if fnmatch.fnmatch(rel, pattern) or fnmatch.fnmatch(path.name, pattern):
+                return True
+            # Handle directory patterns
+            for part in path.relative_to(root).parts:
+                if fnmatch.fnmatch(part, pattern):
+                    return True
+        return False
+
+    def _code_glob(self, params: dict[str, Any]) -> ToolResult:
+        """Find files matching a glob pattern.
+
+        Args:
+            params: 'pattern' (str), optional 'root_dir' (str, default ".").
+        """
+        pattern = params.get("pattern", "")
+        if not pattern:
+            return ToolResult(
+                success=False, content=None, tool_name="code_glob",
+                module=self.name, error="Pattern is required",
+            )
+
+        root_dir = params.get("root_dir", ".")
+        root = Path(root_dir).resolve()
+
+        if not root.exists() or not root.is_dir():
+            return ToolResult(
+                success=False, content=None, tool_name="code_glob",
+                module=self.name, error=f"Directory not found: {root_dir}",
+            )
+
+        gitignore_patterns = self._load_gitignore_patterns(root)
+
+        matches = []
+        for path in root.glob(pattern):
+            if not path.is_file():
+                continue
+            if self._is_excluded(path, root, gitignore_patterns):
+                continue
+            matches.append(str(path.relative_to(root)))
+            if len(matches) >= self.MAX_GLOB_RESULTS:
+                break
+
+        return ToolResult(
+            success=True,
+            content={
+                "files": sorted(matches),
+                "count": len(matches),
+                "pattern": pattern,
+                "root": str(root),
+                "capped": len(matches) >= self.MAX_GLOB_RESULTS,
+            },
+            tool_name="code_glob",
+            module=self.name,
+        )
+
+    def _code_grep(self, params: dict[str, Any]) -> ToolResult:
+        """Search for text/regex in code files.
+
+        Args:
+            params: 'pattern' (str), optional 'file_glob' (str, default "**/*.py"),
+                    'root_dir' (str, default "."), 'max_results' (int, default 50).
+        """
+        pattern = params.get("pattern", "")
+        if not pattern:
+            return ToolResult(
+                success=False, content=None, tool_name="code_grep",
+                module=self.name, error="Pattern is required",
+            )
+
+        try:
+            regex = re.compile(pattern)
+        except re.error as e:
+            return ToolResult(
+                success=False, content=None, tool_name="code_grep",
+                module=self.name, error=f"Invalid regex: {e}",
+            )
+
+        file_glob = params.get("file_glob", "**/*.py")
+        root_dir = params.get("root_dir", ".")
+        max_results = params.get("max_results", 50)
+        root = Path(root_dir).resolve()
+
+        if not root.exists() or not root.is_dir():
+            return ToolResult(
+                success=False, content=None, tool_name="code_grep",
+                module=self.name, error=f"Directory not found: {root_dir}",
+            )
+
+        gitignore_patterns = self._load_gitignore_patterns(root)
+        results = []
+
+        for path in root.glob(file_glob):
+            if not path.is_file():
+                continue
+            if self._is_excluded(path, root, gitignore_patterns):
+                continue
+            if path.suffix in self.BINARY_EXTENSIONS:
+                continue
+            try:
+                content = path.read_text(encoding="utf-8")
+            except (OSError, UnicodeDecodeError):
+                continue
+
+            for i, line in enumerate(content.splitlines(), 1):
+                if regex.search(line):
+                    results.append({
+                        "file": str(path.relative_to(root)),
+                        "line_number": i,
+                        "line": line,
+                    })
+                    if len(results) >= max_results:
+                        break
+            if len(results) >= max_results:
+                break
+
+        return ToolResult(
+            success=True,
+            content={
+                "matches": results,
+                "count": len(results),
+                "pattern": pattern,
+                "capped": len(results) >= max_results,
+            },
+            tool_name="code_grep",
+            module=self.name,
+        )
+
+    def _code_edit(self, params: dict[str, Any]) -> ToolResult:
+        """Apply a find-and-replace edit to a file.
+
+        Args:
+            params: 'file_path' (str), 'old_text' (str), 'new_text' (str).
+        """
+        file_path = params.get("file_path", "")
+        old_text = params.get("old_text", "")
+        new_text = params.get("new_text", "")
+
+        if not file_path or not old_text:
+            return ToolResult(
+                success=False, content=None, tool_name="code_edit",
+                module=self.name, error="file_path and old_text are required",
+            )
+
+        path = Path(file_path)
+
+        # Safety: refuse protected paths
+        try:
+            rel = path.resolve().relative_to(self._project_root)
+        except ValueError:
+            rel = path
+
+        for protected in self.PROTECTED_PATHS:
+            rel_str = str(rel).replace("\\", "/")
+            if rel_str == protected or rel_str.startswith(protected + "/"):
+                return ToolResult(
+                    success=False, content=None, tool_name="code_edit",
+                    module=self.name,
+                    error=f"Refused: cannot edit protected path '{protected}'",
+                )
+
+        if not path.exists():
+            return ToolResult(
+                success=False, content=None, tool_name="code_edit",
+                module=self.name, error=f"File not found: {file_path}",
+            )
+
+        try:
+            content = path.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError) as e:
+            return ToolResult(
+                success=False, content=None, tool_name="code_edit",
+                module=self.name, error=f"Cannot read file: {e}",
+            )
+
+        count = content.count(old_text)
+        if count == 0:
+            return ToolResult(
+                success=False, content=None, tool_name="code_edit",
+                module=self.name, error="old_text not found in file",
+            )
+        if count > 1:
+            return ToolResult(
+                success=False, content=None, tool_name="code_edit",
+                module=self.name,
+                error=f"old_text found {count} times — must appear exactly once",
+            )
+
+        new_content = content.replace(old_text, new_text, 1)
+        try:
+            path.write_text(new_content, encoding="utf-8")
+        except OSError as e:
+            return ToolResult(
+                success=False, content=None, tool_name="code_edit",
+                module=self.name, error=f"Cannot write file: {e}",
+            )
+
+        return ToolResult(
+            success=True,
+            content={"success": True, "file": str(path), "replacements": 1},
+            tool_name="code_edit",
+            module=self.name,
+        )
+
+    def _code_read(self, params: dict[str, Any]) -> ToolResult:
+        """Read a file with line numbers.
+
+        Args:
+            params: 'file_path' (str), optional 'start_line' (int), 'end_line' (int).
+        """
+        file_path = params.get("file_path", "")
+        if not file_path:
+            return ToolResult(
+                success=False, content=None, tool_name="code_read",
+                module=self.name, error="file_path is required",
+            )
+
+        path = Path(file_path)
+        if not path.exists():
+            return ToolResult(
+                success=False, content=None, tool_name="code_read",
+                module=self.name, error=f"File not found: {file_path}",
+            )
+
+        # Check file size
+        try:
+            size = path.stat().st_size
+        except OSError as e:
+            return ToolResult(
+                success=False, content=None, tool_name="code_read",
+                module=self.name, error=f"Cannot stat file: {e}",
+            )
+
+        if size > self.MAX_FILE_SIZE:
+            return ToolResult(
+                success=False, content=None, tool_name="code_read",
+                module=self.name,
+                error=f"File too large: {size} bytes (max {self.MAX_FILE_SIZE})",
+            )
+
+        try:
+            content = path.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError) as e:
+            return ToolResult(
+                success=False, content=None, tool_name="code_read",
+                module=self.name, error=f"Cannot read file: {e}",
+            )
+
+        lines = content.splitlines()
+        start = params.get("start_line")
+        end = params.get("end_line")
+
+        if start is not None or end is not None:
+            start_idx = (start - 1) if start and start >= 1 else 0
+            end_idx = end if end else len(lines)
+            selected = lines[start_idx:end_idx]
+            offset = start_idx + 1
+        else:
+            selected = lines
+            offset = 1
+
+        numbered = [f"{i + offset}\t{line}" for i, line in enumerate(selected)]
+
+        return ToolResult(
+            success=True,
+            content={
+                "content": "\n".join(numbered),
+                "file": str(path),
+                "line_count": len(selected),
+                "total_lines": len(lines),
+            },
+            tool_name="code_read",
+            module=self.name,
+        )

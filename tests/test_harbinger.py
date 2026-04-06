@@ -45,7 +45,7 @@ class TestHarbingerLifecycle:
 
     def test_get_tools_returns_all(self, harbinger: Harbinger):
         tools = harbinger.get_tools()
-        assert len(tools) == 8
+        assert len(tools) == 12
         names = [t["name"] for t in tools]
         assert "briefing_compile" in names
         assert "decision_queue_add" in names

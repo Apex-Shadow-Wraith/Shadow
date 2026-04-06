@@ -14,12 +14,15 @@ report compilation. Telegram dispatch logged but not sent.
 
 import json
 import logging
+import os
+import sqlite3
 import time
 from datetime import datetime, time as dtime, timedelta
 from pathlib import Path
 from typing import Any
 
 from modules.base import BaseModule, ModuleStatus, ToolResult
+from modules.harbinger.telegram import TelegramDelivery
 
 logger = logging.getLogger("shadow.harbinger")
 
@@ -62,11 +65,34 @@ class Harbinger(BaseModule):
             self._config.get("sleep_end_hour", 6), 0
         )
 
+        # Personalization DB
+        self._personalization_db_path = Path(
+            self._config.get(
+                "personalization_db", "data/harbinger_personalization.db"
+            )
+        )
+        self._personalization_conn: sqlite3.Connection | None = None
+
+        # Telegram delivery
+        bot_token = self._config.get(
+            "telegram_bot_token",
+            os.environ.get("TELEGRAM_BOT_TOKEN", ""),
+        )
+        chat_id = self._config.get(
+            "telegram_chat_id",
+            os.environ.get("TELEGRAM_CHAT_ID", ""),
+        )
+        self._telegram = TelegramDelivery(
+            bot_token=str(bot_token).strip(),
+            chat_id=str(chat_id).strip(),
+        )
+
     async def initialize(self) -> None:
-        """Start Harbinger. Load persisted decision queue."""
+        """Start Harbinger. Load persisted decision queue and personalization DB."""
         self.status = ModuleStatus.STARTING
         try:
             self._load_queue()
+            self._init_personalization_db()
             self.status = ModuleStatus.ONLINE
             logger.info(
                 "Harbinger online. %d pending decisions in queue.",
@@ -98,6 +124,10 @@ class Harbinger(BaseModule):
                 "decision_queue_resolve": self._decision_queue_resolve,
                 "report_compile": self._report_compile,
                 "channel_fallback": self._channel_fallback,
+                "preemptive_approval_scan": self._preemptive_approval_scan,
+                "briefing_deliver": self._briefing_deliver,
+                "personalization_update": self._personalization_update,
+                "personalization_weights": self._personalization_weights,
             }
 
             handler = handlers.get(tool_name)
@@ -130,8 +160,14 @@ class Harbinger(BaseModule):
             )
 
     async def shutdown(self) -> None:
-        """Shut down Harbinger. Persist decision queue."""
+        """Shut down Harbinger. Persist decision queue and close personalization DB."""
         self._save_queue()
+        if self._personalization_conn is not None:
+            try:
+                self._personalization_conn.close()
+            except Exception:
+                pass
+            self._personalization_conn = None
         self.status = ModuleStatus.OFFLINE
         logger.info("Harbinger offline. Decision queue saved.")
 
@@ -146,8 +182,8 @@ class Harbinger(BaseModule):
             },
             {
                 "name": "notification_send",
-                "description": "Send notification at assigned severity level",
-                "parameters": {"message": "str", "severity": "int", "category": "str"},
+                "description": "Send notification at assigned severity level via Telegram (or log fallback)",
+                "parameters": {"message": "str", "severity": "int", "category": "str", "importance": "int"},
                 "permission_level": "autonomous",
             },
             {
@@ -190,6 +226,30 @@ class Harbinger(BaseModule):
                 "name": "channel_fallback",
                 "description": "Switch to next delivery channel if primary fails",
                 "parameters": {"failed_channel": "str"},
+                "permission_level": "autonomous",
+            },
+            {
+                "name": "preemptive_approval_scan",
+                "description": "Scan upcoming tasks for actions needing user approval",
+                "parameters": {},
+                "permission_level": "autonomous",
+            },
+            {
+                "name": "briefing_deliver",
+                "description": "Deliver a compiled briefing through the active channel",
+                "parameters": {"briefing": "dict", "channel": "str"},
+                "permission_level": "autonomous",
+            },
+            {
+                "name": "personalization_update",
+                "description": "Record user interaction with a briefing section",
+                "parameters": {"section_name": "str", "action": "str"},
+                "permission_level": "autonomous",
+            },
+            {
+                "name": "personalization_weights",
+                "description": "Get current section engagement weights",
+                "parameters": {},
                 "permission_level": "autonomous",
             },
         ]
@@ -292,14 +352,17 @@ class Harbinger(BaseModule):
     def _notification_send(self, params: dict[str, Any]) -> ToolResult:
         """Send a notification at the assigned severity level.
 
-        Phase 1: Logs the notification. Telegram dispatch deferred.
+        Delivers via Telegram when configured and severity/nighttime rules allow.
+        Falls back to log-only when Telegram is not configured.
 
         Args:
-            params: 'message', 'severity' (1-4), 'category'.
+            params: 'message', 'severity' (1-4), 'category',
+                    'importance' (1-5, optional, used for nighttime severity-3 gating).
         """
         message = params.get("message", "")
         severity = params.get("severity", 1)
         category = params.get("category", "general")
+        importance = params.get("importance", 3)
 
         if not message:
             return ToolResult(
@@ -319,6 +382,10 @@ class Harbinger(BaseModule):
                 error="Severity must be 1 (Silent), 2 (Quiet), 3 (Audible), or 4 (Urgent)",
             )
 
+        if not isinstance(importance, int):
+            importance = 3
+        importance = max(1, min(5, importance))
+
         # Nighttime rules
         now = datetime.now().time()
         is_sleep_hours = self._is_sleep_time(now)
@@ -332,20 +399,56 @@ class Harbinger(BaseModule):
                     severity, message[:50],
                 )
             elif severity == 3:
-                delivered = False
-                logger.info(
-                    "Notification held (sleep hours, severity=3): %s", message[:50]
-                )
+                if importance < 5:
+                    delivered = False
+                    logger.info(
+                        "Notification held (sleep hours, severity=3, importance=%d): %s",
+                        importance, message[:50],
+                    )
+                else:
+                    logger.info(
+                        "Severity-3 delivered during sleep (importance=%d): %s",
+                        importance, message[:50],
+                    )
             # Severity 4 always delivered
+
+        # Determine delivery channel
+        telegram_sent = False
+        channel = "log"
+
+        if delivered and self._telegram and self._telegram.is_configured():
+            if severity >= 2:
+                telegram_sent = self._telegram.send_alert(
+                    message, severity, category,
+                )
+                if telegram_sent:
+                    channel = "telegram"
+                    logger.info("Notification delivered via Telegram.")
+                else:
+                    channel = "log"
+                    logger.warning(
+                        "Telegram delivery failed — queuing fallback."
+                    )
+                    self._decision_queue_add({
+                        "description": f"Notification delivery failed: {message[:80]}",
+                        "context": f"Telegram send failed for severity-{severity} {category} notification.",
+                        "recommendation": "Check Telegram bot token and chat ID. Retry or use alternate channel.",
+                        "importance": min(severity, 4),
+                        "source_module": "harbinger",
+                    })
+        elif delivered and (not self._telegram or not self._telegram.is_configured()):
+            logger.info("Telegram not configured — notification logged only.")
 
         notification = {
             "message": message,
             "severity": severity,
             "category": category,
+            "importance": importance,
             "timestamp": datetime.now().isoformat(),
             "delivered": delivered,
             "held_for_morning": is_sleep_hours and not delivered,
-            "channel": "log",  # Phase 1: log only
+            "channel": channel,
+            "telegram_sent": telegram_sent,
         }
         self._notification_log.append(notification)
 
@@ -604,7 +707,323 @@ class Harbinger(BaseModule):
             module=self.name,
         )
 
+    def _preemptive_approval_scan(self, params: dict[str, Any]) -> ToolResult:
+        """Scan upcoming tasks and scheduled items for actions needing user approval.
+
+        Presents them in a batch so the user can pre-authorize over dinner
+        instead of getting interrupted throughout the next day.
+
+        Args:
+            params: Optional 'modules' dict of available module instances.
+        """
+        approval_items: list[dict[str, Any]] = []
+
+        # 1. Check decision queue for pending items
+        for item in self._pending_items:
+            importance = item.get("importance", 3)
+            if importance >= 4:
+                risk = "high"
+            elif importance >= 2:
+                risk = "medium"
+            else:
+                risk = "low"
+            approval_items.append({
+                "item_id": item["id"],
+                "description": item.get("description", ""),
+                "source": f"decision_queue ({item.get('source_module', 'unknown')})",
+                "action_needed": item.get("recommendation", "Review and decide"),
+                "risk_level": risk,
+            })
+
+        # 2. Check task tracker if available
+        modules = params.get("modules") or {}
+        task_tracker = modules.get("task_tracker")
+        if task_tracker is not None:
+            try:
+                queued = task_tracker.list_tasks(status_filter="queued")
+                for task in queued:
+                    perm = task.get("permission_level", "autonomous")
+                    if perm != "autonomous":
+                        priority = task.get("priority", 5)
+                        if priority <= 2:
+                            risk = "high"
+                        elif priority <= 4:
+                            risk = "medium"
+                        else:
+                            risk = "low"
+                        approval_items.append({
+                            "item_id": task.get("id", "unknown"),
+                            "description": task.get("description", ""),
+                            "source": "task_tracker",
+                            "action_needed": f"Approve task: {task.get('description', '')[:60]}",
+                            "risk_level": risk,
+                        })
+            except Exception as e:
+                logger.warning("Failed to scan task tracker: %s", e)
+
+        # Sort by risk_level: high > medium > low
+        risk_order = {"high": 0, "medium": 1, "low": 2}
+        approval_items.sort(key=lambda x: risk_order.get(x["risk_level"], 3))
+
+        if not approval_items:
+            return ToolResult(
+                success=True,
+                content={
+                    "items": [],
+                    "message": "No upcoming actions require approval",
+                },
+                tool_name="preemptive_approval_scan",
+                module=self.name,
+            )
+
+        return ToolResult(
+            success=True,
+            content={
+                "items": approval_items,
+                "count": len(approval_items),
+            },
+            tool_name="preemptive_approval_scan",
+            module=self.name,
+        )
+
+    def _briefing_deliver(self, params: dict[str, Any]) -> ToolResult:
+        """Deliver a compiled briefing through the active channel.
+
+        Falls through channels on failure: telegram -> console -> log.
+
+        Args:
+            params: 'briefing' (dict), 'channel' (str, default 'telegram').
+        """
+        briefing = params.get("briefing")
+        if not briefing or not isinstance(briefing, dict):
+            return ToolResult(
+                success=False,
+                content=None,
+                tool_name="briefing_deliver",
+                module=self.name,
+                error="briefing (dict) is required",
+            )
+
+        channel = params.get("channel", "telegram")
+        fallback_used = False
+
+        # Format the briefing text
+        briefing_type = briefing.get("type", "")
+        if "evening" in briefing_type:
+            text = self.format_evening_summary(briefing)
+        else:
+            text = self.format_briefing_text(briefing)
+
+        # Attempt delivery through channel cascade
+        if channel == "telegram":
+            delivered = False
+            try:
+                if self._telegram and self._telegram.is_configured():
+                    delivered = self._telegram.send_message(text)
+            except Exception as e:
+                logger.warning("Telegram delivery failed: %s", e)
+
+            if delivered:
+                return ToolResult(
+                    success=True,
+                    content={
+                        "delivered": True,
+                        "channel_used": "telegram",
+                        "fallback_used": False,
+                    },
+                    tool_name="briefing_deliver",
+                    module=self.name,
+                )
+            # Fall through to console
+            channel = "console"
+            fallback_used = True
+
+        if channel == "console":
+            try:
+                print(text)
+                return ToolResult(
+                    success=True,
+                    content={
+                        "delivered": True,
+                        "channel_used": "console",
+                        "fallback_used": fallback_used,
+                    },
+                    tool_name="briefing_deliver",
+                    module=self.name,
+                )
+            except Exception as e:
+                logger.warning("Console delivery failed: %s", e)
+                channel = "log"
+                fallback_used = True
+
+        # Log channel — always available
+        logger.info("Briefing delivered via log:\n%s", text)
+        return ToolResult(
+            success=True,
+            content={
+                "delivered": True,
+                "channel_used": "log",
+                "fallback_used": fallback_used,
+            },
+            tool_name="briefing_deliver",
+            module=self.name,
+        )
+
+    def _personalization_update(self, params: dict[str, Any]) -> ToolResult:
+        """Record user interaction with a briefing section.
+
+        Args:
+            params: 'section_name' (str), 'action' (str: engaged|skipped|expanded|dismissed).
+        """
+        section_name = params.get("section_name", "")
+        action = params.get("action", "")
+
+        if not section_name:
+            return ToolResult(
+                success=False,
+                content=None,
+                tool_name="personalization_update",
+                module=self.name,
+                error="section_name is required",
+            )
+
+        valid_actions = ("engaged", "skipped", "expanded", "dismissed")
+        if action not in valid_actions:
+            return ToolResult(
+                success=False,
+                content=None,
+                tool_name="personalization_update",
+                module=self.name,
+                error=f"action must be one of: {', '.join(valid_actions)}",
+            )
+
+        try:
+            self._ensure_personalization_db()
+            now = datetime.now().isoformat()
+            self._personalization_conn.execute(
+                "INSERT INTO harbinger_personalization (timestamp, section_name, action) "
+                "VALUES (?, ?, ?)",
+                (now, section_name, action),
+            )
+            self._personalization_conn.commit()
+
+            return ToolResult(
+                success=True,
+                content={
+                    "section_name": section_name,
+                    "action": action,
+                    "recorded_at": now,
+                },
+                tool_name="personalization_update",
+                module=self.name,
+            )
+        except Exception as e:
+            logger.error("Failed to record personalization: %s", e)
+            return ToolResult(
+                success=False,
+                content=None,
+                tool_name="personalization_update",
+                module=self.name,
+                error=str(e),
+            )
+
+    def _personalization_weights(self, params: dict[str, Any]) -> ToolResult:
+        """Get current section engagement weights.
+
+        Args:
+            params: Unused.
+        """
+        try:
+            weights = self.get_personalization_weights()
+            return ToolResult(
+                success=True,
+                content=weights,
+                tool_name="personalization_weights",
+                module=self.name,
+            )
+        except Exception as e:
+            logger.error("Failed to get personalization weights: %s", e)
+            return ToolResult(
+                success=False,
+                content=None,
+                tool_name="personalization_weights",
+                module=self.name,
+                error=str(e),
+            )
+
+    def get_personalization_weights(self) -> dict[str, Any]:
+        """Compute engagement scores per section from the last 30 days.
+
+        Returns:
+            Dict of section_name -> {score, total_interactions, trend}.
+            Sections with < 20% engagement flagged for demotion.
+            Sections with > 80% engagement flagged for promotion.
+        """
+        self._ensure_personalization_db()
+        cutoff = (datetime.now() - timedelta(days=30)).isoformat()
+
+        rows = self._personalization_conn.execute(
+            "SELECT section_name, action, COUNT(*) as cnt "
+            "FROM harbinger_personalization "
+            "WHERE timestamp >= ? "
+            "GROUP BY section_name, action",
+            (cutoff,),
+        ).fetchall()
+
+        if not rows:
+            return {}
+
+        # Aggregate by section
+        sections: dict[str, dict[str, int]] = {}
+        for section_name, action, cnt in rows:
+            if section_name not in sections:
+                sections[section_name] = {}
+            sections[section_name][action] = cnt
+
+        weights: dict[str, Any] = {}
+        for section_name, actions in sections.items():
+            engaged = actions.get("engaged", 0) + actions.get("expanded", 0)
+            total = sum(actions.values())
+            score = engaged / total if total > 0 else 0.0
+
+            if score >= 0.8:
+                trend = "promote"
+            elif score <= 0.2:
+                trend = "demote"
+            else:
+                trend = "stable"
+
+            weights[section_name] = {
+                "score": round(score, 3),
+                "total_interactions": total,
+                "trend": trend,
+            }
+
+        return weights
+
     # --- Internal helpers ---
+
+    def _init_personalization_db(self) -> None:
+        """Initialize the personalization SQLite database."""
+        self._personalization_db_path.parent.mkdir(parents=True, exist_ok=True)
+        self._personalization_conn = sqlite3.connect(
+            str(self._personalization_db_path)
+        )
+        self._personalization_conn.execute(
+            "CREATE TABLE IF NOT EXISTS harbinger_personalization ("
+            "    id INTEGER PRIMARY KEY AUTOINCREMENT,"
+            "    timestamp TEXT NOT NULL,"
+            "    section_name TEXT NOT NULL,"
+            "    action TEXT NOT NULL,"
+            "    metadata TEXT"
+            ")"
+        )
+        self._personalization_conn.commit()
+
+    def _ensure_personalization_db(self) -> None:
+        """Ensure the personalization DB connection is open."""
+        if self._personalization_conn is None:
+            self._init_personalization_db()
 
     @property
     def _pending_items(self) -> list[dict[str, Any]]:
