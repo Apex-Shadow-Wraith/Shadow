@@ -11,6 +11,8 @@ Phase 1: psutil-based network monitoring, file integrity hashing,
 threat assessment stubs. No Suricata/Zeek yet (Ubuntu).
 """
 
+from __future__ import annotations
+
 import hashlib
 import json
 import logging

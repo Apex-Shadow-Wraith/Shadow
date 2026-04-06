@@ -17,6 +17,8 @@ escalation, teaching signal extraction, Grimoire storage. The loop:
 escalate → extract signal → store → reuse → reduce escalations.
 """
 
+from __future__ import annotations
+
 import json
 import logging
 import os
@@ -53,7 +55,7 @@ class EscalationLog:
 
     def _init_db(self) -> None:
         """Create the escalation log table if it doesn't exist."""
-        with sqlite3.connect(self._db_path) as conn:
+        with sqlite3.connect(self._db_path, timeout=5) as conn:
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS apex_escalation_log (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -72,6 +74,14 @@ class EscalationLog:
                     local_retry_success INTEGER DEFAULT 0
                 )
             """)
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_apex_log_timestamp "
+                "ON apex_escalation_log(timestamp)"
+            )
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_apex_log_task_type "
+                "ON apex_escalation_log(task_type)"
+            )
 
     def log_escalation(
         self,
@@ -100,7 +110,7 @@ class EscalationLog:
             The string ID of the new log entry.
         """
         now = datetime.now().isoformat()
-        with sqlite3.connect(self._db_path) as conn:
+        with sqlite3.connect(self._db_path, timeout=5) as conn:
             cursor = conn.execute(
                 """INSERT INTO apex_escalation_log
                    (timestamp, task_type, task_summary, reason,
@@ -127,7 +137,7 @@ class EscalationLog:
             grimoire_memory_id: Optional Grimoire memory ID where
                 the teaching signal was stored.
         """
-        with sqlite3.connect(self._db_path) as conn:
+        with sqlite3.connect(self._db_path, timeout=5) as conn:
             conn.execute(
                 """UPDATE apex_escalation_log
                    SET teaching_signal = ?, grimoire_memory_id = ?
@@ -143,7 +153,7 @@ class EscalationLog:
         Args:
             log_id: The escalation log entry ID.
         """
-        with sqlite3.connect(self._db_path) as conn:
+        with sqlite3.connect(self._db_path, timeout=5) as conn:
             conn.execute(
                 """UPDATE apex_escalation_log
                    SET local_retry_success = 1
@@ -162,7 +172,7 @@ class EscalationLog:
             top_reasons, and local_retry_success_rate.
         """
         cutoff = (datetime.now() - timedelta(days=days)).isoformat()
-        with sqlite3.connect(self._db_path) as conn:
+        with sqlite3.connect(self._db_path, timeout=5) as conn:
             conn.row_factory = sqlite3.Row
 
             # Total escalations
@@ -233,7 +243,7 @@ class EscalationLog:
             List of task type strings sorted by frequency (descending).
         """
         cutoff = (datetime.now() - timedelta(days=days)).isoformat()
-        with sqlite3.connect(self._db_path) as conn:
+        with sqlite3.connect(self._db_path, timeout=5) as conn:
             conn.row_factory = sqlite3.Row
             rows = conn.execute(
                 """SELECT task_type, COUNT(*) as cnt
@@ -256,7 +266,7 @@ class EscalationLog:
             List of dicts with id, timestamp, task_type, task_summary,
             teaching_signal, and grimoire_memory_id.
         """
-        with sqlite3.connect(self._db_path) as conn:
+        with sqlite3.connect(self._db_path, timeout=5) as conn:
             conn.row_factory = sqlite3.Row
             rows = conn.execute(
                 """SELECT id, timestamp, task_type, task_summary,

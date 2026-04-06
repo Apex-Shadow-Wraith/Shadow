@@ -8,6 +8,8 @@ before any external or untrusted input reaches Shadow's reasoning.
 Pure computation — no LLM, no async. Millisecond latency.
 """
 
+from __future__ import annotations
+
 import logging
 import re
 from dataclasses import dataclass, field

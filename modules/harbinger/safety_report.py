@@ -5,6 +5,8 @@ over a 24-hour window, and produces structured reports for Harbinger
 morning briefings.
 """
 
+from __future__ import annotations
+
 import json
 import sqlite3
 from collections import Counter
@@ -64,7 +66,7 @@ class DailySafetyReport:
     @staticmethod
     def _ensure_table(db_path: Path) -> None:
         """Create the cerberus_audit_log table if it doesn't exist."""
-        conn = sqlite3.connect(str(db_path))
+        conn = sqlite3.connect(str(db_path), timeout=5)
         try:
             conn.execute(AUDIT_TABLE_DDL)
             conn.commit()
@@ -94,7 +96,7 @@ class DailySafetyReport:
             datetime(date.year, date.month, date.day) + timedelta(days=1)
         ).isoformat()
 
-        conn = sqlite3.connect(str(db_path))
+        conn = sqlite3.connect(str(db_path), timeout=5)
         conn.row_factory = sqlite3.Row
         try:
             rows = conn.execute(

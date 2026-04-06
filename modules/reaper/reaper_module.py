@@ -12,6 +12,8 @@ Architecture: 'Reaper is the module that keeps Shadow informed.
 Without Reaper, Shadow knows only what he was trained on.'
 """
 
+from __future__ import annotations
+
 import logging
 import time
 from datetime import datetime

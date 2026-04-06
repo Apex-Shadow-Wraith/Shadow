@@ -10,6 +10,8 @@ Phase 1: Template-based formatting. No LLM calls — all output is
 rule-driven. Density over length: every word earns its place.
 """
 
+from __future__ import annotations
+
 import logging
 import re
 import time

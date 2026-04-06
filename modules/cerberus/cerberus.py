@@ -13,6 +13,8 @@ CERBERUS NEVER BLOCKS SILENTLY. When Cerberus stops an action, he
 always explains what was blocked and why.
 """
 
+from __future__ import annotations
+
 import hashlib
 import json
 import logging
@@ -364,9 +366,17 @@ class Cerberus(BaseModule):
         """Create the cerberus_audit_log table if it doesn't exist."""
         if self._db_path is None:
             return
-        conn = sqlite3.connect(str(self._db_path))
+        conn = sqlite3.connect(str(self._db_path), timeout=5)
         try:
             conn.execute(self.AUDIT_TABLE_DDL)
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_cerberus_audit_timestamp "
+                "ON cerberus_audit_log(timestamp)"
+            )
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_cerberus_audit_action "
+                "ON cerberus_audit_log(action)"
+            )
             conn.commit()
         finally:
             conn.close()
@@ -402,7 +412,7 @@ class Cerberus(BaseModule):
         if self._db_path is None:
             raise ValueError("No db_path configured — cannot log false positive")
 
-        conn = sqlite3.connect(str(self._db_path))
+        conn = sqlite3.connect(str(self._db_path), timeout=5)
         try:
             conn.execute(
                 "INSERT INTO cerberus_audit_log "
@@ -444,7 +454,7 @@ class Cerberus(BaseModule):
 
         cutoff = (datetime.now() - timedelta(days=days)).isoformat()
 
-        conn = sqlite3.connect(str(self._db_path))
+        conn = sqlite3.connect(str(self._db_path), timeout=5)
         conn.row_factory = sqlite3.Row
         try:
             # Count all checks (denials + false_positives represent safety triggers)

@@ -13,6 +13,8 @@ Phase 1: Experiment tracking, evaluation tiers, SQLite persistence.
 No overnight LLM execution yet (that's Phase 2).
 """
 
+from __future__ import annotations
+
 import json
 import logging
 import sqlite3
@@ -87,6 +89,8 @@ class Morpheus(BaseModule):
         try:
             self._db_path.parent.mkdir(parents=True, exist_ok=True)
             self._conn = sqlite3.connect(str(self._db_path))
+            self._conn.execute("PRAGMA journal_mode=WAL")
+            self._conn.execute("PRAGMA busy_timeout=5000")
             self._conn.row_factory = sqlite3.Row
             self._create_tables()
             self.status = ModuleStatus.ONLINE

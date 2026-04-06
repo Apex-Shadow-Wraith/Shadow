@@ -9,6 +9,8 @@ The companion watchdog script lives at scripts/watchdog_cerberus.py
 and runs as a completely separate process.
 """
 
+from __future__ import annotations
+
 import json
 import logging
 import threading

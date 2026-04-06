@@ -13,6 +13,8 @@ Phase 1: Rule-based routing, reminder system with persistence,
 proactive intelligence stubs. No LLM calls — pure logic.
 """
 
+from __future__ import annotations
+
 import json
 import logging
 import sqlite3
@@ -46,6 +48,8 @@ class TemporalTracker:
         """Open database and create schema."""
         self._db_path.parent.mkdir(parents=True, exist_ok=True)
         self._conn = sqlite3.connect(str(self._db_path))
+        self._conn.execute("PRAGMA journal_mode=WAL")
+        self._conn.execute("PRAGMA busy_timeout=5000")
         self._conn.row_factory = sqlite3.Row
         self._conn.execute("""
             CREATE TABLE IF NOT EXISTS wraith_temporal_events (

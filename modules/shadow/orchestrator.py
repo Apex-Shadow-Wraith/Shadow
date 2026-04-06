@@ -19,6 +19,8 @@ Phase 1-2 (current):
 - State persistence via JSON file
 """
 
+from __future__ import annotations
+
 import json
 import logging
 import time

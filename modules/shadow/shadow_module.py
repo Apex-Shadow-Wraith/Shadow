@@ -11,6 +11,8 @@ provides the tool interface for task management that the Orchestrator
 can route to like any other module.
 """
 
+from __future__ import annotations
+
 import json
 import logging
 import sqlite3
@@ -50,6 +52,8 @@ class ShadowModule(BaseModule):
         try:
             self._db_path.parent.mkdir(parents=True, exist_ok=True)
             self._db = sqlite3.connect(str(self._db_path))
+            self._db.execute("PRAGMA journal_mode=WAL")
+            self._db.execute("PRAGMA busy_timeout=5000")
             self._db.row_factory = sqlite3.Row
             self._create_tables()
             self.status = ModuleStatus.ONLINE

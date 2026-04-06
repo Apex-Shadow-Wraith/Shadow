@@ -9,6 +9,8 @@ with dual 5090s, these interfaces stay the same — only the implementations
 grow.
 """
 
+from __future__ import annotations
+
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from datetime import datetime

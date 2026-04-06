@@ -15,6 +15,8 @@ Schema: shadow_tasks table
 - result (TEXT, nullable JSON)
 """
 
+from __future__ import annotations
+
 import json
 import logging
 import sqlite3
@@ -44,6 +46,8 @@ class TaskTracker:
         """Open database and create schema."""
         self._db_path.parent.mkdir(parents=True, exist_ok=True)
         self._db = sqlite3.connect(str(self._db_path))
+        self._db.execute("PRAGMA journal_mode=WAL")
+        self._db.execute("PRAGMA busy_timeout=5000")
         self._db.row_factory = sqlite3.Row
         self._db.execute("""
             CREATE TABLE IF NOT EXISTS shadow_tasks (

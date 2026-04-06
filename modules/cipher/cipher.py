@@ -10,6 +10,8 @@ Phase 1: Safe expression evaluation, statistics, unit conversion,
 date math, percentages, financial calculations. No LLM — pure computation.
 """
 
+from __future__ import annotations
+
 import ast
 import calendar
 import logging

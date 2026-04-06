@@ -7,6 +7,8 @@ if not configured or if delivery fails.
 Phase 2: Real delivery. Phase 1 was log-only.
 """
 
+from __future__ import annotations
+
 import logging
 from typing import Any
 

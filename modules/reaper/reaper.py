@@ -26,6 +26,8 @@ Author: Patrick (with Claude Opus 4.6)
 Project: Shadow • Module: Reaper (Module #7)
 """
 
+from __future__ import annotations
+
 import json
 import os
 import re

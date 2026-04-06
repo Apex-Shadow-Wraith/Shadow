@@ -34,6 +34,8 @@ Project: Shadow
 Module: Grimoire (Module #4 in Shadow's architecture)
 """
 
+from __future__ import annotations
+
 import sqlite3                  # Built-in Python database — no install needed
 import json                     # For converting Python dicts to/from JSON strings
 import uuid                     # Generates unique IDs for each memory
@@ -140,7 +142,9 @@ class Grimoire:
         # ── Initialize SQLite ──
         # sqlite3.connect creates the database file if it doesn't exist
         self.conn = sqlite3.connect(str(self.db_path))
-        
+        self.conn.execute("PRAGMA journal_mode=WAL")
+        self.conn.execute("PRAGMA busy_timeout=5000")
+
         # Row factory makes query results behave like dictionaries
         # Instead of row[0], row[1], you can do row["content"], row["trust_level"]
         self.conn.row_factory = sqlite3.Row

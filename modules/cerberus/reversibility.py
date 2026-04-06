@@ -9,6 +9,8 @@ Phase 1: file snapshots with full rollback. Config and DB
 snapshots are stored but rollback is manual (Phase 2).
 """
 
+from __future__ import annotations
+
 import json
 import logging
 import shutil
@@ -41,6 +43,8 @@ class ReversibilityEngine:
 
         self._db_path = db_path or (self._snapshot_dir / "cerberus_snapshots.db")
         self._conn = sqlite3.connect(str(self._db_path))
+        self._conn.execute("PRAGMA journal_mode=WAL")
+        self._conn.execute("PRAGMA busy_timeout=5000")
         self._conn.row_factory = sqlite3.Row
         self._init_db()
 
@@ -59,6 +63,14 @@ class ReversibilityEngine:
                 data_path TEXT NOT NULL
             )
         """)
+        self._conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_snapshots_action_id "
+            "ON cerberus_snapshots(action_id)"
+        )
+        self._conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_snapshots_type "
+            "ON cerberus_snapshots(type)"
+        )
         self._conn.commit()
 
     def snapshot_file(

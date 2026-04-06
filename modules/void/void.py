@@ -11,6 +11,8 @@ Phase 1: psutil-based health checks, SQLite metric storage, threshold
 alerts, service watchdog, structured reports for Harbinger.
 """
 
+from __future__ import annotations
+
 import logging
 import os
 import sqlite3
@@ -67,6 +69,8 @@ class Void(BaseModule):
         try:
             self._db_path.parent.mkdir(parents=True, exist_ok=True)
             self._conn = sqlite3.connect(str(self._db_path))
+            self._conn.execute("PRAGMA journal_mode=WAL")
+            self._conn.execute("PRAGMA busy_timeout=5000")
             self._conn.row_factory = sqlite3.Row
             self._conn.execute("""
                 CREATE TABLE IF NOT EXISTS void_metrics (

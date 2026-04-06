@@ -12,6 +12,8 @@ When we move to Ubuntu, the adapter interface stays the same — only
 the internal Grimoire implementation might grow.
 """
 
+from __future__ import annotations
+
 import logging
 import time
 from datetime import datetime

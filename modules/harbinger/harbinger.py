@@ -12,6 +12,8 @@ Phase 1: Decision queue, notification severity, briefing structure,
 report compilation. Telegram dispatch logged but not sent.
 """
 
+from __future__ import annotations
+
 import json
 import logging
 import os
@@ -1009,6 +1011,8 @@ class Harbinger(BaseModule):
         self._personalization_conn = sqlite3.connect(
             str(self._personalization_db_path)
         )
+        self._personalization_conn.execute("PRAGMA journal_mode=WAL")
+        self._personalization_conn.execute("PRAGMA busy_timeout=5000")
         self._personalization_conn.execute(
             "CREATE TABLE IF NOT EXISTS harbinger_personalization ("
             "    id INTEGER PRIMARY KEY AUTOINCREMENT,"
@@ -1017,6 +1021,10 @@ class Harbinger(BaseModule):
             "    action TEXT NOT NULL,"
             "    metadata TEXT"
             ")"
+        )
+        self._personalization_conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_harbinger_section "
+            "ON harbinger_personalization(section_name)"
         )
         self._personalization_conn.commit()
 

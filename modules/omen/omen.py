@@ -14,6 +14,8 @@ Phase 2: Pattern recognition, failure learning, code generation
 scaffolding, and quality scoring. SQLite-backed persistence.
 """
 
+from __future__ import annotations
+
 import ast
 import fnmatch
 import hashlib
