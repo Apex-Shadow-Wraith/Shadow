@@ -128,14 +128,15 @@ class TestEveningSummaryStructure:
         assert summary["type"] == "evening_summary"
         assert "compiled_at" in summary
         assert "date" in summary
-        assert summary["section_count"] == 5
-        assert len(summary["sections"]) == 5
+        assert summary["section_count"] == 6
+        assert len(summary["sections"]) == 6
 
         titles = [s["title"] for s in summary["sections"]]
         assert "Completed Today" in titles
         assert "Pending Items" in titles
         assert "Tomorrow Preview" in titles
         assert "Shadow Activity" in titles
+        assert "Learning Report" in titles
         assert "Overnight Plan" in titles
 
     def test_sections_have_required_fields(self, harbinger, all_modules):
@@ -164,7 +165,7 @@ class TestEveningSummaryNoModules:
         summary = harbinger.assemble_evening_summary({})
 
         assert summary["type"] == "evening_summary"
-        assert summary["section_count"] == 5
+        assert summary["section_count"] == 6
 
         # All module-dependent sections should degrade gracefully
         for section in summary["sections"]:
@@ -359,7 +360,7 @@ class TestFormatEveningSummary:
         text = harbinger.format_evening_summary(summary)
 
         assert "SHADOW EVENING SUMMARY" in text
-        assert "5 sections" in text
+        assert "6 sections" in text
 
 
 class TestBriefingCompileEvening:
@@ -376,10 +377,11 @@ class TestBriefingCompileEvening:
 
         assert result.success is True
         assert result.content["type"] == "evening"
-        assert len(result.content["sections"]) == 5
+        assert len(result.content["sections"]) == 6
 
         names = [s["name"] for s in result.content["sections"]]
         assert "completed_today" in names
+        assert "learning_report" in names
         assert "overnight_plan" in names
 
     @pytest.mark.asyncio
@@ -392,7 +394,7 @@ class TestBriefingCompileEvening:
 
         assert result.success is True
         assert result.content["type"] == "evening"
-        assert len(result.content["sections"]) == 5
+        assert len(result.content["sections"]) == 6
         # Template mode — sections have "No data available." default
         for section in result.content["sections"]:
             assert "name" in section
@@ -408,7 +410,7 @@ class TestModuleExceptionHandling:
 
         summary = harbinger.assemble_evening_summary({"task_tracker": broken})
 
-        assert summary["section_count"] == 5
+        assert summary["section_count"] == 6
         completed = next(s for s in summary["sections"] if s["title"] == "Completed Today")
         assert "Error" in str(completed["content"])
 

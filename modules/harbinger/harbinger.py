@@ -316,7 +316,7 @@ class Harbinger(BaseModule):
         else:
             section_order = [
                 "completed_today", "pending_items", "tomorrow_preview",
-                "shadow_activity", "overnight_plan",
+                "shadow_activity", "learning_report", "overnight_plan",
             ]
 
         # Merge provided sections into the template
@@ -1127,6 +1127,9 @@ class Harbinger(BaseModule):
         # 10. Apex — escalation stats
         sections.append(self._pull_apex_stats(modules.get("apex")))
 
+        # 11. Shadow Growth — learning goals and metrics
+        sections.append(self._pull_growth_summary(modules.get("growth_engine")))
+
         # Sort by priority (1 = highest)
         sections.sort(key=lambda s: s["priority"])
 
@@ -1218,7 +1221,10 @@ class Harbinger(BaseModule):
             apex=modules.get("apex"), wraith=modules.get("wraith"),
         ))
 
-        # 5. Overnight Plan
+        # 5. Learning Report — growth engine evening summary
+        sections.append(self._pull_growth_evening(modules.get("growth_engine")))
+
+        # 6. Overnight Plan
         sections.append(self._pull_overnight_plan())
 
         # Sort by priority (1 = highest)
@@ -1706,6 +1712,78 @@ class Harbinger(BaseModule):
         except Exception as e:
             logger.warning("Failed to pull Apex stats: %s", e)
             return self._error_section("API Escalation Summary", 4, str(e))
+
+    def _pull_growth_summary(self, growth_engine: Any) -> dict[str, Any]:
+        """Pull growth goals and metric trends for the morning briefing."""
+        if growth_engine is None:
+            return self._empty_section("Shadow Growth", 2)
+        try:
+            summary = growth_engine.get_growth_summary()
+            # Ensure today's goals exist — generate if needed
+            if not summary.get("today_goals"):
+                try:
+                    growth_engine.generate_daily_goals()
+                    summary = growth_engine.get_growth_summary()
+                except Exception as e:
+                    logger.warning("Failed to generate daily goals: %s", e)
+            content: dict[str, Any] = {}
+            yc = summary.get("yesterday_completion", {})
+            content["yesterday_completion_rate"] = f"{yc.get('rate', 0) * 100:.0f}%"
+            content["yesterday_completed"] = f"{yc.get('completed', 0)}/{yc.get('total', 0)}"
+            goals = summary.get("today_goals", [])
+            content["today_goals"] = [
+                {"description": g.get("goal", ""), "category": g.get("category", "")}
+                for g in goals
+            ]
+            flags = summary.get("flags", [])
+            if flags:
+                content["metric_alerts"] = flags
+            # Check for declining trends
+            trends = summary.get("metric_trends", {})
+            declining = [
+                name for name, data in trends.items()
+                if isinstance(data, dict) and data.get("trend") == "declining"
+            ]
+            if declining:
+                content["declining_metrics"] = declining
+            return {
+                "title": "Shadow Growth",
+                "priority": 2,
+                "source": "growth_engine",
+                "content": content,
+            }
+        except Exception as e:
+            logger.warning("Failed to pull growth summary: %s", e)
+            return self._error_section("Shadow Growth", 2, str(e))
+
+    def _pull_growth_evening(self, growth_engine: Any) -> dict[str, Any]:
+        """Pull learning report for the evening summary."""
+        if growth_engine is None:
+            return self._empty_section("Learning Report", 2)
+        try:
+            report = growth_engine.compile_evening_learning_report()
+            content: dict[str, Any] = {}
+            content["hit_rate"] = f"{report.get('hit_rate', 0) * 100:.0f}%"
+            goals_hit = report.get("goals_hit", [])
+            goals_missed = report.get("goals_missed", [])
+            content["goals_completed"] = [
+                {"description": g.get("goal", ""), "category": g.get("category", "")}
+                for g in goals_hit
+            ]
+            content["goals_missed"] = [
+                {"description": g.get("goal", ""), "category": g.get("category", "")}
+                for g in goals_missed
+            ]
+            content["date"] = report.get("date", "")
+            return {
+                "title": "Learning Report",
+                "priority": 2,
+                "source": "growth_engine",
+                "content": content,
+            }
+        except Exception as e:
+            logger.warning("Failed to pull growth evening report: %s", e)
+            return self._error_section("Learning Report", 2, str(e))
 
     def _empty_section(self, title: str, priority: int) -> dict[str, Any]:
         """Return a section placeholder when a module is not available."""

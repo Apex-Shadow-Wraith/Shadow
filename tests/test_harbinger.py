@@ -255,7 +255,7 @@ class TestBriefing:
         })
         assert result.success is True
         assert result.content["type"] == "evening"
-        assert len(result.content["sections"]) == 5
+        assert len(result.content["sections"]) == 6
 
     @pytest.mark.asyncio
     async def test_invalid_briefing_type_fails(self, online_harbinger: Harbinger):

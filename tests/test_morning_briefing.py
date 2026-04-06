@@ -132,8 +132,8 @@ class TestAssembleMorningBriefing:
         assert briefing["type"] == "morning_briefing"
         assert "compiled_at" in briefing
         assert "date" in briefing
-        assert briefing["section_count"] == 10
-        assert len(briefing["sections"]) == 10
+        assert briefing["section_count"] == 11
+        assert len(briefing["sections"]) == 11
 
     def test_sections_have_required_fields(self, harbinger, all_modules):
         """Every section has title, content, and priority."""
@@ -157,7 +157,7 @@ class TestAssembleMorningBriefing:
         partial = {"grimoire": mock_grimoire, "cerberus": mock_cerberus}
         briefing = harbinger.assemble_morning_briefing(partial)
 
-        assert briefing["section_count"] == 10
+        assert briefing["section_count"] == 11
         sources = {s.get("source") for s in briefing["sections"]}
         assert "grimoire" in sources
         assert "cerberus" in sources
@@ -170,7 +170,7 @@ class TestAssembleMorningBriefing:
         briefing = harbinger.assemble_morning_briefing({})
 
         assert briefing["type"] == "morning_briefing"
-        assert briefing["section_count"] == 10
+        assert briefing["section_count"] == 11
         for section in briefing["sections"]:
             assert (
                 section["content"] == "Module not available"
@@ -264,7 +264,7 @@ class TestAssembleMorningBriefing:
 
         briefing = harbinger.assemble_morning_briefing({"grimoire": broken_grimoire})
 
-        assert briefing["section_count"] == 10
+        assert briefing["section_count"] == 11
         error_section = next(s for s in briefing["sections"] if s["title"] == "Memory Status")
         assert "Error" in str(error_section["content"])
 
@@ -336,7 +336,7 @@ class TestFormatBriefingText:
         briefing = harbinger.assemble_morning_briefing(all_modules)
         text = harbinger.format_briefing_text(briefing)
 
-        assert "10 sections" in text
+        assert "11 sections" in text
 
     def test_date_in_header(self, harbinger, all_modules):
         """Formatted text includes the date."""
