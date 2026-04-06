@@ -15,7 +15,7 @@ Phase 1-2 (current):
 - Basic router with keyword + LLM classification
 - Sequential execution only
 - No VRAM management (single model on Windows)
-- No growth engine
+- Growth engine (P2 self-improvement)
 - State persistence via JSON file
 """
 
@@ -42,6 +42,14 @@ try:
 except ImportError:
     logger.warning("PromptInjectionDetector not available — injection screening disabled")
     _INJECTION_DETECTOR_AVAILABLE = False
+
+# Graceful import — orchestrator still starts if growth_engine is missing
+try:
+    from modules.shadow.growth_engine import GrowthEngine
+    _GROWTH_ENGINE_AVAILABLE = True
+except ImportError:
+    logger.warning("GrowthEngine not available — growth tracking disabled")
+    _GROWTH_ENGINE_AVAILABLE = False
 
 
 class TaskType(Enum):
@@ -122,6 +130,13 @@ class Orchestrator:
         task_db = Path(config["system"].get("task_db", "data/shadow_tasks.db"))
         self._task_tracker = TaskTracker(db_path=task_db)
 
+        # Growth engine — self-improvement tracking (P2)
+        if _GROWTH_ENGINE_AVAILABLE:
+            growth_db = Path(config["system"].get("growth_db", "data/shadow_growth.db"))
+            self._growth_engine = GrowthEngine(db_path=growth_db)
+        else:
+            self._growth_engine = None
+
         # Injection detector — pre-classification screening
         if _INJECTION_DETECTOR_AVAILABLE:
             self._injection_detector = PromptInjectionDetector()
@@ -152,11 +167,25 @@ class Orchestrator:
             ", ".join(self.registry.online_modules),
         )
 
+        # Generate today's growth goals (best-effort)
+        if self._growth_engine is not None:
+            try:
+                self._growth_engine.generate_daily_goals(
+                    module_health=[
+                        {"name": m["name"], "status": m["status"]}
+                        for m in self.registry.list_modules()
+                    ],
+                )
+            except Exception as e:
+                logger.warning("Failed to generate daily goals: %s", e)
+
     async def shutdown(self) -> None:
         """Clean shutdown. Save state, shutdown all modules."""
         logger.info("Shadow shutting down...")
         self._save_state()
         self._task_tracker.close()
+        if self._growth_engine is not None:
+            self._growth_engine.close()
 
         for module_info in self.registry.list_modules():
             module = self.registry.get_module(module_info["name"])
@@ -246,6 +275,15 @@ class Orchestrator:
                             })
                     except Exception:
                         pass
+                # Record growth metrics for fast responses too
+                if self._growth_engine is not None:
+                    try:
+                        self._growth_engine.record_metric(
+                            "response_latency", time.time() - loop_start,
+                            json.dumps({"fast_response": True}),
+                        )
+                    except Exception:
+                        pass
                 self._save_state()
                 return fast_response
 
@@ -289,6 +327,23 @@ class Orchestrator:
                         })
                 except Exception:
                     pass  # Never let temporal tracking break the main loop
+
+            # Step 7.6 — Record growth metrics (best-effort)
+            if self._growth_engine is not None:
+                try:
+                    latency = time.time() - loop_start
+                    self._growth_engine.record_metric(
+                        "response_latency", latency,
+                        json.dumps({"module": classification.target_module,
+                                    "complexity": classification.complexity}),
+                    )
+                    if classification.brain == BrainType.SMART:
+                        self._growth_engine.record_metric(
+                            "apex_escalation_count", 1.0,
+                            json.dumps({"task_type": classification.task_type.value}),
+                        )
+                except Exception:
+                    pass  # Never let growth tracking break the main loop
 
             # Persist state after every interaction
             self._save_state()
@@ -1185,6 +1240,37 @@ RESPONSE RULES:
                     "task_id": "str — UUID of the task to cancel",
                 },
                 "permission_level": "approval_required",
+            },
+            # Growth engine tools (P2 self-improvement)
+            {
+                "name": "growth_goals",
+                "description": "View today's growth goals and their status",
+                "parameters": {},
+                "permission_level": "autonomous",
+            },
+            {
+                "name": "growth_metrics",
+                "description": "Get performance metric trends",
+                "parameters": {
+                    "days": "int — number of days to include (default 7)",
+                },
+                "permission_level": "autonomous",
+            },
+            {
+                "name": "growth_update",
+                "description": "Update progress on a growth goal",
+                "parameters": {
+                    "goal_id": "str — UUID of the goal",
+                    "notes": "str — progress notes",
+                    "status": "str | None — active, completed, missed, or deferred",
+                },
+                "permission_level": "autonomous",
+            },
+            {
+                "name": "growth_report",
+                "description": "Compile the evening learning report with goal results and metrics",
+                "parameters": {},
+                "permission_level": "autonomous",
             },
         ]
 
