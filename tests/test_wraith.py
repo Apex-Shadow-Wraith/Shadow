@@ -55,7 +55,7 @@ class TestWraithLifecycle:
     def test_get_tools_returns_all_tools(self, wraith: Wraith):
         tools = wraith.get_tools()
         assert isinstance(tools, list)
-        assert len(tools) == 8
+        assert len(tools) == 12
         tool_names = [t["name"] for t in tools]
         assert "quick_answer" in tool_names
         assert "reminder_create" in tool_names

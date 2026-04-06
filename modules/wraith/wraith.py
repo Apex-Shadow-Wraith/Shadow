@@ -15,6 +15,7 @@ proactive intelligence stubs. No LLM calls — pure logic.
 
 import json
 import logging
+import sqlite3
 import time
 import uuid
 from datetime import datetime, timedelta
@@ -24,6 +25,291 @@ from typing import Any
 from modules.base import BaseModule, ModuleStatus, ToolResult
 
 logger = logging.getLogger("shadow.wraith")
+
+
+class TemporalTracker:
+    """Tracks temporal events and detects recurring patterns in user behavior.
+
+    Stores events in a SQLite database and analyzes them to find daily and
+    weekly patterns. Results are cached with a 6-hour TTL to avoid
+    recomputing on every call.
+    """
+
+    def __init__(self, db_path: str | Path) -> None:
+        self._db_path = Path(db_path)
+        self._conn: sqlite3.Connection | None = None
+        self._pattern_cache: list[dict[str, Any]] | None = None
+        self._cache_time: datetime | None = None
+        self._cache_ttl = timedelta(hours=6)
+
+    def initialize(self) -> None:
+        """Open database and create schema."""
+        self._db_path.parent.mkdir(parents=True, exist_ok=True)
+        self._conn = sqlite3.connect(str(self._db_path))
+        self._conn.row_factory = sqlite3.Row
+        self._conn.execute("""
+            CREATE TABLE IF NOT EXISTS wraith_temporal_events (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                event_type TEXT NOT NULL,
+                timestamp TEXT NOT NULL,
+                metadata TEXT,
+                day_of_week INTEGER,
+                hour_of_day INTEGER
+            )
+        """)
+        self._conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_temporal_event_type "
+            "ON wraith_temporal_events(event_type)"
+        )
+        self._conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_temporal_timestamp "
+            "ON wraith_temporal_events(timestamp)"
+        )
+        self._conn.commit()
+        logger.info("TemporalTracker initialized: %s", self._db_path)
+
+    def close(self) -> None:
+        """Close the database connection."""
+        if self._conn is not None:
+            self._conn.close()
+            self._conn = None
+
+    def record_event(self, event_type: str, metadata: dict[str, Any] | None = None) -> dict[str, Any]:
+        """Record a temporal event.
+
+        Args:
+            event_type: Category of the event (e.g. 'weather_check', 'email_summary').
+            metadata: Optional additional data stored as JSON.
+
+        Returns:
+            Dict with recorded event details.
+        """
+        now = datetime.now()
+        meta_json = json.dumps(metadata) if metadata else None
+
+        self._conn.execute(
+            "INSERT INTO wraith_temporal_events "
+            "(event_type, timestamp, metadata, day_of_week, hour_of_day) "
+            "VALUES (?, ?, ?, ?, ?)",
+            (event_type, now.isoformat(), meta_json, now.weekday(), now.hour),
+        )
+        self._conn.commit()
+
+        # Invalidate pattern cache
+        self._pattern_cache = None
+        self._cache_time = None
+
+        logger.info("Temporal event recorded: %s", event_type)
+        return {
+            "event_type": event_type,
+            "timestamp": now.isoformat(),
+            "metadata": metadata,
+            "day_of_week": now.weekday(),
+            "hour_of_day": now.hour,
+        }
+
+    def detect_patterns(
+        self, min_occurrences: int = 3, time_window_days: int = 14
+    ) -> list[dict[str, Any]]:
+        """Analyze events within a time window to find recurring patterns.
+
+        Detects two pattern types:
+        - daily_time: same event_type at similar hour on 3+ different days
+        - weekly: same event_type on same day of week 3+ times
+
+        Args:
+            min_occurrences: Minimum occurrences to qualify as a pattern.
+            time_window_days: How far back to look for events.
+
+        Returns:
+            List of pattern dicts with event_type, pattern type, confidence, etc.
+        """
+        cutoff = (datetime.now() - timedelta(days=time_window_days)).isoformat()
+        rows = self._conn.execute(
+            "SELECT event_type, timestamp, day_of_week, hour_of_day "
+            "FROM wraith_temporal_events WHERE timestamp >= ? "
+            "ORDER BY event_type, timestamp",
+            (cutoff,),
+        ).fetchall()
+
+        # Group by event_type
+        groups: dict[str, list[dict[str, Any]]] = {}
+        for row in rows:
+            et = row["event_type"]
+            if et not in groups:
+                groups[et] = []
+            groups[et].append(dict(row))
+
+        patterns: list[dict[str, Any]] = []
+
+        for event_type, events in groups.items():
+            if len(events) < min_occurrences:
+                continue
+
+            # Check daily_time patterns: group by hour_of_day
+            hour_counts: dict[int, int] = {}
+            for e in events:
+                h = e["hour_of_day"]
+                hour_counts[h] = hour_counts.get(h, 0) + 1
+
+            for hour, count in hour_counts.items():
+                if count >= min_occurrences:
+                    confidence = min(1.0, count / (min_occurrences * 2))
+                    patterns.append({
+                        "event_type": event_type,
+                        "pattern": "daily_time",
+                        "typical_time": f"{hour:02d}:00",
+                        "occurrences": count,
+                        "confidence": confidence,
+                    })
+
+            # Check weekly patterns: group by day_of_week
+            dow_counts: dict[int, int] = {}
+            for e in events:
+                d = e["day_of_week"]
+                dow_counts[d] = dow_counts.get(d, 0) + 1
+
+            for dow, count in dow_counts.items():
+                if count >= min_occurrences:
+                    confidence = min(1.0, count / (min_occurrences * 2))
+                    day_names = [
+                        "Monday", "Tuesday", "Wednesday", "Thursday",
+                        "Friday", "Saturday", "Sunday",
+                    ]
+                    patterns.append({
+                        "event_type": event_type,
+                        "pattern": "weekly",
+                        "typical_time": day_names[dow],
+                        "occurrences": count,
+                        "confidence": confidence,
+                    })
+
+        return patterns
+
+    def get_patterns(self) -> list[dict[str, Any]]:
+        """Return detected patterns, using cache if fresh (< 6 hours old)."""
+        now = datetime.now()
+        if (
+            self._pattern_cache is not None
+            and self._cache_time is not None
+            and (now - self._cache_time) < self._cache_ttl
+        ):
+            return self._pattern_cache
+
+        self._pattern_cache = self.detect_patterns()
+        self._cache_time = now
+        return self._pattern_cache
+
+
+class NeglectDetector:
+    """Detects neglected tasks and decision queue items by age.
+
+    Stateless — receives a TaskTracker instance and/or decision queue list
+    on each call. Gracefully skips sources that aren't provided.
+
+    Severity levels:
+        1 = 24-72 hours (mention in briefing)
+        2 = 72 hours to 7 days (dedicated notification)
+        3 = 7+ days (elevated severity alert)
+    """
+
+    @staticmethod
+    def _age_to_severity(age_hours: float) -> int:
+        """Map age in hours to severity level."""
+        if age_hours >= 168:  # 7 days
+            return 3
+        if age_hours >= 72:
+            return 2
+        return 1
+
+    def check_neglected_items(
+        self,
+        task_tracker: Any = None,
+        decision_queue: list[dict[str, Any]] | None = None,
+    ) -> list[dict[str, Any]]:
+        """Find tasks and decisions that have been sitting too long.
+
+        Args:
+            task_tracker: Optional TaskTracker instance. Uses list_tasks(status_filter="queued").
+            decision_queue: Optional list of decision queue item dicts from Harbinger.
+
+        Returns:
+            List of neglected item dicts sorted by severity descending.
+        """
+        items: list[dict[str, Any]] = []
+        now_epoch = time.time()
+        now_dt = datetime.now()
+
+        # Check tasks from TaskTracker
+        if task_tracker is not None:
+            try:
+                queued = task_tracker.list_tasks(status_filter="queued")
+                for task in queued:
+                    created = task.get("created_at", now_epoch)
+                    age_hours = (now_epoch - created) / 3600
+                    if age_hours >= 24:
+                        items.append({
+                            "item_type": "task",
+                            "description": task.get("description", "Unknown task"),
+                            "age_hours": round(age_hours, 1),
+                            "severity": self._age_to_severity(age_hours),
+                        })
+            except Exception as e:
+                logger.warning("NeglectDetector: failed to check tasks: %s", e)
+
+        # Check decision queue items
+        if decision_queue is not None:
+            for item in decision_queue:
+                if item.get("status") != "pending":
+                    continue
+                try:
+                    ts = datetime.fromisoformat(item["timestamp"])
+                    age_hours = (now_dt - ts).total_seconds() / 3600
+                    if age_hours >= 24:
+                        items.append({
+                            "item_type": "decision",
+                            "description": item.get("description", "Unknown decision"),
+                            "age_hours": round(age_hours, 1),
+                            "severity": self._age_to_severity(age_hours),
+                        })
+                except (ValueError, KeyError) as e:
+                    logger.warning("NeglectDetector: bad decision item: %s", e)
+
+        # Sort by severity descending (most urgent first)
+        items.sort(key=lambda x: x["severity"], reverse=True)
+        return items
+
+    def format_neglect_report(self, items: list[dict[str, Any]]) -> str:
+        """Format neglected items into a readable report.
+
+        Args:
+            items: List from check_neglected_items().
+
+        Returns:
+            Human-readable string summary.
+        """
+        if not items:
+            return "No neglected items found."
+
+        severity_labels = {1: "Low", 2: "Medium", 3: "High"}
+        lines = [f"Neglected Items Report ({len(items)} items):"]
+        lines.append("-" * 40)
+
+        for item in items:
+            sev = severity_labels.get(item["severity"], "Unknown")
+            age = item["age_hours"]
+            if age >= 168:
+                age_str = f"{age / 168:.1f} weeks"
+            elif age >= 24:
+                age_str = f"{age / 24:.1f} days"
+            else:
+                age_str = f"{age:.0f} hours"
+            lines.append(
+                f"[{sev}] {item['item_type'].upper()}: "
+                f"{item['description']} (age: {age_str})"
+            )
+
+        return "\n".join(lines)
 
 
 class Wraith(BaseModule):
@@ -58,12 +344,17 @@ class Wraith(BaseModule):
             self._config.get("reminder_file", "data/wraith_reminders.json")
         )
         self._next_reminder_id = 1
+        self._temporal_tracker = TemporalTracker(
+            self._config.get("temporal_db", "data/wraith_temporal.db")
+        )
+        self._neglect_detector = NeglectDetector()
 
     async def initialize(self) -> None:
         """Start Wraith. Load persisted reminders."""
         self.status = ModuleStatus.STARTING
         try:
             self._load_reminders()
+            self._temporal_tracker.initialize()
             self.status = ModuleStatus.ONLINE
             logger.info(
                 "Wraith online. %d active reminders loaded.", len(self._active_reminders)
@@ -101,6 +392,14 @@ class Wraith(BaseModule):
                 result = self._proactive_check(params)
             elif tool_name == "ask_user":
                 result = self._ask_user(params)
+            elif tool_name == "temporal_record":
+                result = self._temporal_record(params)
+            elif tool_name == "temporal_patterns":
+                result = self._temporal_patterns(params)
+            elif tool_name == "neglect_check":
+                result = self._neglect_check(params)
+            elif tool_name == "proactive_suggestions":
+                result = self._proactive_suggestions(params)
             else:
                 result = ToolResult(
                     success=False,
@@ -130,6 +429,7 @@ class Wraith(BaseModule):
     async def shutdown(self) -> None:
         """Shut down Wraith. Persist reminders."""
         self._save_reminders()
+        self._temporal_tracker.close()
         self.status = ModuleStatus.OFFLINE
         logger.info("Wraith offline. Reminders saved.")
 
@@ -185,6 +485,33 @@ class Wraith(BaseModule):
                     "question": "str — the question to ask the user",
                     "options": "list[str] | None — optional multiple-choice options",
                 },
+                "permission_level": "autonomous",
+            },
+            {
+                "name": "temporal_record",
+                "description": "Record an event for temporal pattern tracking",
+                "parameters": {
+                    "event_type": "str — category of the event",
+                    "metadata": "dict | None — optional additional data",
+                },
+                "permission_level": "autonomous",
+            },
+            {
+                "name": "temporal_patterns",
+                "description": "Get detected temporal patterns from event history",
+                "parameters": {},
+                "permission_level": "autonomous",
+            },
+            {
+                "name": "neglect_check",
+                "description": "Check for neglected tasks and decisions",
+                "parameters": {},
+                "permission_level": "autonomous",
+            },
+            {
+                "name": "proactive_suggestions",
+                "description": "Get proactive suggestions based on patterns and neglect detection",
+                "parameters": {},
                 "permission_level": "autonomous",
             },
         ]
@@ -528,6 +855,169 @@ class Wraith(BaseModule):
             success=True,
             content=prompt,
             tool_name="ask_user",
+            module=self.name,
+        )
+
+    # --- Proactive intelligence tools ---
+
+    def _temporal_record(self, params: dict[str, Any]) -> ToolResult:
+        """Record an event for temporal pattern tracking.
+
+        Args:
+            params: Must contain 'event_type'. Optional 'metadata' (dict).
+        """
+        event_type = params.get("event_type", "")
+        if not event_type:
+            return ToolResult(
+                success=False,
+                content=None,
+                tool_name="temporal_record",
+                module=self.name,
+                error="event_type is required",
+            )
+
+        metadata = params.get("metadata")
+        event = self._temporal_tracker.record_event(event_type, metadata)
+
+        return ToolResult(
+            success=True,
+            content=event,
+            tool_name="temporal_record",
+            module=self.name,
+        )
+
+    def _temporal_patterns(self, params: dict[str, Any]) -> ToolResult:
+        """Get detected temporal patterns from event history.
+
+        Args:
+            params: No required parameters.
+        """
+        patterns = self._temporal_tracker.get_patterns()
+
+        return ToolResult(
+            success=True,
+            content={
+                "patterns": patterns,
+                "count": len(patterns),
+                "checked_at": datetime.now().isoformat(),
+            },
+            tool_name="temporal_patterns",
+            module=self.name,
+        )
+
+    def _neglect_check(self, params: dict[str, Any]) -> ToolResult:
+        """Check for neglected tasks and decisions.
+
+        Args:
+            params: Optional 'task_tracker' and 'decision_queue'.
+        """
+        task_tracker = params.get("task_tracker")
+        decision_queue = params.get("decision_queue")
+
+        items = self._neglect_detector.check_neglected_items(
+            task_tracker=task_tracker,
+            decision_queue=decision_queue,
+        )
+        report = self._neglect_detector.format_neglect_report(items)
+
+        return ToolResult(
+            success=True,
+            content={
+                "neglected_items": items,
+                "count": len(items),
+                "report": report,
+                "checked_at": datetime.now().isoformat(),
+            },
+            tool_name="neglect_check",
+            module=self.name,
+        )
+
+    def _proactive_suggestions(self, params: dict[str, Any]) -> ToolResult:
+        """Get proactive suggestions based on patterns and neglect detection.
+
+        Combines temporal pattern matches (current time vs detected patterns)
+        with neglect detection results. Phase 1: rule-based only, max 3.
+
+        Args:
+            params: Optional 'task_tracker' and 'decision_queue'.
+        """
+        suggestions: list[dict[str, Any]] = []
+        now = datetime.now()
+
+        # Pattern-based suggestions
+        patterns = self._temporal_tracker.get_patterns()
+        for pattern in patterns:
+            if pattern["pattern"] == "daily_time":
+                # Check if current hour matches the pattern's typical hour
+                try:
+                    pattern_hour = int(pattern["typical_time"].split(":")[0])
+                except (ValueError, IndexError):
+                    continue
+                if now.hour == pattern_hour:
+                    suggestions.append({
+                        "suggestion": (
+                            f"You usually trigger '{pattern['event_type']}' "
+                            f"around {pattern['typical_time']}. Want me to handle it?"
+                        ),
+                        "reason": (
+                            f"Detected {pattern['occurrences']} occurrences "
+                            f"at this time of day"
+                        ),
+                        "confidence": pattern["confidence"],
+                        "source": "pattern",
+                    })
+            elif pattern["pattern"] == "weekly":
+                # Check if current day of week matches
+                day_names = [
+                    "Monday", "Tuesday", "Wednesday", "Thursday",
+                    "Friday", "Saturday", "Sunday",
+                ]
+                current_day = day_names[now.weekday()]
+                if pattern["typical_time"] == current_day:
+                    suggestions.append({
+                        "suggestion": (
+                            f"You usually trigger '{pattern['event_type']}' "
+                            f"on {current_day}s. Want me to handle it?"
+                        ),
+                        "reason": (
+                            f"Detected {pattern['occurrences']} occurrences "
+                            f"on {current_day}s"
+                        ),
+                        "confidence": pattern["confidence"],
+                        "source": "pattern",
+                    })
+
+        # Neglect-based suggestions
+        task_tracker = params.get("task_tracker")
+        decision_queue = params.get("decision_queue")
+        neglected = self._neglect_detector.check_neglected_items(
+            task_tracker=task_tracker,
+            decision_queue=decision_queue,
+        )
+        for item in neglected:
+            age_days = item["age_hours"] / 24
+            suggestions.append({
+                "suggestion": (
+                    f"Neglected {item['item_type']}: '{item['description']}' "
+                    f"has been waiting {age_days:.1f} days"
+                ),
+                "reason": f"Severity {item['severity']} — sitting for {item['age_hours']:.0f}h",
+                "confidence": min(1.0, item["severity"] / 3),
+                "source": "neglect",
+            })
+
+        # Sort by confidence descending, cap at 3
+        suggestions.sort(key=lambda s: s["confidence"], reverse=True)
+        suggestions = suggestions[:3]
+
+        return ToolResult(
+            success=True,
+            content={
+                "suggestions": suggestions,
+                "count": len(suggestions),
+                "checked_at": now.isoformat(),
+            },
+            tool_name="proactive_suggestions",
             module=self.name,
         )
 

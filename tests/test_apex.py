@@ -46,12 +46,15 @@ class TestApexLifecycle:
 
     def test_get_tools_returns_all(self, apex: Apex):
         tools = apex.get_tools()
-        assert len(tools) == 4
+        assert len(tools) == 7
         names = [t["name"] for t in tools]
         assert "apex_query" in names
         assert "apex_teach" in names
         assert "apex_log" in names
         assert "apex_cost_report" in names
+        assert "escalation_stats" in names
+        assert "escalation_frequent" in names
+        assert "teaching_review" in names
 
     def test_all_tools_have_required_fields(self, apex: Apex):
         for tool in apex.get_tools():

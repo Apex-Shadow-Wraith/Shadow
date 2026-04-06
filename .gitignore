@@ -27,3 +27,11 @@ venv/
 # OS
 Thumbs.db
 .DS_Store
+
+# Vector store
+data/vectors/
+
+# Runtime state and logs  
+data/shadow_state.json
+logs/
+data/research/
