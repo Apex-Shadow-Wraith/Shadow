@@ -375,7 +375,7 @@ class TestSystemPrompt:
         prompt = orch._build_system_prompt([])
         assert "Shadow" in prompt
         assert "Patrick" in prompt
-        assert "anti-sycophantic" in prompt
+        assert "Never agree just to be agreeable" in prompt
 
     def test_includes_memories_when_available(self, config: dict):
         orch = Orchestrator(config)

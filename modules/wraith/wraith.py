@@ -99,6 +99,8 @@ class Wraith(BaseModule):
                 result = self._classify_task(params)
             elif tool_name == "proactive_check":
                 result = self._proactive_check(params)
+            elif tool_name == "ask_user":
+                result = self._ask_user(params)
             else:
                 result = ToolResult(
                     success=False,
@@ -174,6 +176,15 @@ class Wraith(BaseModule):
                 "name": "proactive_check",
                 "description": "Check for proactive suggestions based on patterns",
                 "parameters": {},
+                "permission_level": "autonomous",
+            },
+            {
+                "name": "ask_user",
+                "description": "Prompt user for clarification with optional choices",
+                "parameters": {
+                    "question": "str — the question to ask the user",
+                    "options": "list[str] | None — optional multiple-choice options",
+                },
                 "permission_level": "autonomous",
             },
         ]
@@ -481,6 +492,42 @@ class Wraith(BaseModule):
                 "checked_at": now.isoformat(),
             },
             tool_name="proactive_check",
+            module=self.name,
+        )
+
+    def _ask_user(self, params: dict[str, Any]) -> ToolResult:
+        """Format a structured question for the user.
+
+        Phase 1: Returns a prompt dict for the orchestrator to display.
+        This is NOT a blocking interactive call — it formats the question
+        and the orchestrator handles delivery.
+
+        Args:
+            params: Must contain 'question'. Optional 'options' (list of strings).
+        """
+        question = params.get("question", "")
+        if not question:
+            return ToolResult(
+                success=False,
+                content=None,
+                tool_name="ask_user",
+                module=self.name,
+                error="question is required",
+            )
+
+        options = params.get("options")
+
+        prompt = {
+            "type": "user_question",
+            "question": question,
+            "options": options,
+            "created_at": datetime.now().isoformat(),
+        }
+
+        return ToolResult(
+            success=True,
+            content=prompt,
+            tool_name="ask_user",
             module=self.name,
         )
 

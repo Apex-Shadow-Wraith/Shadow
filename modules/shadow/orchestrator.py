@@ -31,6 +31,7 @@ from typing import Any
 from openai import OpenAI
 
 from modules.base import BaseModule, ModuleRegistry, ModuleStatus, ToolResult
+from modules.shadow.task_tracker import TaskTracker
 
 logger = logging.getLogger("shadow.orchestrator")
 
@@ -109,12 +110,19 @@ class Orchestrator:
         self._conversation_history: list[dict[str, str]] = []
         self._max_history = 20  # Keep last 20 exchanges in working memory
 
+        # Task tracker — persistent task management
+        task_db = Path(config["system"].get("task_db", "data/shadow_tasks.db"))
+        self._task_tracker = TaskTracker(db_path=task_db)
+
     async def start(self) -> None:
         """Initialize all registered modules and load state."""
         logger.info("Shadow starting up...")
 
         # Load persisted state
         self._load_state()
+
+        # Initialize task tracker
+        self._task_tracker.initialize()
 
         # Initialize all modules
         for module_info in self.registry.list_modules():
@@ -134,6 +142,7 @@ class Orchestrator:
         """Clean shutdown. Save state, shutdown all modules."""
         logger.info("Shadow shutting down...")
         self._save_state()
+        self._task_tracker.close()
 
         for module_info in self.registry.list_modules():
             module = self.registry.get_module(module_info["name"])
@@ -996,6 +1005,45 @@ RESPONSE RULES:
 {f"Things you know about Master Morstad:{chr(10)}{memory_context}" if memory_context else ""}"""
 
         return prompt
+
+    def get_tools(self) -> list[dict[str, Any]]:
+        """Task management tools exposed by the orchestrator."""
+        return [
+            {
+                "name": "task_create",
+                "description": "Create a tracked task assigned to a module",
+                "parameters": {
+                    "description": "str — what needs to be done",
+                    "assigned_module": "str — which module handles this task",
+                    "priority": "int — 1 (highest) to 10 (lowest), default 5",
+                },
+                "permission_level": "autonomous",
+            },
+            {
+                "name": "task_status",
+                "description": "Get the current status of a tracked task",
+                "parameters": {
+                    "task_id": "str — UUID of the task to check",
+                },
+                "permission_level": "autonomous",
+            },
+            {
+                "name": "task_list",
+                "description": "List tracked tasks, optionally filtered by status",
+                "parameters": {
+                    "status_filter": "str | None — queued, running, completed, failed, cancelled",
+                },
+                "permission_level": "autonomous",
+            },
+            {
+                "name": "task_cancel",
+                "description": "Cancel a queued or running task",
+                "parameters": {
+                    "task_id": "str — UUID of the task to cancel",
+                },
+                "permission_level": "approval_required",
+            },
+        ]
 
     def _load_state(self) -> None:
         """Load persisted state from disk."""

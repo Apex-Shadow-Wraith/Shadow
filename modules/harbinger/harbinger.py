@@ -640,3 +640,261 @@ class Harbinger(BaseModule):
                 json.dump(data, f, indent=2)
         except OSError as e:
             logger.error("Failed to save queue: %s", e)
+
+    # --- Morning briefing assembly ---
+
+    def assemble_morning_briefing(self, modules: dict[str, Any]) -> dict[str, Any]:
+        """Pull data from all available modules and assemble a structured morning briefing.
+
+        Each module is queried gracefully — if a module is missing or its call
+        fails, that section is marked as unavailable rather than crashing.
+
+        Args:
+            modules: Dict of module_name -> module_instance.
+
+        Returns:
+            Structured dict with sorted sections, each containing title,
+            content, and priority.
+        """
+        now = datetime.now()
+        sections: list[dict[str, Any]] = []
+
+        # 1. Grimoire — memory stats
+        sections.append(self._pull_grimoire(modules.get("grimoire")))
+
+        # 2. Cerberus — safety stats
+        sections.append(self._pull_cerberus(modules.get("cerberus")))
+
+        # 3. Wraith — due reminders
+        sections.append(self._pull_wraith(modules.get("wraith")))
+
+        # 4. Void — system health
+        sections.append(self._pull_void(modules.get("void")))
+
+        # 5. Reaper — standing research
+        sections.append(self._pull_reaper(modules.get("reaper")))
+
+        # 6. Harbinger — pending decision queue
+        sections.append(self._pull_decision_queue())
+
+        # Sort by priority (1 = highest)
+        sections.sort(key=lambda s: s["priority"])
+
+        return {
+            "type": "morning_briefing",
+            "compiled_at": now.isoformat(),
+            "date": now.strftime("%A, %B %d, %Y"),
+            "section_count": len(sections),
+            "sections": sections,
+        }
+
+    def format_briefing_text(self, briefing: dict[str, Any]) -> str:
+        """Render a structured briefing into readable, scannable text.
+
+        Args:
+            briefing: Output from assemble_morning_briefing().
+
+        Returns:
+            Formatted string scannable in 3-5 minutes.
+        """
+        lines: list[str] = []
+        lines.append(f"=== SHADOW MORNING BRIEFING ===")
+        lines.append(f"Date: {briefing.get('date', 'Unknown')}")
+        lines.append(f"Compiled: {briefing.get('compiled_at', 'Unknown')}")
+        lines.append("")
+
+        for i, section in enumerate(briefing.get("sections", []), 1):
+            priority_label = {1: "HIGH", 2: "MEDIUM", 3: "LOW"}.get(
+                section["priority"], "INFO"
+            )
+            lines.append(f"--- {i}. {section['title']} [{priority_label}] ---")
+
+            content = section.get("content")
+            if content is None or content == "Module not available":
+                lines.append("  [Not available]")
+            elif isinstance(content, dict):
+                for key, value in content.items():
+                    if isinstance(value, list):
+                        lines.append(f"  {key}: {len(value)} item(s)")
+                        for item in value[:5]:
+                            if isinstance(item, dict):
+                                summary = item.get("description", item.get("content", str(item)))
+                                lines.append(f"    - {str(summary)[:80]}")
+                            else:
+                                lines.append(f"    - {str(item)[:80]}")
+                    else:
+                        lines.append(f"  {key}: {value}")
+            elif isinstance(content, str):
+                lines.append(f"  {content}")
+            else:
+                lines.append(f"  {content}")
+
+            lines.append("")
+
+        lines.append(f"=== END BRIEFING ({briefing.get('section_count', 0)} sections) ===")
+        return "\n".join(lines)
+
+    # --- Module data pullers (private) ---
+
+    def _pull_grimoire(self, grimoire: Any) -> dict[str, Any]:
+        """Pull memory stats from Grimoire."""
+        if grimoire is None:
+            return self._empty_section("Memory Status", 2)
+        try:
+            stats = grimoire.stats()
+            return {
+                "title": "Memory Status",
+                "priority": 2,
+                "source": "grimoire",
+                "content": {
+                    "active_memories": stats.get("active_memories", 0),
+                    "total_stored": stats.get("total_stored", 0),
+                    "vector_count": stats.get("vector_count", 0),
+                    "by_category": stats.get("by_category", {}),
+                },
+            }
+        except Exception as e:
+            logger.warning("Failed to pull Grimoire data: %s", e)
+            return self._error_section("Memory Status", 2, str(e))
+
+    def _pull_cerberus(self, cerberus: Any) -> dict[str, Any]:
+        """Pull safety stats from Cerberus."""
+        if cerberus is None:
+            return self._empty_section("Safety Status", 1)
+        try:
+            stats = cerberus.stats
+            return {
+                "title": "Safety Status",
+                "priority": 1,
+                "source": "cerberus",
+                "content": {
+                    "checks": stats.get("checks", 0),
+                    "denials": stats.get("denials", 0),
+                    "false_positives": stats.get("false_positives", 0),
+                    "denial_rate": stats.get("denial_rate", 0.0),
+                    "config_integrity": "verified" if not stats.get("tampered", False) else "TAMPERED",
+                },
+            }
+        except Exception as e:
+            logger.warning("Failed to pull Cerberus data: %s", e)
+            return self._error_section("Safety Status", 1, str(e))
+
+    def _pull_wraith(self, wraith: Any) -> dict[str, Any]:
+        """Pull due reminders from Wraith."""
+        if wraith is None:
+            return self._empty_section("Reminders & Tasks", 1)
+        try:
+            result = wraith._proactive_check({})
+            content = result.content if hasattr(result, "content") else result
+            suggestions = []
+            if isinstance(content, dict):
+                suggestions = content.get("suggestions", [])
+            return {
+                "title": "Reminders & Tasks",
+                "priority": 1,
+                "source": "wraith",
+                "content": {
+                    "due_items": suggestions,
+                    "count": len(suggestions),
+                },
+            }
+        except Exception as e:
+            logger.warning("Failed to pull Wraith data: %s", e)
+            return self._error_section("Reminders & Tasks", 1, str(e))
+
+    def _pull_void(self, void: Any) -> dict[str, Any]:
+        """Pull system health snapshot from Void."""
+        if void is None:
+            return self._empty_section("System Health", 3)
+        try:
+            result = void._system_health({})
+            content = result.content if hasattr(result, "content") else result
+            if isinstance(content, dict):
+                return {
+                    "title": "System Health",
+                    "priority": 3,
+                    "source": "void",
+                    "content": {
+                        "cpu_percent": content.get("cpu_percent"),
+                        "ram_percent": content.get("ram_percent"),
+                        "disk_percent": content.get("disk_percent"),
+                        "alerts": content.get("alerts", []),
+                    },
+                }
+            return {
+                "title": "System Health",
+                "priority": 3,
+                "source": "void",
+                "content": content,
+            }
+        except Exception as e:
+            logger.warning("Failed to pull Void data: %s", e)
+            return self._error_section("System Health", 3, str(e))
+
+    def _pull_reaper(self, reaper: Any) -> dict[str, Any]:
+        """Pull recent research results from Reaper."""
+        if reaper is None:
+            return self._empty_section("Research Intel", 2)
+        try:
+            data = reaper.get_briefing_data()
+            if isinstance(data, dict):
+                return {
+                    "title": "Research Intel",
+                    "priority": 2,
+                    "source": "reaper",
+                    "content": {
+                        "research": data.get("research", []),
+                        "reddit": data.get("reddit", []),
+                        "generated_at": data.get("generated_at"),
+                    },
+                }
+            return {
+                "title": "Research Intel",
+                "priority": 2,
+                "source": "reaper",
+                "content": data,
+            }
+        except Exception as e:
+            logger.warning("Failed to pull Reaper data: %s", e)
+            return self._error_section("Research Intel", 2, str(e))
+
+    def _pull_decision_queue(self) -> dict[str, Any]:
+        """Pull pending decision queue items from Harbinger itself."""
+        pending = self._pending_items
+        if not pending:
+            return {
+                "title": "Decision Queue",
+                "priority": 2,
+                "source": "harbinger",
+                "content": {
+                    "pending_count": 0,
+                    "items": [],
+                },
+            }
+        return {
+            "title": "Decision Queue",
+            "priority": 1,
+            "source": "harbinger",
+            "content": {
+                "pending_count": len(pending),
+                "items": sorted(pending, key=lambda x: x.get("importance", 0), reverse=True),
+            },
+        }
+
+    def _empty_section(self, title: str, priority: int) -> dict[str, Any]:
+        """Return a section placeholder when a module is not available."""
+        return {
+            "title": title,
+            "priority": priority,
+            "source": None,
+            "content": "Module not available",
+        }
+
+    def _error_section(self, title: str, priority: int, error: str) -> dict[str, Any]:
+        """Return a section placeholder when a module call fails."""
+        return {
+            "title": title,
+            "priority": priority,
+            "source": "error",
+            "content": f"Error: {error}",
+        }

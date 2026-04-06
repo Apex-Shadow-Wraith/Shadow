@@ -227,3 +227,116 @@ class TestModuleRegistry:
         reg.register(MockModule(name="a"))
         reg.register(MockModule(name="b"))
         assert len(reg) == 2
+
+
+# --- Registry find_tools and tool_stats tests ---
+
+class TestRegistryFindTools:
+    def test_find_all(self):
+        reg = ModuleRegistry()
+        reg.register(MockModule(name="alpha"))
+        reg.register(MockModule(name="beta"))
+        results = reg.find_tools()
+        assert len(results) == 2
+
+    def test_find_by_name(self):
+        reg = ModuleRegistry()
+        reg.register(MockModule(name="alpha"))
+        reg.register(MockModule(name="beta"))
+        results = reg.find_tools(name="alpha_tool")
+        assert len(results) == 1
+        assert results[0]["name"] == "alpha_tool"
+        assert results[0]["module"] == "alpha"
+
+    def test_find_by_module(self):
+        reg = ModuleRegistry()
+        reg.register(MockModule(name="alpha"))
+        reg.register(MockModule(name="beta"))
+        results = reg.find_tools(module="beta")
+        assert len(results) == 1
+        assert results[0]["module"] == "beta"
+
+    def test_find_by_permission(self):
+        reg = ModuleRegistry()
+        mod = MockModule(name="mixed", tools=[
+            {"name": "auto_tool", "description": "t", "parameters": {},
+             "permission_level": "autonomous"},
+            {"name": "approval_tool", "description": "t", "parameters": {},
+             "permission_level": "approval_required"},
+        ])
+        reg.register(mod)
+        autonomous = reg.find_tools(permission_level="autonomous")
+        assert len(autonomous) == 1
+        assert autonomous[0]["name"] == "auto_tool"
+
+    def test_find_combined_filters(self):
+        reg = ModuleRegistry()
+        reg.register(MockModule(name="alpha"))
+        reg.register(MockModule(name="beta"))
+        # Name that doesn't match module
+        results = reg.find_tools(name="alpha_tool", module="beta")
+        assert len(results) == 0
+
+    def test_find_no_match(self):
+        reg = ModuleRegistry()
+        reg.register(MockModule(name="alpha"))
+        results = reg.find_tools(name="nonexistent")
+        assert len(results) == 0
+
+    def test_find_includes_offline_modules(self):
+        """find_tools returns tools from ALL modules, not just ONLINE."""
+        reg = ModuleRegistry()
+        mod = MockModule(name="offline_mod")
+        # Module stays OFFLINE (default)
+        reg.register(mod)
+        results = reg.find_tools()
+        assert len(results) == 1
+        assert results[0]["status"] == "offline"
+
+
+class TestRegistryToolStats:
+    def test_empty_registry(self):
+        reg = ModuleRegistry()
+        stats = reg.tool_stats()
+        assert stats["total_tools"] == 0
+        assert stats["by_module"] == {}
+        assert stats["by_permission"] == {}
+        assert stats["total_modules"] == 0
+
+    def test_counts_tools(self):
+        reg = ModuleRegistry()
+        reg.register(MockModule(name="alpha"))
+        reg.register(MockModule(name="beta"))
+        stats = reg.tool_stats()
+        assert stats["total_tools"] == 2
+        assert stats["by_module"]["alpha"] == 1
+        assert stats["by_module"]["beta"] == 1
+        assert stats["by_permission"]["autonomous"] == 2
+        assert stats["total_modules"] == 2
+
+    def test_mixed_permissions(self):
+        reg = ModuleRegistry()
+        mod = MockModule(name="mixed", tools=[
+            {"name": "t1", "description": "t", "parameters": {},
+             "permission_level": "autonomous"},
+            {"name": "t2", "description": "t", "parameters": {},
+             "permission_level": "approval_required"},
+            {"name": "t3", "description": "t", "parameters": {},
+             "permission_level": "autonomous"},
+        ])
+        reg.register(mod)
+        stats = reg.tool_stats()
+        assert stats["total_tools"] == 3
+        assert stats["by_permission"]["autonomous"] == 2
+        assert stats["by_permission"]["approval_required"] == 1
+
+    def test_online_count(self):
+        reg = ModuleRegistry()
+        online = MockModule(name="on")
+        online.status = ModuleStatus.ONLINE
+        offline = MockModule(name="off")
+        reg.register(online)
+        reg.register(offline)
+        stats = reg.tool_stats()
+        assert stats["online_modules"] == 1
+        assert stats["total_modules"] == 2

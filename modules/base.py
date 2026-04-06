@@ -225,5 +225,52 @@ class ModuleRegistry:
     def __contains__(self, name: str) -> bool:
         return name in self._modules
 
+    def find_tools(
+        self,
+        name: str | None = None,
+        module: str | None = None,
+        permission_level: str | None = None,
+    ) -> list[dict[str, Any]]:
+        """Query tools by name, module, or permission level.
+
+        All filters are AND-combined. None means no filter on that field.
+        Returns tools from ALL modules (not just ONLINE), with module/status.
+        """
+        results = []
+        for mod in self._modules.values():
+            if module and mod.name != module:
+                continue
+            for tool in mod.get_tools():
+                if name and tool["name"] != name:
+                    continue
+                if permission_level and tool.get("permission_level") != permission_level:
+                    continue
+                tool_copy = dict(tool)
+                tool_copy["module"] = mod.name
+                tool_copy["status"] = mod.status.value
+                results.append(tool_copy)
+        return results
+
+    def tool_stats(self) -> dict[str, Any]:
+        """Tool count statistics across all modules."""
+        total = 0
+        by_module: dict[str, int] = {}
+        by_permission: dict[str, int] = {}
+        for mod in self._modules.values():
+            tools = mod.get_tools()
+            count = len(tools)
+            total += count
+            by_module[mod.name] = count
+            for tool in tools:
+                perm = tool.get("permission_level", "unknown")
+                by_permission[perm] = by_permission.get(perm, 0) + 1
+        return {
+            "total_tools": total,
+            "by_module": by_module,
+            "by_permission": by_permission,
+            "online_modules": len(self.online_modules),
+            "total_modules": len(self._modules),
+        }
+
     def __len__(self) -> int:
         return len(self._modules)

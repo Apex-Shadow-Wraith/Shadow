@@ -159,6 +159,36 @@ class GrimoireModule(BaseModule):
                         execution_time_ms=(time.time() - start) * 1000,
                     )
 
+            elif tool_name == "memory_compact":
+                older_than_days = params.get("older_than_days", 30)
+                result = self._grimoire.compact(
+                    older_than_days=older_than_days,
+                )
+                self._record_call(True)
+                return ToolResult(
+                    success=True,
+                    content=result,
+                    tool_name=tool_name,
+                    module=self.name,
+                    execution_time_ms=(time.time() - start) * 1000,
+                )
+
+            elif tool_name == "memory_block_search":
+                block_type = params.get("block_type", "")
+                limit = params.get("limit", 10)
+                results = self._grimoire.memory_block_search(
+                    block_type=block_type,
+                    limit=limit,
+                )
+                self._record_call(True)
+                return ToolResult(
+                    success=True,
+                    content=results,
+                    tool_name=tool_name,
+                    module=self.name,
+                    execution_time_ms=(time.time() - start) * 1000,
+                )
+
             else:
                 self._record_call(False)
                 return ToolResult(
@@ -223,6 +253,23 @@ class GrimoireModule(BaseModule):
                 "description": "Explicit delete from both ChromaDB and SQLite",
                 "parameters": {
                     "memory_id": "int — ID of memory to delete",
+                },
+                "permission_level": "autonomous",
+            },
+            {
+                "name": "memory_compact",
+                "description": "Soft-archive old low-access memories to reduce search noise",
+                "parameters": {
+                    "older_than_days": "int — archive memories older than N days (default 30)",
+                },
+                "permission_level": "approval_required",
+            },
+            {
+                "name": "memory_block_search",
+                "description": "Search memories by content block type (code, error, plan, etc.)",
+                "parameters": {
+                    "block_type": "str — block type to search for",
+                    "limit": "int — max results (default 10)",
                 },
                 "permission_level": "autonomous",
             },

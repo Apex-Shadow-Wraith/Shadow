@@ -31,6 +31,7 @@ from modules.omen.omen import Omen
 from modules.reaper.reaper_module import ReaperModule
 from modules.sentinel.sentinel import Sentinel
 from modules.shadow.orchestrator import Orchestrator
+from modules.shadow.shadow_module import ShadowModule
 from modules.void.void import Void
 from modules.wraith.wraith import Wraith
 
@@ -127,6 +128,15 @@ async def startup(config: dict, logger: logging.Logger) -> Orchestrator:
     for module in [grimoire] + all_modules:
         orchestrator.registry.register(module)
         logger.info("Registered module: %s", module.name)
+
+    # Step 5b: Register ShadowModule (task tracking + health)
+    shadow_mod = ShadowModule(
+        config={"db_path": config.get("system", {}).get("tasks_db", "data/shadow_tasks.db")},
+        registry=orchestrator.registry,
+    )
+    await shadow_mod.initialize()
+    orchestrator.registry.register(shadow_mod)
+    logger.info("Registered module: %s", shadow_mod.name)
 
     # Step 6: Load orchestrator state
     orchestrator._load_state()

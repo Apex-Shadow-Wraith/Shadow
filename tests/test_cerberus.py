@@ -99,9 +99,10 @@ def limits_file(tmp_path: Path) -> Path:
 
 
 @pytest.fixture
-async def cerberus(limits_file: Path) -> Cerberus:
+async def cerberus(limits_file: Path, tmp_path: Path) -> Cerberus:
     """Create and initialize a Cerberus instance."""
-    config = {"limits_file": str(limits_file)}
+    db_path = tmp_path / "cerberus_audit.db"
+    config = {"limits_file": str(limits_file), "db_path": str(db_path)}
     c = Cerberus(config)
     await c.initialize()
     return c
@@ -352,3 +353,84 @@ class TestCerberusStats:
         })
         stats = cerberus.stats
         assert stats["denials"] >= 1
+
+
+# --- False Positive Log Tests ---
+
+class TestFalsePositiveLog:
+    @pytest.mark.asyncio
+    async def test_success(self, cerberus: Cerberus):
+        result = await cerberus.execute("false_positive_log", {
+            "check_id": "chk_001",
+            "category": "pii_detection",
+            "notes": "Business name mistaken for PII",
+        })
+        assert result.success is True
+        assert result.content["logged"] is True
+        assert result.content["check_id"] == "chk_001"
+        assert result.content["category"] == "pii_detection"
+        assert "timestamp" in result.content
+        assert cerberus._false_positive_count == 1
+
+    @pytest.mark.asyncio
+    async def test_increments_counter(self, cerberus: Cerberus):
+        await cerberus.execute("false_positive_log", {
+            "check_id": "chk_001", "category": "test", "notes": "",
+        })
+        await cerberus.execute("false_positive_log", {
+            "check_id": "chk_002", "category": "test", "notes": "",
+        })
+        assert cerberus._false_positive_count == 2
+
+    @pytest.mark.asyncio
+    async def test_writes_audit_entry(self, cerberus: Cerberus):
+        import json
+        import sqlite3
+
+        await cerberus.execute("false_positive_log", {
+            "check_id": "chk_001",
+            "category": "test",
+            "notes": "test note",
+        })
+        conn = sqlite3.connect(str(cerberus._db_path))
+        rows = conn.execute(
+            "SELECT details FROM cerberus_audit_log WHERE action = 'false_positive'"
+        ).fetchall()
+        conn.close()
+        assert len(rows) == 1
+        details = json.loads(rows[0][0])
+        assert details["check_id"] == "chk_001"
+        assert details["notes"] == "test note"
+
+    @pytest.mark.asyncio
+    async def test_empty_category_fails(self, cerberus: Cerberus):
+        result = await cerberus.execute("false_positive_log", {
+            "check_id": "chk_001",
+        })
+        assert result.success is False
+        assert "category" in result.error
+
+    @pytest.mark.asyncio
+    async def test_missing_check_id(self, cerberus: Cerberus):
+        result = await cerberus.execute("false_positive_log", {
+            "category": "test",
+            "notes": "no id provided",
+        })
+        assert result.success is False
+        assert "check_id" in result.error
+
+    @pytest.mark.asyncio
+    async def test_reflected_in_stats(self, cerberus: Cerberus):
+        await cerberus.execute("false_positive_log", {
+            "check_id": "chk_001", "category": "test", "notes": "",
+        })
+        stats = cerberus.stats
+        assert stats["false_positives"] == 1
+
+    @pytest.mark.asyncio
+    async def test_tool_count(self, cerberus: Cerberus):
+        tools = cerberus.get_tools()
+        assert len(tools) == 8
+        tool_names = [t["name"] for t in tools]
+        assert "false_positive_log" in tool_names
+        assert "calibration_stats" in tool_names

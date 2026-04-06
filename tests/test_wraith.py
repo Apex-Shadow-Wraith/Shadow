@@ -55,7 +55,7 @@ class TestWraithLifecycle:
     def test_get_tools_returns_all_tools(self, wraith: Wraith):
         tools = wraith.get_tools()
         assert isinstance(tools, list)
-        assert len(tools) == 7
+        assert len(tools) == 8
         tool_names = [t["name"] for t in tools]
         assert "quick_answer" in tool_names
         assert "reminder_create" in tool_names
@@ -64,6 +64,7 @@ class TestWraithLifecycle:
         assert "reminder_kill" in tool_names
         assert "classify_task" in tool_names
         assert "proactive_check" in tool_names
+        assert "ask_user" in tool_names
 
     def test_all_tools_have_required_fields(self, wraith: Wraith):
         for tool in wraith.get_tools():
@@ -412,3 +413,39 @@ class TestExecutionTracking:
         await online_wraith.execute("reminder_list", {})
         await online_wraith.execute("reminder_create", {"content": ""})  # Will fail
         assert online_wraith.success_rate == pytest.approx(0.5)
+
+
+# --- Ask User tests ---
+
+class TestAskUser:
+    @pytest.mark.asyncio
+    async def test_success_with_question(self, online_wraith: Wraith):
+        result = await online_wraith.execute("ask_user", {
+            "question": "Which format do you prefer?",
+        })
+        assert result.success is True
+        assert result.content["question"] == "Which format do you prefer?"
+        assert result.content["type"] == "user_question"
+        assert result.content["options"] is None
+        assert "created_at" in result.content
+
+    @pytest.mark.asyncio
+    async def test_success_with_options(self, online_wraith: Wraith):
+        result = await online_wraith.execute("ask_user", {
+            "question": "Pick a color:",
+            "options": ["Red", "Blue", "Green"],
+        })
+        assert result.success is True
+        assert result.content["options"] == ["Red", "Blue", "Green"]
+
+    @pytest.mark.asyncio
+    async def test_missing_question(self, online_wraith: Wraith):
+        result = await online_wraith.execute("ask_user", {})
+        assert result.success is False
+        assert "required" in result.error
+
+    @pytest.mark.asyncio
+    async def test_empty_question(self, online_wraith: Wraith):
+        result = await online_wraith.execute("ask_user", {"question": ""})
+        assert result.success is False
+        assert "required" in result.error

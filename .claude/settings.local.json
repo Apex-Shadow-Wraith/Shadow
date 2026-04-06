@@ -45,7 +45,21 @@
       "Bash(shadow_env/Scripts/python -m pytest tests/test_reddit_json.py -v)",
       "Bash(./shadow_env/Scripts/python -m pytest tests/test_injection_detector.py tests/test_reversibility.py tests/test_watchdog.py tests/test_ethical_topics.py -v)",
       "Bash(shadow_env/Scripts/python -m pytest tests/ --ignore=tests/test_shadow_memory.py -q)",
-      "Bash(./shadow_env/Scripts/python -m pytest tests/test_cerberus.py -v)"
+      "Bash(./shadow_env/Scripts/python -m pytest tests/test_cerberus.py -v)",
+      "Bash(grep -l \"def get_tools\" /c/Shadow/modules/*/*.py)",
+      "Bash(ls -la /c/Shadow/tests/test_gr*)",
+      "Bash(python -m pytest tests/ -v)",
+      "Bash(python -m pytest tests/test_grimoire_blocks.py -v)",
+      "Bash(sqlite3 /c/Shadow/data/memory/shadow_memory.db \".tables\")",
+      "Bash(python -c \"import json; s = json.dumps\\([]\\); print\\(repr\\(s\\), bool\\(s\\)\\); print\\(json.loads\\(s\\)\\)\")",
+      "Bash(curl -s http://localhost:11434/api/tags)",
+      "Bash(python -m pytest tests/test_task_tracker.py -v)",
+      "Bash(python -m pytest tests/test_false_positive.py -v)",
+      "Bash(python -m pytest tests/test_morning_briefing.py -v)",
+      "Bash(python -m pytest tests/test_sentinel.py tests/test_void.py -v)",
+      "Bash(python -m pytest tests/ -v --ignore=tests/test_void.py)",
+      "Bash(python -m pytest tests/ -v --ignore=tests/test_void.py --ignore=tests/test_sentinel.py)",
+      "Bash(python -m pytest tests/test_void.py tests/test_sentinel.py --co)"
     ]
   }
 }

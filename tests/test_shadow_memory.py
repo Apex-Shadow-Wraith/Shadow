@@ -26,6 +26,7 @@ Session: 7 — First Code
 
 import sys
 import json
+import pytest
 from pathlib import Path
 from datetime import datetime
 
@@ -49,6 +50,21 @@ from modules.grimoire.grimoire import (
     SOURCE_SYSTEM,
 )
 from modules.reaper.reaper import Reaper, evaluate_source
+
+
+@pytest.fixture
+def grimoire(tmp_path):
+    """Create a Grimoire instance with temporary storage for testing."""
+    db_path = tmp_path / "test_memory.db"
+    vector_path = tmp_path / "test_vectors"
+    return Grimoire(db_path=str(db_path), vector_path=str(vector_path))
+
+
+@pytest.fixture
+def reaper(grimoire, tmp_path):
+    """Create a Reaper instance with temporary storage for testing."""
+    data_dir = tmp_path / "test_research"
+    return Reaper(grimoire=grimoire, data_dir=str(data_dir))
 
 
 def print_header(text):

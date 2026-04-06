@@ -343,6 +343,16 @@ class Grimoire:
             "ON tags(tag)"
         )
 
+        # ── Migration: Add content_blocks column (Unified Architecture Part IV) ──
+        # ALTER TABLE is safe — existing rows get NULL for the new column.
+        # content_blocks stores a JSON array of typed blocks for structured retrieval.
+        try:
+            cursor.execute(
+                "ALTER TABLE memories ADD COLUMN content_blocks TEXT"
+            )
+        except sqlite3.OperationalError:
+            pass  # Column already exists — safe to ignore
+
         # commit() saves all changes to disk
         # Without this, changes exist only in memory and are lost on crash
         self.conn.commit()
@@ -414,13 +424,13 @@ class Grimoire:
     # WRITE PIPELINE — Storing memories
     # =========================================================================
 
-    def remember(self, content, source=SOURCE_CONVERSATION, 
+    def remember(self, content, source=SOURCE_CONVERSATION,
                  source_module="grimoire", category="uncategorized",
                  trust_level=TRUST_CONVERSATION, confidence=0.5,
                  tags=None, metadata=None, parent_id=None,
                  model_used=None, tools_called=None,
                  safety_class=None, user_feedback=None,
-                 check_duplicates=True):
+                 check_duplicates=True, content_blocks=None):
         """
         Store a new memory in both SQLite and ChromaDB.
         
@@ -449,6 +459,11 @@ class Grimoire:
             user_feedback: Creator's feedback ("approved", "corrected", "rejected")
             check_duplicates: If True, check for semantic duplicates before storing.
                               Set False when you know it's unique (e.g., corrections).
+            content_blocks: Optional list of typed content blocks for structured retrieval.
+                            Each block is a dict with at least {"type": "...", "content": "..."}.
+                            Valid types: text, code, tool_use, tool_result, error, plan,
+                            approval, correction. Stored as JSON in SQLite.
+                            ChromaDB embeddings still use the full text content field.
             
         Returns:
             The UUID string of the new memory, or the ID of an existing duplicate
@@ -523,12 +538,12 @@ class Grimoire:
         # ── Step 2: Store in SQLite ──
         cursor = self.conn.cursor()
         cursor.execute("""
-            INSERT INTO memories 
-            (id, content, category, source, source_module, trust_level, 
+            INSERT INTO memories
+            (id, content, category, source, source_module, trust_level,
              confidence, created_at, updated_at, embedding_id, parent_id,
              model_used, tools_called, safety_class, user_feedback,
-             metadata_json)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             metadata_json, content_blocks)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             memory_id,                    # id
             content,                      # content
@@ -545,7 +560,8 @@ class Grimoire:
             json.dumps(tools_called) if tools_called else None,  # tools_called
             safety_class,                 # safety_class (from design doc)
             user_feedback,                # user_feedback (from design doc)
-            json.dumps(metadata or {})    # metadata_json
+            json.dumps(metadata or {}),   # metadata_json
+            json.dumps(content_blocks) if content_blocks is not None else None  # content_blocks
         ))
 
         # ── Step 3: Store tags ──
@@ -688,6 +704,14 @@ class Grimoire:
                     )
                     memory_tags = [r["tag"] for r in cursor.fetchall()]
 
+                    # Parse content_blocks — legacy entries (NULL) become
+                    # a single text block so callers always get a list
+                    raw_blocks = row["content_blocks"]
+                    if raw_blocks:
+                        blocks = json.loads(raw_blocks)
+                    else:
+                        blocks = [{"type": "text", "content": row["content"]}]
+
                     memories.append({
                         "id": row["id"],
                         "content": row["content"],
@@ -700,7 +724,8 @@ class Grimoire:
                         "access_count": row["access_count"] + 1,
                         "tags": memory_tags,
                         "relevance": round(relevance, 4),
-                        "metadata": json.loads(row["metadata_json"] or "{}")
+                        "metadata": json.loads(row["metadata_json"] or "{}"),
+                        "content_blocks": blocks
                     })
 
         return memories
@@ -760,6 +785,85 @@ class Grimoire:
             """, (limit,))
         
         return [dict(row) for row in cursor.fetchall()]
+
+    # =========================================================================
+    # BLOCK SEARCH — Find memories by content block type
+    # =========================================================================
+
+    def memory_block_search(self, block_type, limit=10):
+        """
+        Search for memories that contain a specific block type.
+
+        This enables structured retrieval — find all memories that contain
+        code blocks, tool calls, errors, plans, etc. without relying on
+        semantic similarity.
+
+        Valid block types: text, code, tool_use, tool_result, error, plan,
+                          approval, correction
+
+        Args:
+            block_type: The block type to search for (e.g., "code", "error")
+            limit: Maximum number of results to return
+
+        Returns:
+            List of memory dicts (same format as recall()) with content_blocks.
+            Only returns memories that have stored content_blocks (not legacy NULL entries).
+        """
+        valid_types = {
+            "text", "code", "tool_use", "tool_result",
+            "error", "plan", "approval", "correction"
+        }
+        if block_type not in valid_types:
+            raise ValueError(
+                f"[Grimoire] Invalid block type '{block_type}'. "
+                f"Valid types: {sorted(valid_types)}"
+            )
+
+        cursor = self.conn.cursor()
+        # Use SQLite JSON search — content_blocks is a JSON array of objects,
+        # each with a "type" field. We search for entries containing the target type.
+        # The LIKE approach works because block types are simple alphanumeric strings.
+        cursor.execute("""
+            SELECT * FROM memories
+            WHERE is_active = 1
+              AND content_blocks IS NOT NULL
+              AND content_blocks LIKE ?
+            ORDER BY created_at DESC
+            LIMIT ?
+        """, (f'%"type": "{block_type}"%', limit))
+
+        results = [dict(row) for row in cursor.fetchall()]
+
+        memories = []
+        for row in results:
+            blocks = json.loads(row["content_blocks"])
+            # Filter to only include the matching blocks for easy access
+            matching_blocks = [b for b in blocks if b.get("type") == block_type]
+
+            # Fetch tags
+            cursor.execute(
+                "SELECT tag FROM tags WHERE memory_id = ?",
+                (row["id"],)
+            )
+            memory_tags = [r["tag"] for r in cursor.fetchall()]
+
+            memories.append({
+                "id": row["id"],
+                "content": row["content"],
+                "category": row["category"],
+                "source": row["source"],
+                "source_module": row["source_module"],
+                "trust_level": row["trust_level"],
+                "confidence": row["confidence"],
+                "created_at": row["created_at"],
+                "access_count": row["access_count"],
+                "tags": memory_tags,
+                "metadata": json.loads(row["metadata_json"] or "{}"),
+                "content_blocks": blocks,
+                "matching_blocks": matching_blocks
+            })
+
+        return memories
 
     # =========================================================================
     # CORRECTIONS — When the creator says "that's wrong"
@@ -900,6 +1004,75 @@ class Grimoire:
         content_preview = memory["content"][:60]
         print(f"[Grimoire] Forgotten: {content_preview}...")
         return True
+
+    # =========================================================================
+    # COMPACTION — Archive old, low-access memories
+    # =========================================================================
+
+    def compact(self, older_than_days=30, min_access_count=2):
+        """
+        Soft-archive old, low-access memories to reduce search noise.
+
+        This is NON-DESTRUCTIVE. Archived memories get is_active=0 (same as
+        corrections and forgets). They stay in SQLite for audit/recovery but
+        are removed from ChromaDB so semantic search stays fast and relevant.
+
+        Safety: Never compacts high-trust memories (trust_level >= 0.8).
+        User corrections and user-stated facts are always preserved.
+
+        Args:
+            older_than_days: Archive memories older than this (default 30)
+            min_access_count: Only archive memories accessed fewer than this
+                              many times (default 2)
+
+        Returns:
+            Dict with archived_count and archived_ids
+        """
+        from datetime import timedelta
+
+        threshold = (datetime.now() - timedelta(days=older_than_days)).isoformat()
+        now = datetime.now().isoformat()
+
+        cursor = self.conn.cursor()
+
+        # Find candidates: old, low-access, low-trust, still active
+        cursor.execute("""
+            SELECT id FROM memories
+            WHERE is_active = 1
+              AND access_count < ?
+              AND trust_level < 0.8
+              AND COALESCE(accessed_at, created_at) < ?
+        """, (min_access_count, threshold))
+
+        candidates = [row["id"] for row in cursor.fetchall()]
+
+        if not candidates:
+            return {"archived_count": 0, "archived_ids": []}
+
+        # Soft-archive in SQLite
+        for memory_id in candidates:
+            cursor.execute("""
+                UPDATE memories
+                SET is_active = 0, updated_at = ?,
+                    metadata_json = json_set(
+                        COALESCE(metadata_json, '{}'),
+                        '$.compacted', 1,
+                        '$.compacted_at', ?
+                    )
+                WHERE id = ?
+            """, (now, now, memory_id))
+
+        self.conn.commit()
+
+        # Remove from ChromaDB to keep vector search clean
+        try:
+            self.collection.delete(ids=candidates)
+        except Exception:
+            # ChromaDB may not have all IDs — that's fine
+            pass
+
+        print(f"[Grimoire] Compacted {len(candidates)} old memories")
+        return {"archived_count": len(candidates), "archived_ids": candidates}
 
     # =========================================================================
     # CONFLICT DETECTION (Design Doc Section 7)

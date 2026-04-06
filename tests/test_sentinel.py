@@ -4,12 +4,32 @@ Tests for Sentinel — White Hat Security
 """
 
 import json
+import sys
+import types
 import pytest
 from pathlib import Path
 from typing import Any
+from unittest.mock import Mock
 
 from modules.base import ModuleStatus, ToolResult
 from modules.sentinel.sentinel import Sentinel
+
+
+@pytest.fixture(autouse=True)
+def fake_psutil(monkeypatch):
+    """Inject a fake psutil module so Sentinel's local imports work."""
+    mock_psutil = types.ModuleType("psutil")
+    mock_conn = Mock()
+    mock_conn.fd = 4
+    mock_conn.family = 2
+    mock_conn.type = 1
+    mock_conn.laddr = Mock(ip="127.0.0.1", port=8080)
+    mock_conn.raddr = Mock(ip="93.184.216.34", port=443)
+    mock_conn.status = "ESTABLISHED"
+    mock_conn.pid = 1234
+    mock_psutil.net_connections = Mock(return_value=[mock_conn])
+    monkeypatch.setitem(sys.modules, "psutil", mock_psutil)
+    return mock_psutil
 
 
 @pytest.fixture
@@ -58,6 +78,7 @@ class TestNetworkScan:
         r = await online_sentinel.execute("network_scan", {})
         assert r.success is True
         assert "connection_count" in r.content
+        assert r.content["connection_count"] == 1
 
 
 class TestFileIntegrity:

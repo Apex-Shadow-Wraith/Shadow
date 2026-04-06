@@ -17,9 +17,10 @@ import hashlib
 import json
 import logging
 import re
+import sqlite3
 import time
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 from enum import Enum
 from pathlib import Path
 from typing import Any
@@ -65,6 +66,25 @@ class Cerberus(BaseModule):
     - Ambiguous cases (10%): LLM ethical reasoning (Phase 2+).
     """
 
+    AUDIT_TABLE_DDL = """\
+    CREATE TABLE IF NOT EXISTS cerberus_audit_log (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        timestamp   TEXT    NOT NULL,
+        action      TEXT    NOT NULL,
+        type        TEXT,
+        tool        TEXT,
+        module      TEXT,
+        reason      TEXT,
+        rule        TEXT,
+        verdict     TEXT,
+        resolved    INTEGER DEFAULT 0,
+        resolved_at TEXT,
+        category    TEXT,
+        details     TEXT,
+        metadata    TEXT
+    );
+    """
+
     def __init__(self, config: dict[str, Any]) -> None:
         super().__init__(
             name="cerberus",
@@ -78,6 +98,11 @@ class Cerberus(BaseModule):
         self._deny_count: int = 0
         self._false_positive_count: int = 0
         self._ethical_topics: list[dict[str, Any]] = []
+        self._db_path: Path | None = None
+        db_path = config.get("db_path")
+        if db_path:
+            self._db_path = Path(db_path)
+            self._ensure_audit_table()
 
     async def initialize(self) -> None:
         """Load hard limits from protected config file."""
@@ -200,6 +225,34 @@ class Cerberus(BaseModule):
                     execution_time_ms=(time.time() - start) * 1000,
                 )
 
+            elif tool_name == "false_positive_log":
+                result_data = self.log_false_positive(
+                    check_id=params.get("check_id", ""),
+                    category=params.get("category", ""),
+                    notes=params.get("notes", ""),
+                )
+                self._record_call(True)
+                return ToolResult(
+                    success=True,
+                    content=result_data,
+                    tool_name=tool_name,
+                    module=self.name,
+                    execution_time_ms=(time.time() - start) * 1000,
+                )
+
+            elif tool_name == "calibration_stats":
+                result_data = self.get_calibration_stats(
+                    days=params.get("days", 30),
+                )
+                self._record_call(True)
+                return ToolResult(
+                    success=True,
+                    content=result_data,
+                    tool_name=tool_name,
+                    module=self.name,
+                    execution_time_ms=(time.time() - start) * 1000,
+                )
+
             else:
                 self._record_call(False)
                 return ToolResult(
@@ -285,7 +338,163 @@ class Cerberus(BaseModule):
                 },
                 "permission_level": "autonomous",
             },
+            {
+                "name": "false_positive_log",
+                "description": "Record a false positive safety check for rule tuning",
+                "parameters": {
+                    "check_id": "str — ID of the check that was a false positive",
+                    "category": "str — category of the false positive",
+                    "notes": "str — explanation of why this was a false positive",
+                },
+                "permission_level": "autonomous",
+            },
+            {
+                "name": "calibration_stats",
+                "description": "Get false positive calibration stats per category",
+                "parameters": {
+                    "days": "int — number of days to look back (default: 30)",
+                },
+                "permission_level": "autonomous",
+            },
         ]
+
+    # --- DB-backed False Positive Tracking ---
+
+    def _ensure_audit_table(self) -> None:
+        """Create the cerberus_audit_log table if it doesn't exist."""
+        if self._db_path is None:
+            return
+        conn = sqlite3.connect(str(self._db_path))
+        try:
+            conn.execute(self.AUDIT_TABLE_DDL)
+            conn.commit()
+        finally:
+            conn.close()
+
+    def log_false_positive(
+        self, check_id: str, category: str, notes: str = ""
+    ) -> dict:
+        """Record a false positive in the audit log for calibration.
+
+        Args:
+            check_id: ID of the safety check that was a false positive.
+            category: Category of the false positive (e.g. 'shell_metacharacters').
+            notes: Optional explanation of why this was a false positive.
+
+        Returns:
+            Confirmation dict with timestamp.
+
+        Raises:
+            ValueError: If check_id or category is empty.
+        """
+        if not check_id:
+            raise ValueError("check_id is required")
+        if not category:
+            raise ValueError("category is required")
+
+        timestamp = datetime.now().isoformat()
+        details = json.dumps({
+            "check_id": check_id,
+            "category": category,
+            "notes": notes,
+        })
+
+        if self._db_path is None:
+            raise ValueError("No db_path configured — cannot log false positive")
+
+        conn = sqlite3.connect(str(self._db_path))
+        try:
+            conn.execute(
+                "INSERT INTO cerberus_audit_log "
+                "(timestamp, action, type, category, details) "
+                "VALUES (?, ?, ?, ?, ?)",
+                (timestamp, "false_positive", "false_positive", category, details),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+
+        self._false_positive_count += 1
+
+        return {
+            "logged": True,
+            "check_id": check_id,
+            "category": category,
+            "timestamp": timestamp,
+        }
+
+    def get_calibration_stats(self, days: int = 30) -> dict:
+        """Query audit log for false positive calibration stats.
+
+        Args:
+            days: Number of days to look back (default 30).
+
+        Returns:
+            Dict with overall_fp_rate, per-category breakdown, and
+            categories flagged for calibration (fp_rate > 0.15).
+        """
+        if self._db_path is None:
+            return {
+                "overall_fp_rate": 0.0,
+                "total_checks": 0,
+                "total_false_positives": 0,
+                "categories": {},
+                "needs_calibration": [],
+            }
+
+        cutoff = (datetime.now() - timedelta(days=days)).isoformat()
+
+        conn = sqlite3.connect(str(self._db_path))
+        conn.row_factory = sqlite3.Row
+        try:
+            # Count all checks (denials + false_positives represent safety triggers)
+            all_rows = conn.execute(
+                "SELECT action, category FROM cerberus_audit_log "
+                "WHERE timestamp >= ?",
+                (cutoff,),
+            ).fetchall()
+        finally:
+            conn.close()
+
+        # Build per-category stats
+        category_checks: dict[str, int] = {}
+        category_fps: dict[str, int] = {}
+
+        for row in all_rows:
+            cat = row["category"] or "uncategorized"
+            action = row["action"]
+
+            if action in ("safety_check", "denial", "false_positive"):
+                category_checks[cat] = category_checks.get(cat, 0) + 1
+
+            if action == "false_positive":
+                category_fps[cat] = category_fps.get(cat, 0) + 1
+
+        total_checks = sum(category_checks.values())
+        total_fps = sum(category_fps.values())
+        overall_fp_rate = total_fps / total_checks if total_checks > 0 else 0.0
+
+        categories = {}
+        needs_calibration = []
+        for cat in sorted(set(list(category_checks.keys()) + list(category_fps.keys()))):
+            checks = category_checks.get(cat, 0)
+            fps = category_fps.get(cat, 0)
+            fp_rate = fps / checks if checks > 0 else 0.0
+            categories[cat] = {
+                "total_checks": checks,
+                "false_positives": fps,
+                "fp_rate": round(fp_rate, 4),
+            }
+            if fp_rate > 0.15:
+                needs_calibration.append(cat)
+
+        return {
+            "overall_fp_rate": round(overall_fp_rate, 4),
+            "total_checks": total_checks,
+            "total_false_positives": total_fps,
+            "categories": categories,
+            "needs_calibration": needs_calibration,
+        }
 
     # --- Core Safety Logic ---
 
