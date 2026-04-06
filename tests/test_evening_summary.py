@@ -422,3 +422,88 @@ class TestModuleExceptionHandling:
         activity = next(s for s in summary["sections"] if s["title"] == "Shadow Activity")
         # Should have error info but not crash
         assert "system_health_error" in activity["content"]
+
+
+class TestApexStatsInEvening:
+    """Test Apex escalation stats in evening summary."""
+
+    def test_apex_stats_in_evening(self, harbinger):
+        """Mock apex module — escalation stats appear in Shadow Activity section."""
+        mock_apex = MagicMock()
+        mock_apex._escalation_stats.return_value = ToolResult(
+            success=True,
+            content={
+                "total_escalations": 7,
+                "total_cost_usd": 0.25,
+                "by_type": {"question": 4, "research": 3},
+            },
+            tool_name="escalation_stats", module="apex",
+        )
+
+        summary = harbinger.assemble_evening_summary({"apex": mock_apex})
+        activity = next(s for s in summary["sections"] if s["title"] == "Shadow Activity")
+
+        assert "escalation_stats" in activity["content"]
+        assert activity["content"]["escalation_stats"]["total_escalations"] == 7
+        assert activity["content"]["escalation_stats"]["total_cost"] == 0.25
+
+    def test_apex_exception_in_evening(self, harbinger):
+        """Apex exception doesn't crash evening summary."""
+        mock_apex = MagicMock()
+        mock_apex._escalation_stats.side_effect = RuntimeError("API down")
+
+        summary = harbinger.assemble_evening_summary({"apex": mock_apex})
+        activity = next(s for s in summary["sections"] if s["title"] == "Shadow Activity")
+
+        assert "escalation_error" in activity["content"]
+
+
+class TestProactiveSuggestionsInEvening:
+    """Test Wraith proactive suggestions in evening summary."""
+
+    def test_proactive_suggestions_in_evening(self, harbinger):
+        """Mock wraith with suggestions — appear in evening summary."""
+        mock_wraith = MagicMock()
+        mock_wraith._proactive_suggestions.return_value = ToolResult(
+            success=True,
+            content={
+                "suggestions": [
+                    {"suggestion": "Review weekly invoices", "confidence": 0.8, "source": "pattern"},
+                    {"suggestion": "Check supplier prices", "confidence": 0.6, "source": "neglect"},
+                ],
+                "count": 2,
+                "checked_at": "2026-04-05T18:00:00",
+            },
+            tool_name="proactive_suggestions", module="wraith",
+        )
+
+        summary = harbinger.assemble_evening_summary({"wraith": mock_wraith})
+        activity = next(s for s in summary["sections"] if s["title"] == "Shadow Activity")
+
+        assert "proactive_suggestions" in activity["content"]
+        assert len(activity["content"]["proactive_suggestions"]) == 2
+
+    def test_wraith_exception_in_evening(self, harbinger):
+        """Wraith exception doesn't crash evening summary."""
+        mock_wraith = MagicMock()
+        mock_wraith._proactive_suggestions.side_effect = RuntimeError("Wraith error")
+
+        summary = harbinger.assemble_evening_summary({"wraith": mock_wraith})
+        activity = next(s for s in summary["sections"] if s["title"] == "Shadow Activity")
+
+        assert "proactive_error" in activity["content"]
+
+    def test_empty_suggestions_not_included(self, harbinger):
+        """Empty suggestions list is not added to activity."""
+        mock_wraith = MagicMock()
+        mock_wraith._proactive_suggestions.return_value = ToolResult(
+            success=True,
+            content={"suggestions": [], "count": 0, "checked_at": "2026-04-05T18:00:00"},
+            tool_name="proactive_suggestions", module="wraith",
+        )
+
+        summary = harbinger.assemble_evening_summary({"wraith": mock_wraith})
+        activity = next(s for s in summary["sections"] if s["title"] == "Shadow Activity")
+
+        # Empty suggestions should not be in activity content
+        assert "proactive_suggestions" not in activity.get("content", {})

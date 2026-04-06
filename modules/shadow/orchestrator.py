@@ -235,6 +235,17 @@ class Orchestrator:
                 await self._step7_log(user_input, classification, fast_response, loop_start)
                 self._conversation_history.append({"role": "user", "content": user_input})
                 self._conversation_history.append({"role": "assistant", "content": fast_response})
+                # Record temporal event (best-effort)
+                if "wraith" in self.registry:
+                    try:
+                        wraith_mod = self.registry.get_module("wraith")
+                        if wraith_mod.status == ModuleStatus.ONLINE:
+                            await wraith_mod.execute("temporal_record", {
+                                "event_type": f"user_query_{classification.task_type.value}",
+                                "metadata": {"module": classification.target_module, "complexity": classification.complexity},
+                            })
+                    except Exception:
+                        pass
                 self._save_state()
                 return fast_response
 
@@ -266,6 +277,18 @@ class Orchestrator:
             self._conversation_history.append({"role": "assistant", "content": response})
             if len(self._conversation_history) > self._max_history * 2:
                 self._conversation_history = self._conversation_history[-self._max_history * 2:]
+
+            # Step 7.5 — Record temporal event in Wraith (best-effort)
+            if "wraith" in self.registry:
+                try:
+                    wraith_mod = self.registry.get_module("wraith")
+                    if wraith_mod.status == ModuleStatus.ONLINE:
+                        await wraith_mod.execute("temporal_record", {
+                            "event_type": f"user_query_{classification.task_type.value}",
+                            "metadata": {"module": classification.target_module, "complexity": classification.complexity},
+                        })
+                except Exception:
+                    pass  # Never let temporal tracking break the main loop
 
             # Persist state after every interaction
             self._save_state()
@@ -1000,6 +1023,25 @@ User input: {user_input}"""
             )
 
         messages.append({"role": "user", "content": user_message})
+
+        # Check Apex for prior learning before using smart brain
+        prior_learning = None
+        if classification.brain == BrainType.SMART and "apex" in self.registry:
+            try:
+                apex_mod = self.registry.get_module("apex")
+                if apex_mod.status == ModuleStatus.ONLINE:
+                    prior_learning = apex_mod.check_grimoire_for_prior_learning(
+                        user_input, classification.task_type.value,
+                    )
+            except Exception:
+                pass  # Best-effort — skip and escalate normally
+
+        if prior_learning:
+            # Inject prior learning as context — try fast brain first
+            messages.append({
+                "role": "system",
+                "content": f"Prior learning from similar tasks:\n{prior_learning}",
+            })
 
         # Select brain based on classification
         model = (

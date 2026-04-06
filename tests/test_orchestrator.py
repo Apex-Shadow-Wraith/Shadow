@@ -19,6 +19,7 @@ from modules.shadow.orchestrator import (
     BrainType,
 )
 from modules.cerberus.injection_detector import InjectionResult
+from modules.shadow.orchestrator import ExecutionPlan
 
 
 # --- Mock Module ---
@@ -479,3 +480,168 @@ class TestInjectionScreen:
             f"Untrusted source score ({result_scrape.score}) should be higher "
             f"than user score ({result_user.score})"
         )
+
+
+# --- Temporal Event Recording Tests ---
+
+class MockWraithModule(BaseModule):
+    """Mock Wraith module for temporal recording tests."""
+
+    def __init__(self):
+        super().__init__(name="wraith", description="Mock Wraith")
+        self.execute_calls: list[tuple[str, dict]] = []
+
+    async def initialize(self) -> None:
+        self.status = ModuleStatus.ONLINE
+
+    async def execute(self, tool_name: str, params: dict[str, Any]) -> ToolResult:
+        self.execute_calls.append((tool_name, params))
+        return ToolResult(
+            success=True, content="recorded",
+            tool_name=tool_name, module=self.name,
+        )
+
+    async def shutdown(self) -> None:
+        self.status = ModuleStatus.OFFLINE
+
+    def get_tools(self) -> list[dict[str, Any]]:
+        return [{"name": "temporal_record", "description": "Record event",
+                 "parameters": {}, "permission_level": "autonomous"}]
+
+
+class TestTemporalEventRecording:
+    """Test that orchestrator records temporal events in Wraith after processing."""
+
+    @pytest.mark.asyncio
+    async def test_temporal_event_recorded(self, config: dict):
+        """After process_input, verify wraith.execute was called with temporal_record."""
+        orch = Orchestrator(config)
+        wraith = MockWraithModule()
+        await wraith.initialize()
+        orch.registry.register(wraith)
+
+        # Patch LLM call to avoid actual model call
+        with patch.object(orch, '_step6_evaluate', new_callable=AsyncMock, return_value="Hello!"):
+            await orch.process_input("hello")
+
+        temporal_calls = [
+            (name, params) for name, params in wraith.execute_calls
+            if name == "temporal_record"
+        ]
+        assert len(temporal_calls) == 1
+        assert "event_type" in temporal_calls[0][1]
+        assert temporal_calls[0][1]["event_type"].startswith("user_query_")
+
+    @pytest.mark.asyncio
+    async def test_temporal_recording_failure_ignored(self, config: dict):
+        """Wraith raises exception during temporal_record — process_input still returns normally."""
+        orch = Orchestrator(config)
+        wraith = MockWraithModule()
+        await wraith.initialize()
+
+        # Make execute raise an exception
+        async def failing_execute(tool_name, params):
+            raise RuntimeError("Temporal tracker crashed")
+        wraith.execute = failing_execute
+
+        orch.registry.register(wraith)
+
+        with patch.object(orch, '_step6_evaluate', new_callable=AsyncMock, return_value="Hello!"):
+            response = await orch.process_input("hello")
+
+        assert isinstance(response, str)
+        assert "error" not in response.lower() or "Hello!" in response
+
+
+# --- Prior Learning Tests ---
+
+class MockApexModule(BaseModule):
+    """Mock Apex module for prior learning tests."""
+
+    def __init__(self, prior_learning: str | None = None):
+        super().__init__(name="apex", description="Mock Apex")
+        self._prior_learning = prior_learning
+
+    async def initialize(self) -> None:
+        self.status = ModuleStatus.ONLINE
+
+    async def execute(self, tool_name: str, params: dict[str, Any]) -> ToolResult:
+        return ToolResult(success=True, content=None, tool_name=tool_name, module=self.name)
+
+    async def shutdown(self) -> None:
+        self.status = ModuleStatus.OFFLINE
+
+    def get_tools(self) -> list[dict[str, Any]]:
+        return []
+
+    def check_grimoire_for_prior_learning(self, task_input: str, task_type: str) -> str | None:
+        return self._prior_learning
+
+
+class TestPriorLearningCheck:
+    """Test that orchestrator checks Apex for prior learning before smart brain."""
+
+    @pytest.mark.asyncio
+    async def test_prior_learning_added_to_context(self, config: dict):
+        """When prior learning exists, it's added to the LLM messages."""
+        orch = Orchestrator(config)
+        apex = MockApexModule(prior_learning="Use chain-of-thought for math problems")
+        await apex.initialize()
+        orch.registry.register(apex)
+
+        classification = TaskClassification(
+            task_type=TaskType.ANALYSIS,
+            complexity="complex",
+            target_module="cipher",
+            brain=BrainType.SMART,
+            safety_flag=False,
+            priority=1,
+        )
+
+        # Mock the Ollama call to capture messages
+        captured_messages = []
+        def mock_create(**kwargs):
+            captured_messages.extend(kwargs.get("messages", []))
+            mock_response = MagicMock()
+            mock_response.choices = [MagicMock()]
+            mock_response.choices[0].message.content = "Answer with prior learning"
+            return mock_response
+
+        orch._ollama.chat.completions.create = mock_create
+
+        response = await orch._step6_evaluate(
+            "solve this equation", classification, [], [],
+        )
+
+        # Check that prior learning was injected
+        system_msgs = [m for m in captured_messages if m["role"] == "system"]
+        prior_found = any("prior learning" in m["content"].lower() for m in system_msgs)
+        assert prior_found, "Prior learning should appear in system messages"
+
+    @pytest.mark.asyncio
+    async def test_prior_learning_exception_ignored(self, config: dict):
+        """If check_grimoire_for_prior_learning raises, evaluation proceeds normally."""
+        orch = Orchestrator(config)
+        apex = MockApexModule()
+        await apex.initialize()
+        apex.check_grimoire_for_prior_learning = MagicMock(side_effect=RuntimeError("DB error"))
+        orch.registry.register(apex)
+
+        classification = TaskClassification(
+            task_type=TaskType.ANALYSIS,
+            complexity="complex",
+            target_module="cipher",
+            brain=BrainType.SMART,
+            safety_flag=False,
+            priority=1,
+        )
+
+        mock_response = MagicMock()
+        mock_response.choices = [MagicMock()]
+        mock_response.choices[0].message.content = "Normal response"
+        orch._ollama.chat.completions.create = MagicMock(return_value=mock_response)
+
+        response = await orch._step6_evaluate(
+            "analyze data", classification, [], [],
+        )
+        assert response == "Normal response"

@@ -702,6 +702,12 @@ class Harbinger(BaseModule):
         # 8. Daily Safety Report — Cerberus audit summary
         sections.append(self._pull_safety_report())
 
+        # 9. Wraith — neglected items report
+        sections.append(self._pull_neglect_report(modules.get("wraith")))
+
+        # 10. Apex — escalation stats
+        sections.append(self._pull_apex_stats(modules.get("apex")))
+
         # Sort by priority (1 = highest)
         sections.sort(key=lambda s: s["priority"])
 
@@ -788,7 +794,10 @@ class Harbinger(BaseModule):
         sections.append(self._pull_tomorrow_preview(modules.get("task_tracker")))
 
         # 4. Shadow Activity
-        sections.append(self._pull_shadow_activity(modules.get("void"), modules.get("reaper")))
+        sections.append(self._pull_shadow_activity(
+            modules.get("void"), modules.get("reaper"),
+            apex=modules.get("apex"), wraith=modules.get("wraith"),
+        ))
 
         # 5. Overnight Plan
         sections.append(self._pull_overnight_plan())
@@ -931,8 +940,11 @@ class Harbinger(BaseModule):
             logger.warning("Failed to pull tomorrow preview: %s", e)
             return self._error_section("Tomorrow Preview", 3, str(e))
 
-    def _pull_shadow_activity(self, void: Any, reaper: Any) -> dict[str, Any]:
-        """Pull background activity summary from Void and Reaper."""
+    def _pull_shadow_activity(
+        self, void: Any, reaper: Any,
+        apex: Any = None, wraith: Any = None,
+    ) -> dict[str, Any]:
+        """Pull background activity summary from Void, Reaper, Apex, and Wraith."""
         activity: dict[str, Any] = {}
 
         if void is not None:
@@ -959,6 +971,30 @@ class Harbinger(BaseModule):
             except Exception as e:
                 activity["research_error"] = str(e)
                 logger.warning("Failed to pull Reaper data for evening summary: %s", e)
+
+        if apex is not None:
+            try:
+                result = apex._escalation_stats({"days": 1})
+                content = result.content if hasattr(result, "content") else result
+                if isinstance(content, dict):
+                    activity["escalation_stats"] = {
+                        "total_escalations": content.get("total_escalations", 0),
+                        "total_cost": content.get("total_cost_usd", 0.0),
+                        "top_types": content.get("by_type", {}),
+                    }
+            except Exception as e:
+                activity["escalation_error"] = str(e)
+                logger.warning("Failed to pull Apex data for evening summary: %s", e)
+
+        if wraith is not None:
+            try:
+                result = wraith._proactive_suggestions({})
+                content = result.content if hasattr(result, "content") else result
+                if isinstance(content, dict) and content.get("suggestions"):
+                    activity["proactive_suggestions"] = content["suggestions"]
+            except Exception as e:
+                activity["proactive_error"] = str(e)
+                logger.warning("Failed to pull Wraith suggestions for evening summary: %s", e)
 
         if not activity:
             return self._empty_section("Shadow Activity", 3)
@@ -1198,6 +1234,59 @@ class Harbinger(BaseModule):
         except Exception as e:
             logger.warning("Failed to pull safety report: %s", e)
             return self._error_section("Safety Report", 2, str(e))
+
+    def _pull_neglect_report(self, wraith: Any) -> dict[str, Any]:
+        """Pull neglected items report from Wraith's NeglectDetector."""
+        if wraith is None:
+            return self._empty_section("Neglected Items", 4)
+        try:
+            result = wraith._neglect_check({})
+            content = result.content if hasattr(result, "content") else result
+            if not isinstance(content, dict) or not content.get("neglected_items"):
+                return self._empty_section("Neglected Items", 4)
+
+            items = content["neglected_items"]
+            max_severity = max((i.get("severity", 1) for i in items), default=1)
+            if max_severity >= 3:
+                priority = 2
+            elif max_severity >= 2:
+                priority = 3
+            else:
+                priority = 4
+
+            return {
+                "title": "Neglected Items",
+                "priority": priority,
+                "source": "wraith",
+                "content": content,
+            }
+        except Exception as e:
+            logger.warning("Failed to pull neglect report: %s", e)
+            return self._error_section("Neglected Items", 4, str(e))
+
+    def _pull_apex_stats(self, apex: Any) -> dict[str, Any]:
+        """Pull escalation statistics from Apex for the last day."""
+        if apex is None:
+            return self._empty_section("API Escalation Summary", 4)
+        try:
+            result = apex._escalation_stats({"days": 1})
+            content = result.content if hasattr(result, "content") else result
+            if not isinstance(content, dict):
+                return self._empty_section("API Escalation Summary", 4)
+
+            return {
+                "title": "API Escalation Summary",
+                "priority": 4,
+                "source": "apex",
+                "content": {
+                    "total_escalations": content.get("total_escalations", 0),
+                    "total_cost": content.get("total_cost_usd", 0.0),
+                    "top_types": content.get("by_type", {}),
+                },
+            }
+        except Exception as e:
+            logger.warning("Failed to pull Apex stats: %s", e)
+            return self._error_section("API Escalation Summary", 4, str(e))
 
     def _empty_section(self, title: str, priority: int) -> dict[str, Any]:
         """Return a section placeholder when a module is not available."""

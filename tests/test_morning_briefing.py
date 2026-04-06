@@ -132,8 +132,8 @@ class TestAssembleMorningBriefing:
         assert briefing["type"] == "morning_briefing"
         assert "compiled_at" in briefing
         assert "date" in briefing
-        assert briefing["section_count"] == 8
-        assert len(briefing["sections"]) == 8
+        assert briefing["section_count"] == 10
+        assert len(briefing["sections"]) == 10
 
     def test_sections_have_required_fields(self, harbinger, all_modules):
         """Every section has title, content, and priority."""
@@ -143,7 +143,7 @@ class TestAssembleMorningBriefing:
             assert "title" in section
             assert "content" in section
             assert "priority" in section
-            assert section["priority"] in (1, 2, 3)
+            assert section["priority"] in (1, 2, 3, 4)
 
     def test_priority_sorting(self, harbinger, all_modules):
         """Sections are sorted by priority (1 first)."""
@@ -157,7 +157,7 @@ class TestAssembleMorningBriefing:
         partial = {"grimoire": mock_grimoire, "cerberus": mock_cerberus}
         briefing = harbinger.assemble_morning_briefing(partial)
 
-        assert briefing["section_count"] == 8
+        assert briefing["section_count"] == 10
         sources = {s.get("source") for s in briefing["sections"]}
         assert "grimoire" in sources
         assert "cerberus" in sources
@@ -170,7 +170,7 @@ class TestAssembleMorningBriefing:
         briefing = harbinger.assemble_morning_briefing({})
 
         assert briefing["type"] == "morning_briefing"
-        assert briefing["section_count"] == 8
+        assert briefing["section_count"] == 10
         for section in briefing["sections"]:
             assert (
                 section["content"] == "Module not available"
@@ -264,7 +264,7 @@ class TestAssembleMorningBriefing:
 
         briefing = harbinger.assemble_morning_briefing({"grimoire": broken_grimoire})
 
-        assert briefing["section_count"] == 8
+        assert briefing["section_count"] == 10
         error_section = next(s for s in briefing["sections"] if s["title"] == "Memory Status")
         assert "Error" in str(error_section["content"])
 
@@ -336,7 +336,7 @@ class TestFormatBriefingText:
         briefing = harbinger.assemble_morning_briefing(all_modules)
         text = harbinger.format_briefing_text(briefing)
 
-        assert "8 sections" in text
+        assert "10 sections" in text
 
     def test_date_in_header(self, harbinger, all_modules):
         """Formatted text includes the date."""
@@ -499,3 +499,108 @@ class TestSafetyReportInBriefing:
 
         assert "Error" in str(report_section["content"])
         assert report_section["source"] == "error"
+
+
+class TestNeglectReportInBriefing:
+    """Tests for neglect report integration in morning briefing."""
+
+    def test_neglect_report_in_briefing(self, harbinger):
+        """Mock wraith with neglect items — section appears in briefing."""
+        mock_wraith = MagicMock()
+        mock_wraith._neglect_check.return_value = ToolResult(
+            success=True,
+            content={
+                "neglected_items": [
+                    {"item_type": "task", "description": "Overdue invoice", "severity": 3,
+                     "age_hours": 72},
+                    {"item_type": "decision", "description": "Approve purchase", "severity": 2,
+                     "age_hours": 48},
+                ],
+                "count": 2,
+                "report": "2 neglected items found",
+                "checked_at": "2026-04-05T06:00:00",
+            },
+            tool_name="neglect_check",
+            module="wraith",
+        )
+
+        briefing = harbinger.assemble_morning_briefing({"wraith": mock_wraith})
+        neglect_section = next(
+            s for s in briefing["sections"] if s["title"] == "Neglected Items"
+        )
+
+        assert neglect_section["source"] == "wraith"
+        assert neglect_section["content"]["count"] == 2
+        # Severity 3 item → priority 2
+        assert neglect_section["priority"] == 2
+
+    def test_neglect_report_no_wraith(self, harbinger):
+        """Neglect report degrades gracefully without wraith."""
+        briefing = harbinger.assemble_morning_briefing({})
+        neglect_section = next(
+            s for s in briefing["sections"] if s["title"] == "Neglected Items"
+        )
+        assert neglect_section["content"] == "Module not available"
+        assert neglect_section["source"] is None
+
+    def test_neglect_report_empty(self, harbinger):
+        """Empty neglect check still works."""
+        mock_wraith = MagicMock()
+        mock_wraith._neglect_check.return_value = ToolResult(
+            success=True,
+            content={"neglected_items": [], "count": 0, "report": ""},
+            tool_name="neglect_check", module="wraith",
+        )
+        briefing = harbinger.assemble_morning_briefing({"wraith": mock_wraith})
+        neglect_section = next(
+            s for s in briefing["sections"] if s["title"] == "Neglected Items"
+        )
+        assert neglect_section["content"] == "Module not available"
+
+
+class TestApexStatsInBriefing:
+    """Tests for Apex escalation stats in morning briefing."""
+
+    def test_apex_stats_in_briefing(self, harbinger):
+        """Mock apex with escalation stats — section appears in briefing."""
+        mock_apex = MagicMock()
+        mock_apex._escalation_stats.return_value = ToolResult(
+            success=True,
+            content={
+                "total_escalations": 5,
+                "total_cost_usd": 0.12,
+                "by_type": {"question": 3, "analysis": 2},
+            },
+            tool_name="escalation_stats", module="apex",
+        )
+
+        briefing = harbinger.assemble_morning_briefing({"apex": mock_apex})
+        apex_section = next(
+            s for s in briefing["sections"] if s["title"] == "API Escalation Summary"
+        )
+
+        assert apex_section["source"] == "apex"
+        assert apex_section["priority"] == 4
+        assert apex_section["content"]["total_escalations"] == 5
+        assert apex_section["content"]["total_cost"] == 0.12
+
+    def test_apex_stats_no_apex(self, harbinger):
+        """Apex stats degrade gracefully when apex unavailable."""
+        briefing = harbinger.assemble_morning_briefing({})
+        apex_section = next(
+            s for s in briefing["sections"] if s["title"] == "API Escalation Summary"
+        )
+        assert apex_section["content"] == "Module not available"
+        assert apex_section["source"] is None
+
+    def test_apex_stats_exception_handled(self, harbinger):
+        """Apex exception doesn't crash briefing."""
+        mock_apex = MagicMock()
+        mock_apex._escalation_stats.side_effect = RuntimeError("Apex DB error")
+
+        briefing = harbinger.assemble_morning_briefing({"apex": mock_apex})
+        apex_section = next(
+            s for s in briefing["sections"] if s["title"] == "API Escalation Summary"
+        )
+        assert "Error" in str(apex_section["content"])
+        assert apex_section["source"] == "error"
