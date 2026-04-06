@@ -53,6 +53,14 @@ except ImportError:
     logger.warning("GrowthEngine not available — growth tracking disabled")
     _GROWTH_ENGINE_AVAILABLE = False
 
+# Graceful import — orchestrator still starts if observability is missing
+try:
+    from modules.shadow.observability import trace_interaction
+except ImportError:
+    logger.info("Observability not available — Langfuse tracing disabled")
+    def trace_interaction(f):  # noqa: E303
+        return f
+
 
 class TaskType(Enum):
     """Classification of incoming tasks."""
@@ -202,6 +210,7 @@ class Orchestrator:
     # THE SEVEN-STEP DECISION LOOP
     # ================================================================
 
+    @trace_interaction
     async def process_input(self, user_input: str, source: str = "user") -> str:
         """Process a single user input through the full decision loop.
 
