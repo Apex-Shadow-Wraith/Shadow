@@ -77,6 +77,7 @@ class Cerberus(BaseModule):
         self._check_count: int = 0
         self._deny_count: int = 0
         self._false_positive_count: int = 0
+        self._ethical_topics: list[dict[str, Any]] = []
 
     async def initialize(self) -> None:
         """Load hard limits from protected config file."""
@@ -93,6 +94,18 @@ class Cerberus(BaseModule):
             # Store hash for tamper detection
             self._config_hash = hashlib.sha256(raw_content.encode()).hexdigest()
             self._limits = yaml.safe_load(raw_content)
+
+            # Load ethical topics (graceful — empty list if missing)
+            ethics_path = Path(self._config.get(
+                "ethical_topics_file", "config/ethical_topics.yaml"
+            ))
+            if ethics_path.exists():
+                with open(ethics_path, "r", encoding="utf-8") as ef:
+                    ethics_data = yaml.safe_load(ef)
+                self._ethical_topics = ethics_data.get("topics", [])
+                logger.info("Loaded %d ethical topics", len(self._ethical_topics))
+            else:
+                logger.warning("Ethical topics file not found: %s", ethics_path)
 
             logger.info(
                 "Cerberus initialized. Config hash: %s", self._config_hash[:16]
@@ -166,6 +179,18 @@ class Cerberus(BaseModule):
 
             elif tool_name == "config_integrity_check":
                 result = await self._check_config_integrity()
+                self._record_call(True)
+                return ToolResult(
+                    success=True,
+                    content=result,
+                    tool_name=tool_name,
+                    module=self.name,
+                    execution_time_ms=(time.time() - start) * 1000,
+                )
+
+            elif tool_name == "ethical_guidance":
+                concept = params.get("concept", "")
+                result = self.lookup_ethical_guidance(concept)
                 self._record_call(True)
                 return ToolResult(
                     success=True,
@@ -250,6 +275,14 @@ class Cerberus(BaseModule):
                 "name": "config_integrity_check",
                 "description": "Verify Cerberus config has not been tampered with",
                 "parameters": {},
+                "permission_level": "autonomous",
+            },
+            {
+                "name": "ethical_guidance",
+                "description": "Look up biblical ethical guidance for a concept",
+                "parameters": {
+                    "concept": "str — the ethical concept to look up",
+                },
                 "permission_level": "autonomous",
             },
         ]
@@ -488,6 +521,53 @@ class Cerberus(BaseModule):
             tool_name=tool_name,
             reason="Post-hook: all checks passed",
         )
+
+    # --- Ethical Guidance ---
+
+    def lookup_ethical_guidance(self, concept: str) -> list[dict[str, Any]]:
+        """Fast-path ethical lookup against curated biblical topics.
+
+        Searches topic names, descriptions, and keyword lists for matches.
+        Returns relevant passages sorted by weight (highest first).
+
+        Args:
+            concept: The ethical concept to look up (e.g., "honesty", "privacy").
+
+        Returns:
+            List of {ref, summary, weight} dicts. Empty if no match.
+        """
+        concept_lower = concept.lower()
+        results: list[dict[str, Any]] = []
+
+        for topic in self._ethical_topics:
+            matched = False
+
+            # Check topic name
+            if concept_lower in topic.get("name", "").lower():
+                matched = True
+
+            # Check description
+            if not matched and concept_lower in topic.get("description", "").lower():
+                matched = True
+
+            # Check keywords
+            if not matched:
+                for keyword in topic.get("keywords", []):
+                    if concept_lower in keyword.lower() or keyword.lower() in concept_lower:
+                        matched = True
+                        break
+
+            if matched:
+                for ref in topic.get("references", []):
+                    results.append({
+                        "ref": ref["ref"],
+                        "summary": ref["summary"],
+                        "weight": ref["weight"],
+                    })
+
+        # Sort by weight descending
+        results.sort(key=lambda r: r["weight"], reverse=True)
+        return results
 
     # --- Utility Methods ---
 

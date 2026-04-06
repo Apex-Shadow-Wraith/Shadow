@@ -222,10 +222,35 @@ class Reaper:
         except Exception:
             return False
 
+    @staticmethod
+    def _is_reddit_query(query: str) -> bool:
+        """Detect whether a query is Reddit-specific."""
+        q = query.lower()
+        return "reddit" in q or "r/" in q
+
+    @staticmethod
+    def _extract_reddit_target(query: str) -> tuple[str | None, str | None]:
+        """Extract subreddit and search terms from a Reddit-specific query.
+
+        Returns:
+            (subreddit, search_term) — either may be None.
+        """
+        import re as _re
+        # Match r/SubredditName
+        match = _re.search(r'r/([A-Za-z0-9_]+)', query)
+        subreddit = match.group(1) if match else None
+
+        # Remove "reddit" and "r/SubName" from query to get the search term
+        search_term = _re.sub(r'r/[A-Za-z0-9_]+', '', query)
+        search_term = _re.sub(r'(?i)reddit', '', search_term).strip()
+        search_term = search_term if search_term else None
+
+        return subreddit, search_term
+
     def search(self, query, max_results=10):
         """
         Search the web using best available backend.
-        Cascade: SearXNG → DuckDuckGo → Bing scraper.
+        Cascade: SearXNG → Reddit .json (for Reddit queries) → DuckDuckGo → Bing scraper.
 
         Args:
             query: Search query string
@@ -241,6 +266,27 @@ class Reaper:
                 return results
             # SearXNG returned nothing — re-check if it's still running
             self.searxng_available = self._check_searxng()
+
+        # Reddit .json for Reddit-specific queries (before general fallbacks)
+        if self._is_reddit_query(query):
+            subreddit, search_term = self._extract_reddit_target(query)
+            if subreddit and search_term:
+                results = self.search_reddit_json(subreddit, search_term, max_results)
+            elif subreddit:
+                results = self.monitor_subreddit_json(subreddit, limit=max_results)
+            else:
+                results = []
+            if results:
+                return [
+                    {
+                        "title": r["title"],
+                        "url": r["url"],
+                        "snippet": (r["selftext"] or "")[:200],
+                        "engine": "reddit_json",
+                        "source_eval": evaluate_source(r["url"]),
+                    }
+                    for r in results[:max_results]
+                ]
 
         # Fall back to DuckDuckGo
         if self.ddg_available:
@@ -882,7 +928,84 @@ class Reaper:
         """
         Search a subreddit for posts matching keywords.
         Filters by minimum score. Stores matches in Grimoire.
+
+        Primary: Reddit .json endpoints (no auth required).
+        Fallback: PRAW (only if REDDIT_CLIENT_ID is set in .env).
         """
+        # PRAW is optional. Reddit .json endpoints are the primary backend.
+
+        stored_posts = []
+        seen_urls = set()
+
+        # --- Primary: Reddit .json endpoints ---
+        for keyword in keywords:
+            json_results = self.search_reddit_json(
+                subreddit_name, keyword, limit=limit_per_keyword
+            )
+            for post in json_results:
+                if post["url"] in seen_urls or post["score"] < min_score:
+                    continue
+                seen_urls.add(post["url"])
+
+                stored = self._store_reddit_post(
+                    post, subreddit_name, keyword, category, tags
+                )
+                if stored:
+                    stored_posts.append(stored)
+
+        if stored_posts:
+            return stored_posts
+
+        # --- Fallback: PRAW (only if credentials are configured) ---
+        return self._reddit_search_praw(
+            subreddit_name, keywords, min_score, limit_per_keyword,
+            category, tags, seen_urls
+        )
+
+    def _store_reddit_post(self, post: dict, subreddit_name: str,
+                           keyword: str, category: str,
+                           tags: list | None) -> dict | None:
+        """Store a Reddit post as research context in Grimoire."""
+        post_url = post["url"]
+        memory_content = (
+            f"Reddit: r/{subreddit_name}\n"
+            f"Title: {post['title']}\n"
+            f"Score: {post['score']}\n"
+            f"URL: {post_url}\n"
+        )
+        if post.get("selftext"):
+            body = post["selftext"][:1500]
+            if len(post["selftext"]) > 1500:
+                body += "\n[TRUNCATED]"
+            memory_content += f"\n{body}"
+
+        all_tags = ["reddit", f"r/{subreddit_name}".lower()]
+        if tags:
+            all_tags.extend(tags)
+
+        memory_id = self.grimoire.remember(
+            content=memory_content, source="reddit",
+            source_module="reaper", category=category,
+            trust_level=0.3,
+            confidence=min(post["score"] / 100.0, 1.0),
+            tags=all_tags,
+            metadata={
+                "reddit_url": post_url,
+                "reddit_score": post["score"],
+                "subreddit": subreddit_name,
+                "keyword_matched": keyword,
+            }
+        )
+
+        print(f"[Reaper] Reddit [{post['score']}↑] {post['title'][:55]}...")
+        return {
+            "title": post["title"], "score": post["score"],
+            "url": post_url, "memory_id": memory_id,
+        }
+
+    def _reddit_search_praw(self, subreddit_name, keywords, min_score,
+                            limit_per_keyword, category, tags, seen_urls):
+        """PRAW-based Reddit search — fallback when .json returns nothing."""
         if not HAS_PRAW:
             return []
 
@@ -891,7 +1014,6 @@ class Reaper:
         user_agent = os.environ.get("REDDIT_USER_AGENT", "Shadow/1.0")
 
         if not client_id or not client_secret:
-            print("[Reaper] Reddit credentials not set. Skipping.")
             return []
 
         try:
@@ -901,7 +1023,7 @@ class Reaper:
             )
             reddit.read_only = True  # Safety: never post
         except Exception as e:
-            print(f"[Reaper] Reddit connection failed: {e}")
+            print(f"[Reaper] PRAW connection failed: {e}")
             return []
 
         stored_posts = []
@@ -912,52 +1034,122 @@ class Reaper:
                 subreddit = reddit.subreddit(subreddit_name)
                 for post in subreddit.search(keyword, limit=limit_per_keyword,
                                              sort="relevance", time_filter="week"):
-                    if post.id in seen_ids or post.score < min_score:
+                    post_url = f"https://reddit.com{post.permalink}"
+                    if post.id in seen_ids or post_url in seen_urls or post.score < min_score:
                         continue
                     seen_ids.add(post.id)
 
-                    post_url = f"https://reddit.com{post.permalink}"
-                    memory_content = (
-                        f"Reddit: r/{subreddit_name}\n"
-                        f"Title: {post.title}\n"
-                        f"Score: {post.score} | Comments: {post.num_comments}\n"
-                        f"URL: {post_url}\n"
+                    stored = self._store_reddit_post(
+                        {
+                            "title": post.title,
+                            "selftext": post.selftext,
+                            "score": post.score,
+                            "url": post_url,
+                            "author": str(post.author),
+                            "created_utc": post.created_utc,
+                        },
+                        subreddit_name, keyword, category, tags
                     )
-
-                    if post.selftext:
-                        body = post.selftext[:1500]
-                        if len(post.selftext) > 1500:
-                            body += "\n[TRUNCATED]"
-                        memory_content += f"\n{body}"
-
-                    all_tags = ["reddit", f"r/{subreddit_name}".lower()]
-                    if tags:
-                        all_tags.extend(tags)
-
-                    memory_id = self.grimoire.remember(
-                        content=memory_content, source="reddit",
-                        source_module="reaper", category=category,
-                        trust_level=0.3,
-                        confidence=min(post.score / 100.0, 1.0),
-                        tags=all_tags,
-                        metadata={
-                            "reddit_url": post_url, "reddit_score": post.score,
-                            "reddit_comments": post.num_comments,
-                            "subreddit": subreddit_name,
-                            "keyword_matched": keyword,
-                        }
-                    )
-
-                    stored_posts.append({
-                        "title": post.title, "score": post.score,
-                        "url": post_url, "memory_id": memory_id,
-                    })
-                    print(f"[Reaper] Reddit [{post.score}↑] {post.title[:55]}...")
+                    if stored:
+                        stored_posts.append(stored)
 
             except Exception as e:
-                print(f"[Reaper] Reddit error r/{subreddit_name} '{keyword}': {e}")
+                print(f"[Reaper] PRAW error r/{subreddit_name} '{keyword}': {e}")
 
         return stored_posts
+
+    # =========================================================================
+    # REDDIT .JSON ENDPOINTS (Primary Reddit backend)
+    # =========================================================================
+    # PRAW is optional. Reddit .json endpoints are the primary backend.
+    # These work without authentication by appending .json to public Reddit URLs.
+    # Rate limited to ~10 req/min unauthenticated.
+
+    _REDDIT_JSON_HEADERS = {
+        "User-Agent": "Shadow/1.0 (research context tool)",
+    }
+
+    def _reddit_json_get(self, url: str, params: dict | None = None) -> dict | None:
+        """Make a rate-limited GET to a Reddit .json endpoint.
+
+        Returns parsed JSON or None on failure.
+        """
+        time.sleep(2)  # Rate limit: 2s between requests
+        try:
+            resp = requests.get(
+                url, params=params, headers=self._REDDIT_JSON_HEADERS, timeout=15
+            )
+            resp.raise_for_status()
+            return resp.json()
+        except Exception as e:
+            print(f"[Reaper] Reddit .json error: {e}")
+            return None
+
+    def search_reddit_json(self, subreddit: str, query: str,
+                           limit: int = 10) -> list[dict]:
+        """Search a subreddit using the public .json endpoint.
+
+        Args:
+            subreddit: Subreddit name (without r/ prefix).
+            query: Search query string.
+            limit: Max posts to return.
+
+        Returns:
+            List of dicts with: title, selftext, score, url, author, created_utc.
+        """
+        url = f"https://www.reddit.com/r/{subreddit}/search.json"
+        params = {"q": query, "restrict_sr": "1", "limit": str(limit)}
+
+        data = self._reddit_json_get(url, params)
+        if not data:
+            return []
+
+        return self._parse_reddit_listing(data)
+
+    def monitor_subreddit_json(self, subreddit: str, sort: str = "hot",
+                               limit: int = 25) -> list[dict]:
+        """Fetch posts from a subreddit using the public .json endpoint.
+
+        Args:
+            subreddit: Subreddit name (without r/ prefix).
+            sort: Sort order — "hot", "new", "top", "rising".
+            limit: Max posts to return.
+
+        Returns:
+            List of dicts with: title, selftext, score, url, author, created_utc.
+        """
+        url = f"https://www.reddit.com/r/{subreddit}/{sort}.json"
+        params = {"limit": str(limit)}
+
+        data = self._reddit_json_get(url, params)
+        if not data:
+            return []
+
+        return self._parse_reddit_listing(data)
+
+    @staticmethod
+    def _parse_reddit_listing(data: dict) -> list[dict]:
+        """Extract post data from a Reddit listing JSON response."""
+        posts = []
+        children = (
+            data.get("data", {}).get("children", [])
+            if isinstance(data.get("data"), dict)
+            else []
+        )
+        for child in children:
+            post = child.get("data", {})
+            if not post:
+                continue
+            permalink = post.get("permalink", "")
+            posts.append({
+                "title": post.get("title", ""),
+                "selftext": post.get("selftext", ""),
+                "score": post.get("score", 0),
+                "url": f"https://www.reddit.com{permalink}" if permalink else post.get("url", ""),
+                "author": post.get("author", "[deleted]"),
+                "created_utc": post.get("created_utc", 0),
+            })
+        return posts
 
     # =========================================================================
     # YOUTUBE (Subtitles Only)

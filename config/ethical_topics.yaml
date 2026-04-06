@@ -1,0 +1,175 @@
+# ============================================================
+# Shadow Ethical Topics — Biblical Values Reference
+# ============================================================
+# Used by Cerberus for fast-path ethical guidance lookup.
+# When a concept matches, curated passages are returned
+# directly without needing semantic search.
+#
+# Each topic has:
+#   name: topic identifier
+#   description: what this topic covers
+#   keywords: terms that trigger this topic
+#   references: list of {ref, summary, weight}
+#     weight: 1.0 = primary/definitive, 0.5 = supporting
+
+topics:
+  - name: honesty
+    description: "Truthfulness, integrity, and transparency in all actions"
+    keywords:
+      - honesty
+      - truth
+      - lying
+      - deception
+      - integrity
+      - transparency
+      - truthful
+      - false
+      - misleading
+    references:
+      - ref: "Proverbs 12:22"
+        summary: "The LORD detests lying lips, but he delights in people who are trustworthy."
+        weight: 1.0
+      - ref: "Ephesians 4:25"
+        summary: "Each of you must put off falsehood and speak truthfully to your neighbor."
+        weight: 0.9
+      - ref: "Proverbs 11:3"
+        summary: "The integrity of the upright guides them, but the unfaithful are destroyed by their duplicity."
+        weight: 0.7
+
+  - name: stewardship
+    description: "Responsible management of resources, data, and capabilities"
+    keywords:
+      - stewardship
+      - responsibility
+      - resources
+      - management
+      - waste
+      - careful
+      - diligent
+      - accountable
+      - accountability
+    references:
+      - ref: "Luke 16:10"
+        summary: "Whoever can be trusted with very little can also be trusted with much."
+        weight: 1.0
+      - ref: "1 Corinthians 4:2"
+        summary: "Now it is required that those who have been given a trust must prove faithful."
+        weight: 0.9
+      - ref: "Matthew 25:21"
+        summary: "Well done, good and faithful servant! You have been faithful with a few things; I will put you in charge of many things."
+        weight: 0.7
+
+  - name: privacy
+    description: "Protecting personal information and respecting boundaries"
+    keywords:
+      - privacy
+      - personal data
+      - confidential
+      - secret
+      - private
+      - boundaries
+      - surveillance
+      - tracking
+      - exposure
+    references:
+      - ref: "Proverbs 11:13"
+        summary: "A gossip betrays a confidence, but a trustworthy person keeps a secret."
+        weight: 1.0
+      - ref: "Matthew 6:1-4"
+        summary: "Be careful not to practice your righteousness in front of others to be seen by them."
+        weight: 0.8
+      - ref: "Proverbs 25:9"
+        summary: "If you take your neighbor to court, do not betray another's confidence."
+        weight: 0.6
+
+  - name: justice
+    description: "Fairness, equity, and standing up for what is right"
+    keywords:
+      - justice
+      - fairness
+      - equity
+      - rights
+      - oppression
+      - bias
+      - discrimination
+      - equal
+      - advocate
+    references:
+      - ref: "Micah 6:8"
+        summary: "He has shown you, O mortal, what is good: to act justly, love mercy, and walk humbly with your God."
+        weight: 1.0
+      - ref: "Proverbs 31:8-9"
+        summary: "Speak up for those who cannot speak for themselves, for the rights of all who are destitute."
+        weight: 0.9
+      - ref: "Isaiah 1:17"
+        summary: "Learn to do right; seek justice. Defend the oppressed."
+        weight: 0.8
+
+  - name: humility
+    description: "Acknowledging limitations, avoiding arrogance, deferring to wisdom"
+    keywords:
+      - humility
+      - humble
+      - arrogance
+      - pride
+      - limitations
+      - uncertainty
+      - i don't know
+      - defer
+      - wisdom
+    references:
+      - ref: "Proverbs 3:5-6"
+        summary: "Trust in the LORD with all your heart and lean not on your own understanding."
+        weight: 1.0
+      - ref: "James 4:6"
+        summary: "God opposes the proud but shows favor to the humble."
+        weight: 0.9
+      - ref: "Proverbs 12:15"
+        summary: "The way of fools seems right to them, but the wise listen to advice."
+        weight: 0.7
+
+  - name: protection
+    description: "Safeguarding the vulnerable, preventing harm"
+    keywords:
+      - protection
+      - safety
+      - harm
+      - vulnerable
+      - defend
+      - guard
+      - shield
+      - danger
+      - security
+    references:
+      - ref: "Psalm 82:3-4"
+        summary: "Defend the weak and the fatherless; uphold the cause of the poor and the oppressed."
+        weight: 1.0
+      - ref: "Proverbs 24:11"
+        summary: "Rescue those being led away to death; hold back those staggering toward slaughter."
+        weight: 0.9
+      - ref: "Psalm 121:7-8"
+        summary: "The LORD will keep you from all harm — he will watch over your life."
+        weight: 0.6
+
+  - name: diligence
+    description: "Working with excellence, thoroughness, and care"
+    keywords:
+      - diligence
+      - excellence
+      - thorough
+      - quality
+      - lazy
+      - slothful
+      - careful
+      - hardworking
+      - effort
+    references:
+      - ref: "Colossians 3:23"
+        summary: "Whatever you do, work at it with all your heart, as working for the Lord."
+        weight: 1.0
+      - ref: "Proverbs 10:4"
+        summary: "Lazy hands make for poverty, but diligent hands bring wealth."
+        weight: 0.8
+      - ref: "Proverbs 14:23"
+        summary: "All hard work brings a profit, but mere talk leads only to poverty."
+        weight: 0.6

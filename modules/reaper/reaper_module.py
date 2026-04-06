@@ -131,6 +131,38 @@ class ReaperModule(BaseModule):
                     execution_time_ms=(time.time() - start) * 1000,
                 )
 
+            elif tool_name == "reddit_search_json":
+                subreddit = params.get("subreddit", "")
+                query = params.get("query", "")
+                limit = params.get("limit", 10)
+                results = self._reaper.search_reddit_json(
+                    subreddit=subreddit, query=query, limit=limit,
+                )
+                self._record_call(True)
+                return ToolResult(
+                    success=True,
+                    content=results,
+                    tool_name=tool_name,
+                    module=self.name,
+                    execution_time_ms=(time.time() - start) * 1000,
+                )
+
+            elif tool_name == "reddit_monitor":
+                subreddit = params.get("subreddit", "")
+                sort = params.get("sort", "hot")
+                limit = params.get("limit", 25)
+                results = self._reaper.monitor_subreddit_json(
+                    subreddit=subreddit, sort=sort, limit=limit,
+                )
+                self._record_call(True)
+                return ToolResult(
+                    success=True,
+                    content=results,
+                    tool_name=tool_name,
+                    module=self.name,
+                    execution_time_ms=(time.time() - start) * 1000,
+                )
+
             else:
                 self._record_call(False)
                 return ToolResult(
@@ -186,6 +218,26 @@ class ReaperModule(BaseModule):
                 "description": "Download and process YouTube subtitles via yt-dlp",
                 "parameters": {
                     "url": "str — YouTube URL",
+                },
+                "permission_level": "autonomous",
+            },
+            {
+                "name": "reddit_search_json",
+                "description": "Search a subreddit via Reddit .json endpoint (no auth required)",
+                "parameters": {
+                    "subreddit": "str — subreddit name (without r/ prefix)",
+                    "query": "str — search query",
+                    "limit": "int — max results (default 10)",
+                },
+                "permission_level": "autonomous",
+            },
+            {
+                "name": "reddit_monitor",
+                "description": "Fetch posts from a subreddit via Reddit .json endpoint",
+                "parameters": {
+                    "subreddit": "str — subreddit name (without r/ prefix)",
+                    "sort": "str — hot/new/top/rising (default hot)",
+                    "limit": "int — max results (default 25)",
                 },
                 "permission_level": "autonomous",
             },

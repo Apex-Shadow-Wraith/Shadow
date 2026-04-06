@@ -125,3 +125,13 @@ These names are Shadow's identity. Preserve them always:
 - Don't commit database files or API keys
 - Don't bypass Cerberus safety rules
 - Don't make architecture decisions without discussion — those happen in Opus sessions
+
+## Allowed Commands
+The following commands are pre-approved and do not need confirmation:
+- python (any python command)
+- pip install
+- pytest
+- git add, git commit, git status, git diff, git log
+- cd, ls, dir, cat, type, head, tail
+- mkdir, cp, copy, move, mv
+- ollama
