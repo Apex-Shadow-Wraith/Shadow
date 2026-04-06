@@ -246,7 +246,7 @@ class TestBriefing:
         })
         assert result.success is True
         assert result.content["type"] == "morning"
-        assert len(result.content["sections"]) == 10
+        assert len(result.content["sections"]) == 11
 
     @pytest.mark.asyncio
     async def test_evening_briefing_structure(self, online_harbinger: Harbinger):

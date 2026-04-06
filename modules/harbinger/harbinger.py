@@ -306,12 +306,12 @@ class Harbinger(BaseModule):
             )
 
         if briefing_type == "morning":
-            # Morning briefing has 10 sections per architecture
+            # Morning briefing has 11 sections per architecture
             section_order = [
                 "critical_alerts", "decision_queue", "schedule",
                 "weather", "email_summary", "business_snapshot",
                 "research_intel", "morpheus_report", "shadow_growth",
-                "pending_reminders",
+                "system_health", "pending_reminders",
             ]
         else:
             section_order = [
