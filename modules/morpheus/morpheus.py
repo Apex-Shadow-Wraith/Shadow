@@ -9,13 +9,15 @@ Shadow's factual knowledge base without explicit human verification.
 The firewall between speculative and verified knowledge is absolute.
 Cerberus enforces this boundary.
 
-Phase 1: Queue management, tier evaluation, speculative storage
-with trust_level=0.0. No overnight generation (needs LLM).
+Phase 1: Experiment tracking, evaluation tiers, SQLite persistence.
+No overnight LLM execution yet (that's Phase 2).
 """
 
 import json
 import logging
+import sqlite3
 import time
+import uuid
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -24,66 +26,127 @@ from modules.base import BaseModule, ModuleStatus, ToolResult
 
 logger = logging.getLogger("shadow.morpheus")
 
+# Valid experiment categories
+VALID_CATEGORIES = {"optimization", "exploration", "comparison", "validation"}
+
+# Valid status transitions
+VALID_STATUSES = {"proposed", "running", "completed", "failed", "rejected"}
+
+# Status transition rules: current_status -> set of allowed next statuses
+VALID_TRANSITIONS = {
+    "proposed": {"running", "rejected"},
+    "running": {"completed", "failed"},
+    "completed": set(),   # terminal — only evaluation updates score/tier
+    "failed": set(),      # terminal
+    "rejected": set(),    # terminal
+}
+
+# Evaluation tiers
+TIER_LABELS = {
+    1: "Breakthrough",
+    2: "Useful",
+    3: "Incremental",
+    4: "Noise",
+}
+
 
 class Morpheus(BaseModule):
-    """Creative discovery pipeline. Controlled hallucination.
+    """Creative discovery pipeline — experiment tracking and evaluation.
 
-    Everything Morpheus produces is quarantined in the speculative
-    partition with trust_level=0.0. Only explicit user approval
-    can promote speculative content to verified knowledge.
+    Phase 1 builds the tracking infrastructure: propose experiments,
+    run them, record results, evaluate outcomes. When the LLM pipeline
+    comes online in Phase 2, everything is already wired.
+
+    Everything Morpheus produces is quarantined as speculative content
+    with trust_level=0.0. Only explicit user approval can promote
+    speculative content to verified knowledge.
     """
-
-    # Tier definitions
-    TIER_1 = 1  # Present first: high plausibility + high novelty
-    TIER_2 = 2  # Worth reviewing: interesting but needs judgment
-    TIER_3 = 3  # Interesting failure: the approach is informative
-    TIER_4 = 4  # Archive: not useful this time
-
-    VALID_TIERS = {1, 2, 3, 4}
-    VALID_STATUSES = {"queued", "generating", "evaluating", "evaluated", "archived"}
 
     def __init__(self, config: dict[str, Any] | None = None) -> None:
         """Initialize Morpheus.
 
         Args:
-            config: Module configuration.
+            config: Module configuration. Keys:
+                - db_path: Path to SQLite DB (default: data/morpheus_experiments.db)
+                - max_queue: Max experiments in overnight queue (default: 5)
         """
         super().__init__(
             name="morpheus",
-            description="Creative discovery pipeline — controlled hallucination",
+            description="Creative discovery pipeline — experiment tracking and evaluation",
         )
         self._config = config or {}
-        self._queue: list[dict[str, Any]] = []
-        self._queue_file = Path(
-            self._config.get("queue_file", "data/morpheus_queue.json")
+        self._db_path = Path(
+            self._config.get("db_path", "data/morpheus_experiments.db")
         )
-        self._next_id = 1
+        self._max_queue = int(self._config.get("max_queue", 5))
+        self._conn: sqlite3.Connection | None = None
 
     async def initialize(self) -> None:
-        """Start Morpheus. Load discovery queue."""
+        """Start Morpheus. Create DB and tables."""
         self.status = ModuleStatus.STARTING
         try:
-            self._load_queue()
+            self._db_path.parent.mkdir(parents=True, exist_ok=True)
+            self._conn = sqlite3.connect(str(self._db_path))
+            self._conn.row_factory = sqlite3.Row
+            self._create_tables()
             self.status = ModuleStatus.ONLINE
-            logger.info(
-                "Morpheus online. %d items in discovery queue.",
-                len(self._queue),
-            )
+            self._initialized_at = datetime.now()
+            logger.info("Morpheus online. Experiment DB at %s", self._db_path)
         except Exception as e:
             self.status = ModuleStatus.ERROR
             logger.error("Morpheus failed to initialize: %s", e)
             raise
+
+    def _create_tables(self) -> None:
+        """Create the morpheus_experiments table."""
+        if not self._conn:
+            return
+        self._conn.execute("""
+            CREATE TABLE IF NOT EXISTS morpheus_experiments (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                experiment_id TEXT UNIQUE NOT NULL,
+                title TEXT NOT NULL,
+                hypothesis TEXT NOT NULL,
+                category TEXT NOT NULL,
+                status TEXT NOT NULL DEFAULT 'proposed',
+                priority INTEGER DEFAULT 3,
+                proposed_at TEXT NOT NULL,
+                started_at TEXT,
+                completed_at TEXT,
+                input_data TEXT,
+                result_data TEXT,
+                evaluation_score REAL,
+                evaluation_tier INTEGER,
+                evaluation_notes TEXT,
+                parent_experiment_id TEXT
+            )
+        """)
+        self._conn.execute("""
+            CREATE INDEX IF NOT EXISTS idx_morpheus_status
+            ON morpheus_experiments(status)
+        """)
+        self._conn.execute("""
+            CREATE INDEX IF NOT EXISTS idx_morpheus_category
+            ON morpheus_experiments(category)
+        """)
+        self._conn.execute("""
+            CREATE INDEX IF NOT EXISTS idx_morpheus_parent
+            ON morpheus_experiments(parent_experiment_id)
+        """)
+        self._conn.commit()
 
     async def execute(self, tool_name: str, params: dict[str, Any]) -> ToolResult:
         """Execute a Morpheus tool."""
         start = time.time()
         try:
             handlers = {
-                "discovery_queue_add": self._discovery_queue_add,
-                "discovery_queue_list": self._discovery_queue_list,
-                "discovery_evaluate": self._discovery_evaluate,
-                "discovery_archive": self._discovery_archive,
-                "speculative_store": self._speculative_store,
+                "experiment_propose": self._experiment_propose,
+                "experiment_start": self._experiment_start,
+                "experiment_complete": self._experiment_complete,
+                "experiment_evaluate": self._experiment_evaluate,
+                "experiment_list": self._experiment_list,
+                "experiment_queue": self._experiment_queue,
+                "morpheus_report": self._morpheus_report,
             }
 
             handler = handlers.get(tool_name)
@@ -109,280 +172,504 @@ class Morpheus(BaseModule):
             )
 
     async def shutdown(self) -> None:
-        """Shut down Morpheus. Save queue."""
-        self._save_queue()
+        """Shut down Morpheus. Close DB connection."""
+        if self._conn:
+            self._conn.close()
+            self._conn = None
         self.status = ModuleStatus.OFFLINE
-        logger.info("Morpheus offline. Queue saved.")
+        logger.info("Morpheus offline. DB connection closed.")
 
     def get_tools(self) -> list[dict[str, Any]]:
         """Return Morpheus's tool definitions."""
         return [
             {
-                "name": "discovery_queue_add",
-                "description": "Add topic to overnight discovery queue",
-                "parameters": {"topic": "str", "source": "str", "context": "str"},
+                "name": "experiment_propose",
+                "description": "Propose a new experiment for the discovery pipeline",
+                "parameters": {
+                    "title": "str — experiment title (required)",
+                    "hypothesis": "str — what we expect to learn (required)",
+                    "category": "str — optimization|exploration|comparison|validation (required)",
+                    "priority": "int — 1-5, 1=highest (default 3)",
+                    "input_data": "dict — input parameters for the experiment",
+                    "parent_experiment_id": "str — UUID of parent experiment for follow-ups",
+                },
                 "permission_level": "autonomous",
             },
             {
-                "name": "discovery_queue_list",
-                "description": "List queued discovery topics",
-                "parameters": {"status_filter": "str"},
+                "name": "experiment_start",
+                "description": "Move a proposed experiment to running status",
+                "parameters": {
+                    "experiment_id": "str — UUID of experiment to start (required)",
+                },
                 "permission_level": "autonomous",
             },
             {
-                "name": "discovery_evaluate",
-                "description": "Evaluate a discovery by tier (1-4)",
-                "parameters": {"discovery_id": "str", "tier": "int", "notes": "str"},
+                "name": "experiment_complete",
+                "description": "Record results for a running experiment",
+                "parameters": {
+                    "experiment_id": "str — UUID of experiment (required)",
+                    "result_data": "dict — experiment results (required)",
+                    "failed": "bool — mark as failed instead of completed (default false)",
+                },
                 "permission_level": "autonomous",
             },
             {
-                "name": "discovery_archive",
-                "description": "Archive evaluated discoveries",
-                "parameters": {"discovery_id": "str"},
+                "name": "experiment_evaluate",
+                "description": "Score and tier a completed experiment",
+                "parameters": {
+                    "experiment_id": "str — UUID of experiment (required)",
+                    "score": "float — 0.0-1.0 evaluation score (required)",
+                    "tier": "int — 1=breakthrough, 2=useful, 3=incremental, 4=noise (required)",
+                    "notes": "str — evaluation notes",
+                },
                 "permission_level": "autonomous",
             },
             {
-                "name": "speculative_store",
-                "description": "Store speculative content with firewall flag",
-                "parameters": {"content": "str", "topic": "str", "source_discovery_id": "str"},
+                "name": "experiment_list",
+                "description": "List experiments with optional filters",
+                "parameters": {
+                    "status": "str — filter by status",
+                    "category": "str — filter by category",
+                },
+                "permission_level": "autonomous",
+            },
+            {
+                "name": "experiment_queue",
+                "description": "Get overnight experiment queue (proposed, sorted by priority)",
+                "parameters": {
+                    "max_items": "int — max items to return (default from config)",
+                },
+                "permission_level": "autonomous",
+            },
+            {
+                "name": "morpheus_report",
+                "description": "Compile experiment report for morning briefing",
+                "parameters": {},
                 "permission_level": "autonomous",
             },
         ]
 
     # --- Tool implementations ---
 
-    def _discovery_queue_add(self, params: dict[str, Any]) -> ToolResult:
-        """Add a topic to the discovery queue.
+    def _experiment_propose(self, params: dict[str, Any]) -> ToolResult:
+        """Create a new experiment proposal.
 
         Args:
-            params: 'topic' (required), 'source' (user/pattern/reaper), 'context'.
+            params: title, hypothesis, category (required); priority, input_data,
+                    parent_experiment_id (optional).
         """
-        topic = params.get("topic", "")
-        if not topic:
+        title = params.get("title", "").strip()
+        hypothesis = params.get("hypothesis", "").strip()
+        category = params.get("category", "").strip()
+        priority = params.get("priority", 3)
+        input_data = params.get("input_data")
+        parent_id = params.get("parent_experiment_id")
+
+        # Validation
+        if not title:
             return ToolResult(
-                success=False, content=None, tool_name="discovery_queue_add",
-                module=self.name, error="Topic is required",
+                success=False, content=None, tool_name="experiment_propose",
+                module=self.name, error="Title is required",
+            )
+        if not hypothesis:
+            return ToolResult(
+                success=False, content=None, tool_name="experiment_propose",
+                module=self.name, error="Hypothesis is required",
+            )
+        if category not in VALID_CATEGORIES:
+            return ToolResult(
+                success=False, content=None, tool_name="experiment_propose",
+                module=self.name,
+                error=f"Category must be one of: {', '.join(sorted(VALID_CATEGORIES))}. Got: {category}",
+            )
+        if not isinstance(priority, int) or priority < 1 or priority > 5:
+            return ToolResult(
+                success=False, content=None, tool_name="experiment_propose",
+                module=self.name, error="Priority must be an integer 1-5",
             )
 
-        discovery_id = str(self._next_id)
-        self._next_id += 1
+        # Validate parent exists if specified
+        if parent_id and not self._get_experiment(parent_id):
+            return ToolResult(
+                success=False, content=None, tool_name="experiment_propose",
+                module=self.name,
+                error=f"Parent experiment {parent_id} not found",
+            )
 
-        item = {
-            "id": discovery_id,
-            "topic": topic,
-            "source": params.get("source", "user"),
-            "context": params.get("context", ""),
-            "created_at": datetime.now().isoformat(),
-            "status": "queued",
-            "tier": None,
-            "evaluation_notes": "",
-            "speculative": True,  # FIREWALL: always True
-            "trust_level": 0.0,   # FIREWALL: always 0.0
-        }
-        self._queue.append(item)
-        self._save_queue()
+        experiment_id = str(uuid.uuid4())
+        now = datetime.now().isoformat()
 
-        logger.info("Discovery queued: id=%s, topic=%s", discovery_id, topic[:50])
+        input_json = None
+        if input_data is not None:
+            try:
+                input_json = json.dumps(input_data)
+            except (TypeError, ValueError) as e:
+                return ToolResult(
+                    success=False, content=None, tool_name="experiment_propose",
+                    module=self.name, error=f"input_data not JSON-serializable: {e}",
+                )
+
+        self._conn.execute(
+            """INSERT INTO morpheus_experiments
+               (experiment_id, title, hypothesis, category, status, priority,
+                proposed_at, input_data, parent_experiment_id)
+               VALUES (?, ?, ?, ?, 'proposed', ?, ?, ?, ?)""",
+            (experiment_id, title, hypothesis, category, priority,
+             now, input_json, parent_id),
+        )
+        self._conn.commit()
+
+        experiment = self._get_experiment(experiment_id)
+        logger.info("Experiment proposed: %s — %s", experiment_id[:8], title)
 
         return ToolResult(
-            success=True,
-            content=item,
-            tool_name="discovery_queue_add",
-            module=self.name,
+            success=True, content=experiment,
+            tool_name="experiment_propose", module=self.name,
         )
 
-    def _discovery_queue_list(self, params: dict[str, Any]) -> ToolResult:
-        """List items in the discovery queue.
+    def _experiment_start(self, params: dict[str, Any]) -> ToolResult:
+        """Move an experiment from proposed to running.
 
         Args:
-            params: Optional 'status_filter' to filter by status.
+            params: experiment_id (required).
         """
-        status_filter = params.get("status_filter", "")
+        experiment_id = params.get("experiment_id", "").strip()
+        if not experiment_id:
+            return ToolResult(
+                success=False, content=None, tool_name="experiment_start",
+                module=self.name, error="experiment_id is required",
+            )
 
-        if status_filter and status_filter in self.VALID_STATUSES:
-            items = [q for q in self._queue if q["status"] == status_filter]
-        else:
-            items = list(self._queue)
+        experiment = self._get_experiment(experiment_id)
+        if not experiment:
+            return ToolResult(
+                success=False, content=None, tool_name="experiment_start",
+                module=self.name, error=f"Experiment {experiment_id} not found",
+            )
+
+        current_status = experiment["status"]
+        if "running" not in VALID_TRANSITIONS.get(current_status, set()):
+            return ToolResult(
+                success=False, content=None, tool_name="experiment_start",
+                module=self.name,
+                error=f"Cannot start experiment in '{current_status}' status. Must be 'proposed'.",
+            )
+
+        now = datetime.now().isoformat()
+        self._conn.execute(
+            "UPDATE morpheus_experiments SET status='running', started_at=? WHERE experiment_id=?",
+            (now, experiment_id),
+        )
+        self._conn.commit()
+
+        experiment = self._get_experiment(experiment_id)
+        logger.info("Experiment started: %s", experiment_id[:8])
+
+        return ToolResult(
+            success=True, content=experiment,
+            tool_name="experiment_start", module=self.name,
+        )
+
+    def _experiment_complete(self, params: dict[str, Any]) -> ToolResult:
+        """Record results for a running experiment.
+
+        Args:
+            params: experiment_id, result_data (required); failed (optional bool).
+        """
+        experiment_id = params.get("experiment_id", "").strip()
+        result_data = params.get("result_data")
+        failed = params.get("failed", False)
+
+        if not experiment_id:
+            return ToolResult(
+                success=False, content=None, tool_name="experiment_complete",
+                module=self.name, error="experiment_id is required",
+            )
+        if result_data is None:
+            return ToolResult(
+                success=False, content=None, tool_name="experiment_complete",
+                module=self.name, error="result_data is required",
+            )
+
+        experiment = self._get_experiment(experiment_id)
+        if not experiment:
+            return ToolResult(
+                success=False, content=None, tool_name="experiment_complete",
+                module=self.name, error=f"Experiment {experiment_id} not found",
+            )
+
+        target_status = "failed" if failed else "completed"
+        current_status = experiment["status"]
+        if target_status not in VALID_TRANSITIONS.get(current_status, set()):
+            return ToolResult(
+                success=False, content=None, tool_name="experiment_complete",
+                module=self.name,
+                error=f"Cannot complete experiment in '{current_status}' status. Must be 'running'.",
+            )
+
+        try:
+            result_json = json.dumps(result_data)
+        except (TypeError, ValueError) as e:
+            return ToolResult(
+                success=False, content=None, tool_name="experiment_complete",
+                module=self.name, error=f"result_data not JSON-serializable: {e}",
+            )
+
+        now = datetime.now().isoformat()
+        self._conn.execute(
+            """UPDATE morpheus_experiments
+               SET status=?, completed_at=?, result_data=?
+               WHERE experiment_id=?""",
+            (target_status, now, result_json, experiment_id),
+        )
+        self._conn.commit()
+
+        experiment = self._get_experiment(experiment_id)
+        logger.info("Experiment %s: %s", target_status, experiment_id[:8])
+
+        return ToolResult(
+            success=True, content=experiment,
+            tool_name="experiment_complete", module=self.name,
+        )
+
+    def _experiment_evaluate(self, params: dict[str, Any]) -> ToolResult:
+        """Score and tier a completed experiment.
+
+        Tier 1 = Breakthrough, Tier 2 = Useful,
+        Tier 3 = Incremental, Tier 4 = Noise.
+
+        Args:
+            params: experiment_id, score (0-1), tier (1-4), notes (optional).
+        """
+        experiment_id = params.get("experiment_id", "").strip()
+        score = params.get("score")
+        tier = params.get("tier")
+        notes = params.get("notes", "")
+
+        if not experiment_id:
+            return ToolResult(
+                success=False, content=None, tool_name="experiment_evaluate",
+                module=self.name, error="experiment_id is required",
+            )
+        if score is None:
+            return ToolResult(
+                success=False, content=None, tool_name="experiment_evaluate",
+                module=self.name, error="score is required",
+            )
+        if not isinstance(score, (int, float)) or score < 0.0 or score > 1.0:
+            return ToolResult(
+                success=False, content=None, tool_name="experiment_evaluate",
+                module=self.name, error="score must be a number between 0.0 and 1.0",
+            )
+        if tier not in {1, 2, 3, 4}:
+            return ToolResult(
+                success=False, content=None, tool_name="experiment_evaluate",
+                module=self.name, error=f"tier must be 1-4. Got: {tier}",
+            )
+
+        experiment = self._get_experiment(experiment_id)
+        if not experiment:
+            return ToolResult(
+                success=False, content=None, tool_name="experiment_evaluate",
+                module=self.name, error=f"Experiment {experiment_id} not found",
+            )
+
+        if experiment["status"] != "completed":
+            return ToolResult(
+                success=False, content=None, tool_name="experiment_evaluate",
+                module=self.name,
+                error=f"Cannot evaluate experiment in '{experiment['status']}' status. Must be 'completed'.",
+            )
+
+        self._conn.execute(
+            """UPDATE morpheus_experiments
+               SET evaluation_score=?, evaluation_tier=?, evaluation_notes=?
+               WHERE experiment_id=?""",
+            (float(score), tier, notes, experiment_id),
+        )
+        self._conn.commit()
+
+        experiment = self._get_experiment(experiment_id)
+        tier_label = TIER_LABELS.get(tier, "Unknown")
+        logger.info(
+            "Experiment evaluated: %s — Tier %d (%s), score=%.2f",
+            experiment_id[:8], tier, tier_label, score,
+        )
+
+        return ToolResult(
+            success=True, content=experiment,
+            tool_name="experiment_evaluate", module=self.name,
+        )
+
+    def _experiment_list(self, params: dict[str, Any]) -> ToolResult:
+        """List experiments with optional filters.
+
+        Args:
+            params: Optional 'status' and 'category' filters.
+        """
+        status_filter = params.get("status", "")
+        category_filter = params.get("category", "")
+
+        query = "SELECT * FROM morpheus_experiments WHERE 1=1"
+        query_params: list[Any] = []
+
+        if status_filter:
+            if status_filter not in VALID_STATUSES:
+                return ToolResult(
+                    success=False, content=None, tool_name="experiment_list",
+                    module=self.name,
+                    error=f"Invalid status: {status_filter}. Valid: {', '.join(sorted(VALID_STATUSES))}",
+                )
+            query += " AND status=?"
+            query_params.append(status_filter)
+
+        if category_filter:
+            if category_filter not in VALID_CATEGORIES:
+                return ToolResult(
+                    success=False, content=None, tool_name="experiment_list",
+                    module=self.name,
+                    error=f"Invalid category: {category_filter}. Valid: {', '.join(sorted(VALID_CATEGORIES))}",
+                )
+            query += " AND category=?"
+            query_params.append(category_filter)
+
+        query += " ORDER BY priority ASC, proposed_at DESC"
+
+        rows = self._conn.execute(query, query_params).fetchall()
+        experiments = [self._row_to_dict(row) for row in rows]
 
         return ToolResult(
             success=True,
             content={
-                "items": items,
-                "total": len(items),
-                "by_status": self._count_by_status(),
+                "experiments": experiments,
+                "total": len(experiments),
+                "filters": {
+                    "status": status_filter or None,
+                    "category": category_filter or None,
+                },
             },
-            tool_name="discovery_queue_list",
+            tool_name="experiment_list",
             module=self.name,
         )
 
-    def _discovery_evaluate(self, params: dict[str, Any]) -> ToolResult:
-        """Evaluate a discovery and assign a tier.
+    def _experiment_queue(self, params: dict[str, Any]) -> ToolResult:
+        """Get the overnight experiment queue.
 
-        Tier 1 = Present first, Tier 2 = Worth reviewing,
-        Tier 3 = Interesting failure, Tier 4 = Archive.
+        Returns proposed experiments sorted by priority, capped at max_queue.
 
         Args:
-            params: 'discovery_id', 'tier' (1-4), 'notes'.
+            params: Optional 'max_items' to override default cap.
         """
-        discovery_id = str(params.get("discovery_id", ""))
-        tier = params.get("tier")
-        notes = params.get("notes", "")
+        max_items = params.get("max_items", self._max_queue)
+        if not isinstance(max_items, int) or max_items < 1:
+            max_items = self._max_queue
 
-        if not discovery_id:
-            return ToolResult(
-                success=False, content=None, tool_name="discovery_evaluate",
-                module=self.name, error="discovery_id is required",
-            )
+        rows = self._conn.execute(
+            """SELECT * FROM morpheus_experiments
+               WHERE status='proposed'
+               ORDER BY priority ASC, proposed_at ASC
+               LIMIT ?""",
+            (max_items,),
+        ).fetchall()
 
-        if tier not in self.VALID_TIERS:
-            return ToolResult(
-                success=False, content=None, tool_name="discovery_evaluate",
-                module=self.name,
-                error=f"Tier must be 1-4. Got: {tier}",
-            )
+        experiments = [self._row_to_dict(row) for row in rows]
 
-        item = self._find_item(discovery_id)
-        if item is None:
-            return ToolResult(
-                success=False, content=None, tool_name="discovery_evaluate",
-                module=self.name,
-                error=f"Discovery {discovery_id} not found",
-            )
-
-        item["tier"] = tier
-        item["evaluation_notes"] = notes
-        item["status"] = "evaluated"
-        item["evaluated_at"] = datetime.now().isoformat()
-        # FIREWALL: trust level stays at 0.0 regardless of tier
-        item["trust_level"] = 0.0
-        item["speculative"] = True
-
-        self._save_queue()
-        logger.info("Discovery %s evaluated: tier=%d", discovery_id, tier)
+        # Count total proposed (may be more than returned)
+        total_proposed = self._conn.execute(
+            "SELECT COUNT(*) FROM morpheus_experiments WHERE status='proposed'"
+        ).fetchone()[0]
 
         return ToolResult(
             success=True,
-            content=item,
-            tool_name="discovery_evaluate",
+            content={
+                "queue": experiments,
+                "queue_size": len(experiments),
+                "total_proposed": total_proposed,
+                "max_queue": max_items,
+            },
+            tool_name="experiment_queue",
             module=self.name,
         )
 
-    def _discovery_archive(self, params: dict[str, Any]) -> ToolResult:
-        """Archive a discovery.
+    def _morpheus_report(self, params: dict[str, Any]) -> ToolResult:
+        """Compile experiment report for morning briefing.
 
-        Args:
-            params: 'discovery_id'.
+        Returns:
+            - Completed experiments with tier 1-2 results (highlights)
+            - Failed experiments with result data
+            - Queue status (proposed count, running count)
         """
-        discovery_id = str(params.get("discovery_id", ""))
-        if not discovery_id:
-            return ToolResult(
-                success=False, content=None, tool_name="discovery_archive",
-                module=self.name, error="discovery_id is required",
-            )
+        # Tier 1-2 highlights: completed and evaluated with good results
+        highlight_rows = self._conn.execute(
+            """SELECT * FROM morpheus_experiments
+               WHERE status='completed' AND evaluation_tier IN (1, 2)
+               ORDER BY evaluation_tier ASC, evaluation_score DESC"""
+        ).fetchall()
+        highlights = [self._row_to_dict(row) for row in highlight_rows]
 
-        item = self._find_item(discovery_id)
-        if item is None:
-            return ToolResult(
-                success=False, content=None, tool_name="discovery_archive",
-                module=self.name,
-                error=f"Discovery {discovery_id} not found",
-            )
+        # Failed experiments
+        failed_rows = self._conn.execute(
+            """SELECT * FROM morpheus_experiments
+               WHERE status='failed'
+               ORDER BY completed_at DESC"""
+        ).fetchall()
+        failed = [self._row_to_dict(row) for row in failed_rows]
 
-        item["status"] = "archived"
-        item["archived_at"] = datetime.now().isoformat()
-        self._save_queue()
+        # Queue status counts
+        status_counts = {}
+        for row in self._conn.execute(
+            "SELECT status, COUNT(*) as cnt FROM morpheus_experiments GROUP BY status"
+        ).fetchall():
+            status_counts[row["status"]] = row["cnt"]
 
-        return ToolResult(
-            success=True,
-            content=item,
-            tool_name="discovery_archive",
-            module=self.name,
-        )
+        # Total experiments
+        total = self._conn.execute(
+            "SELECT COUNT(*) FROM morpheus_experiments"
+        ).fetchone()[0]
 
-    def _speculative_store(self, params: dict[str, Any]) -> ToolResult:
-        """Store speculative content with firewall enforcement.
-
-        CRITICAL: trust_level is ALWAYS 0.0 and speculative is ALWAYS True.
-        Nothing from Morpheus enters verified knowledge without user approval.
-
-        Args:
-            params: 'content', 'topic', optional 'source_discovery_id'.
-        """
-        content = params.get("content", "")
-        topic = params.get("topic", "")
-
-        if not content:
-            return ToolResult(
-                success=False, content=None, tool_name="speculative_store",
-                module=self.name, error="Content is required",
-            )
-
-        if not topic:
-            return ToolResult(
-                success=False, content=None, tool_name="speculative_store",
-                module=self.name, error="Topic is required",
-            )
-
-        entry = {
-            "content": content,
-            "topic": topic,
-            "source_discovery_id": params.get("source_discovery_id"),
-            "stored_at": datetime.now().isoformat(),
-            "speculative": True,     # FIREWALL: non-negotiable
-            "trust_level": 0.0,      # FIREWALL: non-negotiable
-            "source_type": "morpheus_speculative",
-            "verified": False,
+        report = {
+            "highlights": highlights,
+            "highlight_count": len(highlights),
+            "failed": failed,
+            "failed_count": len(failed),
+            "status_counts": status_counts,
+            "total_experiments": total,
+            "queue_size": status_counts.get("proposed", 0),
+            "running_count": status_counts.get("running", 0),
         }
 
-        logger.info("Speculative content stored: topic=%s", topic[:50])
+        logger.info(
+            "Morpheus report: %d highlights, %d failed, %d in queue",
+            len(highlights), len(failed), report["queue_size"],
+        )
 
         return ToolResult(
-            success=True,
-            content=entry,
-            tool_name="speculative_store",
-            module=self.name,
-            metadata={"speculative": True, "trust_level": 0.0},
+            success=True, content=report,
+            tool_name="morpheus_report", module=self.name,
         )
 
     # --- Internal helpers ---
 
-    def _find_item(self, discovery_id: str) -> dict[str, Any] | None:
-        """Find a queue item by ID."""
-        for item in self._queue:
-            if item["id"] == str(discovery_id):
-                return item
-        return None
+    def _get_experiment(self, experiment_id: str) -> dict[str, Any] | None:
+        """Fetch a single experiment by UUID."""
+        if not self._conn:
+            return None
+        row = self._conn.execute(
+            "SELECT * FROM morpheus_experiments WHERE experiment_id=?",
+            (experiment_id,),
+        ).fetchone()
+        if row is None:
+            return None
+        return self._row_to_dict(row)
 
-    def _count_by_status(self) -> dict[str, int]:
-        """Count items by status."""
-        counts: dict[str, int] = {}
-        for item in self._queue:
-            status = item.get("status", "unknown")
-            counts[status] = counts.get(status, 0) + 1
-        return counts
-
-    def _load_queue(self) -> None:
-        """Load discovery queue from disk."""
-        if self._queue_file.exists():
-            try:
-                with open(self._queue_file, "r", encoding="utf-8") as f:
-                    data = json.load(f)
-                self._queue = data.get("queue", [])
-                self._next_id = data.get("next_id", 1)
-            except (json.JSONDecodeError, OSError):
-                self._queue = []
-                self._next_id = 1
-
-    def _save_queue(self) -> None:
-        """Persist discovery queue to disk."""
-        self._queue_file.parent.mkdir(parents=True, exist_ok=True)
-        data = {
-            "queue": self._queue,
-            "next_id": self._next_id,
-            "saved_at": datetime.now().isoformat(),
-        }
-        try:
-            with open(self._queue_file, "w", encoding="utf-8") as f:
-                json.dump(data, f, indent=2)
-        except OSError as e:
-            logger.error("Failed to save queue: %s", e)
+    def _row_to_dict(self, row: sqlite3.Row) -> dict[str, Any]:
+        """Convert a sqlite3.Row to a dict, deserializing JSON fields."""
+        d = dict(row)
+        # Deserialize JSON fields
+        for field in ("input_data", "result_data"):
+            if d.get(field) is not None:
+                try:
+                    d[field] = json.loads(d[field])
+                except (json.JSONDecodeError, TypeError):
+                    pass  # Leave as string if not valid JSON
+        return d
