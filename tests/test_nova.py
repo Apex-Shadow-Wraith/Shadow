@@ -1,6 +1,7 @@
 """
-Tests for Nova — Content Creation
-====================================
+Tests for Nova — Content Creation (Phase 1)
+=============================================
+6 tools, template system, document formatting.
 """
 
 import pytest
@@ -8,13 +9,12 @@ from pathlib import Path
 from typing import Any
 
 from modules.base import ModuleStatus, ToolResult
-from modules.nova.nova import Nova
+from modules.nova.nova import Nova, TEMPLATES
 
 
 @pytest.fixture
-def nova(tmp_path: Path) -> Nova:
-    config = {"output_dir": str(tmp_path / "nova_output")}
-    return Nova(config)
+def nova() -> Nova:
+    return Nova({})
 
 
 @pytest.fixture
@@ -22,6 +22,10 @@ async def online_nova(nova: Nova) -> Nova:
     await nova.initialize()
     return nova
 
+
+# ---------------------------------------------------------------
+# Lifecycle
+# ---------------------------------------------------------------
 
 class TestNovaLifecycle:
     @pytest.mark.asyncio
@@ -37,148 +41,459 @@ class TestNovaLifecycle:
 
     def test_get_tools(self, nova: Nova):
         tools = nova.get_tools()
-        assert len(tools) == 5
+        assert len(tools) == 6
         names = [t["name"] for t in tools]
-        assert "document_create" in names
-        assert "image_generate" in names
-        assert "voice_generate" in names
+        assert "format_document" in names
+        assert "format_report" in names
+        assert "format_email" in names
+        assert "format_briefing_section" in names
+        assert "template_list" in names
+        assert "template_apply" in names
+
+    def test_all_tools_autonomous(self, nova: Nova):
+        for tool in nova.get_tools():
+            assert tool["permission_level"] == "autonomous"
+
+    @pytest.mark.asyncio
+    async def test_unknown_tool(self, online_nova: Nova):
+        r = await online_nova.execute("nonexistent", {})
+        assert r.success is False
+        assert "Unknown tool" in r.error
 
 
-class TestDocumentCreate:
+# ---------------------------------------------------------------
+# format_document
+# ---------------------------------------------------------------
+
+class TestFormatDocument:
     @pytest.mark.asyncio
     async def test_basic_document(self, online_nova: Nova):
-        r = await online_nova.execute("document_create", {
+        r = await online_nova.execute("format_document", {
             "title": "Test Report",
             "sections": [
-                {"heading": "Summary", "content": "Everything is good."},
-                {"heading": "Details", "content": "Detailed info here."},
+                {"heading": "Summary", "body": "Everything is good."},
+                {"heading": "Details", "body": "Detailed info here."},
             ],
         })
         assert r.success is True
         assert "# Test Report" in r.content["markdown"]
-        assert r.content["sections_count"] == 2
+        assert "## Summary" in r.content["markdown"]
+        assert "## Details" in r.content["markdown"]
+        assert r.content["section_count"] == 2
 
     @pytest.mark.asyncio
-    async def test_save_to_file(self, online_nova: Nova, tmp_path: Path):
-        r = await online_nova.execute("document_create", {
-            "title": "Saved Doc",
-            "sections": [{"heading": "A", "content": "B"}],
-            "save": True,
+    async def test_table_of_contents_three_plus(self, online_nova: Nova):
+        r = await online_nova.execute("format_document", {
+            "title": "Big Doc",
+            "sections": [
+                {"heading": "One", "body": "A"},
+                {"heading": "Two", "body": "B"},
+                {"heading": "Three", "body": "C"},
+            ],
         })
         assert r.success is True
-        assert "saved_to" in r.content
-        saved = Path(r.content["saved_to"])
-        assert saved.exists()
+        assert "## Table of Contents" in r.content["markdown"]
+        assert "[One](#one)" in r.content["markdown"]
+
+    @pytest.mark.asyncio
+    async def test_no_toc_under_three(self, online_nova: Nova):
+        r = await online_nova.execute("format_document", {
+            "title": "Small Doc",
+            "sections": [
+                {"heading": "One", "body": "A"},
+                {"heading": "Two", "body": "B"},
+            ],
+        })
+        assert r.success is True
+        assert "Table of Contents" not in r.content["markdown"]
+
+    @pytest.mark.asyncio
+    async def test_empty_sections(self, online_nova: Nova):
+        r = await online_nova.execute("format_document", {
+            "title": "Empty",
+            "sections": [],
+        })
+        assert r.success is True
+        assert r.content["section_count"] == 0
 
     @pytest.mark.asyncio
     async def test_no_title_fails(self, online_nova: Nova):
-        r = await online_nova.execute("document_create", {"title": ""})
+        r = await online_nova.execute("format_document", {"title": ""})
         assert r.success is False
+        assert "title" in r.error
 
-
-class TestContentFormat:
     @pytest.mark.asyncio
-    async def test_email_format(self, online_nova: Nova):
-        r = await online_nova.execute("content_format", {
-            "content": "Please review the attached.", "format_type": "email",
+    async def test_metadata_included(self, online_nova: Nova):
+        r = await online_nova.execute("format_document", {
+            "title": "With Meta",
+            "sections": [],
+            "metadata": {"Author": "Shadow", "Version": "1.0"},
         })
         assert r.success is True
-        assert "Subject:" in r.content["formatted"]
+        assert "**Author**: Shadow" in r.content["markdown"]
+        assert "**Version**: 1.0" in r.content["markdown"]
+
+
+# ---------------------------------------------------------------
+# format_report
+# ---------------------------------------------------------------
+
+class TestFormatReport:
+    def _full_params(self, **overrides: Any) -> dict[str, Any]:
+        base = {
+            "title": "Q1 Report",
+            "date": "2026-04-01",
+            "executive_summary": "Revenue up 12%.",
+            "findings": [
+                {"finding": "Growth", "detail": "Steady increase", "source": "Internal"},
+            ],
+            "recommendations": ["Continue current strategy"],
+            "conclusion": "Strong quarter.",
+        }
+        base.update(overrides)
+        return base
 
     @pytest.mark.asyncio
-    async def test_summary_truncation(self, online_nova: Nova):
-        long_text = "A" * 1000
-        r = await online_nova.execute("content_format", {
-            "content": long_text, "format_type": "summary",
+    async def test_full_report(self, online_nova: Nova):
+        r = await online_nova.execute("format_report", self._full_params())
+        assert r.success is True
+        md = r.content["markdown"]
+        assert "# Q1 Report" in md
+        assert "## Executive Summary" in md
+        assert "## Findings" in md
+        assert "### Growth" in md
+        assert "## Recommendations" in md
+        assert "1. Continue current strategy" in md
+        assert "## Conclusion" in md
+        assert r.content["finding_count"] == 1
+
+    @pytest.mark.asyncio
+    async def test_multiple_findings(self, online_nova: Nova):
+        findings = [
+            {"finding": "A", "detail": "D1", "source": "S1"},
+            {"finding": "B", "detail": "D2", "source": "S2"},
+            {"finding": "C", "detail": "D3", "source": "S3"},
+        ]
+        r = await online_nova.execute("format_report", self._full_params(findings=findings))
+        assert r.success is True
+        assert r.content["finding_count"] == 3
+        assert "### A" in r.content["markdown"]
+        assert "### C" in r.content["markdown"]
+
+    @pytest.mark.asyncio
+    async def test_missing_field_fails(self, online_nova: Nova):
+        params = self._full_params()
+        del params["executive_summary"]
+        r = await online_nova.execute("format_report", params)
+        assert r.success is False
+        assert "executive_summary" in r.error
+
+    @pytest.mark.asyncio
+    async def test_empty_findings_list(self, online_nova: Nova):
+        r = await online_nova.execute("format_report", self._full_params(findings=[]))
+        assert r.success is True
+        assert r.content["finding_count"] == 0
+
+
+# ---------------------------------------------------------------
+# format_email
+# ---------------------------------------------------------------
+
+class TestFormatEmail:
+    @pytest.mark.asyncio
+    async def test_professional_tone(self, online_nova: Nova):
+        r = await online_nova.execute("format_email", {
+            "to": "John", "subject": "Update", "body": "Here is the update.", "tone": "professional",
         })
-        assert len(r.content["formatted"]) < len(long_text)
+        assert r.success is True
+        assert "Dear John," in r.content["formatted"]
+        assert "Best regards" in r.content["formatted"]
+        assert r.content["tone"] == "professional"
+        assert r.content["subject"] == "Update"
 
     @pytest.mark.asyncio
-    async def test_list_format(self, online_nova: Nova):
-        r = await online_nova.execute("content_format", {
-            "content": "item1\nitem2\nitem3", "format_type": "list",
+    async def test_casual_tone(self, online_nova: Nova):
+        r = await online_nova.execute("format_email", {
+            "to": "Jane", "subject": "Hey", "body": "Quick note.", "tone": "casual",
         })
-        assert r.content["formatted"].startswith("- ")
+        assert r.success is True
+        assert "Hi Jane," in r.content["formatted"]
+        assert "Cheers" in r.content["formatted"]
 
     @pytest.mark.asyncio
-    async def test_invalid_type_fails(self, online_nova: Nova):
-        r = await online_nova.execute("content_format", {
-            "content": "test", "format_type": "invalid",
+    async def test_formal_tone(self, online_nova: Nova):
+        r = await online_nova.execute("format_email", {
+            "to": "Board", "subject": "Notice", "body": "Formal communication.", "tone": "formal",
+        })
+        assert r.success is True
+        assert "Dear Sir/Madam," in r.content["formatted"]
+        assert "Yours faithfully" in r.content["formatted"]
+
+    @pytest.mark.asyncio
+    async def test_unknown_tone_fails(self, online_nova: Nova):
+        r = await online_nova.execute("format_email", {
+            "to": "X", "subject": "Y", "body": "Z", "tone": "angry",
+        })
+        assert r.success is False
+        assert "tone" in r.error
+
+    @pytest.mark.asyncio
+    async def test_missing_field_fails(self, online_nova: Nova):
+        r = await online_nova.execute("format_email", {
+            "to": "X", "body": "Z", "tone": "casual",
+        })
+        assert r.success is False
+        assert "subject" in r.error
+
+
+# ---------------------------------------------------------------
+# format_briefing_section
+# ---------------------------------------------------------------
+
+class TestFormatBriefingSection:
+    @pytest.mark.asyncio
+    async def test_basic_briefing(self, online_nova: Nova):
+        r = await online_nova.execute("format_briefing_section", {
+            "title": "Alert", "content": "Server load is high.", "priority": 1,
+        })
+        assert r.success is True
+        assert "[P1]" in r.content["formatted"]
+        assert "**Alert**" in r.content["formatted"]
+        assert r.content["priority"] == 1
+
+    @pytest.mark.asyncio
+    async def test_filler_word_removal(self, online_nova: Nova):
+        r = await online_nova.execute("format_briefing_section", {
+            "title": "Test",
+            "content": "This is just really very basically a simple test.",
+            "priority": 3,
+        })
+        assert r.success is True
+        formatted = r.content["formatted"]
+        assert "just" not in formatted.lower().split()
+        assert "really" not in formatted.lower().split()
+        assert "very" not in formatted.lower().split()
+        assert "basically" not in formatted.lower().split()
+        assert r.content["compressed_length"] < r.content["original_length"]
+
+    @pytest.mark.asyncio
+    async def test_priority_zero_fails(self, online_nova: Nova):
+        r = await online_nova.execute("format_briefing_section", {
+            "title": "X", "content": "Y", "priority": 0,
+        })
+        assert r.success is False
+        assert "1" in r.error and "5" in r.error
+
+    @pytest.mark.asyncio
+    async def test_priority_six_fails(self, online_nova: Nova):
+        r = await online_nova.execute("format_briefing_section", {
+            "title": "X", "content": "Y", "priority": 6,
         })
         assert r.success is False
 
     @pytest.mark.asyncio
     async def test_empty_content_fails(self, online_nova: Nova):
-        r = await online_nova.execute("content_format", {
-            "content": "", "format_type": "summary",
+        r = await online_nova.execute("format_briefing_section", {
+            "title": "X", "content": "", "priority": 1,
         })
         assert r.success is False
 
-
-class TestReportTemplate:
     @pytest.mark.asyncio
-    async def test_morning_briefing(self, online_nova: Nova):
-        r = await online_nova.execute("report_template", {
-            "template_name": "morning_briefing",
-            "data": {"critical_alerts": "No alerts."},
+    async def test_priority_boundaries(self, online_nova: Nova):
+        r1 = await online_nova.execute("format_briefing_section", {
+            "title": "Low", "content": "Data.", "priority": 1,
+        })
+        r5 = await online_nova.execute("format_briefing_section", {
+            "title": "High", "content": "Data.", "priority": 5,
+        })
+        assert r1.success is True
+        assert r5.success is True
+        assert "[P1]" in r1.content["formatted"]
+        assert "[P5]" in r5.content["formatted"]
+
+
+# ---------------------------------------------------------------
+# template_list
+# ---------------------------------------------------------------
+
+class TestTemplateList:
+    @pytest.mark.asyncio
+    async def test_returns_all_templates(self, online_nova: Nova):
+        r = await online_nova.execute("template_list", {})
+        assert r.success is True
+        assert r.content["count"] == 6
+        names = [t["name"] for t in r.content["templates"]]
+        assert "document" in names
+        assert "report" in names
+        assert "email" in names
+        assert "briefing_section" in names
+        assert "business_estimate" in names
+        assert "meeting_notes" in names
+
+    @pytest.mark.asyncio
+    async def test_template_structure(self, online_nova: Nova):
+        r = await online_nova.execute("template_list", {})
+        for t in r.content["templates"]:
+            assert "name" in t
+            assert "description" in t
+            assert "required_fields" in t
+            assert "example" in t
+
+
+# ---------------------------------------------------------------
+# template_apply
+# ---------------------------------------------------------------
+
+class TestTemplateApply:
+    @pytest.mark.asyncio
+    async def test_apply_document(self, online_nova: Nova):
+        r = await online_nova.execute("template_apply", {
+            "template_name": "document",
+            "data": {
+                "title": "Via Template",
+                "sections": [{"heading": "Intro", "body": "Hello."}],
+            },
         })
         assert r.success is True
-        assert len(r.content["sections"]) == 10
+        assert r.tool_name == "template_apply"
+        assert "# Via Template" in r.content["markdown"]
 
     @pytest.mark.asyncio
-    async def test_status_report(self, online_nova: Nova):
-        r = await online_nova.execute("report_template", {
-            "template_name": "status_report",
-            "data": {},
+    async def test_apply_email(self, online_nova: Nova):
+        r = await online_nova.execute("template_apply", {
+            "template_name": "email",
+            "data": {
+                "to": "Bob", "subject": "Hi", "body": "Test.", "tone": "casual",
+            },
         })
         assert r.success is True
+        assert r.tool_name == "template_apply"
+        assert "Hi Bob," in r.content["formatted"]
 
     @pytest.mark.asyncio
     async def test_unknown_template_fails(self, online_nova: Nova):
-        r = await online_nova.execute("report_template", {
+        r = await online_nova.execute("template_apply", {
             "template_name": "nonexistent",
+            "data": {},
         })
         assert r.success is False
+        assert "Unknown template" in r.error
+        assert "Available" in r.error
 
     @pytest.mark.asyncio
-    async def test_empty_name_fails(self, online_nova: Nova):
-        r = await online_nova.execute("report_template", {"template_name": ""})
+    async def test_missing_required_field(self, online_nova: Nova):
+        r = await online_nova.execute("template_apply", {
+            "template_name": "report",
+            "data": {"title": "Incomplete"},
+        })
         assert r.success is False
+        assert "Missing required field" in r.error
 
-
-class TestImageGenerate:
     @pytest.mark.asyncio
-    async def test_stub_response(self, online_nova: Nova):
-        r = await online_nova.execute("image_generate", {
-            "prompt": "A mountain landscape",
+    async def test_empty_template_name_fails(self, online_nova: Nova):
+        r = await online_nova.execute("template_apply", {
+            "template_name": "",
+            "data": {},
+        })
+        assert r.success is False
+        assert "template_name" in r.error
+
+    @pytest.mark.asyncio
+    async def test_apply_business_estimate(self, online_nova: Nova):
+        r = await online_nova.execute("template_apply", {
+            "template_name": "business_estimate",
+            "data": {
+                "project_name": "Spring Cleanup",
+                "line_items": [
+                    {"item": "Mulch", "cost": 800},
+                    {"item": "Labor", "cost": 360},
+                ],
+                "timeline": "1 day",
+            },
         })
         assert r.success is True
-        assert r.content["status"] == "stub"
-        assert "SDXL" in r.content["message"]
+        assert r.tool_name == "template_apply"
+        md = r.content["markdown"]
+        assert "# Business Estimate: Spring Cleanup" in md
+        assert "| Mulch | $800.00 |" in md
+        assert "$1,160.00" in md
+        assert r.content["total_cost"] == 1160.0
 
     @pytest.mark.asyncio
-    async def test_empty_prompt_fails(self, online_nova: Nova):
-        r = await online_nova.execute("image_generate", {"prompt": ""})
-        assert r.success is False
-
-
-class TestVoiceGenerate:
-    @pytest.mark.asyncio
-    async def test_stub_response(self, online_nova: Nova):
-        r = await online_nova.execute("voice_generate", {
-            "text": "Good morning, Master.",
+    async def test_business_estimate_optional_fields(self, online_nova: Nova):
+        r = await online_nova.execute("template_apply", {
+            "template_name": "business_estimate",
+            "data": {
+                "project_name": "Job",
+                "line_items": [{"item": "X", "cost": 100}],
+                "timeline": "2 days",
+                "assumptions": ["Good weather"],
+                "risks": ["Rain delay"],
+                "notes": "Bring extra crew.",
+            },
         })
         assert r.success is True
-        assert r.content["status"] == "stub"
+        md = r.content["markdown"]
+        assert "## Assumptions" in md
+        assert "Good weather" in md
+        assert "## Risks" in md
+        assert "Rain delay" in md
+        assert "## Notes" in md
+        assert "Bring extra crew." in md
 
     @pytest.mark.asyncio
-    async def test_empty_text_fails(self, online_nova: Nova):
-        r = await online_nova.execute("voice_generate", {"text": ""})
-        assert r.success is False
+    async def test_business_estimate_no_optional(self, online_nova: Nova):
+        r = await online_nova.execute("template_apply", {
+            "template_name": "business_estimate",
+            "data": {
+                "project_name": "Simple",
+                "line_items": [{"item": "Work", "cost": 500}],
+                "timeline": "3 hours",
+            },
+        })
+        assert r.success is True
+        md = r.content["markdown"]
+        assert "Assumptions" not in md
+        assert "Risks" not in md
+        assert "Notes" not in md
 
-
-class TestUnknownTool:
     @pytest.mark.asyncio
-    async def test_unknown_tool(self, online_nova: Nova):
-        r = await online_nova.execute("nonexistent", {})
-        assert r.success is False
+    async def test_apply_meeting_notes(self, online_nova: Nova):
+        r = await online_nova.execute("template_apply", {
+            "template_name": "meeting_notes",
+            "data": {
+                "title": "Sprint Planning",
+                "date": "2026-04-05",
+                "attendees": ["Alice", "Bob"],
+                "discussion": "Reviewed priorities.",
+            },
+        })
+        assert r.success is True
+        assert r.tool_name == "template_apply"
+        md = r.content["markdown"]
+        assert "# Meeting Notes: Sprint Planning" in md
+        assert "- Alice" in md
+        assert "- Bob" in md
+        assert r.content["attendee_count"] == 2
+
+    @pytest.mark.asyncio
+    async def test_meeting_notes_with_action_items(self, online_nova: Nova):
+        r = await online_nova.execute("template_apply", {
+            "template_name": "meeting_notes",
+            "data": {
+                "title": "Standup",
+                "date": "2026-04-05",
+                "attendees": ["Alice"],
+                "discussion": "Quick sync.",
+                "decisions": ["Ship by Friday"],
+                "action_items": [
+                    {"owner": "Alice", "task": "Update board", "due": "2026-04-07"},
+                ],
+            },
+        })
+        assert r.success is True
+        md = r.content["markdown"]
+        assert "## Decisions" in md
+        assert "Ship by Friday" in md
+        assert "## Action Items" in md
+        assert "| Alice | Update board | 2026-04-07 |" in md
