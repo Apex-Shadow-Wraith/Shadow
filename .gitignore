@@ -1,7 +1,29 @@
-shadow_env/
+# Private - never track
+CLAUDE.md
+.claude/
+training_data/
+config/ethical_topics.yaml
+*.code-workspace
+
+# Databases
 *.db
+data/memory/
+data/esv/
+
+# Environment
+config/.env
 .env
+
+# Python
 __pycache__/
-data/
-logs/
 *.pyc
+shadow_env/
+venv/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+Thumbs.db
+.DS_Store
