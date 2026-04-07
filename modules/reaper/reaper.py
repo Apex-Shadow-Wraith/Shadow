@@ -15,7 +15,7 @@ DESIGN PRINCIPLES:
 
 ADDITIONAL PACKAGES NEEDED:
     pip install beautifulsoup4     (HTML parsing)
-    pip install duckduckgo-search  (fallback search backend)
+    pip install ddgs               (fallback search backend)
 
     Already installed from setup checklist:
     pip install praw               (Reddit API)
@@ -50,14 +50,11 @@ except ImportError:
     print("[Reaper] WARNING: beautifulsoup4 not installed → pip install beautifulsoup4")
 
 try:
-    try:
-        from ddgs import DDGS
-    except ImportError:
-        from duckduckgo_search import DDGS
+    from ddgs import DDGS
     HAS_DDG = True
 except ImportError:
     HAS_DDG = False
-    print("[Reaper] WARNING: duckduckgo-search not installed → pip install duckduckgo-search")
+    print("[Reaper] WARNING: ddgs not installed → pip install ddgs")
 
 try:
     import praw
@@ -206,7 +203,7 @@ class Reaper:
 
         if not self.searxng_available and not self.ddg_available and not self.bing_available:
             print("[Reaper] ⚠️  NO SEARCH BACKEND AVAILABLE")
-            print("[Reaper] Start SearXNG, or: pip install duckduckgo-search beautifulsoup4")
+            print("[Reaper] Start SearXNG, or: pip install ddgs beautifulsoup4")
 
     # =========================================================================
     # SEARCH BACKENDS

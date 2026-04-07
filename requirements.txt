@@ -11,7 +11,7 @@ python-dotenv       # Environment variables
 chromadb            # Vector database for semantic search
 
 # --- Research (Reaper) ---
-duckduckgo-search   # DDG search (ddgs package)
+ddgs                # DDG search (formerly duckduckgo-search)
 beautifulsoup4      # Web scraping
 requests            # HTTP client
 playwright          # Stealth browser automation
