@@ -125,6 +125,14 @@ except ImportError:
     logger.warning("ContextManager not available — context window management disabled")
     _CONTEXT_MANAGER_AVAILABLE = False
 
+# Graceful import — orchestrator still starts if failure_patterns is missing
+try:
+    from modules.shadow.failure_patterns import FailurePatternDB
+    _FAILURE_PATTERNS_AVAILABLE = True
+except ImportError:
+    logger.warning("FailurePatternDB not available — failure pattern learning disabled")
+    _FAILURE_PATTERNS_AVAILABLE = False
+
 
 class TaskType(Enum):
     """Classification of incoming tasks."""
@@ -276,6 +284,12 @@ class Orchestrator:
             self._context_manager.update_model(model_name)
         else:
             self._context_manager = None
+
+        # Failure Pattern Database — learn from past mistakes
+        if _FAILURE_PATTERNS_AVAILABLE:
+            self._failure_pattern_db = FailurePatternDB()
+        else:
+            self._failure_pattern_db = None
 
         # Track GrimoireReader instances for cleanup
         self._grimoire_readers: list[Any] = []
@@ -1562,14 +1576,37 @@ User input: {user_input}"""
                 except Exception as e:
                     logger.warning("Context loading from Grimoire failed: %s", e)
 
-        # 2. Conversation history (working memory)
+        # 2. Failure pattern search — learn from past mistakes
+        if self._failure_pattern_db is not None and "grimoire" in self.registry:
+            grimoire = self.registry.get_module("grimoire")
+            if grimoire.status == ModuleStatus.ONLINE:
+                try:
+                    patterns = await self._failure_pattern_db.search_failure_patterns(
+                        grimoire=grimoire,
+                        query=user_input,
+                        limit=3,
+                    )
+                    if patterns:
+                        formatted = self._failure_pattern_db.format_patterns_for_context(patterns)
+                        context_items.append({
+                            "type": "failure_patterns",
+                            "content": formatted,
+                        })
+                        logger.info(
+                            "Step 3 — Loaded %d failure patterns for context",
+                            len(formatted),
+                        )
+                except Exception as e:
+                    logger.warning("Failure pattern search failed: %s", e)
+
+        # 3. Conversation history (working memory)
         if self._conversation_history:
             context_items.append({
                 "type": "conversation_history",
                 "content": self._conversation_history[-10:],  # Last 5 exchanges
             })
 
-        # 3. Tool availability
+        # 4. Tool availability
         available_tools = self.registry.list_tools()
         context_items.append({
             "type": "available_tools",
@@ -1854,8 +1891,9 @@ User input: {user_input}"""
         # Build context for the response LLM
         system_prompt = self._build_system_prompt(context)
 
-        # Extract memories from context items
+        # Extract memories and failure patterns from context items
         grimoire_memories: list[dict[str, Any]] = []
+        failure_patterns: list[dict[str, Any]] = []
         for item in context:
             if item["type"] == "memories" and item["content"]:
                 content = item["content"]
@@ -1864,6 +1902,10 @@ User input: {user_input}"""
                 elif isinstance(content, dict):
                     docs = content.get("documents", [])
                     grimoire_memories = [{"content": d} if isinstance(d, str) else d for d in docs]
+            elif item["type"] == "failure_patterns" and item["content"]:
+                content = item["content"]
+                if isinstance(content, list):
+                    failure_patterns = content
 
         # Format tool results as dicts for context manager
         tool_result_dicts: list[dict[str, Any]] = []
@@ -1889,7 +1931,7 @@ User input: {user_input}"""
                 system_prompt=system_prompt,
                 conversation_history=self._conversation_history[-10:],
                 grimoire_memories=grimoire_memories,
-                failure_patterns=[],
+                failure_patterns=failure_patterns,
                 tool_results=tool_result_dicts,
                 current_input=user_input,
             )
@@ -1926,6 +1968,20 @@ User input: {user_input}"""
                     tool_context += f"\n[Tool: {result.tool_name}] Error: {result.error}\n"
 
             messages = [{"role": "system", "content": system_prompt}]
+
+            # Include failure patterns in fallback path
+            if failure_patterns:
+                pattern_lines = [
+                    "PREVIOUS FAILURE PATTERNS (learn from these — do not repeat these mistakes):"
+                ]
+                for fp in failure_patterns:
+                    if isinstance(fp, dict):
+                        desc = fp.get("description", str(fp))
+                        pattern_lines.append(f"- {desc}")
+                    else:
+                        pattern_lines.append(f"- {fp}")
+                messages.append({"role": "system", "content": "\n".join(pattern_lines)})
+
             messages.extend(self._conversation_history[-10:])
 
             user_message = user_input

@@ -23,6 +23,13 @@ from modules.base import BaseModule, ModuleStatus, ToolResult
 
 logger = logging.getLogger("shadow.grimoire")
 
+# Graceful import — failure patterns are optional
+try:
+    from modules.shadow.failure_patterns import FailurePatternDB
+    _FAILURE_PATTERNS_AVAILABLE = True
+except ImportError:
+    _FAILURE_PATTERNS_AVAILABLE = False
+
 
 class GrimoireModule(BaseModule):
     """BaseModule adapter for Grimoire (memory system).
@@ -38,6 +45,7 @@ class GrimoireModule(BaseModule):
         )
         self._config = config
         self._grimoire = None  # Will hold the existing Grimoire instance
+        self._failure_pattern_db = FailurePatternDB() if _FAILURE_PATTERNS_AVAILABLE else None
 
     async def initialize(self) -> None:
         """Initialize the existing Grimoire system."""
@@ -191,6 +199,77 @@ class GrimoireModule(BaseModule):
                     execution_time_ms=(time.time() - start) * 1000,
                 )
 
+            elif tool_name == "store_failure_pattern":
+                if self._failure_pattern_db is None:
+                    self._record_call(False)
+                    return ToolResult(
+                        success=False, content=None,
+                        tool_name=tool_name, module=self.name,
+                        error="FailurePatternDB not available",
+                        execution_time_ms=(time.time() - start) * 1000,
+                    )
+                memory_id = await self._failure_pattern_db.store_failure_pattern(
+                    grimoire=self,
+                    task=params.get("task", ""),
+                    task_type=params.get("task_type", "unknown"),
+                    mistake=params.get("mistake", ""),
+                    correct_approach=params.get("correct_approach", ""),
+                    source=params.get("source", "retry_engine"),
+                    trust_level=params.get("trust_level", 0.5),
+                )
+                self._record_call(True)
+                return ToolResult(
+                    success=True,
+                    content=memory_id,
+                    tool_name=tool_name,
+                    module=self.name,
+                    execution_time_ms=(time.time() - start) * 1000,
+                )
+
+            elif tool_name == "get_common_failures":
+                if self._failure_pattern_db is None:
+                    self._record_call(False)
+                    return ToolResult(
+                        success=False, content=None,
+                        tool_name=tool_name, module=self.name,
+                        error="FailurePatternDB not available",
+                        execution_time_ms=(time.time() - start) * 1000,
+                    )
+                limit = params.get("limit", 10)
+                patterns = await self._failure_pattern_db.get_common_failures(
+                    grimoire=self, limit=limit,
+                )
+                self._record_call(True)
+                return ToolResult(
+                    success=True,
+                    content=patterns,
+                    tool_name=tool_name,
+                    module=self.name,
+                    execution_time_ms=(time.time() - start) * 1000,
+                )
+
+            elif tool_name == "get_failure_trend":
+                if self._failure_pattern_db is None:
+                    self._record_call(False)
+                    return ToolResult(
+                        success=False, content=None,
+                        tool_name=tool_name, module=self.name,
+                        error="FailurePatternDB not available",
+                        execution_time_ms=(time.time() - start) * 1000,
+                    )
+                days = params.get("days", 7)
+                trend = await self._failure_pattern_db.get_failure_trend(
+                    grimoire=self, days=days,
+                )
+                self._record_call(True)
+                return ToolResult(
+                    success=True,
+                    content=trend,
+                    tool_name=tool_name,
+                    module=self.name,
+                    execution_time_ms=(time.time() - start) * 1000,
+                )
+
             else:
                 self._record_call(False)
                 return ToolResult(
@@ -272,6 +351,35 @@ class GrimoireModule(BaseModule):
                 "parameters": {
                     "block_type": "str — block type to search for",
                     "limit": "int — max results (default 10)",
+                },
+                "permission_level": "autonomous",
+            },
+            {
+                "name": "store_failure_pattern",
+                "description": "Store a failure pattern so Shadow learns from mistakes",
+                "parameters": {
+                    "task": "str — the original task that failed",
+                    "task_type": "str — classification (code, math, research, ethics)",
+                    "mistake": "str — what approach was wrong",
+                    "correct_approach": "str — what actually worked",
+                    "source": "str — retry_engine or apex_learning",
+                    "trust_level": "float — 0.7 for Apex, 0.5 for self-discovery",
+                },
+                "permission_level": "autonomous",
+            },
+            {
+                "name": "get_common_failures",
+                "description": "Return most frequently matched failure patterns for growth tracking",
+                "parameters": {
+                    "limit": "int — max results (default 10)",
+                },
+                "permission_level": "autonomous",
+            },
+            {
+                "name": "get_failure_trend",
+                "description": "Analyze failure pattern trends — is Shadow learning or stagnating?",
+                "parameters": {
+                    "days": "int — number of days to analyze (default 7)",
                 },
                 "permission_level": "autonomous",
             },

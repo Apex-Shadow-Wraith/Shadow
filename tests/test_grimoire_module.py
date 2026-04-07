@@ -127,7 +127,7 @@ class TestMemoryBlockSearch:
 class TestGrimoireToolDefinitions:
     def test_get_tools_count(self, grimoire_module: GrimoireModule):
         tools = grimoire_module.get_tools()
-        assert len(tools) == 6  # 4 original + 2 new
+        assert len(tools) == 9  # 4 original + 2 block/compact + 3 failure pattern
 
     def test_new_tools_present(self, grimoire_module: GrimoireModule):
         tool_names = [t["name"] for t in grimoire_module.get_tools()]

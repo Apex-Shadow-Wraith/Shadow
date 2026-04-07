@@ -314,7 +314,7 @@ class ContextManager:
         if failure_patterns:
             pattern_text = self._format_failure_patterns(failure_patterns)
             if pattern_text:
-                messages.append({"role": "system", "content": f"Known failure patterns:\n{pattern_text}"})
+                messages.append({"role": "system", "content": pattern_text})
 
         # Add tool results as context in the user message
         tool_context = self._format_tool_results(tool_results)
@@ -630,14 +630,30 @@ class ContextManager:
         return "\n".join(lines)
 
     def _format_failure_patterns(self, patterns: list[dict[str, Any]]) -> str:
-        """Format failure patterns for inclusion in context."""
-        lines = []
+        """Format failure patterns for inclusion in context.
+
+        Uses a clear label so the model knows to avoid these mistakes.
+        Patterns from FailurePatternDB carry task_type, mistake, and
+        correct_approach fields for structured formatting.
+        """
+        lines = ["PREVIOUS FAILURE PATTERNS (learn from these — do not repeat these mistakes):"]
         for p in patterns:
             if isinstance(p, str):
                 lines.append(f"- {p}")
             elif isinstance(p, dict):
-                desc = p.get("description", p.get("pattern", str(p)))
-                lines.append(f"- {desc}")
+                # Prefer structured fields from FailurePatternDB
+                task_type = p.get("task_type")
+                mistake = p.get("mistake")
+                correct_approach = p.get("correct_approach")
+                if task_type and mistake and correct_approach:
+                    lines.append(
+                        f"- Task type: {task_type}. "
+                        f"Mistake: {mistake}. "
+                        f"Correct approach: {correct_approach}."
+                    )
+                else:
+                    desc = p.get("description", p.get("pattern", str(p)))
+                    lines.append(f"- {desc}")
         return "\n".join(lines)
 
     def _format_tool_results(self, results: list[dict[str, Any]]) -> str:
