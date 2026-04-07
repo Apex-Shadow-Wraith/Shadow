@@ -149,6 +149,13 @@ async def startup(config: dict, logger: logging.Logger) -> Orchestrator:
     # Step 6: Load orchestrator state
     orchestrator._load_state()
 
+    # Step 7: Initialize inter-module communication
+    try:
+        await orchestrator._initialize_communication()
+        logger.info("Inter-module communication initialized")
+    except Exception as e:
+        logger.error("Failed to initialize inter-module communication: %s", e)
+
     return orchestrator
 
 

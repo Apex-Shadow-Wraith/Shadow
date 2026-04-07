@@ -67,6 +67,9 @@ class BaseModule(ABC):
         self._initialized_at: datetime | None = None
         self._call_count: int = 0
         self._error_count: int = 0
+        # Inter-module communication — set by orchestrator after init
+        self._message_bus: Any | None = None
+        self._event_system: Any | None = None
 
     @abstractmethod
     async def initialize(self) -> None:
@@ -120,6 +123,142 @@ class BaseModule(ABC):
         if self._call_count == 0:
             return 1.0
         return (self._call_count - self._error_count) / self._call_count
+
+    # ── Inter-Module Communication Convenience Methods ─────────────
+
+    def send_message(
+        self,
+        target: str,
+        payload: dict[str, Any],
+        priority: int = 3,
+        message_type: str = "request",
+        requires_cerberus: bool = True,
+    ) -> str | None:
+        """Send a message to another module via the MessageBus.
+
+        Safe no-op if MessageBus is not wired yet. Returns message_id
+        or None if bus unavailable. Must be awaited externally since
+        BaseModule methods are sync — use the async version in subclasses
+        if needed.
+
+        Args:
+            target: Target module name or "broadcast".
+            payload: Message content.
+            priority: 1=critical, 2=high, 3=normal, 4=background.
+            message_type: "request", "notification", etc.
+            requires_cerberus: Whether to safety-check before delivery.
+
+        Returns:
+            message_id string, or None if bus not available.
+        """
+        if self._message_bus is None:
+            return None
+        import uuid as _uuid
+        from modules.shadow.message_bus import ModuleMessage
+        msg = ModuleMessage(
+            message_id=str(_uuid.uuid4()),
+            source_module=self.name,
+            target_module=target,
+            message_type=message_type,
+            priority=priority,
+            payload=payload,
+            requires_cerberus=requires_cerberus,
+            timestamp=datetime.now(),
+        )
+        # Return the coroutine for the caller to await
+        return self._message_bus.send(msg)
+
+    def request_module(
+        self,
+        target: str,
+        task: str,
+        input_data: dict[str, Any],
+        output_format: dict[str, Any] | None = None,
+    ) -> Any | None:
+        """Create a handoff request to another module.
+
+        Returns the coroutine for creating the handoff. Caller must await it.
+        Safe no-op if handoff protocol is not wired.
+
+        Args:
+            target: Target module name.
+            task: Human-readable task description.
+            input_data: Data the target module needs.
+            output_format: Expected result format.
+
+        Returns:
+            Coroutine that creates the handoff, or None.
+        """
+        if self._message_bus is None or not hasattr(self._message_bus, '_handoff_protocol'):
+            return None
+        protocol = getattr(self._message_bus, '_handoff_protocol', None)
+        if protocol is None:
+            return None
+        return protocol.create_handoff(
+            from_module=self.name,
+            to_module=target,
+            task=task,
+            input_data=input_data,
+            output_format=output_format,
+        )
+
+    def check_inbox(
+        self,
+        filter_type: str | None = None,
+    ) -> list[Any]:
+        """Check this module's inbox for pending messages.
+
+        Safe no-op if MessageBus is not wired yet.
+
+        Args:
+            filter_type: Only return messages of this type.
+
+        Returns:
+            List of ModuleMessage objects, or empty list.
+        """
+        if self._message_bus is None:
+            return []
+        return self._message_bus.receive(self.name, filter_type=filter_type)
+
+    def emit_event(
+        self,
+        event_name: str,
+        payload: dict[str, Any],
+        priority: int = 3,
+    ) -> Any | None:
+        """Emit an event to all subscribers.
+
+        Returns the coroutine for the caller to await.
+        Safe no-op if EventSystem is not wired.
+
+        Args:
+            event_name: Event constant from modules.shadow.events.
+            payload: Event data.
+            priority: Message priority.
+
+        Returns:
+            Coroutine that emits the event, or None.
+        """
+        if self._event_system is None:
+            return None
+        return self._event_system.emit(self.name, event_name, payload, priority)
+
+    def subscribe_event(
+        self,
+        event_name: str,
+        callback: Any | None = None,
+    ) -> None:
+        """Subscribe to an event.
+
+        Safe no-op if EventSystem is not wired.
+
+        Args:
+            event_name: Event constant from modules.shadow.events.
+            callback: Optional callable invoked when event fires.
+        """
+        if self._event_system is None:
+            return
+        self._event_system.subscribe(self.name, event_name, callback)
 
     @property
     def info(self) -> dict[str, Any]:

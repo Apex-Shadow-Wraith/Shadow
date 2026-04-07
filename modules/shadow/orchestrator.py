@@ -17,6 +17,8 @@ Phase 1-2 (current):
 - No VRAM management (single model on Windows)
 - Growth engine (P2 self-improvement)
 - State persistence via JSON file
+- Task Chain Engine (P2 multi-module orchestration)
+- Priority Task Queue (P2 preemption and queue-based processing)
 """
 
 from __future__ import annotations
@@ -160,6 +162,11 @@ class Orchestrator:
         else:
             self._injection_detector = None
 
+        # Inter-module communication — initialized via _initialize_communication()
+        self._message_bus = None
+        self._event_system = None
+        self._handoff_protocol = None
+
     async def start(self) -> None:
         """Initialize all registered modules and load state."""
         logger.info("Shadow starting up...")
@@ -211,12 +218,145 @@ class Orchestrator:
             except Exception as e:
                 logger.error("Error shutting down '%s': %s", module.name, e)
 
+        # Shutdown message bus
+        if self._message_bus is not None:
+            self._message_bus.shutdown()
+
         logger.info("Shadow offline.")
 
     def clear_history(self) -> None:
         """Reset conversation history. Useful for starting a fresh topic."""
         self._conversation_history.clear()
         logger.info("Conversation history cleared")
+
+    # ================================================================
+    # INTER-MODULE COMMUNICATION
+    # ================================================================
+
+    async def _initialize_communication(self) -> None:
+        """Set up MessageBus, EventSystem, and HandoffProtocol.
+
+        Called after all modules are registered. Wires communication
+        references into every registered module so they can use
+        send_message(), emit_event(), etc.
+        """
+        from modules.shadow.message_bus import MessageBus, HandoffProtocol
+        from modules.shadow.events import EventSystem
+
+        # Create MessageBus singleton
+        self._message_bus = MessageBus()
+
+        # Build Cerberus safety callback if Cerberus is online
+        cerberus_callback = None
+        if "cerberus" in self.registry:
+            cerberus = self.registry.get_module("cerberus")
+            if cerberus.status == ModuleStatus.ONLINE:
+                async def _cerberus_check(action_tool, action_params, requesting_module):
+                    result = await cerberus.execute(
+                        "safety_check",
+                        {
+                            "action_tool": action_tool,
+                            "action_params": action_params,
+                            "requesting_module": requesting_module,
+                        },
+                    )
+                    if result.success:
+                        return result.content
+                    return None
+                cerberus_callback = _cerberus_check
+
+        # Build Grimoire search callback if Grimoire is online
+        grimoire_search = None
+        if "grimoire" in self.registry:
+            grimoire = self.registry.get_module("grimoire")
+            if grimoire.status == ModuleStatus.ONLINE:
+                async def _grimoire_search(query, n_results=3):
+                    result = await grimoire.execute(
+                        "memory_search",
+                        {"query": query, "n_results": n_results},
+                    )
+                    if result.success:
+                        return result.content
+                    return []
+                grimoire_search = _grimoire_search
+
+        # Initialize MessageBus with registry and callbacks
+        db_path = self._config.get("system", {}).get(
+            "message_bus_db", "data/message_bus.db",
+        )
+        self._message_bus.initialize(
+            registry=self.registry,
+            cerberus_callback=cerberus_callback,
+            db_path=db_path,
+        )
+
+        # Create EventSystem and HandoffProtocol
+        self._event_system = EventSystem(self._message_bus)
+        self._handoff_protocol = HandoffProtocol(
+            self._message_bus, grimoire_search=grimoire_search,
+        )
+
+        # Wire into all registered modules
+        for module_info in self.registry.list_modules():
+            module = self.registry.get_module(module_info["name"])
+            module._message_bus = self._message_bus
+            module._event_system = self._event_system
+
+        logger.info(
+            "Inter-module communication initialized (bus=%s, events=%s, handoff=%s)",
+            type(self._message_bus).__name__,
+            type(self._event_system).__name__,
+            type(self._handoff_protocol).__name__,
+        )
+
+    async def _process_pending_messages(self) -> None:
+        """Process any pending inter-module messages.
+
+        Called after each process_input iteration. Checks all module
+        inboxes for pending requests/handoffs and routes them through
+        the same safety pipeline as user requests.
+        """
+        if self._message_bus is None:
+            return
+
+        for module_name in self.registry.online_modules:
+            messages = self._message_bus.receive(module_name, filter_type="request")
+            for msg in messages:
+                try:
+                    # Route request to target module
+                    module = self.registry.get_module(module_name)
+                    tool_name = msg.payload.get("tool_name")
+                    params = msg.payload.get("params", {})
+                    if tool_name:
+                        result = await module.execute(tool_name, params)
+                        await self._message_bus.reply(
+                            msg.message_id,
+                            {"success": result.success, "content": result.content,
+                             "error": result.error},
+                        )
+                except Exception as e:
+                    logger.error(
+                        "Failed to process inter-module message %s: %s",
+                        msg.message_id, e,
+                    )
+
+            # Also process handoffs
+            handoffs = self._message_bus.receive(module_name, filter_type="handoff")
+            for msg in handoffs:
+                try:
+                    module = self.registry.get_module(module_name)
+                    task = msg.payload.get("task", "")
+                    input_data = msg.payload.get("input_data", {})
+                    logger.info(
+                        "Processing handoff for '%s': %s", module_name, task[:80],
+                    )
+                    # Handoff execution is module-specific — the module
+                    # decides which tool to use based on the task
+                except Exception as e:
+                    logger.error(
+                        "Failed to process handoff %s: %s",
+                        msg.message_id, e,
+                    )
 
     # ================================================================
     # THE SEVEN-STEP DECISION LOOP
@@ -390,6 +530,12 @@ class Orchestrator:
 
             # Persist state after every interaction
             self._save_state()
+
+            # Process pending inter-module messages
+            try:
+                await self._process_pending_messages()
+            except Exception as e:
+                logger.warning("Pending message processing failed: %s", e)
 
             # Prepend fired reminders to response
             if fired_reminders:
