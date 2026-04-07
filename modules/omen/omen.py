@@ -35,6 +35,7 @@ from typing import Any
 
 from modules.base import BaseModule, ModuleStatus, ToolResult
 from modules.omen.code_analyzer import CodeAnalyzer
+from modules.omen.model_evaluator import ModelEvaluator
 
 logger = logging.getLogger("shadow.omen")
 
@@ -459,6 +460,11 @@ class Omen(BaseModule):
             grimoire=self._config.get("grimoire"),
             samples_dir=self._config.get("samples_dir", "data/research/code_samples"),
         )
+        self._model_evaluator = ModelEvaluator(
+            ollama_base_url=self._config.get("ollama_base_url", "http://localhost:11434"),
+            grimoire=self._config.get("grimoire"),
+            benchmarks_dir=self._config.get("benchmarks_dir", "data/benchmarks"),
+        )
 
     async def initialize(self) -> None:
         """Start Omen. Create DB and tables."""
@@ -560,6 +566,14 @@ class Omen(BaseModule):
                 "code_analyze_url": self._code_analyze_url,
                 "code_learn": self._code_learn,
                 "code_compare": self._code_compare,
+                # --- Model Evaluator tools ---
+                "model_list": self._model_list,
+                "model_pull": self._model_pull,
+                "model_benchmark": self._model_benchmark,
+                "model_evaluate": self._model_evaluate,
+                "model_compare": self._model_compare,
+                "model_info": self._model_info,
+                "model_recommend": self._model_recommend,
             }
 
             handler = handlers.get(tool_name)
@@ -775,6 +789,49 @@ class Omen(BaseModule):
                 "name": "code_compare",
                 "description": "Compare external code patterns against Shadow's codebase",
                 "parameters": {"file_path": "str"},
+                "permission_level": "autonomous",
+            },
+            # --- Model Evaluator tools (Phase 4) ---
+            {
+                "name": "model_list",
+                "description": "List all installed Ollama models with size and quantization",
+                "parameters": {},
+                "permission_level": "autonomous",
+            },
+            {
+                "name": "model_pull",
+                "description": "Download an Ollama model (consumes disk space)",
+                "parameters": {"model_name": "str"},
+                "permission_level": "approval_required",
+            },
+            {
+                "name": "model_benchmark",
+                "description": "Run standardized benchmark suite against an Ollama model",
+                "parameters": {"model_name": "str", "warmup": "bool"},
+                "permission_level": "autonomous",
+            },
+            {
+                "name": "model_evaluate",
+                "description": "Score benchmark results on quality (1-5 scale, rule-based)",
+                "parameters": {"benchmark_results": "dict"},
+                "permission_level": "autonomous",
+            },
+            {
+                "name": "model_compare",
+                "description": "Benchmark and compare multiple Ollama models side by side",
+                "parameters": {"model_names": "list"},
+                "permission_level": "autonomous",
+            },
+            {
+                "name": "model_info",
+                "description": "Get model details with alignment/censorship warnings",
+                "parameters": {"model_name": "str"},
+                "permission_level": "autonomous",
+            },
+            {
+                "name": "model_recommend",
+                "description": "Recommend best models for a role based on stored benchmarks",
+                "parameters": {"role": "str"},
                 "permission_level": "autonomous",
             },
         ]
@@ -2294,3 +2351,170 @@ class Omen(BaseModule):
             success=True, content=comparison,
             tool_name="code_compare", module=self.name,
         )
+
+    # --- Model Evaluator tool implementations ---
+
+    def _model_list(self, params: dict[str, Any]) -> ToolResult:
+        """List all installed Ollama models.
+
+        Args:
+            params: No parameters required.
+        """
+        try:
+            models = self._model_evaluator.list_available_models()
+            return ToolResult(
+                success=True, content={"models": models, "count": len(models)},
+                tool_name="model_list", module=self.name,
+            )
+        except Exception as e:
+            return ToolResult(
+                success=False, content=None, tool_name="model_list",
+                module=self.name, error=f"Failed to list models: {e}",
+            )
+
+    def _model_pull(self, params: dict[str, Any]) -> ToolResult:
+        """Pull (download) an Ollama model.
+
+        Args:
+            params: 'model_name' (str) required.
+        """
+        model_name = params.get("model_name", "")
+        if not model_name:
+            return ToolResult(
+                success=False, content=None, tool_name="model_pull",
+                module=self.name, error="model_name is required",
+            )
+        try:
+            success = self._model_evaluator.pull_model(model_name)
+            return ToolResult(
+                success=success,
+                content={"model": model_name, "pulled": success},
+                tool_name="model_pull", module=self.name,
+            )
+        except Exception as e:
+            return ToolResult(
+                success=False, content=None, tool_name="model_pull",
+                module=self.name, error=f"Failed to pull model: {e}",
+            )
+
+    def _model_benchmark(self, params: dict[str, Any]) -> ToolResult:
+        """Run benchmark suite against an Ollama model.
+
+        Args:
+            params: 'model_name' (str) required, 'warmup' (bool) optional.
+        """
+        model_name = params.get("model_name", "")
+        if not model_name:
+            return ToolResult(
+                success=False, content=None, tool_name="model_benchmark",
+                module=self.name, error="model_name is required",
+            )
+        warmup = params.get("warmup", True)
+        try:
+            results = self._model_evaluator.benchmark_model(model_name, warmup=warmup)
+            self._model_evaluator.store_benchmark(results, model_name)
+            return ToolResult(
+                success=True, content=results,
+                tool_name="model_benchmark", module=self.name,
+            )
+        except Exception as e:
+            return ToolResult(
+                success=False, content=None, tool_name="model_benchmark",
+                module=self.name, error=f"Benchmark failed: {e}",
+            )
+
+    def _model_evaluate(self, params: dict[str, Any]) -> ToolResult:
+        """Score benchmark results on quality.
+
+        Args:
+            params: 'benchmark_results' (dict) required.
+        """
+        benchmark_results = params.get("benchmark_results", {})
+        if not benchmark_results:
+            return ToolResult(
+                success=False, content=None, tool_name="model_evaluate",
+                module=self.name, error="benchmark_results is required",
+            )
+        try:
+            quality = self._model_evaluator.evaluate_quality(benchmark_results)
+            return ToolResult(
+                success=True, content=quality,
+                tool_name="model_evaluate", module=self.name,
+            )
+        except Exception as e:
+            return ToolResult(
+                success=False, content=None, tool_name="model_evaluate",
+                module=self.name, error=f"Evaluation failed: {e}",
+            )
+
+    def _model_compare(self, params: dict[str, Any]) -> ToolResult:
+        """Compare multiple Ollama models.
+
+        Args:
+            params: 'model_names' (list) required.
+        """
+        model_names = params.get("model_names", [])
+        if not model_names:
+            return ToolResult(
+                success=False, content=None, tool_name="model_compare",
+                module=self.name, error="model_names is required",
+            )
+        try:
+            comparison = self._model_evaluator.compare_models(model_names)
+            return ToolResult(
+                success=True, content=comparison,
+                tool_name="model_compare", module=self.name,
+            )
+        except Exception as e:
+            return ToolResult(
+                success=False, content=None, tool_name="model_compare",
+                module=self.name, error=f"Comparison failed: {e}",
+            )
+
+    def _model_info(self, params: dict[str, Any]) -> ToolResult:
+        """Get model details with alignment warnings.
+
+        Args:
+            params: 'model_name' (str) required.
+        """
+        model_name = params.get("model_name", "")
+        if not model_name:
+            return ToolResult(
+                success=False, content=None, tool_name="model_info",
+                module=self.name, error="model_name is required",
+            )
+        try:
+            info = self._model_evaluator.get_model_info(model_name)
+            return ToolResult(
+                success=True, content=info,
+                tool_name="model_info", module=self.name,
+            )
+        except Exception as e:
+            return ToolResult(
+                success=False, content=None, tool_name="model_info",
+                module=self.name, error=f"Failed to get model info: {e}",
+            )
+
+    def _model_recommend(self, params: dict[str, Any]) -> ToolResult:
+        """Recommend models for a role.
+
+        Args:
+            params: 'role' (str) required.
+        """
+        role = params.get("role", "")
+        if not role:
+            return ToolResult(
+                success=False, content=None, tool_name="model_recommend",
+                module=self.name, error="role is required",
+            )
+        try:
+            recommendations = self._model_evaluator.recommend_models(role)
+            return ToolResult(
+                success=True, content=recommendations,
+                tool_name="model_recommend", module=self.name,
+            )
+        except Exception as e:
+            return ToolResult(
+                success=False, content=None, tool_name="model_recommend",
+                module=self.name, error=f"Recommendation failed: {e}",
+            )
