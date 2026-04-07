@@ -45,6 +45,14 @@ except ImportError:
     logger.warning("PromptInjectionDetector not available — injection screening disabled")
     _INJECTION_DETECTOR_AVAILABLE = False
 
+# Graceful import — orchestrator still starts if watchdog is missing
+try:
+    from modules.cerberus.watchdog import CerberusWatchdog
+    _WATCHDOG_AVAILABLE = True
+except ImportError:
+    logger.warning("CerberusWatchdog not available — lockfile checking disabled")
+    _WATCHDOG_AVAILABLE = False
+
 # Graceful import — orchestrator still starts if growth_engine is missing
 try:
     from modules.shadow.growth_engine import GrowthEngine
@@ -234,6 +242,15 @@ class Orchestrator:
         try:
             # Step 1 — Receive Input
             logger.info("Step 1 — Receive: '%s'", user_input[:100])
+
+            # Step 1.0 — Cerberus Watchdog lockfile check
+            if _WATCHDOG_AVAILABLE and CerberusWatchdog.is_locked():
+                locked_msg = (
+                    "Shadow is locked. Cerberus safety system is offline. "
+                    "Waiting for recovery."
+                )
+                logger.critical("Step 1 — LOCKED: %s", locked_msg)
+                return locked_msg
 
             # Step 1.5 — Injection Screen
             injection_result = self._step1_5_injection_screen(user_input, source)

@@ -21,6 +21,7 @@ import logging
 import re
 import sqlite3
 import time
+import uuid
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from enum import Enum
@@ -30,6 +31,7 @@ from typing import Any
 import yaml
 
 from modules.base import BaseModule, ModuleStatus, ToolResult
+from modules.cerberus.creator_override import CreatorOverride
 
 logger = logging.getLogger("shadow.cerberus")
 
@@ -55,6 +57,8 @@ class SafetyCheckResult:
     rule_matched: str | None = None
     modified_params: dict[str, Any] | None = None
     ethics_context: dict[str, Any] | None = None
+    blocked_action_id: str | None = None
+    snapshot_id: str | None = None
 
 
 class Cerberus(BaseModule):
@@ -102,6 +106,7 @@ class Cerberus(BaseModule):
         self._false_positive_count: int = 0
         self._ethical_topics: list[dict[str, Any]] = []
         self._ethics_engine = None
+        self._reversibility_engine = None
         self._db_path: Path | None = None
         db_path = config.get("db_path")
         if db_path:
@@ -124,6 +129,33 @@ class Cerberus(BaseModule):
         except Exception as e:
             logger.warning("EthicsEngine unavailable (advisory only): %s", e)
             self._ethics_engine = None
+
+        # Initialize reversibility engine
+        try:
+            from modules.cerberus.reversibility import ReversibilityEngine
+            snapshot_dir = Path(config.get("snapshot_dir", "data/snapshots"))
+            snapshot_db = Path(config.get(
+                "snapshot_db_path", str(snapshot_dir / "cerberus_snapshots.db")
+            ))
+            self._reversibility_engine = ReversibilityEngine(
+                snapshot_dir=snapshot_dir,
+                db_path=snapshot_db,
+            )
+            logger.info("ReversibilityEngine initialized")
+        except Exception as e:
+            logger.warning("ReversibilityEngine unavailable: %s", e)
+            self._reversibility_engine = None
+
+        # Initialize creator override system
+        self._creator_override = CreatorOverride(
+            env_path=config.get("env_path", "config/.env")
+        )
+
+        # Heartbeat path for watchdog monitoring
+        self._heartbeat_path = Path(
+            config.get("heartbeat_path", "data/cerberus_heartbeat.json")
+        )
+        self._last_check_id: str = ""
 
     async def initialize(self) -> None:
         """Load hard limits from protected config file."""
@@ -175,6 +207,7 @@ class Cerberus(BaseModule):
                     params.get("requesting_module", "unknown"),
                     trusted_source=params.get("trusted_source", False),
                 )
+                self.send_heartbeat()
                 self._record_call(True)
                 return ToolResult(
                     success=True,
@@ -307,6 +340,105 @@ class Cerberus(BaseModule):
                     execution_time_ms=(time.time() - start) * 1000,
                 )
 
+            elif tool_name == "rollback_snapshot":
+                if not self._reversibility_engine:
+                    return ToolResult(
+                        success=False, content=None, tool_name=tool_name,
+                        module=self.name, error="ReversibilityEngine not available",
+                        execution_time_ms=(time.time() - start) * 1000,
+                    )
+                snapshots = self._reversibility_engine.list_snapshots(
+                    limit=params.get("limit", 20),
+                    action_type=params.get("action_type"),
+                )
+                self._record_call(True)
+                return ToolResult(
+                    success=True, content=snapshots, tool_name=tool_name,
+                    module=self.name,
+                    execution_time_ms=(time.time() - start) * 1000,
+                )
+
+            elif tool_name == "rollback_execute":
+                if not self._reversibility_engine:
+                    return ToolResult(
+                        success=False, content=None, tool_name=tool_name,
+                        module=self.name, error="ReversibilityEngine not available",
+                        execution_time_ms=(time.time() - start) * 1000,
+                    )
+                sid = params.get("snapshot_id", "")
+                rolled_back = self._reversibility_engine.rollback(sid)
+                self._record_call(True)
+                self._write_audit_entry({
+                    "type": "rollback",
+                    "tool": "rollback_execute",
+                    "reason": f"Rollback {'succeeded' if rolled_back else 'failed'} for {sid}",
+                    "module": "cerberus",
+                })
+                return ToolResult(
+                    success=True,
+                    content={"rolled_back": rolled_back, "snapshot_id": sid},
+                    tool_name=tool_name, module=self.name,
+                    execution_time_ms=(time.time() - start) * 1000,
+                )
+
+            elif tool_name == "creator_exception":
+                result_data = self._creator_override.creator_exception(
+                    blocked_action_id=params.get("blocked_action_id", ""),
+                    auth_token=params.get("auth_token", ""),
+                    action_category=params.get("action_category", "unknown"),
+                    action_details=params.get("action_details"),
+                    source=params.get("source", "user_input"),
+                )
+                self._record_call(True)
+                return ToolResult(
+                    success=result_data.success,
+                    content={
+                        "success": result_data.success,
+                        "action_id": result_data.action_id,
+                        "override_type": result_data.override_type,
+                        "reason": result_data.reason,
+                        "timestamp": result_data.timestamp,
+                    },
+                    tool_name=tool_name,
+                    module=self.name,
+                    execution_time_ms=(time.time() - start) * 1000,
+                )
+
+            elif tool_name == "creator_authorize":
+                result_data = self._creator_override.creator_authorize(
+                    blocked_action_id=params.get("blocked_action_id", ""),
+                    auth_token=params.get("auth_token", ""),
+                    reasoning=params.get("reasoning", ""),
+                    action_category=params.get("action_category", "unknown"),
+                    action_details=params.get("action_details"),
+                    source=params.get("source", "user_input"),
+                )
+                self._record_call(True)
+                return ToolResult(
+                    success=result_data.success,
+                    content={
+                        "success": result_data.success,
+                        "action_id": result_data.action_id,
+                        "override_type": result_data.override_type,
+                        "reason": result_data.reason,
+                        "timestamp": result_data.timestamp,
+                    },
+                    tool_name=tool_name,
+                    module=self.name,
+                    execution_time_ms=(time.time() - start) * 1000,
+                )
+
+            elif tool_name == "false_positive_report":
+                report = self._creator_override.get_false_positive_report()
+                self._record_call(True)
+                return ToolResult(
+                    success=True,
+                    content=report,
+                    tool_name=tool_name,
+                    module=self.name,
+                    execution_time_ms=(time.time() - start) * 1000,
+                )
+
             else:
                 self._record_call(False)
                 return ToolResult(
@@ -338,6 +470,8 @@ class Cerberus(BaseModule):
             self._deny_count,
             self._false_positive_count,
         )
+        if self._reversibility_engine:
+            self._reversibility_engine.close()
         self.status = ModuleStatus.OFFLINE
 
     def get_tools(self) -> list[dict[str, Any]]:
@@ -421,6 +555,63 @@ class Cerberus(BaseModule):
                     "action": "str — the action or tool being evaluated",
                     "plan": "str — description of what the action does",
                 },
+                "permission_level": "autonomous",
+            },
+            {
+                "name": "rollback_snapshot",
+                "description": "List available rollback snapshots",
+                "parameters": {
+                    "limit": "int — max results (default 20)",
+                    "action_type": "str — filter by type (file/config/database/external)",
+                },
+                "permission_level": "autonomous",
+            },
+            {
+                "name": "rollback_execute",
+                "description": "Roll back to a previous snapshot",
+                "parameters": {
+                    "snapshot_id": "str — snapshot ID to restore",
+                },
+                "permission_level": "approval_required",
+            },
+            {
+                "name": "creator_exception",
+                "description": (
+                    "One-time override for a blocked action. Does not change rules. "
+                    "Only callable by external input sources (user, Telegram)."
+                ),
+                "parameters": {
+                    "blocked_action_id": "str — ID from the blocked safety_check result",
+                    "auth_token": "str — creator authentication token",
+                    "action_category": "str — category of the blocked action",
+                    "action_details": "dict — optional details about the action",
+                    "source": "str — input source (user_input, telegram)",
+                },
+                "permission_level": "approval_required",
+            },
+            {
+                "name": "creator_authorize",
+                "description": (
+                    "Permanently reclassify a blocked category. Cerberus learns from this. "
+                    "Only callable by external input sources (user, Telegram)."
+                ),
+                "parameters": {
+                    "blocked_action_id": "str — ID from the blocked safety_check result",
+                    "auth_token": "str — creator authentication token",
+                    "reasoning": "str — creator's reasoning (required, stored permanently)",
+                    "action_category": "str — category of the blocked action",
+                    "action_details": "dict — optional details about the action",
+                    "source": "str — input source (user_input, telegram)",
+                },
+                "permission_level": "approval_required",
+            },
+            {
+                "name": "false_positive_report",
+                "description": (
+                    "Get report on categories with frequent creator exceptions. "
+                    "Feeds into Harbinger daily safety report."
+                ),
+                "parameters": {},
                 "permission_level": "autonomous",
             },
         ]
@@ -587,37 +778,53 @@ class Cerberus(BaseModule):
         """
         self._check_count += 1
 
+        # Check if category was permanently authorized by creator
+        action_category = action_params.get("_action_category", "")
+        if action_category and self._creator_override.is_category_authorized(action_category):
+            return SafetyCheckResult(
+                verdict=SafetyVerdict.ALLOW,
+                tool_name=action_tool,
+                reason=f"Category '{action_category}' permanently authorized by creator",
+            )
+
         # 1. Check hard limits
         hard_limit_result = self._check_hard_limits(action_tool, action_params, trusted_source)
         if hard_limit_result.verdict == SafetyVerdict.DENY:
             self._deny_count += 1
+            blocked_id = self._creator_override.generate_blocked_action_id()
+            hard_limit_result.blocked_action_id = blocked_id
             self._write_audit_entry({
                 "type": "denial",
                 "tool": action_tool,
                 "reason": hard_limit_result.reason,
                 "rule": hard_limit_result.rule_matched,
                 "module": requesting_module,
+                "blocked_action_id": blocked_id,
             })
             return hard_limit_result
 
         # 2. Check if tool requires approval
         approval_tools = self._limits.get("approval_required_tools", [])
         if action_tool in approval_tools:
+            blocked_id = self._creator_override.generate_blocked_action_id()
             self._write_audit_entry({
                 "type": "approval_required",
                 "tool": action_tool,
                 "module": requesting_module,
+                "blocked_action_id": blocked_id,
             })
             return SafetyCheckResult(
                 verdict=SafetyVerdict.APPROVAL_REQUIRED,
                 tool_name=action_tool,
                 reason=f"Tool '{action_tool}' requires user approval before execution",
                 rule_matched="approval_required_tools",
+                blocked_action_id=blocked_id,
             )
 
         # 3. Check permission tier
         tier_result = self._check_permission_tier(action_tool, action_params)
         if tier_result.verdict != SafetyVerdict.ALLOW:
+            tier_result.blocked_action_id = self._creator_override.generate_blocked_action_id()
             return tier_result
 
         # 4. All checks passed — run advisory ethics engine
@@ -645,6 +852,33 @@ class Cerberus(BaseModule):
             reason="All safety checks passed",
             ethics_context=ethics_context,
         )
+
+    def send_heartbeat(self) -> None:
+        """Write a heartbeat file for the watchdog to monitor.
+
+        Called at the end of every safety_check. Contains current status,
+        active rule count, and last check ID so the watchdog knows Cerberus
+        is alive and functioning.
+        """
+        self._last_check_id = uuid.uuid4().hex[:12]
+        cerberus_status = "healthy" if self.status == ModuleStatus.ONLINE else "degraded"
+        active_rules_count = len(self._limits.get("hard_limits", {}))
+
+        heartbeat = {
+            "timestamp": time.time(),
+            "cerberus_status": cerberus_status,
+            "active_rules_count": active_rules_count,
+            "last_check_id": self._last_check_id,
+        }
+
+        try:
+            self._heartbeat_path.parent.mkdir(parents=True, exist_ok=True)
+            tmp_path = self._heartbeat_path.with_suffix(".tmp")
+            with open(tmp_path, "w", encoding="utf-8") as f:
+                json.dump(heartbeat, f)
+            tmp_path.replace(self._heartbeat_path)
+        except OSError as e:
+            logger.error("Failed to write heartbeat: %s", e)
 
     def _check_hard_limits(
         self, tool_name: str, params: dict[str, Any], trusted_source: bool = False
@@ -783,11 +1017,88 @@ class Cerberus(BaseModule):
                             modified_params={**tool_params, "query": cleaned},
                         )
 
+        # Snapshot before write operations
+        snapshot_id = self._maybe_snapshot(tool_name, tool_params)
+
         return SafetyCheckResult(
             verdict=SafetyVerdict.ALLOW,
             tool_name=tool_name,
             reason="Pre-hook: all checks passed",
+            snapshot_id=snapshot_id,
         )
+
+    # --- Write-tool snapshotting ---
+
+    _WRITE_TOOLS: set[str] = {
+        "file_write", "file_delete", "code_edit", "config_update",
+        "config_write", "db_write", "db_delete", "db_update",
+        "email_send", "notification_send", "webhook_send",
+    }
+
+    def _maybe_snapshot(
+        self, tool_name: str, tool_params: dict[str, Any]
+    ) -> str | None:
+        """Create a snapshot if this tool writes data. Returns snapshot_id or None."""
+        if not self._reversibility_engine:
+            return None
+        if tool_name not in self._WRITE_TOOLS:
+            return None
+
+        try:
+            if tool_name in ("file_write", "file_delete", "code_edit"):
+                target = tool_params.get("path", "")
+                if target and Path(target).exists():
+                    return self._reversibility_engine.snapshot_before_action(
+                        action_type="file",
+                        target_path_or_key=target,
+                        metadata={"tool": tool_name, "risk_level": "medium"},
+                    )
+            elif tool_name in ("config_update", "config_write"):
+                key = tool_params.get("key", tool_params.get("path", "config"))
+                return self._reversibility_engine.snapshot_before_action(
+                    action_type="config",
+                    target_path_or_key=key,
+                    metadata={
+                        "tool": tool_name,
+                        "config_state": tool_params.get("current_state", {}),
+                        "risk_level": "medium",
+                    },
+                )
+            elif tool_name in ("db_write", "db_delete", "db_update"):
+                table = tool_params.get("table", "unknown")
+                return self._reversibility_engine.snapshot_before_action(
+                    action_type="database",
+                    target_path_or_key=table,
+                    metadata={
+                        "tool": tool_name,
+                        "db_path": tool_params.get("db_path", ""),
+                        "table": table,
+                        "where_clause": tool_params.get("where", "1=0"),
+                        "risk_level": "medium",
+                    },
+                )
+            elif tool_name in ("email_send", "notification_send", "webhook_send"):
+                return self._reversibility_engine.snapshot_before_action(
+                    action_type="external",
+                    target_path_or_key=tool_name,
+                    metadata={
+                        "tool": tool_name,
+                        "action_details": tool_params,
+                        "content_sent": tool_params.get(
+                            "body", tool_params.get("message", "")
+                        ),
+                        "recipients": tool_params.get("to", []),
+                        "risk_level": "high",
+                    },
+                )
+        except Exception as e:
+            logger.warning(
+                "Snapshot failed for %s: %s (proceeding without snapshot)",
+                tool_name,
+                e,
+            )
+
+        return None
 
     def _post_tool_hook(
         self,
