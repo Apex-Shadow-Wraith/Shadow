@@ -448,8 +448,13 @@ class Wraith(BaseModule):
             },
             {
                 "name": "reminder_create",
-                "description": "Create a reminder with importance level (1-5)",
-                "parameters": {"content": "str", "importance": "int"},
+                "description": "Create a timed reminder. Fires when due_time passes.",
+                "parameters": {
+                    "content": "str — reminder message",
+                    "importance": "int (1-5, default 3)",
+                    "delay_minutes": "int | float | None — minutes from now until due",
+                    "due_time": "str | None — ISO datetime when reminder is due",
+                },
                 "permission_level": "autonomous",
             },
             {
@@ -559,7 +564,9 @@ class Wraith(BaseModule):
         """Create a new reminder.
 
         Args:
-            params: Must contain 'content'. Optional 'importance' (1-5, default 3).
+            params: Must contain 'content'. Optional 'importance' (1-5, default 3),
+                'delay_minutes' (int/float), 'due_time' (ISO datetime string).
+                If neither delay_minutes nor due_time is given, reminder is due immediately.
         """
         content = params.get("content", "")
         if not content:
@@ -581,6 +588,46 @@ class Wraith(BaseModule):
                 error="Importance must be an integer between 1 and 5",
             )
 
+        # Determine due_time from delay_minutes or explicit due_time
+        now = datetime.now()
+        delay_minutes = params.get("delay_minutes")
+        due_time_str = params.get("due_time")
+
+        if delay_minutes is not None:
+            try:
+                delay = float(delay_minutes)
+                if delay < 0:
+                    return ToolResult(
+                        success=False,
+                        content=None,
+                        tool_name="reminder_create",
+                        module=self.name,
+                        error="delay_minutes cannot be negative",
+                    )
+                due_time = now + timedelta(minutes=delay)
+            except (TypeError, ValueError):
+                return ToolResult(
+                    success=False,
+                    content=None,
+                    tool_name="reminder_create",
+                    module=self.name,
+                    error="delay_minutes must be a number",
+                )
+        elif due_time_str is not None:
+            try:
+                due_time = datetime.fromisoformat(due_time_str)
+            except (TypeError, ValueError):
+                return ToolResult(
+                    success=False,
+                    content=None,
+                    tool_name="reminder_create",
+                    module=self.name,
+                    error="due_time must be a valid ISO datetime string",
+                )
+        else:
+            # No timing specified — due immediately
+            due_time = now
+
         reminder_id = str(self._next_reminder_id)
         self._next_reminder_id += 1
 
@@ -588,9 +635,11 @@ class Wraith(BaseModule):
             "id": reminder_id,
             "content": content,
             "importance": importance,
-            "created_at": datetime.now().isoformat(),
+            "created_at": now.isoformat(),
+            "due_time": due_time.isoformat(),
+            "status": "pending",
             "dismiss_count": 0,
-            "next_surface": datetime.now().isoformat(),
+            "next_surface": now.isoformat(),
             "killed": False,
         }
         self._reminders.append(reminder)
@@ -677,6 +726,7 @@ class Wraith(BaseModule):
 
         reminder["dismiss_count"] = dismiss_count + 1
         reminder["next_surface"] = next_surface.isoformat()
+        reminder["status"] = "dismissed"
 
         self._save_reminders()
         logger.info(
@@ -725,6 +775,7 @@ class Wraith(BaseModule):
             )
 
         reminder["killed"] = True
+        reminder["status"] = "killed"
         self._save_reminders()
         logger.info("Reminder %s killed.", reminder_id)
 
@@ -1024,6 +1075,44 @@ class Wraith(BaseModule):
             tool_name="proactive_suggestions",
             module=self.name,
         )
+
+    # --- Public API for orchestrator integration ---
+
+    def check_reminders(self) -> list[dict[str, Any]]:
+        """Check for reminders whose due_time has passed and mark them fired.
+
+        Called by the orchestrator on each user input to surface due reminders.
+
+        Returns:
+            List of newly fired reminder dicts.
+        """
+        now = datetime.now()
+        fired: list[dict[str, Any]] = []
+
+        for reminder in self._reminders:
+            if reminder.get("killed", False):
+                continue
+            if reminder.get("status") == "fired":
+                continue
+
+            due_time_str = reminder.get("due_time")
+            if due_time_str is None:
+                continue
+
+            try:
+                due_time = datetime.fromisoformat(due_time_str)
+            except (TypeError, ValueError):
+                continue
+
+            if due_time <= now:
+                reminder["status"] = "fired"
+                fired.append(reminder)
+
+        if fired:
+            self._save_reminders()
+            logger.info("check_reminders: %d reminders fired", len(fired))
+
+        return fired
 
     # --- Internal helpers ---
 

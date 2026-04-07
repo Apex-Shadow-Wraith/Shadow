@@ -258,6 +258,9 @@ class Orchestrator:
                 self._save_state()
                 return refusal
 
+            # Step 1.8 — Check Wraith reminders (best-effort)
+            fired_reminders = self._check_wraith_reminders()
+
             # Step 2 — Classify & Route
             classification = await self._step2_classify(user_input)
 
@@ -302,6 +305,12 @@ class Orchestrator:
                     except Exception:
                         pass
                 self._save_state()
+                # Prepend fired reminders to fast response
+                if fired_reminders:
+                    reminder_lines = ["**Reminders due:**"]
+                    for r in fired_reminders:
+                        reminder_lines.append(f"- {r['content']}")
+                    fast_response = "\n".join(reminder_lines) + "\n\n" + fast_response
                 return fast_response
 
             # Step 3 — Load Context
@@ -364,6 +373,13 @@ class Orchestrator:
 
             # Persist state after every interaction
             self._save_state()
+
+            # Prepend fired reminders to response
+            if fired_reminders:
+                reminder_lines = ["**Reminders due:**"]
+                for r in fired_reminders:
+                    reminder_lines.append(f"- {r['content']}")
+                response = "\n".join(reminder_lines) + "\n\n" + response
 
             return response
 
@@ -462,6 +478,20 @@ class Orchestrator:
             return ""
         return content.strip()
 
+    # --- Step 1.8: Check Wraith Reminders ---
+
+    def _check_wraith_reminders(self) -> list[dict]:
+        """Check Wraith for fired reminders. Best-effort, never breaks the loop."""
+        if "wraith" not in self.registry:
+            return []
+        try:
+            wraith_mod = self.registry.get_module("wraith")
+            if wraith_mod.status == ModuleStatus.ONLINE:
+                return wraith_mod.check_reminders()
+        except Exception:
+            pass
+        return []
+
     # --- Step 2: Classify & Route ---
 
     async def _step2_classify(self, user_input: str) -> TaskClassification:
@@ -489,8 +519,10 @@ class Orchestrator:
 
 Available modules: {', '.join(available_modules)}
 Module capabilities:
+- omen: Code writing, debugging, review, linting, execution, scaffolding. Use for ANY code-related task.
 - grimoire: Memory storage, recall, search. Use for "remember this", "what do you know about", memory queries.
 - reaper: Web research, search, YouTube transcription, data gathering. Use for questions needing current info.
+- cipher: Math, calculations, unit conversions, financial estimates.
 - cerberus: Safety checks. Internal only — never route user tasks here.
 
 Classify the input and respond with ONLY valid JSON (no markdown, no explanation):
@@ -674,6 +706,9 @@ User input: {user_input}"""
             "what do you do", "tell me about yourself",
             "describe yourself", "what's your name",
             "what is your name",
+            "can you write code", "can you help me with code",
+            "can you code", "do you write code",
+            "can you program", "can you help with programming",
         ]
         if any(lower.startswith(sq) for sq in self_questions):
             return TaskClassification(
@@ -750,8 +785,17 @@ User input: {user_input}"""
         omen_keywords = {
             "code", "debug", "review", "lint", "refactor",
             "function", "class", "script", "program",
+            "coding", "syntax", "snippet", "algorithm",
         }
-        if words & omen_keywords:
+        # "write/generate" only route to Omen when paired with code context
+        omen_context_words = {"write", "generate", "create", "build", "execute"}
+        omen_code_context = {
+            "function", "class", "script", "program", "code",
+            "python", "module", "api", "endpoint", "bot",
+            "parser", "handler", "decorator", "lambda",
+        }
+        has_omen_context = bool(words & omen_context_words) and bool(words & omen_code_context)
+        if (words & omen_keywords) or has_omen_context:
             logger.info("Fast-path keyword → omen (matched: %s)", words & omen_keywords)
             return TaskClassification(
                 task_type=TaskType.CREATION,
@@ -872,10 +916,16 @@ User input: {user_input}"""
             "who are you?": "I'm Shadow. Your AI agent. Built by you, running on your hardware.",
             "what are you": "I'm Shadow. Your AI agent running locally on your machine.",
             "what are you?": "I'm Shadow. Your AI agent running locally on your machine.",
-            "what can you do": "Research, memory, web search, and whatever else you build me to do. What do you need, Master?",
-            "what can you do?": "Research, memory, web search, and whatever else you build me to do. What do you need, Master?",
+            "what can you do": "Write code, debug, research, memory, web search, math, reminders — and whatever else you build me to do. What do you need, Master?",
+            "what can you do?": "Write code, debug, research, memory, web search, math, reminders — and whatever else you build me to do. What do you need, Master?",
             "what's my dog's name": "Meko.",
             "what's my dog's name?": "Meko.",
+            "can you write code": "Yes. I have Omen — my code module. It writes, debugs, reviews, lints, and executes code. What do you need?",
+            "can you write code?": "Yes. I have Omen — my code module. It writes, debugs, reviews, lints, and executes code. What do you need?",
+            "can you help me with code": "Absolutely. Omen handles all my code work — writing, debugging, reviewing, executing. What do you need, Master?",
+            "can you help me with code?": "Absolutely. Omen handles all my code work — writing, debugging, reviewing, executing. What do you need, Master?",
+            "can you code": "Yes. Omen is my code brain. What do you need?",
+            "can you code?": "Yes. Omen is my code brain. What do you need?",
         }
 
         return responses.get(lower)
@@ -1027,6 +1077,23 @@ User input: {user_input}"""
                     "tool": None,
                     "params": {},
                 }]
+
+        elif classification.target_module == "omen":
+            # Code tasks — dispatch through Omen's tool pipeline
+            steps = [
+                {
+                    "step": 1,
+                    "description": "Execute code task via Omen",
+                    "tool": "code_execute",
+                    "params": {"code": user_input, "timeout": 30},
+                },
+                {
+                    "step": 2,
+                    "description": "Generate response from Omen results",
+                    "tool": None,
+                    "params": {},
+                },
+            ]
 
         else:
             # Default: single-step plan
@@ -1342,6 +1409,8 @@ RESPONSE RULES:
 - Never describe your design, architecture, or modules unless asked.
 - Never mention Grimoire, Cerberus, Reaper, VRAM, trust levels, or confidence scores.
 - When addressing him with a short title, use "Master" — never Sir, Madam, or any other title.
+- You have a dedicated code module called Omen. You CAN write, debug, review, lint, execute, and scaffold code.
+- When asked about code, confidently say yes — you handle it through Omen.
 - Push back when he is wrong. Never agree just to be agreeable.
 - If you have memories below, use them naturally. Do not explain where they came from.
 

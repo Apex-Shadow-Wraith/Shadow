@@ -141,6 +141,55 @@ def evaluate_source(url):
 
 
 # =============================================================================
+# QUERY REFORMULATION — Rule-based, no LLM needed
+# =============================================================================
+
+# Filler words to strip during simplification
+_FILLER_WORDS = {
+    "what", "are", "the", "is", "a", "an", "how", "do", "does", "can",
+    "could", "would", "should", "will", "to", "of", "in", "for", "on",
+    "at", "by", "with", "about", "from", "that", "this", "those", "these",
+    "it", "its", "i", "my", "me", "we", "our", "you", "your",
+    "latest", "best", "most", "really", "very", "just", "also",
+    "tell", "show", "find", "get", "give", "know", "some", "any",
+    "there", "here", "when", "where", "why", "which", "who", "whom",
+    "been", "being", "be", "have", "has", "had", "was", "were",
+}
+
+
+def _simplify_query(query: str) -> str | None:
+    """Strip filler words, reduce to core noun/verb phrases."""
+    words = query.lower().split()
+    core = [w for w in words if w not in _FILLER_WORDS]
+    if not core or core == words:
+        return None
+    simplified = " ".join(core)
+    return simplified if simplified != query.lower().strip() else None
+
+
+def _broaden_query(query: str) -> str | None:
+    """Remove the most specific (last) term to broaden the query."""
+    words = query.split()
+    if len(words) <= 1:
+        return None
+    return " ".join(words[:-1])
+
+
+def _results_relevant(results: list[dict], query: str) -> bool:
+    """Check if any result title or snippet contains keywords from the query."""
+    if not results:
+        return False
+    query_words = {w.lower() for w in query.split() if len(w) > 2 and w.lower() not in _FILLER_WORDS}
+    if not query_words:
+        return True  # Can't evaluate, assume relevant
+    for r in results:
+        text = (r.get("title", "") + " " + r.get("snippet", "")).lower()
+        if any(w in text for w in query_words):
+            return True
+    return False
+
+
+# =============================================================================
 # MAIN REAPER CLASS
 # =============================================================================
 
@@ -250,6 +299,8 @@ class Reaper:
         """
         Search the web using best available backend.
         Cascade: SearXNG → Reddit .json (for Reddit queries) → DuckDuckGo → Bing scraper.
+        Includes query reformulation: if results are empty or irrelevant,
+        retries up to 2 times with simplified/broadened queries.
 
         Args:
             query: Search query string
@@ -257,7 +308,41 @@ class Reaper:
 
         Returns:
             List of dicts: [{"title": ..., "url": ..., "snippet": ...}, ...]
+            Each result includes "_reformulation" metadata if reformulation occurred.
         """
+        original_query = query
+        results = self._search_once(query, max_results)
+
+        # Reformulation loop: max 2 retries
+        if _results_relevant(results, query):
+            return self._tag_results(results, original_query, query)
+
+        reformulators = [_simplify_query, _broaden_query]
+        current_query = query
+
+        for i, reformulate in enumerate(reformulators):
+            new_query = reformulate(current_query)
+            if not new_query or new_query == current_query:
+                continue
+
+            reason = "no results" if not results else "low relevance"
+            print(f"[Reaper] Reformulating query '{current_query}' → '{new_query}' (reason: {reason})")
+
+            results = self._search_once(new_query, max_results)
+            current_query = new_query
+
+            if _results_relevant(results, new_query):
+                return self._tag_results(results, original_query, current_query)
+
+        # All retries exhausted — return whatever we have
+        if current_query != original_query:
+            print(f"[Reaper] Reformulation exhausted for '{original_query}', returning best effort")
+
+        return self._tag_results(results, original_query, current_query,
+                                 note="results may be limited" if not results else None)
+
+    def _search_once(self, query, max_results=10):
+        """Execute a single search attempt across all backends."""
         # Try SearXNG first
         if self.searxng_available:
             results = self._search_searxng(query, max_results)
@@ -299,6 +384,20 @@ class Reaper:
 
         print(f"[Reaper] No search backend available for: '{query}'")
         return []
+
+    @staticmethod
+    def _tag_results(results, original_query, final_query, note=None):
+        """Attach reformulation metadata to results."""
+        meta = {
+            "original_query": original_query,
+            "final_query": final_query,
+            "was_reformulated": original_query != final_query,
+        }
+        if note:
+            meta["note"] = note
+        for r in results:
+            r["_reformulation"] = meta
+        return results
 
     def _search_searxng(self, query, max_results=10):
         """Search using local SearXNG instance (aggregates Google+Bing+DDG+more)."""
