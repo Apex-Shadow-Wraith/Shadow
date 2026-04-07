@@ -430,7 +430,7 @@ class TestFalsePositiveLog:
     @pytest.mark.asyncio
     async def test_tool_count(self, cerberus: Cerberus):
         tools = cerberus.get_tools()
-        assert len(tools) == 8
+        assert len(tools) == 9
         tool_names = [t["name"] for t in tools]
         assert "false_positive_log" in tool_names
         assert "calibration_stats" in tool_names

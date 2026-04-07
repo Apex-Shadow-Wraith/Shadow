@@ -54,6 +54,7 @@ class SafetyCheckResult:
     reason: str
     rule_matched: str | None = None
     modified_params: dict[str, Any] | None = None
+    ethics_context: dict[str, Any] | None = None
 
 
 class Cerberus(BaseModule):
@@ -100,11 +101,29 @@ class Cerberus(BaseModule):
         self._deny_count: int = 0
         self._false_positive_count: int = 0
         self._ethical_topics: list[dict[str, Any]] = []
+        self._ethics_engine = None
         self._db_path: Path | None = None
         db_path = config.get("db_path")
         if db_path:
             self._db_path = Path(db_path)
             self._ensure_audit_table()
+
+        # Initialize ethics engine (advisory — graceful if unavailable)
+        try:
+            from modules.cerberus.ethics_engine import EthicsEngine
+            self._ethics_engine = EthicsEngine(
+                db_path=config.get("esv_db_path", "data/memory/shadow_memory.db"),
+                vector_path=config.get("vector_path", "data/vectors"),
+                ethical_topics_file=config.get(
+                    "ethical_topics_file", "config/ethical_topics.yaml"
+                ),
+                ollama_url=config.get("ollama_url", "http://localhost:11434"),
+                embed_model=config.get("embed_model", "nomic-embed-text"),
+            )
+            logger.info("EthicsEngine initialized successfully")
+        except Exception as e:
+            logger.warning("EthicsEngine unavailable (advisory only): %s", e)
+            self._ethics_engine = None
 
     async def initialize(self) -> None:
         """Load hard limits from protected config file."""
@@ -255,6 +274,37 @@ class Cerberus(BaseModule):
                     execution_time_ms=(time.time() - start) * 1000,
                 )
 
+            elif tool_name == "ethics_lookup":
+                if not self._ethics_engine:
+                    self._record_call(True)
+                    return ToolResult(
+                        success=True,
+                        content={"error": "Ethics engine not available",
+                                 "passages": [], "study_notes": []},
+                        tool_name=tool_name,
+                        module=self.name,
+                        execution_time_ms=(time.time() - start) * 1000,
+                    )
+                action = params.get("action", "")
+                plan = params.get("plan", "")
+                ethics_result = self._ethics_engine.evaluate_action(action, plan)
+                self._record_call(True)
+                return ToolResult(
+                    success=True,
+                    content={
+                        "action": ethics_result.action,
+                        "category": ethics_result.ethical_category,
+                        "assessment": ethics_result.assessment,
+                        "recommendation": ethics_result.recommendation,
+                        "confidence": ethics_result.confidence,
+                        "relevant_passages": ethics_result.relevant_passages,
+                        "study_notes": ethics_result.study_notes,
+                    },
+                    tool_name=tool_name,
+                    module=self.name,
+                    execution_time_ms=(time.time() - start) * 1000,
+                )
+
             else:
                 self._record_call(False)
                 return ToolResult(
@@ -355,6 +405,19 @@ class Cerberus(BaseModule):
                 "description": "Get false positive calibration stats per category",
                 "parameters": {
                     "days": "int — number of days to look back (default: 30)",
+                },
+                "permission_level": "autonomous",
+            },
+            {
+                "name": "ethics_lookup",
+                "description": (
+                    "Evaluate an action against biblical ethics using ESV Scripture "
+                    "passages and study notes. Returns ethical category, relevant "
+                    "passages, assessment, and recommendation."
+                ),
+                "parameters": {
+                    "action": "str — the action or tool being evaluated",
+                    "plan": "str — description of what the action does",
                 },
                 "permission_level": "autonomous",
             },
@@ -554,11 +617,30 @@ class Cerberus(BaseModule):
         if tier_result.verdict != SafetyVerdict.ALLOW:
             return tier_result
 
-        # 4. All checks passed
+        # 4. All checks passed — run advisory ethics engine
+        ethics_context = None
+        if self._ethics_engine:
+            try:
+                ethics_result = self._ethics_engine.evaluate_action(
+                    action_tool, str(action_params)
+                )
+                ethics_context = {
+                    "category": ethics_result.ethical_category,
+                    "assessment": ethics_result.assessment,
+                    "recommendation": ethics_result.recommendation,
+                    "confidence": ethics_result.confidence,
+                    "passages": [
+                        r.get("ref", "") for r in ethics_result.relevant_passages[:5]
+                    ],
+                }
+            except Exception as e:
+                logger.debug("Ethics engine advisory skipped: %s", e)
+
         return SafetyCheckResult(
             verdict=SafetyVerdict.ALLOW,
             tool_name=action_tool,
             reason="All safety checks passed",
+            ethics_context=ethics_context,
         )
 
     def _check_hard_limits(
