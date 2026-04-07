@@ -14,6 +14,7 @@ final Ubuntu architecture — nothing gets rebuilt later.
 
 import asyncio
 import logging
+import platform
 import sys
 from pathlib import Path
 
@@ -61,7 +62,14 @@ def load_config(config_path: str = "config/shadow_config.yaml") -> dict:
         sys.exit(1)
 
     with open(path, "r", encoding="utf-8") as f:
-        return yaml.safe_load(f)
+        config = yaml.safe_load(f)
+
+    # Resolve platform auto-detection
+    system_cfg = config.get("system", {})
+    if system_cfg.get("platform", "").lower() == "auto":
+        system_cfg["platform"] = platform.system().lower()  # "windows" or "linux"
+
+    return config
 
 
 async def startup(config: dict, logger: logging.Logger) -> Orchestrator:

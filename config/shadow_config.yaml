@@ -10,28 +10,28 @@ system:
   name: "Shadow"
   version: "0.1.0"
   environment: "development"
-  platform: "windows"
+  platform: "auto"  # Resolved at runtime via platform.system()
   log_level: "INFO"
   state_file: "data/shadow_state.json"
 
 # --- Model Configuration ---
-# Windows dev: phi4-mini for everything (router + brain)
-# Ubuntu target: Phi-4-mini (router) + Qwen 3.5 35B (fast) + Scout (smart)
+# Gemma 4 26B for all brains on Windows dev
+# Ubuntu target: smaller/faster router + Qwen 3.5 35B (fast) + Scout (smart)
 models:
   ollama_base_url: "http://localhost:11434"
 
   router:
-    name: "phi4-mini"
+    name: "gemma4:26b"  # TODO: replace with smaller/faster model for routing
     purpose: "Task classification and routing (Step 2)"
     always_loaded: true
 
   fast_brain:
-    name: "phi4-mini"
+    name: "gemma4:26b"
     purpose: "Daily tasks via Wraith (80% of work)"
     # Ubuntu target: qwen3.5-35b-a3b
 
   smart_brain:
-    name: "phi4-mini"
+    name: "gemma4:26b"
     purpose: "Complex reasoning (Cipher, Omen, research)"
     # Ubuntu target: llama4-scout (1.78-bit quantized)
 
