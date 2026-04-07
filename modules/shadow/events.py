@@ -43,6 +43,7 @@ SHUTDOWN_WARNING = "shutdown_warning"
 CERBERUS_HEARTBEAT_MISSED = "cerberus_heartbeat_missed"
 NEW_CAPABILITY_NEEDED = "new_capability_needed"
 APPROVAL_NEEDED = "approval_needed"
+NUMERICAL_DATA_PRODUCED = "numerical_data_produced"
 
 # All standard events for validation
 ALL_EVENTS = {
@@ -66,6 +67,7 @@ ALL_EVENTS = {
     CERBERUS_HEARTBEAT_MISSED,
     NEW_CAPABILITY_NEEDED,
     APPROVAL_NEEDED,
+    NUMERICAL_DATA_PRODUCED,
 }
 
 

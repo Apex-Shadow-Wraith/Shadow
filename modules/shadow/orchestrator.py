@@ -79,6 +79,14 @@ except ImportError:
     logger.warning("PriorityTaskQueue not available — queue processing disabled")
     _TASK_QUEUE_AVAILABLE = False
 
+# Graceful import — orchestrator still starts if proactive_engine is missing
+try:
+    from modules.shadow.proactive_engine import ProactiveEngine
+    _PROACTIVE_ENGINE_AVAILABLE = True
+except ImportError:
+    logger.warning("ProactiveEngine not available — proactive initiative disabled")
+    _PROACTIVE_ENGINE_AVAILABLE = False
+
 # Graceful import — orchestrator still starts if observability is missing
 try:
     from modules.shadow.observability import trace_interaction
@@ -226,6 +234,14 @@ class Orchestrator:
         else:
             self._task_queue = None
 
+        # Proactive Initiative Engine — autonomous trigger system (P2)
+        if _PROACTIVE_ENGINE_AVAILABLE:
+            self._proactive_engine = ProactiveEngine(
+                data_dir=Path(config["system"].get("data_dir", "data")),
+            )
+        else:
+            self._proactive_engine = None
+
         # Track GrimoireReader instances for cleanup
         self._grimoire_readers: list[Any] = []
 
@@ -281,6 +297,13 @@ class Orchestrator:
             except Exception as e:
                 logger.warning("Failed to generate daily goals: %s", e)
 
+        # Register default proactive triggers (best-effort)
+        if self._proactive_engine is not None:
+            try:
+                self._proactive_engine.register_default_triggers()
+            except Exception as e:
+                logger.warning("Failed to register default triggers: %s", e)
+
         # Wire module state awareness into all modules
         if self._module_state_manager is not None:
             self._module_state_manager.restore_snapshot()
@@ -332,6 +355,8 @@ class Orchestrator:
             self._task_chain_engine.close()
         if self._task_queue is not None:
             self._task_queue.close()
+        if self._proactive_engine is not None:
+            self._proactive_engine.save_triggers()
 
         for module_info in self.registry.list_modules():
             module = self.registry.get_module(module_info["name"])
@@ -365,6 +390,11 @@ class Orchestrator:
     def task_queue(self):
         """Access the Priority Task Queue (may be None if unavailable)."""
         return self._task_queue
+
+    @property
+    def proactive_engine(self):
+        """Access the Proactive Engine (may be None if unavailable)."""
+        return self._proactive_engine
 
     def clear_history(self) -> None:
         """Reset conversation history. Useful for starting a fresh topic."""
@@ -437,6 +467,10 @@ class Orchestrator:
         self._handoff_protocol = HandoffProtocol(
             self._message_bus, grimoire_search=grimoire_search,
         )
+
+        # Wire EventSystem into ProactiveEngine for event-based triggers
+        if self._proactive_engine is not None:
+            self._proactive_engine._event_system = self._event_system
 
         # Wire into all registered modules
         for module_info in self.registry.list_modules():
@@ -560,6 +594,21 @@ class Orchestrator:
             # Step 1.8 — Check Wraith reminders (best-effort)
             fired_reminders = self._check_wraith_reminders()
 
+            # Step 1.9 — Proactive trigger check (best-effort)
+            if self._proactive_engine is not None:
+                try:
+                    proactive_tasks = self._proactive_engine.check_triggers()
+                    if proactive_tasks:
+                        logger.info("Step 1.9 — %d proactive tasks triggered", len(proactive_tasks))
+                        for pt in proactive_tasks:
+                            self._task_tracker.create(
+                                description=pt["description"],
+                                assigned_module=pt["assigned_module"],
+                                priority=pt["priority"],
+                            )
+                except Exception as e:
+                    logger.warning("Step 1.9 — Proactive check failed: %s", e)
+
             # Step 2 — Classify & Route
             classification = await self._step2_classify(user_input)
 
@@ -573,6 +622,18 @@ class Orchestrator:
                 classification.target_module,
                 classification.brain.value,
             )
+
+            # Handle proactive control commands directly (no LLM needed)
+            if classification.target_module == "proactive_control":
+                response = self._handle_proactive_control(user_input)
+                await self._step7_log(user_input, classification, response, loop_start)
+                self._save_state()
+                if fired_reminders:
+                    reminder_lines = ["**Reminders due:**"]
+                    for r in fired_reminders:
+                        reminder_lines.append(f"- {r['content']}")
+                    response = "\n".join(reminder_lines) + "\n\n" + response
+                return response
 
             # Fast response: skip LLM for trivial inputs
             fast_response = self._fast_response(user_input, classification)
@@ -669,6 +730,21 @@ class Orchestrator:
                         )
                 except Exception:
                     pass  # Never let growth tracking break the main loop
+
+            # Step 7.8 — Emit interaction event for proactive system (best-effort)
+            if self._event_system is not None:
+                try:
+                    await self._event_system.emit(
+                        classification.target_module,
+                        "task_completed",
+                        {
+                            "task_type": classification.task_type.value,
+                            "module": classification.target_module,
+                            "complexity": classification.complexity,
+                        },
+                    )
+                except Exception:
+                    pass  # Never let event emission break the main loop
 
             # Persist state after every interaction
             self._save_state()
@@ -985,6 +1061,24 @@ User input: {user_input}"""
                 priority=1,
             )
 
+        # --- Proactive control commands ---
+        proactive_commands = [
+            "stop all background work", "stop background", "pause proactive",
+            "stop proactive", "resume background", "resume proactive",
+            "start proactive", "what are you working on", "background status",
+            "proactive status", "show triggers", "initiative report",
+            "focus on this", "focus mode",
+        ]
+        if any(lower.startswith(pc) for pc in proactive_commands):
+            return TaskClassification(
+                task_type=TaskType.SYSTEM,
+                complexity="simple",
+                target_module="proactive_control",
+                brain=BrainType.ROUTER,
+                safety_flag=False,
+                priority=1,
+            )
+
         # --- Greetings and short conversation ---
         greetings = {
             "hi", "hello", "hey", "sup", "yo", "howdy",
@@ -1234,6 +1328,50 @@ User input: {user_input}"""
         }
 
         return responses.get(lower)
+
+    # --- Proactive Control Handler ---
+
+    def _handle_proactive_control(self, user_input: str) -> str:
+        """Handle creator commands for proactive system control."""
+        lower = user_input.strip().lower()
+
+        if self._proactive_engine is None:
+            return "Proactive engine is not available."
+
+        if any(lower.startswith(c) for c in [
+            "stop all background", "stop background", "pause proactive", "stop proactive",
+        ]):
+            self._proactive_engine.stop_all_background()
+            return "All background work stopped. Use 'resume background work' to restart."
+
+        if any(lower.startswith(c) for c in [
+            "resume background", "resume proactive", "start proactive",
+        ]):
+            self._proactive_engine.resume_all_background()
+            return "Background work resumed."
+
+        if any(lower.startswith(c) for c in [
+            "what are you working on", "background status",
+            "proactive status", "show triggers", "initiative report",
+        ]):
+            report = self._proactive_engine.get_initiative_report()
+            lines = ["**Proactive Initiative Report**"]
+            lines.append(f"Active triggers: {report['active_triggers']}/{report['total_triggers']}")
+            lines.append(f"Fires last hour: {report['fires_last_hour']}")
+            lines.append(f"Fires last 24h: {report['fires_last_24h']}")
+            lines.append(f"Background: {'stopped' if report['background_stopped'] else 'running'}")
+            if report["by_module"]:
+                module_counts = ", ".join(f"{k}: {v}" for k, v in sorted(report["by_module"].items()))
+                lines.append(f"By module: {module_counts}")
+            if report["spam_disabled"]:
+                lines.append(f"Spam-disabled: {len(report['spam_disabled'])} triggers")
+            return "\n".join(lines)
+
+        if any(lower.startswith(c) for c in ["focus on this", "focus mode"]):
+            self._proactive_engine.stop_all_background()
+            return "Focus mode enabled. All background initiatives paused. I'm fully focused on you."
+
+        return "Unrecognized proactive command."
 
     # --- Step 3: Load Context ---
 
