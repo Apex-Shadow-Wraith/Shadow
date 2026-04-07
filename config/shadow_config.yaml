@@ -105,6 +105,18 @@ decision_loop:
   # Save state after every interaction
   persist_state: true
 
+# --- Context Window Management ---
+context_limits:
+  # Tokens reserved for the model's response (never used by context)
+  reserve_tokens: 4096
+  # Model-specific context window sizes (tokens)
+  # Add/override entries here — ContextManager uses these at runtime
+  model_context_limits:
+    "gemma4:26b": 256000
+    "qwen3.5:35b-a3b": 262144
+    "phi4-mini": 16384
+    "nomic-embed-text": 8192
+
 # --- Priority System ---
 priorities:
   # P1: User requests (highest, non-negotiable)

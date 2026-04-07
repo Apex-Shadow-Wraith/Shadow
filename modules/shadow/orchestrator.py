@@ -118,6 +118,13 @@ except ImportError:
     logger.warning("GrimoireReader not available — independent memory access disabled")
     _GRIMOIRE_READER_AVAILABLE = False
 
+try:
+    from modules.shadow.context_manager import ContextManager
+    _CONTEXT_MANAGER_AVAILABLE = True
+except ImportError:
+    logger.warning("ContextManager not available — context window management disabled")
+    _CONTEXT_MANAGER_AVAILABLE = False
+
 
 class TaskType(Enum):
     """Classification of incoming tasks."""
@@ -256,6 +263,19 @@ class Orchestrator:
             self._confidence_scorer = ConfidenceScorer(db_path=score_db)
         else:
             self._confidence_scorer = None
+
+        # Context window management
+        if _CONTEXT_MANAGER_AVAILABLE:
+            # Determine context limit for the primary model
+            model_name = config["models"]["fast_brain"]["name"]
+            self._context_manager = ContextManager(
+                max_tokens=128000,  # Will be updated per-model
+                reserve_tokens=config.get("context_limits", {}).get("reserve_tokens", 4096),
+                config=config,
+            )
+            self._context_manager.update_model(model_name)
+        else:
+            self._context_manager = None
 
         # Track GrimoireReader instances for cleanup
         self._grimoire_readers: list[Any] = []
@@ -804,9 +824,29 @@ class Orchestrator:
             # Step 7 — Log
             await self._step7_log(user_input, classification, response, loop_start)
 
-            # Update conversation history
-            self._conversation_history.append({"role": "user", "content": user_input})
-            self._conversation_history.append({"role": "assistant", "content": response})
+            # Update conversation history with context-aware overflow check
+            new_user_turn = {"role": "user", "content": user_input}
+            new_assistant_turn = {"role": "assistant", "content": response}
+            if self._context_manager is not None:
+                system_tokens = self._context_manager.estimate_tokens(
+                    self._build_system_prompt(context)
+                )
+                # Proactively drop oldest turn if adding would overflow
+                while (
+                    self._conversation_history
+                    and self._context_manager.check_history_overflow(
+                        self._conversation_history + [new_user_turn, new_assistant_turn],
+                        {"content": ""},
+                        system_prompt_tokens=system_tokens,
+                    )
+                ):
+                    dropped = self._conversation_history.pop(0)
+                    logger.debug(
+                        "Proactively dropped oldest history turn: %s",
+                        dropped.get("content", "")[:50],
+                    )
+            self._conversation_history.append(new_user_turn)
+            self._conversation_history.append(new_assistant_turn)
             if len(self._conversation_history) > self._max_history * 2:
                 self._conversation_history = self._conversation_history[-self._max_history * 2:]
 
@@ -1814,30 +1854,88 @@ User input: {user_input}"""
         # Build context for the response LLM
         system_prompt = self._build_system_prompt(context)
 
-        # Format tool results for the LLM
-        tool_context = ""
+        # Extract memories from context items
+        grimoire_memories: list[dict[str, Any]] = []
+        for item in context:
+            if item["type"] == "memories" and item["content"]:
+                content = item["content"]
+                if isinstance(content, list):
+                    grimoire_memories = [{"content": m} if isinstance(m, str) else m for m in content]
+                elif isinstance(content, dict):
+                    docs = content.get("documents", [])
+                    grimoire_memories = [{"content": d} if isinstance(d, str) else d for d in docs]
+
+        # Format tool results as dicts for context manager
+        tool_result_dicts: list[dict[str, Any]] = []
         for result in results:
-            if result.success:
-                tool_context += f"\n[Tool: {result.tool_name}] Result: {result.content}\n"
-            else:
-                tool_context += f"\n[Tool: {result.tool_name}] Error: {result.error}\n"
+            tool_result_dicts.append({
+                "tool_name": result.tool_name,
+                "content": result.content,
+                "success": result.success,
+                "error": result.error,
+            })
 
-        # Build messages for the LLM
-        messages = [{"role": "system", "content": system_prompt}]
+        # Use ContextManager if available for smart assembly + trimming
+        if self._context_manager is not None:
+            # Update model limit based on which brain we're using
+            model = (
+                self._smart_brain
+                if classification.brain == BrainType.SMART
+                else self._fast_brain
+            )
+            self._context_manager.update_model(model)
 
-        # Add conversation history
-        messages.extend(self._conversation_history[-10:])
-
-        # Add current input with tool context
-        user_message = user_input
-        if tool_context:
-            user_message = (
-                f"{user_input}\n\n"
-                f"--- Tool Results ---\n{tool_context}\n"
-                f"Use the tool results above to inform your response."
+            build_result = self._context_manager.build_context(
+                system_prompt=system_prompt,
+                conversation_history=self._conversation_history[-10:],
+                grimoire_memories=grimoire_memories,
+                failure_patterns=[],
+                tool_results=tool_result_dicts,
+                current_input=user_input,
             )
 
-        messages.append({"role": "user", "content": user_message})
+            # Check for error (input exceeds limit)
+            if build_result.get("error"):
+                logger.error("Context build error: %s", build_result["error"])
+                return "Your request is too large for me to process in a single context. Please break it into smaller parts."
+
+            messages = build_result["messages"]
+
+            # Log token breakdown
+            breakdown = build_result["token_breakdown"]
+            logger.info(
+                "Step 6 — Context: %d tokens (system=%d, history=%d, memories=%d, "
+                "tools=%d, input=%d). Trimmed: %s",
+                breakdown["total_tokens"],
+                breakdown["system_prompt_tokens"],
+                breakdown["history_tokens"],
+                breakdown["memory_tokens"],
+                breakdown["tool_result_tokens"],
+                breakdown["input_tokens"],
+                build_result["trimmed"],
+            )
+            if build_result["trimmed"]:
+                logger.info("Step 6 — Trimmed: %s", ", ".join(build_result["trimmed_components"]))
+        else:
+            # Fallback: raw concatenation (original behavior)
+            tool_context = ""
+            for result in results:
+                if result.success:
+                    tool_context += f"\n[Tool: {result.tool_name}] Result: {result.content}\n"
+                else:
+                    tool_context += f"\n[Tool: {result.tool_name}] Error: {result.error}\n"
+
+            messages = [{"role": "system", "content": system_prompt}]
+            messages.extend(self._conversation_history[-10:])
+
+            user_message = user_input
+            if tool_context:
+                user_message = (
+                    f"{user_input}\n\n"
+                    f"--- Tool Results ---\n{tool_context}\n"
+                    f"Use the tool results above to inform your response."
+                )
+            messages.append({"role": "user", "content": user_message})
 
         # Check Apex for prior learning before using smart brain
         prior_learning = None
