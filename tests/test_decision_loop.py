@@ -307,7 +307,7 @@ class TestGreetingFastPath:
 
 
 class TestMathRouting:
-    """Test 2: Math question → LLM routes to cipher, full pipeline executes."""
+    """Test 2: Math question → keyword fast-path routes to cipher, full pipeline executes."""
 
     @pytest.mark.asyncio
     async def test_math_routes_to_cipher(self, tmp_config: dict):
