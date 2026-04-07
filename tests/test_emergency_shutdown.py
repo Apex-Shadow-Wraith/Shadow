@@ -20,6 +20,8 @@ import pytest
 
 from modules.cerberus.emergency_shutdown import (
     EmergencyShutdown,
+    SAFE_MODULES,
+    SAFE_OPERATION_TYPES,
     SAFE_TOOL_NAMES,
 )
 
@@ -235,6 +237,101 @@ class TestSafeOperationsNoShutdown:
     def test_empty_state_is_safe(self, shutdown):
         """Empty system state should not trigger shutdown."""
         assert shutdown.check_shutdown_triggers({}) is None
+
+
+# ==================================================================
+# CRITICAL: CPU/memory NEVER trigger shutdown
+# ==================================================================
+
+
+class TestHighResourceUsageNeverTriggersShutdown:
+    """Model inference routinely hits 95%+ CPU and 90%+ memory.
+    These are normal operations, NOT emergencies. No combination of
+    high CPU or memory should ever trigger shutdown."""
+
+    def test_cpu_99_percent_no_shutdown(self, shutdown):
+        """CPU at 99% must NOT trigger shutdown."""
+        state = {"cpu_percent": 99}
+        assert shutdown.check_shutdown_triggers(state) is None
+
+    def test_memory_95_percent_no_shutdown(self, shutdown):
+        """Memory at 95% must NOT trigger shutdown."""
+        state = {"memory_percent": 95}
+        assert shutdown.check_shutdown_triggers(state) is None
+
+    def test_cpu_99_and_memory_95_simultaneously_no_shutdown(self, shutdown):
+        """CPU 99% AND memory 95% simultaneously must NOT trigger shutdown."""
+        state = {"cpu_percent": 99, "memory_percent": 95}
+        assert shutdown.check_shutdown_triggers(state) is None
+
+    def test_cpu_100_percent_no_shutdown(self, shutdown):
+        """Even 100% CPU must NOT trigger shutdown."""
+        state = {"cpu_percent": 100}
+        assert shutdown.check_shutdown_triggers(state) is None
+
+    def test_memory_99_percent_no_shutdown(self, shutdown):
+        """Even 99% memory must NOT trigger shutdown."""
+        state = {"memory_percent": 99}
+        assert shutdown.check_shutdown_triggers(state) is None
+
+    def test_cpu_and_memory_maxed_with_model_inference_no_shutdown(self, shutdown):
+        """CPU and memory maxed during model inference is completely normal."""
+        state = {
+            "cpu_percent": 100,
+            "memory_percent": 98,
+            "operation_type": "model_inference",
+        }
+        assert shutdown.check_shutdown_triggers(state) is None
+
+    def test_no_runaway_process_trigger_exists(self, shutdown):
+        """No 'runaway process' trigger based on resource usage exists.
+        Verify that high resource usage with no other trigger flags returns None."""
+        state = {
+            "cpu_percent": 100,
+            "memory_percent": 99,
+            "active_module": "apex",
+            "active_tool": "unknown_tool",
+        }
+        assert shutdown.check_shutdown_triggers(state) is None
+
+    def test_high_resources_with_safe_omen_tools(self, shutdown):
+        """High CPU/memory during Omen operations is safe."""
+        for tool in ["code_execute", "code_lint", "code_review", "code_score"]:
+            state = {
+                "cpu_percent": 99,
+                "memory_percent": 95,
+                "active_tool": tool,
+                "active_module": "omen",
+            }
+            assert shutdown.check_shutdown_triggers(state) is None, (
+                f"High resources during {tool} should NOT trigger shutdown"
+            )
+
+    def test_high_resources_with_safe_grimoire_tools(self, shutdown):
+        """High CPU/memory during Grimoire operations is safe."""
+        for tool in ["memory_store", "memory_search", "embedding_store", "block_search"]:
+            state = {
+                "cpu_percent": 99,
+                "memory_percent": 95,
+                "active_tool": tool,
+                "active_module": "grimoire",
+            }
+            assert shutdown.check_shutdown_triggers(state) is None, (
+                f"High resources during {tool} should NOT trigger shutdown"
+            )
+
+    def test_high_resources_with_safe_reaper_tools(self, shutdown):
+        """High CPU/memory during Reaper operations is safe."""
+        for tool in ["web_search", "web_fetch", "web_scrape", "reddit_fetch"]:
+            state = {
+                "cpu_percent": 99,
+                "memory_percent": 95,
+                "active_tool": tool,
+                "active_module": "reaper",
+            }
+            assert shutdown.check_shutdown_triggers(state) is None, (
+                f"High resources during {tool} should NOT trigger shutdown"
+            )
 
 
 # ==================================================================
@@ -610,3 +707,84 @@ class TestDefaults:
         result = es.check_shutdown_triggers(state)
         assert result is not None
         assert "DISK FULL" in result
+
+
+# ==================================================================
+# Safe operation whitelist completeness
+# ==================================================================
+
+
+class TestSafeOperationWhitelist:
+    """Verify _is_safe_operation whitelist covers all required tools."""
+
+    OMEN_TOOLS = {
+        "code_execute", "code_lint", "code_test", "code_review",
+        "code_glob", "code_grep", "code_edit", "code_read",
+        "code_score", "git_status", "git_commit", "dependency_check",
+        "pattern_store", "pattern_search", "pattern_apply",
+        "failure_log", "failure_search", "failure_stats",
+        "scaffold_module", "scaffold_test", "seed_patterns",
+    }
+
+    GRIMOIRE_TOOLS = {
+        "memory_store", "memory_search", "memory_recall",
+        "memory_compact", "memory_index", "embedding_store",
+        "block_search", "knowledge_store",
+    }
+
+    REAPER_TOOLS = {
+        "web_search", "web_fetch", "web_scrape",
+        "youtube_transcribe", "reddit_fetch",
+    }
+
+    GROWTH_TOOLS = {
+        "growth_task", "growth_learn", "growth_evaluate",
+    }
+
+    def test_all_omen_tools_in_whitelist(self):
+        """Every Omen tool is in SAFE_TOOL_NAMES."""
+        missing = self.OMEN_TOOLS - SAFE_TOOL_NAMES
+        assert not missing, f"Omen tools missing from whitelist: {missing}"
+
+    def test_all_grimoire_tools_in_whitelist(self):
+        """Every Grimoire tool is in SAFE_TOOL_NAMES."""
+        missing = self.GRIMOIRE_TOOLS - SAFE_TOOL_NAMES
+        assert not missing, f"Grimoire tools missing from whitelist: {missing}"
+
+    def test_all_reaper_tools_in_whitelist(self):
+        """Every Reaper tool is in SAFE_TOOL_NAMES."""
+        missing = self.REAPER_TOOLS - SAFE_TOOL_NAMES
+        assert not missing, f"Reaper tools missing from whitelist: {missing}"
+
+    def test_all_growth_tools_in_whitelist(self):
+        """Every Growth Engine tool is in SAFE_TOOL_NAMES."""
+        missing = self.GROWTH_TOOLS - SAFE_TOOL_NAMES
+        assert not missing, f"Growth tools missing from whitelist: {missing}"
+
+    def test_model_inference_in_safe_operation_types(self):
+        """model_inference is a safe operation type."""
+        assert "model_inference" in SAFE_OPERATION_TYPES
+
+    def test_model_loading_in_safe_operation_types(self):
+        """model_loading is a safe operation type."""
+        assert "model_loading" in SAFE_OPERATION_TYPES
+
+    def test_embedding_ingestion_in_safe_operation_types(self):
+        """embedding_ingestion is a safe operation type."""
+        assert "embedding_ingestion" in SAFE_OPERATION_TYPES
+
+    def test_no_cpu_or_memory_threshold_in_config(self, tmp_config):
+        """No cpu_threshold or memory_threshold exists in shutdown config."""
+        shutdown_cfg = tmp_config.get("shutdown", {})
+        assert "cpu_threshold" not in shutdown_cfg
+        assert "memory_threshold" not in shutdown_cfg
+        assert "cpu_percent" not in shutdown_cfg
+        assert "memory_percent" not in shutdown_cfg
+
+    def test_no_cpu_or_memory_threshold_in_defaults(self):
+        """Default thresholds do not include cpu or memory."""
+        es = EmergencyShutdown()
+        assert "cpu_threshold" not in es._thresholds
+        assert "memory_threshold" not in es._thresholds
+        assert "cpu_percent" not in es._thresholds
+        assert "memory_percent" not in es._thresholds
