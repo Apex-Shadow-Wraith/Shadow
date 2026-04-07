@@ -224,12 +224,9 @@ def _test_config(tmp_path: Path) -> dict[str, Any]:
     }
 
 
-def _mock_ollama_response(content: str) -> MagicMock:
-    """Create a mock OpenAI-style response."""
-    resp = MagicMock()
-    resp.choices = [MagicMock()]
-    resp.choices[0].message.content = content
-    return resp
+def _mock_ollama_response(content: str) -> str:
+    """Return content as-is for native Ollama API mocking."""
+    return content
 
 
 def _mock_router_json(
@@ -344,7 +341,7 @@ class TestMathRouting:
         )
 
         # Router call returns classification, eval call returns final answer
-        orch._ollama.chat.completions.create = MagicMock(
+        orch._ollama_chat = MagicMock(
             side_effect=[router_response, eval_response]
         )
 
@@ -356,7 +353,7 @@ class TestMathRouting:
 
         # 2. Correct module was selected by router (cipher)
         # Verify router LLM was called (step 2 classification)
-        calls = orch._ollama.chat.completions.create.call_args_list
+        calls = orch._ollama_chat.call_args_list
         assert len(calls) == 2, f"Expected 2 LLM calls (router + eval), got {len(calls)}"
 
         # 3. Temporal event recorded
@@ -379,7 +376,7 @@ class TestMathRouting:
 
         # Router LLM raises exception → fallback_classify kicks in
         # "what is 15% of 847?" contains "what is" → RESEARCH/reaper via fallback
-        orch._ollama.chat.completions.create = MagicMock(
+        orch._ollama_chat = MagicMock(
             side_effect=Exception("Connection refused")
         )
 
@@ -418,7 +415,7 @@ class TestSearchRouting:
             "Here are the RTX 5090 benchmark results: "
             "2x performance over previous gen, 120fps at 4K."
         )
-        orch._ollama.chat.completions.create = MagicMock(return_value=eval_response)
+        orch._ollama_chat = MagicMock(return_value=eval_response)
 
         response = await orch.process_input("search for RTX 5090 benchmarks")
 
@@ -461,7 +458,7 @@ class TestMemoryStoreAndRetrieve:
         # --- Step A: Store a fact ---
         # "remember that ..." fast-paths to MEMORY/grimoire
         store_eval = _mock_ollama_response("Got it. I'll remember that your dog's name is Rex.")
-        orch._ollama.chat.completions.create = MagicMock(return_value=store_eval)
+        orch._ollama_chat = MagicMock(return_value=store_eval)
 
         store_response = await orch.process_input("remember that my dog's name is Rex")
 
@@ -474,7 +471,7 @@ class TestMemoryStoreAndRetrieve:
         # --- Step B: Retrieve the fact ---
         grimoire.calls.clear()
         recall_eval = _mock_ollama_response("Your dog's name is Rex.")
-        orch._ollama.chat.completions.create = MagicMock(return_value=recall_eval)
+        orch._ollama_chat = MagicMock(return_value=recall_eval)
 
         recall_response = await orch.process_input("what do you know about my dog")
 

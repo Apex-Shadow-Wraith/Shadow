@@ -43,26 +43,19 @@ class TestDecisionLoop:
 
     @pytest.fixture
     def orchestrator(self, config):
-        """Create orchestrator with mocked OpenAI client."""
-        with patch("modules.shadow.orchestrator.OpenAI") as mock_openai:
-            mock_client = MagicMock()
-            mock_openai.return_value = mock_client
-            # Mock the chat completion for classification
-            mock_response = MagicMock()
-            mock_response.choices = [MagicMock()]
-            mock_response.choices[0].message.content = json.dumps({
-                "task_type": "question",
-                "complexity": "simple",
-                "target_module": "wraith",
-                "brain": "fast_brain",
-                "safety_flag": False,
-                "priority": 3,
-            })
-            mock_client.chat.completions.create.return_value = mock_response
-            from modules.shadow.orchestrator import Orchestrator
-            orch = Orchestrator(config)
-            orch._ollama = mock_client
-            return orch
+        """Create orchestrator with mocked Ollama native API."""
+        from modules.shadow.orchestrator import Orchestrator
+        orch = Orchestrator(config)
+        # Mock _ollama_chat to return router-style JSON by default
+        orch._ollama_chat = MagicMock(return_value=json.dumps({
+            "task_type": "question",
+            "complexity": "simple",
+            "target_module": "wraith",
+            "brain": "fast_brain",
+            "safety_flag": False,
+            "priority": 3,
+        }))
+        return orch
 
     def test_injection_blocking(self, orchestrator):
         """Injection score >0.7 triggers block action."""

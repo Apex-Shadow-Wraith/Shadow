@@ -2,7 +2,7 @@
 Tests for Shadow Orchestrator (Decision Loop)
 ================================================
 Tests the 7-step decision loop with mocked LLM and modules.
-We can't call Ollama in CI, so we mock the OpenAI client.
+We can't call Ollama in CI, so we mock the HTTP calls.
 """
 
 import json
@@ -598,16 +598,13 @@ class TestPriorLearningCheck:
             priority=1,
         )
 
-        # Mock the Ollama call to capture messages
+        # Mock the native Ollama call to capture messages
         captured_messages = []
-        def mock_create(**kwargs):
-            captured_messages.extend(kwargs.get("messages", []))
-            mock_response = MagicMock()
-            mock_response.choices = [MagicMock()]
-            mock_response.choices[0].message.content = "Answer with prior learning"
-            return mock_response
+        def mock_ollama_chat(model, messages, options=None):
+            captured_messages.extend(messages)
+            return "Answer with prior learning"
 
-        orch._ollama.chat.completions.create = mock_create
+        orch._ollama_chat = mock_ollama_chat
 
         response = await orch._step6_evaluate(
             "solve this equation", classification, [], [],
@@ -636,12 +633,72 @@ class TestPriorLearningCheck:
             priority=1,
         )
 
-        mock_response = MagicMock()
-        mock_response.choices = [MagicMock()]
-        mock_response.choices[0].message.content = "Normal response"
-        orch._ollama.chat.completions.create = MagicMock(return_value=mock_response)
+        orch._ollama_chat = MagicMock(return_value="Normal response")
 
         response = await orch._step6_evaluate(
             "analyze data", classification, [], [],
         )
         assert response == "Normal response"
+
+
+# --- Native Ollama API Tests ---
+
+class TestOllamaNativeAPI:
+    """Test that the orchestrator uses Ollama's native /api/chat endpoint."""
+
+    def test_ollama_chat_calls_native_endpoint(self, config: dict):
+        """Verify _ollama_chat POSTs to http://localhost:11434/api/chat."""
+        orch = Orchestrator(config)
+
+        mock_response = MagicMock()
+        mock_response.json.return_value = {
+            "message": {"role": "assistant", "content": "Test response"},
+            "done": True,
+        }
+        mock_response.raise_for_status = MagicMock()
+
+        with patch.object(orch._ollama_client, "post", return_value=mock_response) as mock_post:
+            result = orch._ollama_chat(
+                model="phi4-mini",
+                messages=[{"role": "user", "content": "hello"}],
+            )
+
+            # Verify the correct URL was called
+            mock_post.assert_called_once()
+            call_args = mock_post.call_args
+            assert call_args[0][0] == "http://localhost:11434/api/chat"
+
+            # Verify request body format
+            body = call_args[1]["json"]
+            assert body["model"] == "phi4-mini"
+            assert body["messages"] == [{"role": "user", "content": "hello"}]
+            assert body["stream"] is False
+
+            # Verify response was extracted correctly
+            assert result == "Test response"
+
+    def test_ollama_chat_passes_options(self, config: dict):
+        """Verify options (temperature, num_predict) are passed correctly."""
+        orch = Orchestrator(config)
+
+        mock_response = MagicMock()
+        mock_response.json.return_value = {
+            "message": {"role": "assistant", "content": "ok"},
+            "done": True,
+        }
+        mock_response.raise_for_status = MagicMock()
+
+        with patch.object(orch._ollama_client, "post", return_value=mock_response) as mock_post:
+            orch._ollama_chat(
+                model="phi4-mini",
+                messages=[{"role": "user", "content": "test"}],
+                options={"temperature": 0.7, "num_predict": 500},
+            )
+
+            body = mock_post.call_args[1]["json"]
+            assert body["options"] == {"temperature": 0.7, "num_predict": 500}
+
+    def test_no_openai_sdk_import(self):
+        """Verify the orchestrator no longer imports OpenAI SDK."""
+        import modules.shadow.orchestrator as orch_module
+        assert not hasattr(orch_module, "OpenAI"), "OpenAI should not be imported in orchestrator"

@@ -30,7 +30,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Any
 
-from openai import OpenAI
+import httpx
 
 from modules.base import BaseModule, ModuleRegistry, ModuleStatus, ToolResult
 from modules.shadow.task_tracker import TaskTracker
@@ -125,10 +125,8 @@ class Orchestrator:
         self._config = config
         self.registry = ModuleRegistry()
         self._state = AgentState()
-        self._ollama = OpenAI(
-            base_url=config["models"]["ollama_base_url"] + "/v1",
-            api_key="ollama",  # Ollama doesn't need a real key
-        )
+        self._ollama_base_url = config["models"]["ollama_base_url"]
+        self._ollama_client = httpx.Client(timeout=120.0)
         self._router_model = config["models"]["router"]["name"]
         self._fast_brain = config["models"]["fast_brain"]["name"]
         self._smart_brain = config["models"]["smart_brain"]["name"]
@@ -418,6 +416,40 @@ class Orchestrator:
 
         return result
 
+    # --- Ollama Native API ---
+
+    def _ollama_chat(
+        self,
+        model: str,
+        messages: list[dict[str, str]],
+        options: dict[str, Any] | None = None,
+    ) -> str:
+        """Call Ollama's native /api/chat endpoint and return the response text.
+
+        Args:
+            model: The model name (e.g. 'phi4-mini', 'gemma4:26b').
+            messages: Chat messages in [{role, content}] format.
+            options: Ollama generation options (temperature, num_predict, etc.).
+
+        Returns:
+            The assistant's response content as a string.
+        """
+        payload: dict[str, Any] = {
+            "model": model,
+            "messages": messages,
+            "stream": False,
+        }
+        if options:
+            payload["options"] = options
+
+        resp = self._ollama_client.post(
+            f"{self._ollama_base_url}/api/chat",
+            json=payload,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        return data["message"]["content"].strip()
+
     # --- Step 2: Classify & Route ---
 
     async def _step2_classify(self, user_input: str) -> TaskClassification:
@@ -459,12 +491,12 @@ Classify the input and respond with ONLY valid JSON (no markdown, no explanation
 User input: {user_input}"""
 
         try:
-            response = self._ollama.chat.completions.create(
+            response = self._ollama_chat(
                 model=self._router_model,
                 messages=[{"role": "user", "content": prompt}],
-                temperature=0.1,
+                options={"temperature": 0.1},
             )
-            raw = response.choices[0].message.content.strip()
+            raw = response.strip()
 
             # Parse JSON — strip markdown fences if present
             clean = raw.replace("```json", "").replace("```", "").strip()
@@ -1117,13 +1149,11 @@ User input: {user_input}"""
         )
 
         try:
-            response = self._ollama.chat.completions.create(
+            return self._ollama_chat(
                 model=model,
                 messages=messages,
-                temperature=0.7,
-                max_tokens=500,
+                options={"temperature": 0.7, "num_predict": 500},
             )
-            return response.choices[0].message.content.strip()
 
         except Exception as e:
             logger.error("LLM response generation failed: %s", e)
