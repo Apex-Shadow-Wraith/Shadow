@@ -63,6 +63,22 @@ except ImportError:
     logger.warning("GrowthEngine not available — growth tracking disabled")
     _GROWTH_ENGINE_AVAILABLE = False
 
+# Graceful import — orchestrator still starts if task_chain is missing
+try:
+    from modules.shadow.task_chain import TaskChainEngine
+    _TASK_CHAIN_AVAILABLE = True
+except ImportError:
+    logger.warning("TaskChainEngine not available — chain execution disabled")
+    _TASK_CHAIN_AVAILABLE = False
+
+# Graceful import — orchestrator still starts if task_queue is missing
+try:
+    from modules.shadow.task_queue import PriorityTaskQueue
+    _TASK_QUEUE_AVAILABLE = True
+except ImportError:
+    logger.warning("PriorityTaskQueue not available — queue processing disabled")
+    _TASK_QUEUE_AVAILABLE = False
+
 # Graceful import — orchestrator still starts if observability is missing
 try:
     from modules.shadow.observability import trace_interaction
@@ -70,6 +86,21 @@ except ImportError:
     logger.info("Observability not available — Langfuse tracing disabled")
     def trace_interaction(f):  # noqa: E303
         return f
+
+# Module state awareness and independent Grimoire access
+try:
+    from modules.shadow.module_state import ModuleStateManager
+    _MODULE_STATE_AVAILABLE = True
+except ImportError:
+    logger.warning("ModuleStateManager not available — state tracking disabled")
+    _MODULE_STATE_AVAILABLE = False
+
+try:
+    from modules.grimoire.grimoire_reader import GrimoireReader
+    _GRIMOIRE_READER_AVAILABLE = True
+except ImportError:
+    logger.warning("GrimoireReader not available — independent memory access disabled")
+    _GRIMOIRE_READER_AVAILABLE = False
 
 
 class TaskType(Enum):
@@ -167,6 +198,19 @@ class Orchestrator:
         self._event_system = None
         self._handoff_protocol = None
 
+        # Module state awareness
+        if _MODULE_STATE_AVAILABLE:
+            self._module_state_manager = ModuleStateManager(
+                snapshot_path=config.get("system", {}).get(
+                    "module_states_file", "data/module_states.json"
+                )
+            )
+        else:
+            self._module_state_manager = None
+
+        # Track GrimoireReader instances for cleanup
+        self._grimoire_readers: list[Any] = []
+
     async def start(self) -> None:
         """Initialize all registered modules and load state."""
         logger.info("Shadow starting up...")
@@ -203,6 +247,46 @@ class Orchestrator:
             except Exception as e:
                 logger.warning("Failed to generate daily goals: %s", e)
 
+        # Wire module state awareness into all modules
+        if self._module_state_manager is not None:
+            self._module_state_manager.restore_snapshot()
+            for module_info in self.registry.list_modules():
+                module = self.registry.get_module(module_info["name"])
+                # Register module capabilities (tool names)
+                tool_names = [t["name"] for t in module.get_tools()]
+                self._module_state_manager.register_module(module.name, tool_names)
+                # Set initial state based on module status
+                if module.status == ModuleStatus.ONLINE:
+                    self._module_state_manager.update_state(module.name, "idle")
+                else:
+                    self._module_state_manager.update_state(
+                        module.name, "offline"
+                    )
+                # Wire state manager reference into module
+                module._state_manager = self._module_state_manager
+            logger.info("Module state awareness initialized for %d modules",
+                        len(self.registry.list_modules()))
+
+        # Wire independent Grimoire readers into all modules
+        if _GRIMOIRE_READER_AVAILABLE:
+            db_path = self._config.get("modules", {}).get("grimoire", {}).get(
+                "db_path", "data/memory/shadow_memory.db"
+            )
+            vector_path = self._config.get("modules", {}).get("grimoire", {}).get(
+                "vector_path", "data/vectors"
+            )
+            for module_info in self.registry.list_modules():
+                module = self.registry.get_module(module_info["name"])
+                reader = GrimoireReader(
+                    module_name=module.name,
+                    memory_db_path=db_path,
+                    vector_db_path=vector_path,
+                )
+                module._grimoire_reader = reader
+                self._grimoire_readers.append(reader)
+            logger.info("Independent Grimoire access wired for %d modules",
+                        len(self._grimoire_readers))
+
     async def shutdown(self) -> None:
         """Clean shutdown. Save state, shutdown all modules."""
         logger.info("Shadow shutting down...")
@@ -217,6 +301,16 @@ class Orchestrator:
                 await module.shutdown()
             except Exception as e:
                 logger.error("Error shutting down '%s': %s", module.name, e)
+
+        # Snapshot module states before shutdown
+        if self._module_state_manager is not None:
+            self._module_state_manager.snapshot()
+            logger.info("Module states snapshot saved")
+
+        # Close all GrimoireReader instances
+        for reader in self._grimoire_readers:
+            reader.close()
+        self._grimoire_readers.clear()
 
         # Shutdown message bus
         if self._message_bus is not None:

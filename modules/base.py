@@ -15,7 +15,11 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Any
+from typing import Any, Optional, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from modules.grimoire.grimoire_reader import GrimoireReader
+    from modules.shadow.module_state import ModuleStateManager
 
 
 class ModuleStatus(Enum):
@@ -70,6 +74,9 @@ class BaseModule(ABC):
         # Inter-module communication — set by orchestrator after init
         self._message_bus: Any | None = None
         self._event_system: Any | None = None
+        # Independent Grimoire access and module state awareness
+        self._grimoire_reader: GrimoireReader | None = None
+        self._state_manager: ModuleStateManager | None = None
 
     @abstractmethod
     async def initialize(self) -> None:
@@ -259,6 +266,64 @@ class BaseModule(ABC):
         if self._event_system is None:
             return
         self._event_system.subscribe(self.name, event_name, callback)
+
+    # ── Independent Grimoire Access ─────────────────────────────
+
+    def search_knowledge(
+        self, query: str, limit: int = 5
+    ) -> list[dict[str, Any]]:
+        """Search Grimoire for relevant knowledge. Graceful no-op if not wired."""
+        if self._grimoire_reader is None:
+            return []
+        return self._grimoire_reader.search(query, limit=limit)
+
+    def has_knowledge(self, query: str) -> bool:
+        """Check if Grimoire already has knowledge about a topic."""
+        if self._grimoire_reader is None:
+            return False
+        return self._grimoire_reader.check_knowledge_exists(query)
+
+    def get_my_knowledge(self, limit: int = 20) -> list[dict[str, Any]]:
+        """Get all knowledge this module has stored in Grimoire."""
+        if self._grimoire_reader is None:
+            return []
+        return self._grimoire_reader.get_module_knowledge(self.name, limit=limit)
+
+    def browse_category(
+        self, category: str, limit: int = 10
+    ) -> list[dict[str, Any]]:
+        """Browse Grimoire entries by category."""
+        if self._grimoire_reader is None:
+            return []
+        return self._grimoire_reader.search_by_category(category, limit=limit)
+
+    # ── Module State Awareness ───────────────────────────────────
+
+    def is_module_available(self, module_name: str) -> bool:
+        """Check if another module is idle and ready for work."""
+        if self._state_manager is None:
+            return False
+        try:
+            state = self._state_manager.get_state(module_name)
+            return state.status == "idle"
+        except KeyError:
+            return False
+
+    def get_module_status(self, module_name: str) -> str:
+        """Get another module's current status string."""
+        if self._state_manager is None:
+            return "unknown"
+        try:
+            state = self._state_manager.get_state(module_name)
+            return state.status
+        except KeyError:
+            return "unknown"
+
+    def who_can_do(self, capability: str) -> Optional[str]:
+        """Find which module can handle a given capability/tool."""
+        if self._state_manager is None:
+            return None
+        return self._state_manager.find_capable_module(capability)
 
     @property
     def info(self) -> dict[str, Any]:
