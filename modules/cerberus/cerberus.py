@@ -946,8 +946,12 @@ class Cerberus(BaseModule):
     def _check_permission_tier(
         self, tool_name: str, params: dict[str, Any]
     ) -> SafetyCheckResult:
-        """Check tool against permission tier system."""
-        # Phase 1: Simple — autonomous tools proceed, everything else needs approval
+        """Check tool against permission tier system.
+
+        Known autonomous tools pass immediately. Known approval-required tools
+        get flagged. Unknown tools are auto-classified based on their metadata
+        and registered for future checks.
+        """
         autonomous = self._limits.get("autonomous_tools", [])
 
         if tool_name in autonomous:
@@ -957,13 +961,40 @@ class Cerberus(BaseModule):
                 reason=f"Tool '{tool_name}' is Tier 1 autonomous",
             )
 
-        # Not in autonomous list and not in approval list = unknown tool
-        # Phase 1: default to approval required for unknown tools
+        # Already explicitly in approval list — no need to classify
+        approval_tools = self._limits.get("approval_required_tools", [])
+        if tool_name in approval_tools:
+            return SafetyCheckResult(
+                verdict=SafetyVerdict.APPROVAL_REQUIRED,
+                tool_name=tool_name,
+                reason=f"Tool '{tool_name}' requires approval",
+                rule_matched="approval_required_tools",
+            )
+
+        # Unknown tool — auto-classify based on metadata from params
+        tool_metadata = {
+            "description": params.get("_tool_description", ""),
+            "module": params.get("_requesting_module", ""),
+        }
+        classification = self.auto_register_tool(
+            tool_name=tool_name,
+            module_name=tool_metadata["module"],
+            description=tool_metadata["description"],
+        )
+
+        if classification == "autonomous":
+            return SafetyCheckResult(
+                verdict=SafetyVerdict.ALLOW,
+                tool_name=tool_name,
+                reason=f"Tool '{tool_name}' auto-classified as autonomous",
+                rule_matched="auto_classification",
+            )
+
         return SafetyCheckResult(
             verdict=SafetyVerdict.APPROVAL_REQUIRED,
             tool_name=tool_name,
-            reason=f"Tool '{tool_name}' not in autonomous list — approval required",
-            rule_matched="default_approval",
+            reason=f"Tool '{tool_name}' auto-classified as approval_required",
+            rule_matched="auto_classification",
         )
 
     # --- Hook System (Session 12) ---
@@ -1269,9 +1300,198 @@ class Cerberus(BaseModule):
             logger.critical("Cerberus config file MISSING: %s", limits_path)
             return {"tampered": True, "error": "Config file missing"}
 
+    # --- Tool Auto-Classification & Registration ---
+
+    # Indicators that a tool interacts with external systems
+    _EXTERNAL_KEYWORDS: set[str] = {
+        "email", "send", "notification", "notify", "telegram", "discord",
+        "slack", "webhook", "http", "post", "upload", "publish", "broadcast",
+        "sms", "push_notification",
+    }
+
+    # Indicators that a tool deletes data
+    _DELETE_KEYWORDS: set[str] = {
+        "delete", "remove", "drop", "purge", "wipe", "destroy", "erase",
+        "truncate", "uninstall",
+    }
+
+    # Indicators that a tool touches security config
+    _SECURITY_KEYWORDS: set[str] = {
+        "cerberus", "security_config", "safety_config", "firewall_config",
+        "permission", "auth_config",
+    }
+
+    # Indicators that a tool accesses credentials
+    _CREDENTIAL_KEYWORDS: set[str] = {
+        "credential", "password", "secret", "api_key", "token", "env",
+        "oauth", "private_key", ".env",
+    }
+
+    # Indicators that a tool makes financial transactions
+    _FINANCIAL_KEYWORDS: set[str] = {
+        "purchase", "buy", "payment", "charge", "invoice", "billing",
+        "transaction", "transfer_funds",
+    }
+
+    # Internal modules that are NOT external integrations
+    _INTERNAL_MODULES: set[str] = {
+        "shadow", "wraith", "cerberus", "apex", "grimoire", "sentinel",
+        "harbinger", "reaper", "cipher", "omen", "nova", "void", "morpheus",
+    }
+
+    def classify_new_tool(
+        self, tool_name: str, tool_metadata: dict[str, Any]
+    ) -> str:
+        """Analyze tool metadata and classify as autonomous or approval_required.
+
+        Auto-classifies as 'autonomous' if ALL of these are true:
+        - Owning module is internal (not an external integration)
+        - Does NOT send data externally
+        - Does NOT delete files outside data/ directories
+        - Does NOT modify Cerberus config
+        - Does NOT access credentials or .env
+        - Does NOT make purchases or financial transactions
+
+        Args:
+            tool_name: Name of the tool to classify.
+            tool_metadata: Dict with keys like 'description', 'module',
+                'parameters', 'permission_level'.
+
+        Returns:
+            'autonomous' or 'approval_required'.
+        """
+        # Check never_autonomous list first
+        never_autonomous = self._limits.get("never_autonomous", [])
+        if tool_name in never_autonomous:
+            return "approval_required"
+
+        description = (tool_metadata.get("description") or "").lower()
+        module = (tool_metadata.get("module") or "").lower()
+        name_lower = tool_name.lower()
+        searchable = f"{name_lower} {description}"
+
+        # Rule 1: Module must be internal
+        if module and module not in self._INTERNAL_MODULES:
+            return "approval_required"
+
+        # Rule 2: Must not send data externally
+        if any(kw in searchable for kw in self._EXTERNAL_KEYWORDS):
+            return "approval_required"
+
+        # Rule 3: Must not delete files outside data/
+        if any(kw in searchable for kw in self._DELETE_KEYWORDS):
+            # Allow deletions scoped to data/ directories
+            if "data/" in description or "data directory" in description:
+                pass  # Scoped to data — ok
+            else:
+                return "approval_required"
+
+        # Rule 4: Must not modify Cerberus/security config
+        if any(kw in searchable for kw in self._SECURITY_KEYWORDS):
+            # Don't flag tools that just READ security state
+            if not any(r in searchable for r in ("read", "check", "list", "get", "analyze", "evaluate")):
+                return "approval_required"
+
+        # Rule 5: Must not access credentials
+        if any(kw in searchable for kw in self._CREDENTIAL_KEYWORDS):
+            return "approval_required"
+
+        # Rule 6: Must not make financial transactions
+        if any(kw in searchable for kw in self._FINANCIAL_KEYWORDS):
+            return "approval_required"
+
+        # Rule 7: If metadata is ambiguous (no description AND no module), be safe
+        if not description and not module:
+            return "approval_required"
+
+        return "autonomous"
+
+    def auto_register_tool(
+        self,
+        tool_name: str,
+        module_name: str,
+        description: str,
+        classification: str | None = None,
+    ) -> str:
+        """Register a tool with Cerberus safety classification.
+
+        If classification is provided, use it (unless tool is in never_autonomous).
+        Otherwise, run classify_new_tool to determine classification.
+        Adds to the runtime autonomous_tools or approval_required_tools list.
+
+        Args:
+            tool_name: Name of the tool to register.
+            module_name: Owning module name.
+            description: Tool description.
+            classification: Optional explicit classification.
+
+        Returns:
+            The classification assigned ('autonomous' or 'approval_required').
+        """
+        metadata = {
+            "description": description,
+            "module": module_name,
+        }
+
+        # Never-autonomous override — cannot be bypassed
+        never_autonomous = self._limits.get("never_autonomous", [])
+        if tool_name in never_autonomous:
+            classification = "approval_required"
+        elif classification is None:
+            classification = self.classify_new_tool(tool_name, metadata)
+        elif classification == "autonomous" and tool_name in never_autonomous:
+            classification = "approval_required"
+
+        # Add to runtime config lists
+        if classification == "autonomous":
+            autonomous = self._limits.get("autonomous_tools", [])
+            if tool_name not in autonomous:
+                autonomous.append(tool_name)
+                self._limits["autonomous_tools"] = autonomous
+        else:
+            approval = self._limits.get("approval_required_tools", [])
+            if tool_name not in approval:
+                approval.append(tool_name)
+                self._limits["approval_required_tools"] = approval
+
+        # Track auto-registration for daily safety report
+        if not hasattr(self, "_auto_registrations"):
+            self._auto_registrations: list[dict[str, Any]] = []
+        self._auto_registrations.append({
+            "tool_name": tool_name,
+            "module": module_name,
+            "classification": classification,
+            "timestamp": datetime.now().isoformat(),
+        })
+
+        logger.info(
+            "Auto-registered tool %s as %s for module %s",
+            tool_name, classification, module_name,
+        )
+
+        self._write_audit_entry({
+            "type": "auto_registration",
+            "tool": tool_name,
+            "module": module_name,
+            "reason": f"Auto-registered as {classification}",
+            "category": "tool_registration",
+        })
+
+        return classification
+
+    def get_auto_registrations(self) -> list[dict[str, Any]]:
+        """Return list of tools auto-registered this session.
+
+        Used by DailySafetyReport to include in the daily briefing.
+        """
+        if not hasattr(self, "_auto_registrations"):
+            self._auto_registrations = []
+        return list(self._auto_registrations)
+
     @property
     def stats(self) -> dict[str, Any]:
         """Cerberus performance stats for daily safety report."""
+        auto_regs = self.get_auto_registrations()
         return {
             "checks": self._check_count,
             "denials": self._deny_count,
@@ -1283,4 +1503,6 @@ class Cerberus(BaseModule):
             ),
             "audit_entries": len(self._audit_log),
             "config_hash": self._config_hash[:16],
+            "auto_registrations": len(auto_regs),
+            "auto_registrations_detail": auto_regs,
         }

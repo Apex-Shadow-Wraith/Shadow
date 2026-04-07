@@ -115,6 +115,7 @@ class DailySafetyReport:
         anomalies = self._detect_anomalies(entries)
         fp_rate = self._compute_false_positive_rate(entries)
         calibration = self._compute_calibration_alerts(fp_rate)
+        auto_regs = self._collect_auto_registrations(entries)
 
         return {
             "date": str(date),
@@ -124,6 +125,7 @@ class DailySafetyReport:
             "anomalies": anomalies,
             "false_positive_rate": fp_rate,
             "calibration_alerts": calibration,
+            "auto_registrations": auto_regs,
         }
 
     # ------------------------------------------------------------------
@@ -163,6 +165,26 @@ class DailySafetyReport:
                     "resolved": bool(e.get("resolved", 0)),
                 })
         return blocks
+
+    # ------------------------------------------------------------------
+    # Auto-registrations
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _collect_auto_registrations(entries: list[dict]) -> list[dict]:
+        """Collect tools that were auto-registered today."""
+        registrations = []
+        for e in entries:
+            if e.get("type") == "auto_registration":
+                registrations.append({
+                    "tool": e.get("tool", "unknown"),
+                    "module": e.get("module", "unknown"),
+                    "classification": e.get("reason", "").replace(
+                        "Auto-registered as ", ""
+                    ),
+                    "timestamp": e.get("timestamp", ""),
+                })
+        return registrations
 
     # ------------------------------------------------------------------
     # Anomaly detection
@@ -327,6 +349,17 @@ class DailySafetyReport:
         lines.append(f"FALSE POSITIVE RATE: {fp.get('overall', 0):.1%} overall "
                       f"({fp.get('total_resolved', 0)}/{fp.get('total_blocks', 0)} blocks overridden)")
         lines.append("")
+
+        # Auto-registrations
+        auto_regs = report.get("auto_registrations", [])
+        if auto_regs:
+            lines.append(f"AUTO-REGISTERED TOOLS ({len(auto_regs)})")
+            for r in auto_regs:
+                lines.append(
+                    f"  - {r.get('tool', '?')} ({r.get('module', '?')}) "
+                    f"→ {r.get('classification', '?')}"
+                )
+            lines.append("")
 
         # Calibration alerts
         alerts = report.get("calibration_alerts", [])

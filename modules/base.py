@@ -18,6 +18,7 @@ from enum import Enum
 from typing import Any, Optional, TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from modules.cerberus.cerberus import Cerberus
     from modules.grimoire.grimoire_reader import GrimoireReader
     from modules.shadow.module_state import ModuleStateManager
 
@@ -355,6 +356,14 @@ class ModuleRegistry:
     def __init__(self) -> None:
         self._modules: dict[str, BaseModule] = {}
         self._tool_index: dict[str, str] = {}  # tool_name → module_name
+        self._cerberus: Cerberus | None = None
+
+    def set_cerberus(self, cerberus: Cerberus) -> None:
+        """Wire Cerberus for auto-registration of tools at startup and runtime.
+
+        Called by the orchestrator after Cerberus is initialized.
+        """
+        self._cerberus = cerberus
 
     def register(self, module: BaseModule) -> None:
         """Register a module. Builds tool index from module's tool list.
@@ -379,6 +388,16 @@ class ModuleRegistry:
         self._modules[module.name] = module
         for tool in tools:
             self._tool_index[tool["name"]] = module.name
+
+        # Auto-register tools with Cerberus for safety classification
+        if self._cerberus is not None and module.name != "cerberus":
+            for tool in tools:
+                self._cerberus.auto_register_tool(
+                    tool_name=tool["name"],
+                    module_name=module.name,
+                    description=tool.get("description", ""),
+                    classification=tool.get("permission_level"),
+                )
 
     def unregister(self, module_name: str) -> None:
         """Remove a module and its tools from the registry."""

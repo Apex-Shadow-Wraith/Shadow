@@ -188,6 +188,21 @@ approval_required_tools:
   - "software_install"
   - "apex_query"  # API calls cost money
 
+# --- Tools that MUST ALWAYS require approval (never auto-classified as autonomous) ---
+# This list cannot be overridden by auto-classification or runtime registration.
+# Only the creator can modify this list directly on disk.
+never_autonomous:
+  - "email_send"
+  - "notification_send"
+  - "browser_stealth"
+  - "file_delete"
+  - "software_install"
+  - "system_modify"
+  - "sandbox_to_production"
+  - "model_pull"
+  - "creator_exception"
+  - "creator_authorize"
+
 # --- Tools always autonomous (Phase 1: internal read/write) ---
 autonomous_tools:
   - "memory_store"
@@ -242,3 +257,7 @@ autonomous_tools:
   - "threat_detection_rule"
   - "threat_shadow_assessment"
   - "threat_knowledge_store"
+  # --- Omen sandbox tools ---
+  - "sandbox_execute"
+  - "sandbox_validate"
+  - "sandbox_cleanup"
