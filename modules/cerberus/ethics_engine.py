@@ -25,8 +25,9 @@ logger = logging.getLogger("shadow.cerberus.ethics")
 
 # Keywords that map to ethical categories for extraction from action text
 ETHICAL_KEYWORDS = {
-    "honesty": ["lie", "lying", "deceive", "deception", "fake", "false", "mislead",
-                 "fabricate", "dishonest", "truth", "honest", "integrity", "transparent"],
+    "honesty": ["lie", "lying", "deceive", "deception", "deceptive", "fake", "false",
+                 "mislead", "fabricate", "dishonest", "truth", "honest", "integrity",
+                 "transparent"],
     "stewardship": ["waste", "resource", "manage", "responsible", "careful",
                      "efficient", "accountable", "steward"],
     "privacy": ["privacy", "private", "personal data", "confidential", "secret",
@@ -141,7 +142,8 @@ class EthicsEngine:
 
             if not matched:
                 for keyword in entry.get("keywords", []):
-                    if topic_lower in keyword.lower() or keyword.lower() in topic_lower:
+                    kw = str(keyword).lower()
+                    if topic_lower in kw or kw in topic_lower:
                         matched = True
                         break
 
