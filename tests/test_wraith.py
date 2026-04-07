@@ -449,3 +449,152 @@ class TestAskUser:
         result = await online_wraith.execute("ask_user", {"question": ""})
         assert result.success is False
         assert "required" in result.error
+
+
+# --- Timed reminder tests ---
+
+class TestTimedReminders:
+    @pytest.mark.asyncio
+    async def test_set_reminder_with_delay(self, online_wraith: Wraith):
+        """set_reminder with delay_minutes creates correct due_time."""
+        result = await online_wraith.execute("reminder_create", {
+            "content": "call client",
+            "delay_minutes": 5,
+        })
+        assert result.success is True
+        reminder = result.content
+        assert reminder["status"] == "pending"
+        due = datetime.fromisoformat(reminder["due_time"])
+        created = datetime.fromisoformat(reminder["created_at"])
+        delta = (due - created).total_seconds()
+        assert 290 <= delta <= 310  # ~5 minutes with tolerance
+
+    @pytest.mark.asyncio
+    async def test_set_reminder_with_due_time(self, online_wraith: Wraith):
+        """set_reminder with explicit due_time stores it correctly."""
+        future = (datetime.now() + timedelta(hours=2)).isoformat()
+        result = await online_wraith.execute("reminder_create", {
+            "content": "meeting",
+            "due_time": future,
+        })
+        assert result.success is True
+        assert result.content["due_time"] == future
+        assert result.content["status"] == "pending"
+
+    @pytest.mark.asyncio
+    async def test_set_reminder_no_timing_due_immediately(self, online_wraith: Wraith):
+        """No delay_minutes or due_time means due immediately."""
+        result = await online_wraith.execute("reminder_create", {
+            "content": "do it now",
+        })
+        assert result.success is True
+        due = datetime.fromisoformat(result.content["due_time"])
+        created = datetime.fromisoformat(result.content["created_at"])
+        assert abs((due - created).total_seconds()) < 2
+
+    @pytest.mark.asyncio
+    async def test_negative_delay_fails(self, online_wraith: Wraith):
+        result = await online_wraith.execute("reminder_create", {
+            "content": "test",
+            "delay_minutes": -5,
+        })
+        assert result.success is False
+        assert "negative" in result.error
+
+    @pytest.mark.asyncio
+    async def test_invalid_due_time_fails(self, online_wraith: Wraith):
+        result = await online_wraith.execute("reminder_create", {
+            "content": "test",
+            "due_time": "not-a-date",
+        })
+        assert result.success is False
+        assert "ISO" in result.error
+
+    @pytest.mark.asyncio
+    async def test_list_reminders_returns_pending(self, online_wraith: Wraith):
+        """list_reminders returns pending reminders."""
+        await online_wraith.execute("reminder_create", {
+            "content": "pending one",
+            "delay_minutes": 60,
+        })
+        result = await online_wraith.execute("reminder_list", {})
+        assert result.success is True
+        assert result.content["total"] == 1
+        assert result.content["reminders"][0]["status"] == "pending"
+
+    @pytest.mark.asyncio
+    async def test_cancel_reminder(self, online_wraith: Wraith):
+        """cancel_reminder (reminder_kill) removes a reminder."""
+        r = await online_wraith.execute("reminder_create", {
+            "content": "cancel me",
+            "delay_minutes": 30,
+        })
+        rid = r.content["id"]
+        result = await online_wraith.execute("reminder_kill", {"reminder_id": rid})
+        assert result.success is True
+        assert result.content["status"] == "killed"
+        # Not in active list anymore
+        listing = await online_wraith.execute("reminder_list", {})
+        assert listing.content["active"] == 0
+
+    @pytest.mark.asyncio
+    async def test_check_reminders_fires_past_due(self, online_wraith: Wraith):
+        """check_reminders returns reminders past due_time and marks them fired."""
+        # Create reminder due immediately (delay=0)
+        await online_wraith.execute("reminder_create", {
+            "content": "fire me",
+            "delay_minutes": 0,
+        })
+        fired = online_wraith.check_reminders()
+        assert len(fired) == 1
+        assert fired[0]["content"] == "fire me"
+        assert fired[0]["status"] == "fired"
+
+    @pytest.mark.asyncio
+    async def test_check_reminders_skips_future(self, online_wraith: Wraith):
+        """check_reminders does not fire reminders with future due_time."""
+        await online_wraith.execute("reminder_create", {
+            "content": "not yet",
+            "delay_minutes": 60,
+        })
+        fired = online_wraith.check_reminders()
+        assert len(fired) == 0
+
+    @pytest.mark.asyncio
+    async def test_check_reminders_does_not_refire(self, online_wraith: Wraith):
+        """Already-fired reminders are not returned again."""
+        await online_wraith.execute("reminder_create", {
+            "content": "once only",
+            "delay_minutes": 0,
+        })
+        fired1 = online_wraith.check_reminders()
+        assert len(fired1) == 1
+        fired2 = online_wraith.check_reminders()
+        assert len(fired2) == 0
+
+    @pytest.mark.asyncio
+    async def test_zero_delay_fires_immediately(self, online_wraith: Wraith):
+        """A reminder set with 0 delay fires immediately on next check."""
+        await online_wraith.execute("reminder_create", {
+            "content": "instant",
+            "delay_minutes": 0,
+        })
+        fired = online_wraith.check_reminders()
+        assert len(fired) == 1
+        assert fired[0]["content"] == "instant"
+
+    @pytest.mark.asyncio
+    async def test_dismiss_sets_status(self, online_wraith: Wraith):
+        """Dismissing a fired reminder sets status to dismissed."""
+        r = await online_wraith.execute("reminder_create", {
+            "content": "dismiss test",
+            "delay_minutes": 0,
+        })
+        online_wraith.check_reminders()
+        result = await online_wraith.execute("reminder_dismiss", {
+            "reminder_id": r.content["id"],
+        })
+        assert result.success is True
+        # Find the reminder and check status
+        reminder = online_wraith._find_reminder(r.content["id"])
+        assert reminder["status"] == "dismissed"
