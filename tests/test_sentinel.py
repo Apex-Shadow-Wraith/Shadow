@@ -61,7 +61,7 @@ class TestSentinelLifecycle:
 
     def test_get_tools(self, sentinel: Sentinel):
         tools = sentinel.get_tools()
-        assert len(tools) == 6
+        assert len(tools) == 12
         names = [t["name"] for t in tools]
         assert "network_scan" in names
         assert "file_integrity_check" in names

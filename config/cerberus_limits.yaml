@@ -220,3 +220,17 @@ autonomous_tools:
   - "scaffold_module"
   - "scaffold_test"
   - "seed_patterns"
+  # --- Omen model evaluator ---
+  - "model_list"
+  - "model_benchmark"
+  - "model_evaluate"
+  - "model_compare"
+  - "model_info"
+  - "model_recommend"
+  # --- Sentinel security analyzer ---
+  - "firewall_analyze"
+  - "firewall_evaluate"
+  - "firewall_compare"
+  - "firewall_explain_rule"
+  - "firewall_generate"
+  - "security_learn"

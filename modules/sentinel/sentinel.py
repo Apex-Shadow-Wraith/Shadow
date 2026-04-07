@@ -23,6 +23,7 @@ from pathlib import Path
 from typing import Any
 
 from modules.base import BaseModule, ModuleStatus, ToolResult
+from modules.sentinel.security_analyzer import SecurityAnalyzer
 
 logger = logging.getLogger("shadow.sentinel")
 
@@ -53,6 +54,9 @@ class Sentinel(BaseModule):
         )
         self._baseline: dict[str, str] = {}
         self._alerts: list[dict[str, Any]] = []
+        self._analyzer = SecurityAnalyzer(
+            grimoire=self._config.get("grimoire"),
+        )
 
     async def initialize(self) -> None:
         """Start Sentinel. Load file integrity baseline."""
@@ -81,6 +85,12 @@ class Sentinel(BaseModule):
                 "security_alert": self._security_alert,
                 "threat_assess": self._threat_assess,
                 "quarantine_file": self._quarantine_file,
+                "firewall_analyze": self._firewall_analyze,
+                "firewall_evaluate": self._firewall_evaluate,
+                "firewall_compare": self._firewall_compare,
+                "firewall_explain_rule": self._firewall_explain_rule,
+                "firewall_generate": self._firewall_generate,
+                "security_learn": self._security_learn,
             }
 
             handler = handlers.get(tool_name)
@@ -148,6 +158,42 @@ class Sentinel(BaseModule):
                 "name": "quarantine_file",
                 "description": "Move suspicious file to quarantine directory",
                 "parameters": {"file_path": "str", "reason": "str"},
+                "permission_level": "autonomous",
+            },
+            {
+                "name": "firewall_analyze",
+                "description": "Parse and analyze a firewall configuration file",
+                "parameters": {"config_text": "str", "firewall_type": "str"},
+                "permission_level": "autonomous",
+            },
+            {
+                "name": "firewall_evaluate",
+                "description": "Score a firewall config on security best practices",
+                "parameters": {"analysis": "dict"},
+                "permission_level": "autonomous",
+            },
+            {
+                "name": "firewall_compare",
+                "description": "Compare multiple firewall configs side by side",
+                "parameters": {"configs": "list"},
+                "permission_level": "autonomous",
+            },
+            {
+                "name": "firewall_explain_rule",
+                "description": "Explain a single firewall rule in plain English with equivalents",
+                "parameters": {"rule_text": "str", "firewall_type": "str"},
+                "permission_level": "autonomous",
+            },
+            {
+                "name": "firewall_generate",
+                "description": "Generate a complete firewall config from requirements",
+                "parameters": {"requirements": "dict"},
+                "permission_level": "autonomous",
+            },
+            {
+                "name": "security_learn",
+                "description": "Study firewall concepts and store in Grimoire",
+                "parameters": {"topic": "str"},
                 "permission_level": "autonomous",
             },
         ]
@@ -441,6 +487,105 @@ class Sentinel(BaseModule):
                 success=False, content=None, tool_name="quarantine_file",
                 module=self.name, error=f"Failed to quarantine: {e}",
             )
+
+    # --- Security Analyzer tool handlers ---
+
+    def _firewall_analyze(self, params: dict[str, Any]) -> ToolResult:
+        """Analyze a firewall configuration."""
+        config_text = params.get("config_text", "")
+        if not config_text:
+            return ToolResult(
+                success=False, content=None, tool_name="firewall_analyze",
+                module=self.name, error="config_text is required",
+            )
+        firewall_type = params.get("firewall_type", "auto")
+        result = self._analyzer.analyze_firewall_config(config_text, firewall_type)
+        return ToolResult(
+            success="error" not in result, content=result,
+            tool_name="firewall_analyze", module=self.name,
+            error=result.get("error"),
+        )
+
+    def _firewall_evaluate(self, params: dict[str, Any]) -> ToolResult:
+        """Evaluate a firewall analysis for security best practices."""
+        analysis = params.get("analysis", {})
+        if not analysis:
+            return ToolResult(
+                success=False, content=None, tool_name="firewall_evaluate",
+                module=self.name, error="analysis dict is required",
+            )
+        result = self._analyzer.evaluate_firewall(analysis)
+        return ToolResult(
+            success="error" not in result, content=result,
+            tool_name="firewall_evaluate", module=self.name,
+            error=result.get("error"),
+        )
+
+    def _firewall_compare(self, params: dict[str, Any]) -> ToolResult:
+        """Compare multiple firewall configs."""
+        configs = params.get("configs", [])
+        if len(configs) < 2:
+            return ToolResult(
+                success=False, content=None, tool_name="firewall_compare",
+                module=self.name, error="Need at least 2 configs to compare",
+            )
+        result = self._analyzer.compare_firewalls(configs)
+        return ToolResult(
+            success="error" not in result, content=result,
+            tool_name="firewall_compare", module=self.name,
+            error=result.get("error"),
+        )
+
+    def _firewall_explain_rule(self, params: dict[str, Any]) -> ToolResult:
+        """Explain a single firewall rule."""
+        rule_text = params.get("rule_text", "")
+        firewall_type = params.get("firewall_type", "")
+        if not rule_text or not firewall_type:
+            return ToolResult(
+                success=False, content=None, tool_name="firewall_explain_rule",
+                module=self.name, error="rule_text and firewall_type are required",
+            )
+        result = self._analyzer.explain_rule(rule_text, firewall_type)
+        return ToolResult(
+            success=True, content=result,
+            tool_name="firewall_explain_rule", module=self.name,
+        )
+
+    def _firewall_generate(self, params: dict[str, Any]) -> ToolResult:
+        """Generate a firewall config from requirements."""
+        requirements = params.get("requirements", {})
+        if not requirements:
+            return ToolResult(
+                success=False, content=None, tool_name="firewall_generate",
+                module=self.name, error="requirements dict is required",
+            )
+        result = self._analyzer.generate_firewall(requirements)
+        return ToolResult(
+            success=True, content=result,
+            tool_name="firewall_generate", module=self.name,
+        )
+
+    def _security_learn(self, params: dict[str, Any]) -> ToolResult:
+        """Learn a firewall concept and optionally store in Grimoire."""
+        topic = params.get("topic", "")
+        if not topic:
+            return ToolResult(
+                success=False, content=None, tool_name="security_learn",
+                module=self.name, error="topic is required",
+            )
+        knowledge = self._analyzer.learn_firewall_concepts(topic)
+        if "error" in knowledge:
+            return ToolResult(
+                success=False, content=knowledge,
+                tool_name="security_learn", module=self.name,
+                error=knowledge["error"],
+            )
+        stored = self._analyzer.store_security_knowledge(knowledge, source="security_analyzer")
+        knowledge["stored_in_grimoire"] = stored > 0
+        return ToolResult(
+            success=True, content=knowledge,
+            tool_name="security_learn", module=self.name,
+        )
 
     # --- Internal helpers ---
 
