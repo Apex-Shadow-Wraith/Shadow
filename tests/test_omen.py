@@ -42,7 +42,7 @@ class TestOmenLifecycle:
 
     def test_get_tools(self, omen: Omen):
         tools = omen.get_tools()
-        assert len(tools) == 33
+        assert len(tools) == 37
         names = [t["name"] for t in tools]
         assert "code_execute" in names
         assert "code_lint" in names
@@ -88,7 +88,8 @@ class TestCodeExecute:
             "timeout": 1,
         })
         assert r.success is False
-        assert "timed out" in r.error
+        assert r.error == "" or r.error is None
+        assert r.content.get("timed_out") is True
 
     @pytest.mark.asyncio
     async def test_empty_code_fails(self, online_omen: Omen):
