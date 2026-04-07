@@ -24,6 +24,7 @@ from typing import Any
 
 from modules.base import BaseModule, ModuleStatus, ToolResult
 from modules.sentinel.security_analyzer import SecurityAnalyzer
+from modules.sentinel.threat_intelligence import ThreatIntelligence
 
 logger = logging.getLogger("shadow.sentinel")
 
@@ -55,6 +56,9 @@ class Sentinel(BaseModule):
         self._baseline: dict[str, str] = {}
         self._alerts: list[dict[str, Any]] = []
         self._analyzer = SecurityAnalyzer(
+            grimoire=self._config.get("grimoire"),
+        )
+        self._threat_intel = ThreatIntelligence(
             grimoire=self._config.get("grimoire"),
         )
 
@@ -91,6 +95,13 @@ class Sentinel(BaseModule):
                 "firewall_explain_rule": self._firewall_explain_rule,
                 "firewall_generate": self._firewall_generate,
                 "security_learn": self._security_learn,
+                "threat_analyze": self._threat_analyze,
+                "threat_log_analyze": self._threat_log_analyze,
+                "threat_defense_profile": self._threat_defense_profile,
+                "threat_malware_study": self._threat_malware_study,
+                "threat_detection_rule": self._threat_detection_rule,
+                "threat_shadow_assessment": self._threat_shadow_assessment,
+                "threat_knowledge_store": self._threat_knowledge_store,
             }
 
             handler = handlers.get(tool_name)
@@ -194,6 +205,49 @@ class Sentinel(BaseModule):
                 "name": "security_learn",
                 "description": "Study firewall concepts and store in Grimoire",
                 "parameters": {"topic": "str"},
+                "permission_level": "autonomous",
+            },
+            # --- Threat Intelligence tools ---
+            {
+                "name": "threat_analyze",
+                "description": "Study a known attack pattern for defensive understanding",
+                "parameters": {"pattern_name": "str"},
+                "permission_level": "autonomous",
+            },
+            {
+                "name": "threat_log_analyze",
+                "description": "Analyze log entries for signs of attack or suspicious activity",
+                "parameters": {"log_text": "str", "log_type": "str"},
+                "permission_level": "autonomous",
+            },
+            {
+                "name": "threat_defense_profile",
+                "description": "Build a complete defense profile for a list of threats",
+                "parameters": {"threat_list": "list"},
+                "permission_level": "autonomous",
+            },
+            {
+                "name": "threat_malware_study",
+                "description": "Study a known malware family for defensive understanding",
+                "parameters": {"family_name": "str"},
+                "permission_level": "autonomous",
+            },
+            {
+                "name": "threat_detection_rule",
+                "description": "Generate a detection rule for a specific threat",
+                "parameters": {"threat_type": "str", "rule_format": "str"},
+                "permission_level": "autonomous",
+            },
+            {
+                "name": "threat_shadow_assessment",
+                "description": "Assess Shadow's specific threat surface",
+                "parameters": {},
+                "permission_level": "autonomous",
+            },
+            {
+                "name": "threat_knowledge_store",
+                "description": "Store threat intelligence in Grimoire",
+                "parameters": {"knowledge": "dict", "source": "str"},
                 "permission_level": "autonomous",
             },
         ]
@@ -585,6 +639,107 @@ class Sentinel(BaseModule):
         return ToolResult(
             success=True, content=knowledge,
             tool_name="security_learn", module=self.name,
+        )
+
+    # --- Threat Intelligence tool handlers ---
+
+    def _threat_analyze(self, params: dict[str, Any]) -> ToolResult:
+        """Analyze a known attack pattern."""
+        pattern_name = params.get("pattern_name", "")
+        if not pattern_name:
+            return ToolResult(
+                success=False, content=None, tool_name="threat_analyze",
+                module=self.name, error="pattern_name is required",
+            )
+        result = self._threat_intel.analyze_attack_pattern(pattern_name)
+        return ToolResult(
+            success="error" not in result, content=result,
+            tool_name="threat_analyze", module=self.name,
+            error=result.get("error"),
+        )
+
+    def _threat_log_analyze(self, params: dict[str, Any]) -> ToolResult:
+        """Analyze log entries for threats."""
+        log_text = params.get("log_text", "")
+        if not log_text:
+            return ToolResult(
+                success=False, content=None, tool_name="threat_log_analyze",
+                module=self.name, error="log_text is required",
+            )
+        log_type = params.get("log_type", "auto")
+        result = self._threat_intel.analyze_log_pattern(log_text, log_type)
+        return ToolResult(
+            success=True, content=result,
+            tool_name="threat_log_analyze", module=self.name,
+        )
+
+    def _threat_defense_profile(self, params: dict[str, Any]) -> ToolResult:
+        """Build a defense profile for given threats."""
+        threat_list = params.get("threat_list", [])
+        if not threat_list:
+            return ToolResult(
+                success=False, content=None, tool_name="threat_defense_profile",
+                module=self.name, error="threat_list is required",
+            )
+        result = self._threat_intel.build_defense_profile(threat_list)
+        return ToolResult(
+            success="error" not in result, content=result,
+            tool_name="threat_defense_profile", module=self.name,
+            error=result.get("error"),
+        )
+
+    def _threat_malware_study(self, params: dict[str, Any]) -> ToolResult:
+        """Study a malware family for defensive understanding."""
+        family_name = params.get("family_name", "")
+        if not family_name:
+            return ToolResult(
+                success=False, content=None, tool_name="threat_malware_study",
+                module=self.name, error="family_name is required",
+            )
+        result = self._threat_intel.study_malware_family(family_name)
+        return ToolResult(
+            success="error" not in result, content=result,
+            tool_name="threat_malware_study", module=self.name,
+            error=result.get("error"),
+        )
+
+    def _threat_detection_rule(self, params: dict[str, Any]) -> ToolResult:
+        """Generate a detection rule for a threat."""
+        threat_type = params.get("threat_type", "")
+        if not threat_type:
+            return ToolResult(
+                success=False, content=None, tool_name="threat_detection_rule",
+                module=self.name, error="threat_type is required",
+            )
+        rule_format = params.get("rule_format", "suricata")
+        result = self._threat_intel.generate_detection_rule(threat_type, rule_format)
+        return ToolResult(
+            success="error" not in result, content=result,
+            tool_name="threat_detection_rule", module=self.name,
+            error=result.get("error"),
+        )
+
+    def _threat_shadow_assessment(self, params: dict[str, Any]) -> ToolResult:
+        """Assess Shadow's threat surface."""
+        result = self._threat_intel.assess_shadow_threat_surface()
+        return ToolResult(
+            success=True, content=result,
+            tool_name="threat_shadow_assessment", module=self.name,
+        )
+
+    def _threat_knowledge_store(self, params: dict[str, Any]) -> ToolResult:
+        """Store threat intelligence in Grimoire."""
+        knowledge = params.get("knowledge", {})
+        source = params.get("source", "")
+        if not knowledge or not source:
+            return ToolResult(
+                success=False, content=None, tool_name="threat_knowledge_store",
+                module=self.name, error="knowledge dict and source are required",
+            )
+        count = self._threat_intel.store_threat_knowledge(knowledge, source)
+        return ToolResult(
+            success=True, content={"stored_count": count},
+            tool_name="threat_knowledge_store", module=self.name,
         )
 
     # --- Internal helpers ---

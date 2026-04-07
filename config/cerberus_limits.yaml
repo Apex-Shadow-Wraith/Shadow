@@ -234,3 +234,11 @@ autonomous_tools:
   - "firewall_explain_rule"
   - "firewall_generate"
   - "security_learn"
+  # --- Sentinel threat intelligence ---
+  - "threat_analyze"
+  - "threat_log_analyze"
+  - "threat_defense_profile"
+  - "threat_malware_study"
+  - "threat_detection_rule"
+  - "threat_shadow_assessment"
+  - "threat_knowledge_store"
