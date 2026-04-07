@@ -173,6 +173,7 @@ class Cerberus(BaseModule):
                     params.get("action_tool", ""),
                     params.get("action_params", {}),
                     params.get("requesting_module", "unknown"),
+                    trusted_source=params.get("trusted_source", False),
                 )
                 self._record_call(True)
                 return ToolResult(
@@ -187,6 +188,7 @@ class Cerberus(BaseModule):
                 result = self._pre_tool_hook(
                     params.get("tool_name", ""),
                     params.get("tool_params", {}),
+                    trusted_source=params.get("trusted_source", False),
                 )
                 self._record_call(True)
                 return ToolResult(
@@ -576,6 +578,7 @@ class Cerberus(BaseModule):
         action_tool: str,
         action_params: dict[str, Any],
         requesting_module: str,
+        trusted_source: bool = False,
     ) -> SafetyCheckResult:
         """The safety gate. Step 4 of the decision loop.
 
@@ -585,7 +588,7 @@ class Cerberus(BaseModule):
         self._check_count += 1
 
         # 1. Check hard limits
-        hard_limit_result = self._check_hard_limits(action_tool, action_params)
+        hard_limit_result = self._check_hard_limits(action_tool, action_params, trusted_source)
         if hard_limit_result.verdict == SafetyVerdict.DENY:
             self._deny_count += 1
             self._write_audit_entry({
@@ -644,7 +647,7 @@ class Cerberus(BaseModule):
         )
 
     def _check_hard_limits(
-        self, tool_name: str, params: dict[str, Any]
+        self, tool_name: str, params: dict[str, Any], trusted_source: bool = False
     ) -> SafetyCheckResult:
         """Check action against hard limits. These are permanent."""
         hard_limits = self._limits.get("hard_limits", {})
@@ -671,7 +674,8 @@ class Cerberus(BaseModule):
                     )
 
         # Check for shell metacharacters in bash/code execution
-        if tool_name in ("bash_execute", "code_execute"):
+        # Only applies to untrusted input — internal Omen calls bypass this
+        if tool_name in ("bash_execute", "code_execute") and not trusted_source:
             command = params.get("command", "")
             # Basic shell injection detection
             dangerous_patterns = [";", "&&", "||", "|", "`", "$(", "${"]
@@ -719,7 +723,8 @@ class Cerberus(BaseModule):
     # --- Hook System (Session 12) ---
 
     def _pre_tool_hook(
-        self, tool_name: str, tool_params: dict[str, Any]
+        self, tool_name: str, tool_params: dict[str, Any],
+        trusted_source: bool = False,
     ) -> SafetyCheckResult:
         """Pre-execution hook. Wraps every tool call in Step 5.
 
@@ -732,6 +737,9 @@ class Cerberus(BaseModule):
         for rule in hooks.get("deny", []):
             if tool_name in rule.get("applies_to", []):
                 if rule["pattern"] == "shell_metacharacters":
+                    # Skip metacharacter check for trusted internal calls (e.g. Omen)
+                    if trusted_source:
+                        continue
                     command = tool_params.get("command", "")
                     if any(c in command for c in [";", "&&", "||", "|", "`", "$("]):
                         return SafetyCheckResult(
