@@ -36,6 +36,7 @@ from typing import Any
 from modules.base import BaseModule, ModuleStatus, ToolResult
 from modules.omen.code_analyzer import CodeAnalyzer
 from modules.omen.model_evaluator import ModelEvaluator
+from modules.omen.sandbox import CodeSandbox
 
 logger = logging.getLogger("shadow.omen")
 
@@ -465,6 +466,9 @@ class Omen(BaseModule):
             grimoire=self._config.get("grimoire"),
             benchmarks_dir=self._config.get("benchmarks_dir", "data/benchmarks"),
         )
+        self._sandbox = CodeSandbox(
+            sandbox_root=self._config.get("sandbox_root", "data/sandbox"),
+        )
 
     async def initialize(self) -> None:
         """Start Omen. Create DB and tables."""
@@ -566,6 +570,11 @@ class Omen(BaseModule):
                 "code_analyze_url": self._code_analyze_url,
                 "code_learn": self._code_learn,
                 "code_compare": self._code_compare,
+                # --- Sandbox tools ---
+                "sandbox_execute": self._sandbox_execute,
+                "sandbox_validate": self._sandbox_validate,
+                "sandbox_to_production": self._sandbox_to_production,
+                "sandbox_cleanup": self._sandbox_cleanup,
                 # --- Model Evaluator tools ---
                 "model_list": self._model_list,
                 "model_pull": self._model_pull,
@@ -834,15 +843,48 @@ class Omen(BaseModule):
                 "parameters": {"role": "str"},
                 "permission_level": "autonomous",
             },
+            # --- Sandbox tools ---
+            {
+                "name": "sandbox_execute",
+                "description": "Execute code in isolated sandbox with safety validation",
+                "parameters": {
+                    "code": "str", "timeout_seconds": "int",
+                    "max_memory_mb": "int", "allow_imports": "list[str]",
+                    "input_files": "dict[str, str]", "preserve": "bool",
+                },
+                "permission_level": "autonomous",
+            },
+            {
+                "name": "sandbox_validate",
+                "description": "Validate code safety without executing (static analysis)",
+                "parameters": {"code": "str", "allow_imports": "list[str]"},
+                "permission_level": "autonomous",
+            },
+            {
+                "name": "sandbox_to_production",
+                "description": "Copy sandbox file to production codebase (requires approval)",
+                "parameters": {
+                    "sandbox_path": "str", "production_path": "str",
+                    "require_tests_pass": "bool",
+                },
+                "permission_level": "approval_required",
+            },
+            {
+                "name": "sandbox_cleanup",
+                "description": "Remove old sandbox directories",
+                "parameters": {"max_age_hours": "int"},
+                "permission_level": "autonomous",
+            },
         ]
 
     # --- Tool implementations ---
 
     def _code_execute(self, params: dict[str, Any]) -> ToolResult:
-        """Execute Python code in a sandboxed subprocess.
+        """Execute Python code through the sandbox — no direct subprocess.
 
         Args:
-            params: 'code' (str), optional 'timeout' (int seconds).
+            params: 'code' (str), optional 'timeout' (int seconds),
+                    'allow_imports' (list[str]), 'input_files' (dict).
         """
         code = params.get("code", "")
         if not code:
@@ -852,47 +894,40 @@ class Omen(BaseModule):
             )
 
         timeout = min(params.get("timeout", self.DEFAULT_TIMEOUT), self.MAX_TIMEOUT)
+        result = self._sandbox.execute(
+            code=code,
+            timeout_seconds=timeout,
+            allow_imports=params.get("allow_imports"),
+            input_files=params.get("input_files"),
+        )
 
-        try:
-            result = subprocess.run(
-                [self._python, "-c", code],
-                capture_output=True,
-                text=True,
-                timeout=timeout,
-                cwd=str(self._project_root),
+        output = {
+            "stdout": result["stdout"],
+            "stderr": result["stderr"],
+            "exit_code": result["exit_code"],
+            "success": result["exit_code"] == 0,
+            "timeout_seconds": timeout,
+            "execution_id": result["execution_id"],
+            "files_created": result["files_created"],
+            "timed_out": result["timed_out"],
+        }
+
+        if self._teaching_mode and result["exit_code"] != 0:
+            output["teaching_note"] = (
+                "The code failed. Check stderr for the error message. "
+                "Common causes: syntax errors, missing imports, type errors."
             )
 
-            output = {
-                "stdout": result.stdout,
-                "stderr": result.stderr,
-                "exit_code": result.returncode,
-                "success": result.returncode == 0,
-                "timeout_seconds": timeout,
-            }
-
-            if self._teaching_mode and result.returncode != 0:
-                output["teaching_note"] = (
-                    "The code failed. Check stderr for the error message. "
-                    "Common causes: syntax errors, missing imports, type errors."
-                )
-
-            return ToolResult(
-                success=result.returncode == 0,
-                content=output,
-                tool_name="code_execute",
-                module=self.name,
-                error=result.stderr[:500] if result.returncode != 0 else None,
-            )
-
-        except subprocess.TimeoutExpired:
-            return ToolResult(
-                success=False, content=None, tool_name="code_execute",
-                module=self.name,
-                error=f"Execution timed out after {timeout} seconds",
-            )
+        return ToolResult(
+            success=result["exit_code"] == 0,
+            content=output,
+            tool_name="code_execute",
+            module=self.name,
+            error=result["stderr"][:500] if result["exit_code"] != 0 else None,
+        )
 
     def _code_lint(self, params: dict[str, Any]) -> ToolResult:
-        """Check code for syntax errors using py_compile.
+        """Check code for syntax errors — runs py_compile inside sandbox.
 
         Args:
             params: 'code' (str) or 'file_path' (str).
@@ -907,51 +942,44 @@ class Omen(BaseModule):
                     success=False, content=None, tool_name="code_lint",
                     module=self.name, error=f"File not found: {file_path}",
                 )
-            target = str(path)
-        elif code:
-            # Write code to temp file for compilation check
-            tmp = tempfile.NamedTemporaryFile(
-                mode="w", suffix=".py", delete=False, encoding="utf-8"
-            )
-            tmp.write(code)
-            tmp.close()
-            target = tmp.name
-        else:
+            code = path.read_text(encoding="utf-8")
+        elif not code:
             return ToolResult(
                 success=False, content=None, tool_name="code_lint",
                 module=self.name, error="Either 'code' or 'file_path' is required",
             )
 
-        try:
-            result = subprocess.run(
-                [self._python, "-m", "py_compile", target],
-                capture_output=True,
-                text=True,
-                timeout=10,
-            )
+        # Run py_compile inside the sandbox
+        lint_code = (
+            "import py_compile, sys, tempfile, pathlib\n"
+            "code = pathlib.Path('_lint_target.py').read_text(encoding='utf-8')\n"
+            "try:\n"
+            "    compile(code, '_lint_target.py', 'exec')\n"
+            "    print('SYNTAX_OK')\n"
+            "except SyntaxError as e:\n"
+            "    print(f'SYNTAX_ERROR: {e}', file=sys.stderr)\n"
+            "    sys.exit(1)\n"
+        )
 
-            lint_result = {
-                "file": target,
-                "syntax_valid": result.returncode == 0,
-                "errors": result.stderr.strip() if result.stderr else None,
-            }
+        result = self._sandbox.execute(
+            code=lint_code,
+            timeout_seconds=10,
+            input_files={"_lint_target.py": code},
+        )
 
-            return ToolResult(
-                success=result.returncode == 0,
-                content=lint_result,
-                tool_name="code_lint",
-                module=self.name,
-                error=result.stderr[:500] if result.returncode != 0 else None,
-            )
+        lint_result = {
+            "file": file_path or "<inline>",
+            "syntax_valid": result["exit_code"] == 0,
+            "errors": result["stderr"].strip() if result["stderr"] else None,
+        }
 
-        except subprocess.TimeoutExpired:
-            return ToolResult(
-                success=False, content=None, tool_name="code_lint",
-                module=self.name, error="Lint check timed out",
-            )
-        finally:
-            if code and not file_path:
-                Path(target).unlink(missing_ok=True)
+        return ToolResult(
+            success=result["exit_code"] == 0,
+            content=lint_result,
+            tool_name="code_lint",
+            module=self.name,
+            error=result["stderr"][:500] if result["exit_code"] != 0 else None,
+        )
 
     def _code_test(self, params: dict[str, Any]) -> ToolResult:
         """Run pytest on a test file or directory.
@@ -2350,6 +2378,128 @@ class Omen(BaseModule):
         return ToolResult(
             success=True, content=comparison,
             tool_name="code_compare", module=self.name,
+        )
+
+    # --- Sandbox tool implementations ---
+
+    def _sandbox_execute(self, params: dict[str, Any]) -> ToolResult:
+        """Execute code in the sandbox with full isolation.
+
+        Args:
+            params: 'code' (str), optional 'timeout_seconds', 'max_memory_mb',
+                    'allow_imports', 'input_files', 'preserve'.
+        """
+        code = params.get("code", "")
+        if not code:
+            return ToolResult(
+                success=False, content=None, tool_name="sandbox_execute",
+                module=self.name, error="Code is required",
+            )
+
+        result = self._sandbox.execute(
+            code=code,
+            timeout_seconds=params.get("timeout_seconds", 30),
+            max_memory_mb=params.get("max_memory_mb", 512),
+            allow_imports=params.get("allow_imports"),
+            input_files=params.get("input_files"),
+            preserve=params.get("preserve", False),
+        )
+
+        return ToolResult(
+            success=result["exit_code"] == 0 and not result["timed_out"],
+            content=result,
+            tool_name="sandbox_execute",
+            module=self.name,
+            error=result["stderr"][:500] if result["exit_code"] != 0 else None,
+        )
+
+    def _sandbox_validate(self, params: dict[str, Any]) -> ToolResult:
+        """Validate code safety without executing.
+
+        Args:
+            params: 'code' (str), optional 'allow_imports' (list[str]).
+        """
+        code = params.get("code", "")
+        if not code:
+            return ToolResult(
+                success=False, content=None, tool_name="sandbox_validate",
+                module=self.name, error="Code is required",
+            )
+
+        result = self._sandbox.validate_code_safety(
+            code=code,
+            allow_imports=params.get("allow_imports"),
+        )
+
+        return ToolResult(
+            success=result["safe"],
+            content=result,
+            tool_name="sandbox_validate",
+            module=self.name,
+            error="; ".join(result["violations"]) if result["violations"] else None,
+        )
+
+    def _sandbox_to_production(self, params: dict[str, Any]) -> ToolResult:
+        """Copy sandbox file to production (requires approval).
+
+        Args:
+            params: 'sandbox_path' (str), 'production_path' (str),
+                    optional 'require_tests_pass' (bool).
+        """
+        sandbox_path = params.get("sandbox_path", "")
+        production_path = params.get("production_path", "")
+        if not sandbox_path or not production_path:
+            return ToolResult(
+                success=False, content=None, tool_name="sandbox_to_production",
+                module=self.name, error="Both sandbox_path and production_path are required",
+            )
+
+        # Get ReversibilityEngine if available
+        reversibility = self._config.get("reversibility_engine")
+
+        # Build test runner function
+        def run_tests() -> bool:
+            try:
+                result = subprocess.run(
+                    [self._python, "-m", "pytest", "tests/", "-x", "-q"],
+                    capture_output=True, text=True, timeout=120,
+                    cwd=str(self._project_root),
+                )
+                return result.returncode == 0
+            except Exception:
+                return False
+
+        success = self._sandbox.copy_to_production(
+            sandbox_path=sandbox_path,
+            production_path=production_path,
+            require_tests_pass=params.get("require_tests_pass", True),
+            reversibility_engine=reversibility,
+            run_tests_fn=run_tests,
+        )
+
+        return ToolResult(
+            success=success,
+            content={"copied": success, "sandbox_path": sandbox_path, "production_path": production_path},
+            tool_name="sandbox_to_production",
+            module=self.name,
+            error=None if success else "Copy to production failed (tests may have failed)",
+        )
+
+    def _sandbox_cleanup(self, params: dict[str, Any]) -> ToolResult:
+        """Clean up old sandbox directories.
+
+        Args:
+            params: optional 'max_age_hours' (int, default 24).
+        """
+        removed = self._sandbox.cleanup_all_sandboxes(
+            max_age_hours=params.get("max_age_hours", 24),
+        )
+
+        return ToolResult(
+            success=True,
+            content={"removed": removed},
+            tool_name="sandbox_cleanup",
+            module=self.name,
         )
 
     # --- Model Evaluator tool implementations ---
