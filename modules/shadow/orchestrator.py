@@ -208,6 +208,24 @@ class Orchestrator:
         else:
             self._module_state_manager = None
 
+        # Task Chain Engine — multi-module orchestration (P2)
+        if _TASK_CHAIN_AVAILABLE:
+            chain_db = Path(config["system"].get("chain_db", "data/task_chains.db"))
+            self._task_chain_engine = TaskChainEngine(
+                registry=self.registry,
+                config=config,
+                db_path=chain_db,
+            )
+        else:
+            self._task_chain_engine = None
+
+        # Priority Task Queue — queue-based processing with preemption (P2)
+        if _TASK_QUEUE_AVAILABLE:
+            queue_path = Path(config["system"].get("queue_file", "data/task_queue.json"))
+            self._task_queue = PriorityTaskQueue(persist_path=queue_path)
+        else:
+            self._task_queue = None
+
         # Track GrimoireReader instances for cleanup
         self._grimoire_readers: list[Any] = []
 
@@ -220,6 +238,22 @@ class Orchestrator:
 
         # Initialize task tracker
         self._task_tracker.initialize()
+
+        # Initialize Task Chain Engine
+        if self._task_chain_engine is not None:
+            try:
+                self._task_chain_engine.initialize()
+            except Exception as e:
+                logger.warning("TaskChainEngine failed to initialize: %s", e)
+                self._task_chain_engine = None
+
+        # Initialize Priority Task Queue
+        if self._task_queue is not None:
+            try:
+                self._task_queue.initialize()
+            except Exception as e:
+                logger.warning("PriorityTaskQueue failed to initialize: %s", e)
+                self._task_queue = None
 
         # Initialize all modules
         for module_info in self.registry.list_modules():
@@ -294,6 +328,10 @@ class Orchestrator:
         self._task_tracker.close()
         if self._growth_engine is not None:
             self._growth_engine.close()
+        if self._task_chain_engine is not None:
+            self._task_chain_engine.close()
+        if self._task_queue is not None:
+            self._task_queue.close()
 
         for module_info in self.registry.list_modules():
             module = self.registry.get_module(module_info["name"])
@@ -317,6 +355,16 @@ class Orchestrator:
             self._message_bus.shutdown()
 
         logger.info("Shadow offline.")
+
+    @property
+    def task_chain_engine(self):
+        """Access the Task Chain Engine (may be None if unavailable)."""
+        return self._task_chain_engine
+
+    @property
+    def task_queue(self):
+        """Access the Priority Task Queue (may be None if unavailable)."""
+        return self._task_queue
 
     def clear_history(self) -> None:
         """Reset conversation history. Useful for starting a fresh topic."""
