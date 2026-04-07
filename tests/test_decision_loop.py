@@ -310,8 +310,8 @@ class TestMathRouting:
     """Test 2: Math question → LLM routes to cipher, full pipeline executes."""
 
     @pytest.mark.asyncio
-    async def test_math_routes_to_cipher_via_llm(self, tmp_config: dict):
-        """'what is 15% of 847?' is classified by LLM → cipher module, full pipeline runs."""
+    async def test_math_routes_to_cipher(self, tmp_config: dict):
+        """'calculate 15 percentage of 847' fast-path routes to cipher via keyword."""
         orch = Orchestrator(tmp_config)
 
         # Register mock modules
@@ -327,39 +327,30 @@ class TestMathRouting:
         await grimoire.initialize()
         orch.registry.register(grimoire)
 
-        # Mock the router LLM to classify as question → cipher
-        router_response = _mock_ollama_response(_mock_router_json(
-            task_type="question",
-            complexity="simple",
-            target_module="cipher",
-            brain="fast_brain",
-        ))
-
         # Mock the evaluation LLM to produce a response
+        # Fast-path classification means only 1 LLM call needed (eval, no router)
         eval_response = _mock_ollama_response(
             "15% of 847 is 127.05."
         )
 
-        # Router call returns classification, eval call returns final answer
         orch._ollama_chat = MagicMock(
-            side_effect=[router_response, eval_response]
+            side_effect=[eval_response]
         )
 
-        response = await orch.process_input("what is 15% of 847?")
+        response = await orch.process_input("calculate 15 percentage of 847")
 
         # 1. Response is non-empty and reasonable
         assert response and len(response) > 0
         assert "127.05" in response
 
-        # 2. Correct module was selected by router (cipher)
-        # Verify router LLM was called (step 2 classification)
+        # 2. Fast-path routed to cipher — only eval LLM call, no router call
         calls = orch._ollama_chat.call_args_list
-        assert len(calls) == 2, f"Expected 2 LLM calls (router + eval), got {len(calls)}"
+        assert len(calls) == 1, f"Expected 1 LLM call (eval only, fast-path skips router), got {len(calls)}"
 
         # 3. Temporal event recorded
         temporal_calls = [c for c in wraith.calls if c[0] == "temporal_record"]
         assert len(temporal_calls) == 1
-        assert "question" in temporal_calls[0][1]["event_type"]
+        assert "analysis" in temporal_calls[0][1]["event_type"]
 
         # 4. Interaction was counted and state persisted
         assert orch._state.interaction_count == 1

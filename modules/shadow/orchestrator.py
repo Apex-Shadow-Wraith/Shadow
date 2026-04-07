@@ -132,7 +132,7 @@ class Orchestrator:
         self._smart_brain = config["models"]["smart_brain"]["name"]
         self._state_file = Path(config["system"].get("state_file", "data/shadow_state.json"))
         self._conversation_history: list[dict[str, str]] = []
-        self._max_history = 20  # Keep last 20 exchanges in working memory
+        self._max_history = 10  # Keep last 10 turns (user+assistant pairs) in working memory
 
         # Task tracker — persistent task management
         task_db = Path(config["system"].get("task_db", "data/shadow_tasks.db"))
@@ -204,6 +204,11 @@ class Orchestrator:
 
         logger.info("Shadow offline.")
 
+    def clear_history(self) -> None:
+        """Reset conversation history. Useful for starting a fresh topic."""
+        self._conversation_history.clear()
+        logger.info("Conversation history cleared")
+
     # ================================================================
     # THE SEVEN-STEP DECISION LOOP
     # ================================================================
@@ -273,6 +278,8 @@ class Orchestrator:
                 await self._step7_log(user_input, classification, fast_response, loop_start)
                 self._conversation_history.append({"role": "user", "content": user_input})
                 self._conversation_history.append({"role": "assistant", "content": fast_response})
+                if len(self._conversation_history) > self._max_history * 2:
+                    self._conversation_history = self._conversation_history[-self._max_history * 2:]
                 # Record temporal event (best-effort)
                 if "wraith" in self.registry:
                     try:
@@ -464,7 +471,10 @@ class Orchestrator:
         # Fast-path: skip LLM for obvious inputs
         fast = self._fast_path_classify(user_input)
         if fast is not None:
-            logger.info("Fast-path classified: %s → %s", user_input[:50], fast.task_type.value)
+            logger.info(
+                "Fast-path classified: '%s' → %s (%s)",
+                user_input[:50], fast.target_module, fast.task_type.value,
+            )
             return fast
 
         # Build available modules list for the router
@@ -502,7 +512,7 @@ User input: {user_input}"""
             clean = raw.replace("```json", "").replace("```", "").strip()
             data = json.loads(clean)
 
-            return TaskClassification(
+            classification = TaskClassification(
                 task_type=TaskType(data.get("task_type", "conversation")),
                 complexity=data.get("complexity", "simple"),
                 target_module=data.get("target_module", "direct"),
@@ -510,6 +520,11 @@ User input: {user_input}"""
                 safety_flag=data.get("safety_flag", False),
                 priority=data.get("priority", 1),
             )
+            logger.info(
+                "LLM router classified: '%s' → %s (%s)",
+                user_input[:50], classification.target_module, classification.task_type.value,
+            )
+            return classification
 
         except Exception as e:
             logger.warning("Router classification failed (%s), using fallback", e)
@@ -719,6 +734,85 @@ User input: {user_input}"""
                 target_module="reaper",
                 brain=BrainType.FAST,
                 safety_flag=False,
+                priority=1,
+            )
+
+        # --- Keyword fast-path: module routing by keyword presence ---
+        # Split once for whole-word matching
+        words = set(lower.split())
+
+        # Omen — code tasks
+        omen_keywords = {
+            "code", "debug", "review", "lint", "refactor",
+            "function", "class", "script", "program",
+        }
+        if words & omen_keywords:
+            logger.info("Fast-path keyword → omen (matched: %s)", words & omen_keywords)
+            return TaskClassification(
+                task_type=TaskType.CREATION,
+                complexity="moderate",
+                target_module="omen",
+                brain=BrainType.FAST,
+                safety_flag=False,
+                priority=1,
+            )
+
+        # Cipher — math / financial calculations
+        cipher_keywords = {
+            "calculate", "math", "price", "quote", "cost",
+            "estimate", "total", "sum", "multiply", "divide", "percentage",
+        }
+        if words & cipher_keywords:
+            logger.info("Fast-path keyword → cipher (matched: %s)", words & cipher_keywords)
+            return TaskClassification(
+                task_type=TaskType.ANALYSIS,
+                complexity="moderate",
+                target_module="cipher",
+                brain=BrainType.FAST,
+                safety_flag=False,
+                priority=1,
+            )
+
+        # Wraith — reminders / scheduling
+        wraith_keywords = {
+            "remind", "timer", "schedule", "alarm", "appointment", "deadline",
+        }
+        if words & wraith_keywords:
+            logger.info("Fast-path keyword → wraith (matched: %s)", words & wraith_keywords)
+            return TaskClassification(
+                task_type=TaskType.ACTION,
+                complexity="simple",
+                target_module="wraith",
+                brain=BrainType.FAST,
+                safety_flag=False,
+                priority=1,
+            )
+
+        # Reaper — research (broader keyword catch beyond explicit commands)
+        reaper_keywords = {"research", "search", "find"}
+        reaper_phrases = ["look up", "what is", "who is"]
+        if (words & reaper_keywords) or any(p in lower for p in reaper_phrases):
+            logger.info("Fast-path keyword → reaper")
+            return TaskClassification(
+                task_type=TaskType.RESEARCH,
+                complexity="moderate",
+                target_module="reaper",
+                brain=BrainType.FAST,
+                safety_flag=False,
+                priority=1,
+            )
+
+        # Cerberus — ethics / moral questions
+        cerberus_keywords = {"ethics", "moral", "bible", "scripture"}
+        cerberus_phrases = ["right or wrong", "should i", "is it ethical", "is it right", "is it wrong"]
+        if (words & cerberus_keywords) or any(p in lower for p in cerberus_phrases):
+            logger.info("Fast-path keyword → cerberus")
+            return TaskClassification(
+                task_type=TaskType.QUESTION,
+                complexity="moderate",
+                target_module="cerberus",
+                brain=BrainType.SMART,
+                safety_flag=True,
                 priority=1,
             )
 

@@ -198,6 +198,85 @@ class TestFastPathClassifier:
         assert result is not None
         assert result.task_type == TaskType.CONVERSATION
 
+    # --- Keyword fast-path routing tests ---
+
+    def test_omen_code_keyword(self, config: dict):
+        orch = Orchestrator(config)
+        result = orch._fast_path_classify("write a Python function")
+        assert result is not None
+        assert result.target_module == "omen"
+        assert result.task_type == TaskType.CREATION
+
+    def test_omen_debug_keyword(self, config: dict):
+        orch = Orchestrator(config)
+        result = orch._fast_path_classify("debug this error in the script")
+        assert result is not None
+        assert result.target_module == "omen"
+
+    def test_cipher_calculate_keyword(self, config: dict):
+        orch = Orchestrator(config)
+        result = orch._fast_path_classify("calculate the cost of 3 yards of mulch at $45 each")
+        assert result is not None
+        assert result.target_module == "cipher"
+        assert result.task_type == TaskType.ANALYSIS
+
+    def test_cipher_price_keyword(self, config: dict):
+        orch = Orchestrator(config)
+        result = orch._fast_path_classify("what is the total price for the job")
+        assert result is not None
+        assert result.target_module == "cipher"
+
+    def test_wraith_remind_keyword(self, config: dict):
+        orch = Orchestrator(config)
+        result = orch._fast_path_classify("remind me to call the client tomorrow")
+        assert result is not None
+        assert result.target_module == "wraith"
+        assert result.task_type == TaskType.ACTION
+
+    def test_wraith_schedule_keyword(self, config: dict):
+        orch = Orchestrator(config)
+        result = orch._fast_path_classify("schedule an appointment for Thursday")
+        assert result is not None
+        assert result.target_module == "wraith"
+
+    def test_reaper_research_keyword(self, config: dict):
+        orch = Orchestrator(config)
+        result = orch._fast_path_classify("research landscaping trends in Alabama")
+        assert result is not None
+        assert result.target_module == "reaper"
+        assert result.task_type == TaskType.RESEARCH
+
+    def test_reaper_what_is_phrase(self, config: dict):
+        orch = Orchestrator(config)
+        result = orch._fast_path_classify("what is the best mulch for flower beds")
+        assert result is not None
+        assert result.target_module == "reaper"
+
+    def test_cerberus_ethical_keyword(self, config: dict):
+        orch = Orchestrator(config)
+        result = orch._fast_path_classify("is it ethical to charge extra for rush jobs")
+        assert result is not None
+        assert result.target_module == "cerberus"
+        assert result.task_type == TaskType.QUESTION
+        assert result.safety_flag is True
+
+    def test_cerberus_bible_keyword(self, config: dict):
+        orch = Orchestrator(config)
+        result = orch._fast_path_classify("what does the bible say about honesty")
+        assert result is not None
+        assert result.target_module == "cerberus"
+
+    def test_keyword_case_insensitive(self, config: dict):
+        orch = Orchestrator(config)
+        result = orch._fast_path_classify("DEBUG this Python class")
+        assert result is not None
+        assert result.target_module == "omen"
+
+    def test_truly_ambiguous_still_returns_none(self, config: dict):
+        orch = Orchestrator(config)
+        result = orch._fast_path_classify("tell me something interesting about space")
+        assert result is None
+
 
 class TestQueryExtraction:
     """Test search query extraction from user input."""
@@ -702,3 +781,109 @@ class TestOllamaNativeAPI:
         """Verify the orchestrator no longer imports OpenAI SDK."""
         import modules.shadow.orchestrator as orch_module
         assert not hasattr(orch_module, "OpenAI"), "OpenAI should not be imported in orchestrator"
+
+
+# --- Conversation History Tests ---
+
+class TestConversationHistory:
+    """Test rolling conversation history accumulation and limits."""
+
+    def test_history_accumulates(self, config: dict):
+        """Conversation history accumulates across process_input calls."""
+        orch = Orchestrator(config)
+
+        # Simulate 3 turns manually (avoids needing Ollama)
+        for i in range(3):
+            orch._conversation_history.append({"role": "user", "content": f"msg {i}"})
+            orch._conversation_history.append({"role": "assistant", "content": f"reply {i}"})
+
+        assert len(orch._conversation_history) == 6
+        assert orch._conversation_history[0] == {"role": "user", "content": "msg 0"}
+        assert orch._conversation_history[5] == {"role": "assistant", "content": "reply 2"}
+
+    @pytest.mark.asyncio
+    async def test_history_included_in_step6_messages(self, config: dict):
+        """History is injected into the messages array sent to Ollama in _step6_evaluate."""
+        orch = Orchestrator(config)
+
+        # Seed history
+        orch._conversation_history.append({"role": "user", "content": "earlier question"})
+        orch._conversation_history.append({"role": "assistant", "content": "earlier answer"})
+
+        # Mock _ollama_chat to capture messages
+        captured_messages = []
+
+        def spy_chat(model, messages, options=None):
+            captured_messages.extend(messages)
+            return "test response"
+
+        orch._ollama_chat = spy_chat
+
+        classification = TaskClassification(
+            task_type=TaskType.QUESTION,
+            complexity="simple",
+            target_module="direct",
+            brain=BrainType.FAST,
+            safety_flag=False,
+            priority=1,
+        )
+        context = [{"type": "available_tools", "content": []}]
+        results = []
+
+        await orch._step6_evaluate("new question", classification, results, context)
+
+        # History messages should appear between system prompt and current user message
+        roles = [m["role"] for m in captured_messages]
+        assert roles[0] == "system"
+        assert roles[1] == "user"  # earlier question from history
+        assert roles[2] == "assistant"  # earlier answer from history
+        assert roles[3] == "user"  # current user message
+        assert "earlier question" in captured_messages[1]["content"]
+
+    def test_history_caps_at_10_turns(self, config: dict):
+        """History is capped at 10 turns (20 messages). Oldest dropped first."""
+        orch = Orchestrator(config)
+
+        # Add 12 turns (24 messages)
+        for i in range(12):
+            orch._conversation_history.append({"role": "user", "content": f"q{i}"})
+            orch._conversation_history.append({"role": "assistant", "content": f"a{i}"})
+
+        # Trigger trimming (same logic as process_input)
+        if len(orch._conversation_history) > orch._max_history * 2:
+            orch._conversation_history = orch._conversation_history[-orch._max_history * 2:]
+
+        assert len(orch._conversation_history) == 20  # 10 turns * 2
+        # Oldest 2 turns (q0/a0, q1/a1) should be gone
+        assert orch._conversation_history[0] == {"role": "user", "content": "q2"}
+        assert orch._conversation_history[-1] == {"role": "assistant", "content": "a11"}
+
+    def test_clear_history(self, config: dict):
+        """clear_history() empties the conversation history."""
+        orch = Orchestrator(config)
+
+        orch._conversation_history.append({"role": "user", "content": "hello"})
+        orch._conversation_history.append({"role": "assistant", "content": "hi"})
+        assert len(orch._conversation_history) == 2
+
+        orch.clear_history()
+        assert len(orch._conversation_history) == 0
+
+    @pytest.mark.asyncio
+    async def test_history_trimmed_on_fast_response(self, config: dict):
+        """Fast response path also trims history at 10 turns."""
+        orch = Orchestrator(config)
+
+        # Pre-fill with 10 turns
+        for i in range(10):
+            orch._conversation_history.append({"role": "user", "content": f"q{i}"})
+            orch._conversation_history.append({"role": "assistant", "content": f"a{i}"})
+
+        assert len(orch._conversation_history) == 20
+
+        # Trigger a fast response (greeting) which appends + trims
+        result = await orch.process_input("hello")
+        # Should still be 20 (oldest turn dropped, new turn added)
+        assert len(orch._conversation_history) == 20
+        assert orch._conversation_history[0] == {"role": "user", "content": "q1"}
+        assert orch._conversation_history[-2] == {"role": "user", "content": "hello"}
