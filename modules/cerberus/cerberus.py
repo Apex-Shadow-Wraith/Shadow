@@ -32,6 +32,7 @@ import yaml
 
 from modules.base import BaseModule, ModuleStatus, ToolResult
 from modules.cerberus.creator_override import CreatorOverride
+from modules.cerberus.emergency_shutdown import EmergencyShutdown
 
 logger = logging.getLogger("shadow.cerberus")
 
@@ -150,6 +151,17 @@ class Cerberus(BaseModule):
         self._creator_override = CreatorOverride(
             env_path=config.get("env_path", "config/.env")
         )
+
+        # Initialize emergency shutdown protocol
+        try:
+            self._emergency_shutdown = EmergencyShutdown(
+                config=config,
+                telegram=config.get("telegram"),
+            )
+            logger.info("EmergencyShutdown initialized")
+        except Exception as e:
+            logger.warning("EmergencyShutdown unavailable: %s", e)
+            self._emergency_shutdown = None
 
         # Heartbeat path for watchdog monitoring
         self._heartbeat_path = Path(

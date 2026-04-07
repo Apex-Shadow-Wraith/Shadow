@@ -35,15 +35,24 @@ hard_limits:
     max_outbound_emails_per_day: 10
 
 # --- Emergency Shutdown Thresholds ---
-# Nuclear option — Shadow halts entirely when these are breached
+# Nuclear option — Shadow halts entirely when these are breached.
+# ONLY genuinely dangerous conditions. Normal operations (high CPU,
+# module errors, file edits, batch writes) are NOT triggers.
 shutdown:
-  cpu_threshold: 95
-  memory_threshold: 90
-  cascade_failure_window_seconds: 60
-  cascade_failure_count: 3
-  injection_score_threshold: 0.9
-  blocked_attempts_window_seconds: 60
-  blocked_attempts_count: 5
+  # Injection detected AND the injected action already executed
+  injection_execute_threshold: 0.9
+  # Paths that no module may modify — triggers immediate shutdown
+  cerberus_protected_paths:
+    - "modules/cerberus/"
+    - "config/cerberus_limits.yaml"
+  # Same tool failing and retrying (not the normal 12-attempt cycle)
+  infinite_loop_threshold: 50
+  infinite_loop_window_seconds: 60
+  # Shadow can't safely write state below this
+  disk_min_mb: 500
+  # Unapproved external-facing actions (emails, notifications, posts)
+  unauthorized_external_burst_count: 10
+  unauthorized_external_burst_window_seconds: 60
 
   ethical:
     - "Never generate deceptive content"
