@@ -247,7 +247,10 @@ async def main() -> None:
             # Process through the decision loop
             print()
             response = await orchestrator.process_input(user_input)
-            print(f"Shadow > {response}\n")
+            if not response:
+                print("Shadow > [No response generated — the model returned empty output.]\n")
+            else:
+                print(f"Shadow > {response}\n")
 
     except KeyboardInterrupt:
         print("\n\nInterrupt received.")

@@ -99,6 +99,9 @@ decision_loop:
   router_timeout: 30
   # Tool execution timeout (seconds)
   tool_timeout: 60
+  # Max tokens for LLM response generation (num_predict)
+  # 2048 is safe for most responses; increase for long code output
+  max_response_tokens: 2048
   # Save state after every interaction
   persist_state: true
 

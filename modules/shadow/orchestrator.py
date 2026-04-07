@@ -133,6 +133,7 @@ class Orchestrator:
         self._state_file = Path(config["system"].get("state_file", "data/shadow_state.json"))
         self._conversation_history: list[dict[str, str]] = []
         self._max_history = 10  # Keep last 10 turns (user+assistant pairs) in working memory
+        self._max_response_tokens = config.get("decision_loop", {}).get("max_response_tokens", 2048)
 
         # Task tracker — persistent task management
         task_db = Path(config["system"].get("task_db", "data/shadow_tasks.db"))
@@ -455,7 +456,11 @@ class Orchestrator:
         )
         resp.raise_for_status()
         data = resp.json()
-        return data["message"]["content"].strip()
+        content = data.get("message", {}).get("content", "")
+        if not content or not content.strip():
+            logger.warning("Ollama returned empty response for model=%s", model)
+            return ""
+        return content.strip()
 
     # --- Step 2: Classify & Route ---
 
@@ -1243,22 +1248,27 @@ User input: {user_input}"""
         )
 
         try:
-            return self._ollama_chat(
+            response = self._ollama_chat(
                 model=model,
                 messages=messages,
-                options={"temperature": 0.7, "num_predict": 500},
+                options={"temperature": 0.7, "num_predict": self._max_response_tokens},
             )
+            if response:
+                return response
+            # Empty response — fall through to tool results
+            logger.warning("LLM returned empty response, falling back to tool results")
 
         except Exception as e:
             logger.error("LLM response generation failed: %s", e)
-            # Degrade gracefully — return what we have
-            if results:
-                successful = [r for r in results if r.success]
-                if successful:
-                    return f"Here's what I found:\n\n" + "\n".join(
-                        str(r.content) for r in successful
-                    )
-            return f"I encountered an error generating a response: {e}"
+
+        # Degrade gracefully — return what we have
+        if results:
+            successful = [r for r in results if r.success]
+            if successful:
+                return "Here's what I found:\n\n" + "\n".join(
+                    str(r.content) for r in successful
+                )
+        return "I wasn't able to generate a response. Please try rephrasing your request."
 
     # --- Step 7: Log ---
 
