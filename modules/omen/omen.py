@@ -34,6 +34,7 @@ from pathlib import Path
 from typing import Any
 
 from modules.base import BaseModule, ModuleStatus, ToolResult
+from modules.omen.code_analyzer import CodeAnalyzer
 
 logger = logging.getLogger("shadow.omen")
 
@@ -454,6 +455,10 @@ class Omen(BaseModule):
         self._python = sys.executable
         self._db_path = Path(self._config.get("db_path", "data/omen_code.db"))
         self._conn: sqlite3.Connection | None = None
+        self._analyzer = CodeAnalyzer(
+            grimoire=self._config.get("grimoire"),
+            samples_dir=self._config.get("samples_dir", "data/research/code_samples"),
+        )
 
     async def initialize(self) -> None:
         """Start Omen. Create DB and tables."""
@@ -550,6 +555,11 @@ class Omen(BaseModule):
                 "scaffold_test": self._scaffold_test,
                 "code_score": self._code_score,
                 "seed_patterns": self._seed_patterns,
+                "code_analyze_file": self._code_analyze_file,
+                "code_analyze_dir": self._code_analyze_dir,
+                "code_analyze_url": self._code_analyze_url,
+                "code_learn": self._code_learn,
+                "code_compare": self._code_compare,
             }
 
             handler = handlers.get(tool_name)
@@ -734,6 +744,37 @@ class Omen(BaseModule):
                 "name": "seed_patterns",
                 "description": "Populate pattern database with Shadow codebase patterns",
                 "parameters": {},
+                "permission_level": "autonomous",
+            },
+            # --- Code Analyzer tools (Phase 3) ---
+            {
+                "name": "code_analyze_file",
+                "description": "Analyze a Python file for structure, patterns, and quality",
+                "parameters": {"file_path": "str"},
+                "permission_level": "autonomous",
+            },
+            {
+                "name": "code_analyze_dir",
+                "description": "Analyze all Python files in a directory",
+                "parameters": {"dir_path": "str", "pattern": "str"},
+                "permission_level": "autonomous",
+            },
+            {
+                "name": "code_analyze_url",
+                "description": "Download and analyze a single Python file from a URL",
+                "parameters": {"url": "str"},
+                "permission_level": "autonomous",
+            },
+            {
+                "name": "code_learn",
+                "description": "Extract learnings from analysis and store in Grimoire",
+                "parameters": {"file_path": "str"},
+                "permission_level": "autonomous",
+            },
+            {
+                "name": "code_compare",
+                "description": "Compare external code patterns against Shadow's codebase",
+                "parameters": {"file_path": "str"},
                 "permission_level": "autonomous",
             },
         ]
@@ -2110,4 +2151,146 @@ class Omen(BaseModule):
             content={"status": "seeded", "patterns_added": count},
             tool_name="seed_patterns",
             module=self.name,
+        )
+
+    # --- Code Analyzer tool implementations ---
+
+    def _code_analyze_file(self, params: dict[str, Any]) -> ToolResult:
+        """Analyze a Python file for structure, patterns, and quality.
+
+        Args:
+            params: 'file_path' (str) required.
+        """
+        file_path = params.get("file_path", "")
+        if not file_path:
+            return ToolResult(
+                success=False, content=None, tool_name="code_analyze_file",
+                module=self.name, error="file_path is required",
+            )
+
+        analysis = self._analyzer.analyze_file(file_path)
+        if analysis.get("error"):
+            return ToolResult(
+                success=False, content=analysis,
+                tool_name="code_analyze_file",
+                module=self.name, error=analysis["error"],
+            )
+
+        return ToolResult(
+            success=True, content=analysis,
+            tool_name="code_analyze_file", module=self.name,
+        )
+
+    def _code_analyze_dir(self, params: dict[str, Any]) -> ToolResult:
+        """Analyze all Python files in a directory.
+
+        Args:
+            params: 'dir_path' (str) required, 'pattern' (str) optional.
+        """
+        dir_path = params.get("dir_path", "")
+        if not dir_path:
+            return ToolResult(
+                success=False, content=None, tool_name="code_analyze_dir",
+                module=self.name, error="dir_path is required",
+            )
+
+        pattern = params.get("pattern", "*.py")
+        analysis = self._analyzer.analyze_directory(dir_path, pattern)
+        if analysis.get("error"):
+            return ToolResult(
+                success=False, content=analysis,
+                tool_name="code_analyze_dir",
+                module=self.name, error=analysis["error"],
+            )
+
+        return ToolResult(
+            success=True, content=analysis,
+            tool_name="code_analyze_dir", module=self.name,
+        )
+
+    def _code_analyze_url(self, params: dict[str, Any]) -> ToolResult:
+        """Download and analyze a single Python file from a URL.
+
+        Args:
+            params: 'url' (str) required.
+        """
+        url = params.get("url", "")
+        if not url:
+            return ToolResult(
+                success=False, content=None, tool_name="code_analyze_url",
+                module=self.name, error="url is required",
+            )
+
+        analysis = self._analyzer.analyze_url(url)
+        if analysis.get("error"):
+            return ToolResult(
+                success=False, content=analysis,
+                tool_name="code_analyze_url",
+                module=self.name, error=analysis["error"],
+            )
+
+        return ToolResult(
+            success=True, content=analysis,
+            tool_name="code_analyze_url", module=self.name,
+        )
+
+    def _code_learn(self, params: dict[str, Any]) -> ToolResult:
+        """Extract learnings from a file analysis and store in Grimoire.
+
+        Args:
+            params: 'file_path' (str) required.
+        """
+        file_path = params.get("file_path", "")
+        if not file_path:
+            return ToolResult(
+                success=False, content=None, tool_name="code_learn",
+                module=self.name, error="file_path is required",
+            )
+
+        analysis = self._analyzer.analyze_file(file_path)
+        if analysis.get("error"):
+            return ToolResult(
+                success=False, content=analysis, tool_name="code_learn",
+                module=self.name, error=analysis["error"],
+            )
+
+        learnings = self._analyzer.extract_learnings(analysis)
+        stored = self._analyzer.store_learnings(learnings, source=file_path)
+
+        return ToolResult(
+            success=True,
+            content={
+                "file": file_path,
+                "learnings_extracted": len(learnings),
+                "learnings_stored": stored,
+                "learnings": learnings,
+            },
+            tool_name="code_learn",
+            module=self.name,
+        )
+
+    def _code_compare(self, params: dict[str, Any]) -> ToolResult:
+        """Compare external code against Shadow's codebase.
+
+        Args:
+            params: 'file_path' (str) required.
+        """
+        file_path = params.get("file_path", "")
+        if not file_path:
+            return ToolResult(
+                success=False, content=None, tool_name="code_compare",
+                module=self.name, error="file_path is required",
+            )
+
+        analysis = self._analyzer.analyze_file(file_path)
+        if analysis.get("error"):
+            return ToolResult(
+                success=False, content=analysis, tool_name="code_compare",
+                module=self.name, error=analysis["error"],
+            )
+
+        comparison = self._analyzer.compare_with_shadow(analysis)
+        return ToolResult(
+            success=True, content=comparison,
+            tool_name="code_compare", module=self.name,
         )

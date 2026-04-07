@@ -42,7 +42,7 @@ class TestOmenLifecycle:
 
     def test_get_tools(self, omen: Omen):
         tools = omen.get_tools()
-        assert len(tools) == 21
+        assert len(tools) == 26
         names = [t["name"] for t in tools]
         assert "code_execute" in names
         assert "code_lint" in names
