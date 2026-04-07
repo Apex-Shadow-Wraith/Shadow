@@ -329,12 +329,13 @@ class TestMathRouting:
 
         # Mock the evaluation LLM to produce a response
         # Fast-path classification means only 1 LLM call needed (eval, no router)
+        # Confidence scorer may trigger a retry (2nd call) if score is low
         eval_response = _mock_ollama_response(
             "15% of 847 is 127.05."
         )
 
         orch._ollama_chat = MagicMock(
-            side_effect=[eval_response]
+            return_value=eval_response
         )
 
         response = await orch.process_input("calculate 15 percentage of 847")
@@ -343,9 +344,10 @@ class TestMathRouting:
         assert response and len(response) > 0
         assert "127.05" in response
 
-        # 2. Fast-path routed to cipher — only eval LLM call, no router call
+        # 2. Fast-path routed to cipher — eval LLM call (no router call)
+        #    Confidence scorer may trigger a retry, so 1-2 calls expected
         calls = orch._ollama_chat.call_args_list
-        assert len(calls) == 1, f"Expected 1 LLM call (eval only, fast-path skips router), got {len(calls)}"
+        assert 1 <= len(calls) <= 2, f"Expected 1-2 LLM calls (eval + possible retry), got {len(calls)}"
 
         # 3. Temporal event recorded
         temporal_calls = [c for c in wraith.calls if c[0] == "temporal_record"]

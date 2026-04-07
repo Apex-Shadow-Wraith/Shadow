@@ -87,6 +87,14 @@ except ImportError:
     logger.warning("ProactiveEngine not available — proactive initiative disabled")
     _PROACTIVE_ENGINE_AVAILABLE = False
 
+# Graceful import — orchestrator still starts if confidence_scorer is missing
+try:
+    from modules.shadow.confidence_scorer import ConfidenceScorer
+    _CONFIDENCE_SCORER_AVAILABLE = True
+except ImportError:
+    logger.warning("ConfidenceScorer not available — confidence scoring disabled")
+    _CONFIDENCE_SCORER_AVAILABLE = False
+
 # Graceful import — orchestrator still starts if observability is missing
 try:
     from modules.shadow.observability import trace_interaction
@@ -242,6 +250,13 @@ class Orchestrator:
         else:
             self._proactive_engine = None
 
+        # Confidence Scorer — response quality evaluation (P2)
+        if _CONFIDENCE_SCORER_AVAILABLE:
+            score_db = Path(config["system"].get("confidence_db", "data/confidence_scores.db"))
+            self._confidence_scorer = ConfidenceScorer(db_path=score_db)
+        else:
+            self._confidence_scorer = None
+
         # Track GrimoireReader instances for cleanup
         self._grimoire_readers: list[Any] = []
 
@@ -357,6 +372,8 @@ class Orchestrator:
             self._task_queue.close()
         if self._proactive_engine is not None:
             self._proactive_engine.save_triggers()
+        if self._confidence_scorer is not None:
+            self._confidence_scorer.close()
 
         for module_info in self.registry.list_modules():
             module = self.registry.get_module(module_info["name"])
@@ -395,6 +412,11 @@ class Orchestrator:
     def proactive_engine(self):
         """Access the Proactive Engine (may be None if unavailable)."""
         return self._proactive_engine
+
+    @property
+    def confidence_scorer(self):
+        """Access the Confidence Scorer (may be None if unavailable)."""
+        return self._confidence_scorer
 
     def clear_history(self) -> None:
         """Reset conversation history. Useful for starting a fresh topic."""
@@ -692,6 +714,92 @@ class Orchestrator:
             response = await self._step6_evaluate(
                 user_input, classification, results, context
             )
+
+            # Step 6.5 — Confidence Scoring (quality gate)
+            confidence_result = None
+            if self._confidence_scorer is not None:
+                try:
+                    confidence_result = self._confidence_scorer.score_response(
+                        task=user_input,
+                        response=response,
+                        task_type=classification.task_type.value,
+                        context={"module": classification.target_module},
+                    )
+                    logger.info(
+                        "Step 6.5 — Confidence: %.3f (%s)",
+                        confidence_result["confidence"],
+                        confidence_result["recommendation"],
+                    )
+
+                    # Retry if confidence is low and we haven't already retried
+                    if confidence_result["recommendation"] in ("retry", "retry_with_context"):
+                        prev_score = confidence_result["confidence"]
+                        retry_context = ""
+                        if confidence_result["recommendation"] == "retry_with_context":
+                            # Build feedback for the retry
+                            weak_factors = sorted(
+                                confidence_result["factors"].items(),
+                                key=lambda x: x[1],
+                            )
+                            weakest = weak_factors[0][0] if weak_factors else "completeness"
+                            retry_context = (
+                                f" Your previous attempt scored {prev_score:.2f} "
+                                f"on confidence. It was weakest on {weakest}. "
+                                f"Be more specific and complete."
+                            )
+
+                        logger.info("Step 6.5 — Retrying (confidence=%.3f)", prev_score)
+                        retry_response = await self._step6_evaluate(
+                            user_input + retry_context,
+                            classification, results, context,
+                        )
+
+                        # Score the retry
+                        retry_score = self._confidence_scorer.score_response(
+                            task=user_input,
+                            response=retry_response,
+                            task_type=classification.task_type.value,
+                            context={"module": classification.target_module, "is_retry": True},
+                        )
+                        improvement = self._confidence_scorer.score_improvement(
+                            prev_score, retry_score["confidence"],
+                        )
+                        logger.info(
+                            "Step 6.5 — Retry result: %.3f → %.3f (%s)",
+                            prev_score, retry_score["confidence"],
+                            improvement["recommendation"],
+                        )
+                        # Use retry if it improved, otherwise keep original
+                        if improvement["improved"]:
+                            response = retry_response
+                            confidence_result = retry_score
+
+                    elif confidence_result["recommendation"] == "escalate":
+                        logger.info("Step 6.5 — Escalation recommended (confidence=%.3f)",
+                                    confidence_result["confidence"])
+                        # Mark for potential Apex escalation
+                        if "apex" in self.registry:
+                            response += (
+                                "\n\n*[Low confidence — consider asking me to "
+                                "use Apex for a more detailed answer.]*"
+                            )
+
+                    # Record confidence in growth engine
+                    if self._growth_engine is not None:
+                        try:
+                            self._growth_engine.record_metric(
+                                "confidence_score",
+                                confidence_result["confidence"],
+                                json.dumps({
+                                    "task_type": classification.task_type.value,
+                                    "recommendation": confidence_result["recommendation"],
+                                }),
+                            )
+                        except Exception:
+                            pass
+
+                except Exception as e:
+                    logger.warning("Step 6.5 — Confidence scoring failed: %s", e)
 
             # Step 7 — Log
             await self._step7_log(user_input, classification, response, loop_start)
