@@ -383,7 +383,16 @@ class TestCompareModels:
             resp.raise_for_status = MagicMock()
             return resp
 
-        with patch.object(evaluator._client, "post", side_effect=mock_post):
+        # Patch time.time to return deterministic values so
+        # wall-clock duration is never zero (avoids flaky avg_tokens_per_second).
+        fake_time = [1000.0]
+
+        def advancing_time():
+            fake_time[0] += 0.1
+            return fake_time[0]
+
+        with patch.object(evaluator._client, "post", side_effect=mock_post), \
+             patch("modules.omen.model_evaluator.time.time", side_effect=advancing_time):
             comparison = evaluator.compare_models(["model-fast", "model-slow"])
 
         assert "comparison" in comparison
