@@ -141,6 +141,14 @@ except ImportError:
     logger.warning("RetryEngine not available — 12-attempt retry cycle disabled")
     _RETRY_ENGINE_AVAILABLE = False
 
+# Graceful import — orchestrator still starts if context_orchestrator is missing
+try:
+    from modules.shadow.context_orchestrator import ContextOrchestrator
+    _CONTEXT_ORCHESTRATOR_AVAILABLE = True
+except ImportError:
+    logger.warning("ContextOrchestrator not available — unified context assembly disabled")
+    _CONTEXT_ORCHESTRATOR_AVAILABLE = False
+
 
 class TaskType(Enum):
     """Classification of incoming tasks."""
@@ -306,6 +314,23 @@ class Orchestrator:
             self._failure_pattern_db = FailurePatternDB()
         else:
             self._failure_pattern_db = None
+
+        # Context Orchestrator — unified context assembly pipeline
+        try:
+            if _CONTEXT_ORCHESTRATOR_AVAILABLE:
+                self._context_orchestrator = ContextOrchestrator(
+                    context_manager=self._context_manager if hasattr(self, '_context_manager') else None,
+                    compressor=getattr(self._context_manager, 'compressor', None) if hasattr(self, '_context_manager') and self._context_manager else None,
+                    staged_retrieval=None,  # Set after grimoire module starts
+                    tool_loader=self._tool_loader if hasattr(self, '_tool_loader') else None,
+                    failure_pattern_db=self._failure_pattern_db if hasattr(self, '_failure_pattern_db') else None,
+                    grimoire=None,  # Set after grimoire module starts
+                )
+            else:
+                self._context_orchestrator = None
+        except Exception as e:
+            logger.warning("ContextOrchestrator init failed: %s", e)
+            self._context_orchestrator = None
 
         # Retry Engine — 12-attempt strategy rotation with Apex escalation
         if _RETRY_ENGINE_AVAILABLE:
@@ -1576,11 +1601,34 @@ User input: {user_input}"""
         Architecture: 'The brain that handles the task doesn't start cold.
         It starts with everything Shadow knows about the user and
         everything relevant to the request.'
+
+        Uses ContextOrchestrator if available for unified assembly,
+        otherwise falls back to manual context loading.
         """
         context_items: list[dict[str, Any]] = []
 
         # Skip memory loading for simple conversation — no context needed
         if classification.task_type == TaskType.CONVERSATION and classification.complexity == "simple":
+            # Use ContextOrchestrator minimal path if available
+            if hasattr(self, '_context_orchestrator') and self._context_orchestrator:
+                current_model = (
+                    self._smart_brain
+                    if classification.brain == BrainType.SMART
+                    else self._fast_brain
+                )
+                ctx = self._context_orchestrator.build_minimal_context(
+                    task={"description": user_input, "type": classification.task_type.value,
+                          "module": getattr(classification, "target_module", None)},
+                    system_prompt="",  # System prompt added later in Step 6
+                    model=current_model,
+                )
+                context_items.append({
+                    "type": "available_tools",
+                    "content": [t.get("name", "") for t in ctx.tool_schemas],
+                })
+                logger.info("Step 3 — Minimal context via ContextOrchestrator: %d tools", len(ctx.tool_schemas))
+                return context_items
+
             if self._tool_loader:
                 tools = self._tool_loader.get_tools_for_task(
                     module_name=getattr(classification, "target_module", None),
@@ -1592,6 +1640,117 @@ User input: {user_input}"""
                 "content": [t["name"] for t in tools],
             })
             return context_items
+
+        # --- ContextOrchestrator path (unified assembly) ---
+        if hasattr(self, '_context_orchestrator') and self._context_orchestrator:
+            try:
+                current_model = (
+                    self._smart_brain
+                    if classification.brain == BrainType.SMART
+                    else self._fast_brain
+                )
+                # Update grimoire/staged_retrieval references if available
+                if "grimoire" in self.registry:
+                    grimoire = self.registry.get_module("grimoire")
+                    if grimoire.status == ModuleStatus.ONLINE:
+                        self._context_orchestrator._grimoire = grimoire
+                        if hasattr(grimoire, 'staged_retrieval'):
+                            self._context_orchestrator._staged_retrieval = grimoire.staged_retrieval
+
+                # Pre-fetch failure patterns (async) and pass to orchestrator
+                failure_patterns = []
+                if self._failure_pattern_db is not None and "grimoire" in self.registry:
+                    grimoire = self.registry.get_module("grimoire")
+                    if grimoire.status == ModuleStatus.ONLINE:
+                        try:
+                            patterns = await self._failure_pattern_db.search_failure_patterns(
+                                grimoire=grimoire,
+                                query=user_input,
+                                limit=3,
+                            )
+                            if patterns:
+                                failure_patterns = patterns
+                        except Exception as e:
+                            logger.warning("Failure pattern search failed: %s", e)
+
+                ctx = self._context_orchestrator.build_optimal_context(
+                    task={
+                        "description": user_input,
+                        "type": classification.task_type.value if classification else "unknown",
+                        "module": getattr(classification, "target_module", None),
+                    },
+                    system_prompt="",  # System prompt added later in Step 6
+                    conversation_history=self._conversation_history[-10:] if self._conversation_history else [],
+                    model=current_model,
+                )
+
+                logger.info(
+                    "Step 3 — Context via ContextOrchestrator: %d/%d tokens (%.0f%%)",
+                    ctx.total_tokens,
+                    ctx.token_budget,
+                    (ctx.total_tokens / ctx.token_budget * 100) if ctx.token_budget > 0 else 0,
+                )
+                if ctx.trimmed:
+                    logger.info("Step 3 — Context trimmed: %s", ctx.trimmed_details)
+
+                # Convert ContextPackage back to context_items format for downstream compatibility
+                # If staged retrieval didn't produce results, fall back to direct grimoire search
+                if ctx.grimoire_context:
+                    context_items.append({
+                        "type": "memories",
+                        "content": ctx.grimoire_context,
+                    })
+                elif "grimoire" in self.registry:
+                    grimoire = self.registry.get_module("grimoire")
+                    if grimoire.status == ModuleStatus.ONLINE:
+                        try:
+                            max_results = self._config.get("decision_loop", {}).get(
+                                "context_memories", 5
+                            )
+                            result = await grimoire.execute(
+                                "memory_search",
+                                {"query": user_input, "n_results": max_results},
+                            )
+                            if result.success and result.content:
+                                context_items.append({
+                                    "type": "memories",
+                                    "content": result.content,
+                                })
+                        except Exception as e:
+                            logger.warning("Grimoire fallback search failed: %s", e)
+
+                # Add pre-fetched failure patterns
+                if failure_patterns:
+                    formatted = self._failure_pattern_db.format_patterns_for_context(failure_patterns)
+                    context_items.append({
+                        "type": "failure_patterns",
+                        "content": formatted,
+                    })
+                    logger.info(
+                        "Step 3 — Loaded %d failure patterns for context",
+                        len(formatted),
+                    )
+
+                if ctx.messages:
+                    context_items.append({
+                        "type": "conversation_history",
+                        "content": ctx.messages,
+                    })
+
+                context_items.append({
+                    "type": "available_tools",
+                    "content": [t.get("name", "") for t in ctx.tool_schemas],
+                })
+
+                return context_items
+
+            except Exception as e:
+                logger.warning(
+                    "ContextOrchestrator failed, falling back to manual assembly: %s", e
+                )
+                context_items = []  # Reset and fall through to manual path
+
+        # --- Fallback: Manual context assembly (original behavior) ---
 
         # 1. Grimoire semantic search for relevant memories
         if "grimoire" in self.registry:
