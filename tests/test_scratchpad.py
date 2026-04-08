@@ -162,25 +162,29 @@ def test_format_for_context_nonexistent(pad):
 
 # --- close ---
 
-def test_close_marks_completed(pad):
-    """close() deletes the file (after marking completed)."""
+def test_close_deletes_file(pad):
+    """close() deletes the scratchpad file."""
     pad.create("cl1")
-    result = pad.close("cl1", archive=False)
+    result = pad.close("cl1")
     assert result is True
     assert pad.read("cl1") is None  # file deleted
 
 
-def test_close_with_archive_stores_in_grimoire(pad_with_grimoire):
-    """close() with archive stores scratchpad in Grimoire."""
+def test_close_always_archives_to_grimoire(pad_with_grimoire):
+    """close() always archives reasoning trace to Grimoire."""
     pad, grimoire = pad_with_grimoire
     pad.create("cl2", "archive test")
     pad.write("cl2", {"step": "x", "content": "y", "entry_type": "thought"})
-    result = pad.close("cl2", archive=True)
+    result = pad.close("cl2")
     assert result is True
     grimoire.store.assert_called_once()
     call_kwargs = grimoire.store.call_args
-    assert call_kwargs[1]["category"] == "scratchpad_archive" or \
-        call_kwargs.kwargs.get("category") == "scratchpad_archive"
+    assert call_kwargs.kwargs["category"] == "reasoning_trace"
+    meta = call_kwargs.kwargs["metadata"]
+    assert meta["source"] == "scratchpad"
+    assert meta["task_id"] == "cl2"
+    assert meta["entry_count"] == 1
+    assert meta["status"] == "complete"
 
 
 def test_close_deletes_file_after_archive(pad_with_grimoire):
@@ -189,7 +193,7 @@ def test_close_deletes_file_after_archive(pad_with_grimoire):
     pad.create("cl3")
     path = pad._path("cl3")
     assert path.exists()
-    pad.close("cl3", archive=True)
+    pad.close("cl3")
     assert not path.exists()
 
 
@@ -238,7 +242,7 @@ def test_list_active_excludes_completed(pad):
     """list_active() doesn't include completed scratchpads."""
     pad.create("keep")
     pad.create("done")
-    pad.close("done", archive=False)
+    pad.close("done")
     active = pad.list_active()
     assert len(active) == 1
     assert active[0]["task_id"] == "keep"
@@ -264,9 +268,26 @@ def test_concurrent_scratchpads_no_interference(pad):
 # --- graceful without grimoire ---
 
 def test_close_graceful_without_grimoire(pad):
-    """close() with archive=True works fine when grimoire is None."""
+    """close() works fine when grimoire is None (skips archive, still deletes)."""
     pad.create("nogrim")
     pad.write("nogrim", {"step": "a", "content": "b", "entry_type": "thought"})
-    result = pad.close("nogrim", archive=True)
+    result = pad.close("nogrim")
     assert result is True
     assert not pad._path("nogrim").exists()
+
+
+def test_cleanup_stale_archives_with_incomplete_status(tmp_path):
+    """cleanup_stale() archives stale scratchpads with status 'incomplete'."""
+    grimoire = MagicMock()
+    pad = Scratchpad(base_dir=str(tmp_path / "sp"), grimoire=grimoire)
+    pad.create("stale-task")
+    # Backdate
+    path = pad._path("stale-task")
+    data = json.loads(path.read_text(encoding="utf-8"))
+    data["created_at"] = time.time() - 100_000
+    path.write_text(json.dumps(data), encoding="utf-8")
+
+    pad.cleanup_stale(max_age_hours=24)
+    grimoire.store.assert_called_once()
+    meta = grimoire.store.call_args.kwargs["metadata"]
+    assert meta["status"] == "incomplete"

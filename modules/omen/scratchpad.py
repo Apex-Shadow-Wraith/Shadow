@@ -175,12 +175,15 @@ class Scratchpad:
 
         return result
 
-    def close(self, task_id: str, archive: bool = True) -> bool:
-        """Close a scratchpad, optionally archiving to Grimoire.
+    def close(self, task_id: str, status: str = "complete") -> bool:
+        """Close a scratchpad, archiving reasoning trace to Grimoire.
+
+        Always archives to Grimoire when available — scratchpad reasoning
+        traces are training data.
 
         Args:
             task_id: Task identifier.
-            archive: If True and Grimoire available, archive before deleting.
+            status: Archive status metadata ("complete" or "incomplete").
 
         Returns:
             True on success, False on error.
@@ -194,13 +197,18 @@ class Scratchpad:
             data = json.loads(path.read_text(encoding="utf-8"))
             data["status"] = "completed"
 
-            # Archive to Grimoire if available
-            if archive and self._grimoire is not None:
+            # Always archive reasoning trace to Grimoire
+            if self._grimoire is not None:
                 try:
                     self._grimoire.store(
                         content=json.dumps(data, indent=2),
-                        category="scratchpad_archive",
-                        metadata={"task_id": task_id},
+                        category="reasoning_trace",
+                        metadata={
+                            "source": "scratchpad",
+                            "task_id": task_id,
+                            "entry_count": len(data.get("entries", [])),
+                            "status": status,
+                        },
                     )
                     logger.info("Archived scratchpad '%s' to Grimoire", task_id)
                 except Exception as e:
@@ -237,7 +245,7 @@ class Scratchpad:
                         and data.get("created_at", 0) < cutoff
                     ):
                         task_id = data.get("task_id", path.stem)
-                        self.close(task_id, archive=True)
+                        self.close(task_id, status="incomplete")
                         cleaned += 1
                 except Exception as e:
                     logger.warning("Error checking scratchpad %s: %s", path, e)
