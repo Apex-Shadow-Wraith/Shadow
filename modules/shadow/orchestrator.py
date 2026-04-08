@@ -214,6 +214,15 @@ except ImportError:
     _LORA_MANAGER_AVAILABLE = False
 
 
+# Graceful import — orchestrator still starts if chunked_processor is missing
+try:
+    from modules.shadow.chunked_processor import ChunkedProcessor
+    _CHUNKED_PROCESSOR_AVAILABLE = True
+except ImportError:
+    logger.warning("ChunkedProcessor not available — chunked processing disabled")
+    _CHUNKED_PROCESSOR_AVAILABLE = False
+
+
 class TaskType(Enum):
     """Classification of incoming tasks."""
     QUESTION = "question"
@@ -486,6 +495,19 @@ class Orchestrator:
                 self._lora_manager = None
         else:
             self._lora_manager = None
+
+        # Chunked Processor — split large tasks exceeding context window
+        if _CHUNKED_PROCESSOR_AVAILABLE:
+            try:
+                self._chunked_processor = ChunkedProcessor(
+                    generate_fn=self._generate if hasattr(self, '_generate') else None,
+                    context_manager=self._context_manager if hasattr(self, '_context_manager') else None,
+                )
+            except Exception as e:
+                logger.warning("ChunkedProcessor init failed: %s", e)
+                self._chunked_processor = None
+        else:
+            self._chunked_processor = None
 
         # Track GrimoireReader instances for cleanup
         self._grimoire_readers: list[Any] = []
