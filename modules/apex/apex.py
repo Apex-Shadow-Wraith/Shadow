@@ -279,39 +279,10 @@ class EscalationLog:
         return [dict(r) for r in rows]
 
 
-class TeachingExtractor:
-    """Extract teaching signals from API escalation responses.
-
-    Phase 1: Simple structured extraction without LLM analysis.
-    Phase 2 (future): Use local model to identify reusable patterns.
-    """
-
-    def extract_teaching_signal(
-        self,
-        task_input: str,
-        api_response: str,
-        task_type: str,
-    ) -> dict[str, Any]:
-        """Extract a teaching signal from an escalation.
-
-        Phase 1 implementation: structures the escalation data for
-        storage without LLM analysis. The key_patterns list is empty
-        for now — Phase 2 will use the local model to populate it.
-
-        Args:
-            task_input: The original task sent to the API.
-            api_response: The API's response.
-            task_type: Category of the task.
-
-        Returns:
-            Dict with task_type, input_summary, approach, key_patterns.
-        """
-        return {
-            "task_type": task_type,
-            "input_summary": task_input[:200],
-            "approach": api_response[:500],
-            "key_patterns": [],  # Phase 2: LLM-extracted patterns
-        }
+# TeachingExtractor lives in its own module now (3-tier extraction).
+# Re-export here for backward compatibility.
+from modules.apex.teaching_extractor import TeachingExtractor  # noqa: E402
+from modules.apex.teaching_extractor import THREE_TIER_TEACHING_TEMPLATE  # noqa: E402
 
 
 class Apex(BaseModule):
@@ -591,6 +562,7 @@ class Apex(BaseModule):
             "failed_approaches_count": len(failed),
             "has_successful_answer": bool(answer),
             "status": "logged",
+            "teaching_template": THREE_TIER_TEACHING_TEMPLATE,
         }
         self._call_log.append({
             **teaching_request,
