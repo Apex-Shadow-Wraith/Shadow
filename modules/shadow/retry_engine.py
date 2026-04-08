@@ -24,6 +24,13 @@ from modules.base import ToolResult
 
 logger = logging.getLogger("shadow.retry_engine")
 
+# Graceful import — RetryEngine works without RecursiveDecomposer
+try:
+    from modules.shadow.recursive_decomposer import RecursiveDecomposer
+    _DECOMPOSER_AVAILABLE = True
+except ImportError:
+    _DECOMPOSER_AVAILABLE = False
+
 
 # ── Strategy Definitions ─────────────────────────────────────────────
 
@@ -160,6 +167,14 @@ class RetryEngine:
         self._config = config or {}
         self._session_history: list[dict[str, Any]] = []
         self._max_history = 100
+
+        # Recursive decomposer for strategy #2 (decomposition)
+        self._decomposer = None
+        if _DECOMPOSER_AVAILABLE:
+            try:
+                self._decomposer = RecursiveDecomposer()
+            except Exception as e:
+                logger.warning("RecursiveDecomposer init in RetryEngine failed: %s", e)
 
     async def attempt_task(
         self,

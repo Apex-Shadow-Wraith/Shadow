@@ -157,6 +157,14 @@ except ImportError:
     logger.warning("ChainOfThought not available — structured reasoning disabled")
     _CHAIN_OF_THOUGHT_AVAILABLE = False
 
+# Graceful import — orchestrator still starts if recursive_decomposer is missing
+try:
+    from modules.shadow.recursive_decomposer import RecursiveDecomposer
+    _RECURSIVE_DECOMPOSER_AVAILABLE = True
+except ImportError:
+    logger.warning("RecursiveDecomposer not available — recursive decomposition disabled")
+    _RECURSIVE_DECOMPOSER_AVAILABLE = False
+
 # Graceful import — orchestrator still starts if self_teaching is missing
 try:
     from modules.shadow.self_teaching import SelfTeacher
@@ -385,6 +393,19 @@ class Orchestrator:
                 self._chain_of_thought = None
         else:
             self._chain_of_thought = None
+
+        # Recursive Decomposer — break complex problems before Apex escalation
+        if _RECURSIVE_DECOMPOSER_AVAILABLE:
+            try:
+                self._decomposer = RecursiveDecomposer(
+                    generate_fn=self._generate if hasattr(self, '_generate') else None,
+                    confidence_scorer=self._confidence_scorer if hasattr(self, '_confidence_scorer') else None,
+                )
+            except Exception as e:
+                logger.warning("RecursiveDecomposer init failed: %s", e)
+                self._decomposer = None
+        else:
+            self._decomposer = None
 
         # Self-Teaching — zero-cost knowledge accumulation from local successes
         if _SELF_TEACHING_AVAILABLE:
@@ -2194,6 +2215,19 @@ User input: {user_input}"""
         # Succeeded — return the response
         if retry_result.get("status") == "succeeded" and retry_result.get("final_result"):
             return retry_result["final_result"].get("response", "")
+
+        # Exhausted — try decomposition before escalating to Apex
+        if retry_result.get("exhausted") and hasattr(self, '_decomposer') and self._decomposer:
+            try:
+                decomp_result = self._decomposer.solve_with_decomposition(task, context or "")
+                if decomp_result.overall_confidence >= 0.6:
+                    logger.info(
+                        "Decomposition succeeded (confidence=%.3f) — skipping Apex escalation",
+                        decomp_result.overall_confidence,
+                    )
+                    return decomp_result.merged_solution
+            except Exception as e:
+                logger.warning("Pre-escalation decomposition failed: %s", e)
 
         # Exhausted — handle escalation
         if retry_result.get("exhausted"):
