@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import json
 import logging
+import random
 import time
 import uuid
 from dataclasses import dataclass, field, asdict
@@ -42,9 +43,9 @@ class ExplorationReport:
 class RDLab:
     """Morpheus R&D Laboratory — idea-to-implementation pipeline.
 
-    Pulls random knowledge from Grimoire, generates cross-domain hypotheses,
-    tests them empirically when possible, and graduates validated discoveries
-    to production.
+    Pulls domain-filtered knowledge from Grimoire technical collections,
+    generates cross-domain hypotheses, tests them empirically when possible,
+    and graduates validated discoveries to production.
 
     Args:
         generate_fn: Callable that takes a prompt string and returns model output.
@@ -53,6 +54,20 @@ class RDLab:
         sandbox: Omen's CodeSandbox for empirical testing.
         config: Optional configuration dict.
     """
+
+    EXPLORATION_DOMAINS = [
+        "code",
+        "optimization",
+        "security",
+        "architecture",
+        "escalation_teachings",
+        "escalation_answers",
+        "failure_patterns",
+        "workflows",
+        "fingerprinted_solution",
+        "apex_teachings",
+        "self_teaching",
+    ]
 
     def __init__(
         self,
@@ -462,25 +477,41 @@ class RDLab:
     # --- Internal helpers ---
 
     def _pull_random_knowledge(self, count: int = 5) -> list[dict]:
-        """Pull random knowledge entries from Grimoire.
+        """Pull domain-filtered knowledge from different technical Grimoire collections.
+
+        Selects 3 different technical domains at random and pulls 1-2 entries
+        from each, ensuring cross-domain pollination while excluding personal
+        and non-technical collections.
 
         Args:
-            count: Number of entries to pull (3-5).
+            count: Target number of entries (used as upper bound).
 
         Returns:
-            List of knowledge entry dicts.
+            List of knowledge entry dicts from diverse technical domains.
         """
         if self._grimoire is None:
             return []
 
-        try:
-            entries = self._grimoire.get_random_entries(count=count)
-            if isinstance(entries, list):
-                return entries
-            return []
-        except Exception as e:
-            logger.warning("Failed to pull random knowledge: %s", e)
-            return []
+        # Pick 3 different technical domains for cross-pollination
+        num_domains = min(3, len(self.EXPLORATION_DOMAINS))
+        selected_domains = random.sample(self.EXPLORATION_DOMAINS, num_domains)
+
+        entries: list[dict] = []
+        for domain in selected_domains:
+            try:
+                per_domain = random.randint(1, 2)
+                domain_entries = self._grimoire.get_random_entries(
+                    count=per_domain, domain=domain
+                )
+                if isinstance(domain_entries, list):
+                    for entry in domain_entries:
+                        if isinstance(entry, dict) and "domain" not in entry:
+                            entry["domain"] = domain
+                        entries.append(entry)
+            except Exception as e:
+                logger.warning("Failed to pull from domain %s: %s", domain, e)
+
+        return entries[:count]
 
     def _generate_test_code(self, hypothesis: dict) -> str:
         """Generate test code for a hypothesis using the model.

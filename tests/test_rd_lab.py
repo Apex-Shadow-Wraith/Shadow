@@ -10,6 +10,7 @@ import pytest
 from unittest.mock import MagicMock, patch
 
 from modules.morpheus.rd_lab import RDLab, ExplorationReport, SPECULATION_COLLECTION
+from unittest.mock import call
 
 
 # --- Fixtures ---
@@ -38,13 +39,23 @@ def mock_generate_fn():
 
 @pytest.fixture
 def mock_grimoire():
-    """Mock Grimoire with random entries and store."""
+    """Mock Grimoire with domain-filtered random entries and store."""
     grimoire = MagicMock()
-    grimoire.get_random_entries.return_value = [
-        {"domain": "web", "content": "HTTP caching reduces latency by 40%"},
-        {"domain": "ml", "content": "Batch inference improves throughput"},
-        {"domain": "landscaping", "content": "Route optimization saves fuel"},
-    ]
+
+    def _get_random_entries(count=5, domain=None):
+        """Return entries tagged with the requested domain."""
+        if domain:
+            return [
+                {"domain": domain, "content": f"Knowledge from {domain} domain"}
+                for _ in range(count)
+            ]
+        return [
+            {"domain": "code", "content": "HTTP caching reduces latency by 40%"},
+            {"domain": "security", "content": "Batch inference improves throughput"},
+            {"domain": "optimization", "content": "Route optimization saves fuel"},
+        ]
+
+    grimoire.get_random_entries.side_effect = _get_random_entries
     grimoire.store.return_value = "doc-123"
     return grimoire
 
@@ -108,9 +119,10 @@ class TestRunExplorationSession:
     """Tests for the full exploration session pipeline."""
 
     def test_generates_hypotheses_from_random_knowledge(self, lab, mock_grimoire):
-        """Session pulls random knowledge and generates hypotheses."""
+        """Session pulls domain-filtered knowledge and generates hypotheses."""
         report = lab.run_exploration_session(duration_minutes=5)
-        mock_grimoire.get_random_entries.assert_called_once()
+        # Called once per selected domain (3 domains)
+        assert mock_grimoire.get_random_entries.call_count == 3
         assert report.ideas_generated == 2
 
     def test_runs_testable_experiments_in_sandbox(self, lab, mock_sandbox):
@@ -445,6 +457,57 @@ class TestGetExplorationStats:
         assert stats["discoveries_graduated"] == 0
 
 
+# --- Domain Filtering Tests ---
+
+
+class TestDomainFiltering:
+    """Tests for technical domain filtering in knowledge pulls."""
+
+    def test_only_technical_domains_queried(self, lab, mock_grimoire):
+        """Only allowed technical domains are queried from Grimoire."""
+        lab.run_exploration_session(duration_minutes=5)
+        for c in mock_grimoire.get_random_entries.call_args_list:
+            domain = c.kwargs.get("domain") or (c.args[1] if len(c.args) > 1 else None)
+            assert domain in RDLab.EXPLORATION_DOMAINS, (
+                f"Queried non-technical domain: {domain}"
+            )
+
+    def test_entries_come_from_different_domains(self, lab, mock_grimoire):
+        """Knowledge entries are pulled from multiple distinct domains."""
+        lab.run_exploration_session(duration_minutes=5)
+        queried_domains = set()
+        for c in mock_grimoire.get_random_entries.call_args_list:
+            domain = c.kwargs.get("domain")
+            if domain:
+                queried_domains.add(domain)
+        assert len(queried_domains) == 3, (
+            f"Expected 3 different domains, got {len(queried_domains)}: {queried_domains}"
+        )
+
+    def test_personal_domains_never_pulled(self, lab, mock_grimoire):
+        """Personal and non-technical domains are never queried."""
+        excluded = {
+            "personal", "reminders", "contacts", "schedule",
+            "esv", "scratchpad_archive",
+        }
+        # Run multiple sessions to increase coverage
+        for _ in range(10):
+            lab.run_exploration_session(duration_minutes=5)
+        for c in mock_grimoire.get_random_entries.call_args_list:
+            domain = c.kwargs.get("domain")
+            assert domain not in excluded, (
+                f"Pulled from excluded domain: {domain}"
+            )
+
+    def test_exploration_domains_constant_exists(self):
+        """EXPLORATION_DOMAINS is a class-level constant with expected entries."""
+        assert hasattr(RDLab, "EXPLORATION_DOMAINS")
+        assert "code" in RDLab.EXPLORATION_DOMAINS
+        assert "security" in RDLab.EXPLORATION_DOMAINS
+        assert "personal" not in RDLab.EXPLORATION_DOMAINS
+        assert "reminders" not in RDLab.EXPLORATION_DOMAINS
+
+
 # --- Edge Case Tests ---
 
 
@@ -480,7 +543,7 @@ class TestEdgeCases:
     def test_empty_knowledge_pull_clean_exit(self, mock_experiment_store):
         """Empty knowledge pull results in clean exit with no hypotheses."""
         grimoire = MagicMock()
-        grimoire.get_random_entries.return_value = []
+        grimoire.get_random_entries.side_effect = lambda count=5, domain=None: []
 
         lab = RDLab(
             generate_fn=lambda p: "[]",
