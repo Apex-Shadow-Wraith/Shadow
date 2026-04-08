@@ -483,6 +483,17 @@ class Omen(BaseModule):
         except Exception as e:
             logger.warning("TestGate not available: %s", e)
 
+        # Scratchpad — file-based working memory for complex tasks
+        self._scratchpad = None
+        try:
+            from modules.omen.scratchpad import Scratchpad
+            self._scratchpad = Scratchpad(
+                base_dir=self._config.get("scratchpad_dir", "data/scratchpads"),
+                grimoire=self._config.get("grimoire"),
+            )
+        except Exception as e:
+            logger.warning("Scratchpad not available: %s", e)
+
     async def initialize(self) -> None:
         """Start Omen. Create DB and tables."""
         self.status = ModuleStatus.STARTING
