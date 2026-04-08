@@ -47,6 +47,13 @@ class GrimoireModule(BaseModule):
         self._grimoire = None  # Will hold the existing Grimoire instance
         self._failure_pattern_db = FailurePatternDB() if _FAILURE_PATTERNS_AVAILABLE else None
 
+        # Staged retrieval — optional two-stage search enhancement
+        try:
+            from modules.grimoire.staged_retrieval import StagedRetrieval
+            self.staged_retrieval = StagedRetrieval(grimoire=self._grimoire)
+        except ImportError:
+            self.staged_retrieval = None
+
     async def initialize(self) -> None:
         """Initialize the existing Grimoire system."""
         self.status = ModuleStatus.STARTING
@@ -65,6 +72,10 @@ class GrimoireModule(BaseModule):
             logger.info("Grimoire initialized. DB: %s", db_path)
             self.status = ModuleStatus.ONLINE
             self._initialized_at = datetime.now()
+
+            # Wire up staged retrieval with the live grimoire instance
+            if self.staged_retrieval is not None:
+                self.staged_retrieval._grimoire = self._grimoire
 
         except ImportError as e:
             logger.error(
@@ -292,6 +303,18 @@ class GrimoireModule(BaseModule):
                 error=str(e),
                 execution_time_ms=(time.time() - start) * 1000,
             )
+
+    def search_staged(self, query, collection=None, n_results=10, auto_select=3):
+        """Two-stage search: summaries first, then full content for top hits.
+
+        Falls back to regular search if staged retrieval is unavailable.
+        """
+        if self.staged_retrieval:
+            return self.staged_retrieval.search(query, collection, n_results, auto_select)
+        # Fallback to regular search via the execute interface
+        if self._grimoire is not None:
+            return self._grimoire.recall(query=query, n_results=n_results)
+        return []
 
     async def shutdown(self) -> None:
         """Grimoire shutdown. Close connections."""
