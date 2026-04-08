@@ -470,6 +470,19 @@ class Omen(BaseModule):
             sandbox_root=self._config.get("sandbox_root", "data/sandbox"),
         )
 
+        # Test Gate — auto-revert if code changes break tests
+        self._test_gate = None
+        try:
+            from modules.omen.test_gate import TestGate
+            self._test_gate = TestGate(
+                project_root=self._config.get("project_root", "."),
+                test_command=self._config.get(
+                    "test_command", "python -m pytest tests/ -x -q"
+                ),
+            )
+        except Exception as e:
+            logger.warning("TestGate not available: %s", e)
+
     async def initialize(self) -> None:
         """Start Omen. Create DB and tables."""
         self.status = ModuleStatus.STARTING
@@ -2469,13 +2482,33 @@ class Omen(BaseModule):
             except Exception:
                 return False
 
-        success = self._sandbox.copy_to_production(
-            sandbox_path=sandbox_path,
-            production_path=production_path,
-            require_tests_pass=params.get("require_tests_pass", True),
-            reversibility_engine=reversibility,
-            run_tests_fn=run_tests,
-        )
+        def do_copy():
+            return self._sandbox.copy_to_production(
+                sandbox_path=sandbox_path,
+                production_path=production_path,
+                require_tests_pass=params.get("require_tests_pass", True),
+                reversibility_engine=reversibility,
+                run_tests_fn=run_tests,
+            )
+
+        # Route through TestGate if available
+        if self._test_gate:
+            gate_result = self._test_gate.execute_with_gate(
+                change_fn=do_copy,
+                description=f"sandbox_to_production: {sandbox_path} → {production_path}",
+            )
+            if not gate_result.allowed:
+                logger.warning("TestGate REVERTED sandbox_to_production: %s", gate_result.reason)
+                return ToolResult(
+                    success=False,
+                    content={"reverted": True, "reason": gate_result.reason},
+                    tool_name="sandbox_to_production",
+                    module=self.name,
+                    error=f"Change reverted — tests failed: {gate_result.reason}",
+                )
+            success = True
+        else:
+            success = do_copy()
 
         return ToolResult(
             success=success,
