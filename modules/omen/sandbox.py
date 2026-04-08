@@ -7,6 +7,9 @@ production files, network, credentials, or system resources.
 Each execution gets an isolated directory under data/sandbox/{execution_id}/.
 Environment variables are stripped. Timeout and memory limits enforced.
 Static safety analysis runs before every execution.
+
+Supports Python execution natively, plus C/C++/CUDA compilation and execution
+via CCompiler, CppCompiler, and CudaCompiler handler classes.
 """
 
 from __future__ import annotations
@@ -21,11 +24,492 @@ import subprocess
 import sys
 import time
 import uuid
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Optional
 
 logger = logging.getLogger("shadow.omen.sandbox")
+
+
+# ------------------------------------------------------------------
+# Result dataclasses for compiled languages
+# ------------------------------------------------------------------
+
+@dataclass
+class CompileResult:
+    """Result of a compilation step."""
+
+    success: bool
+    output: str = ""
+    errors: str = ""
+    duration: float = 0.0
+
+
+@dataclass
+class ExecuteResult:
+    """Result of running a compiled binary."""
+
+    success: bool
+    stdout: str = ""
+    stderr: str = ""
+    returncode: int = 0
+    duration: float = 0.0
+    error: str = ""
+
+
+# ------------------------------------------------------------------
+# Language detection
+# ------------------------------------------------------------------
+
+_EXTENSION_MAP = {
+    ".c": "c",
+    ".cpp": "cpp",
+    ".cc": "cpp",
+    ".cxx": "cpp",
+    ".cu": "cuda",
+    ".py": "python",
+}
+
+
+def detect_language(file_path: str = None, code: str = None) -> str:
+    """Detect programming language from file extension or code content.
+
+    Args:
+        file_path: Path to source file (uses extension).
+        code: Source code string (uses heuristics).
+
+    Returns:
+        Language string: "c", "cpp", "cuda", or "python".
+    """
+    if file_path:
+        ext = Path(file_path).suffix.lower()
+        if ext in _EXTENSION_MAP:
+            return _EXTENSION_MAP[ext]
+
+    if code:
+        if "__global__" in code or "__device__" in code:
+            return "cuda"
+        if "#include" in code and ("int main(" in code or "int main (" in code):
+            # Distinguish C vs C++ by looking for C++-specific features
+            cpp_indicators = [
+                "iostream", "std::", "cout", "cin", "vector<",
+                "string ", "namespace", "class ", "template",
+                "<algorithm>", "<memory>", "<map>", "<set>",
+            ]
+            for indicator in cpp_indicators:
+                if indicator in code:
+                    return "cpp"
+            return "c"
+        if "#include" in code:
+            return "c"
+
+    return "python"
+
+
+# ------------------------------------------------------------------
+# C/C++/CUDA safety checks
+# ------------------------------------------------------------------
+
+# Dangerous C/C++ function calls to block
+_C_DANGEROUS_CALLS = re.compile(
+    r'\b(system|popen|execl|execle|execlp|execv|execve|execvp)\s*\('
+)
+
+
+def _validate_c_safety(code: str) -> list[str]:
+    """Check C/C++/CUDA code for dangerous patterns.
+
+    Args:
+        code: Source code to analyze.
+
+    Returns:
+        List of violation descriptions.
+    """
+    violations = []
+    for match in _C_DANGEROUS_CALLS.finditer(code):
+        func_name = match.group(1)
+        violations.append(f"System access: {func_name}() call in compiled code")
+    return violations
+
+
+# ------------------------------------------------------------------
+# Compiler handler classes
+# ------------------------------------------------------------------
+
+class CCompiler:
+    """Handler for compiling and executing C code via gcc."""
+
+    def __init__(self) -> None:
+        self._compiler = "gcc"
+
+    def compile(
+        self, source_path: str, output_path: str, timeout: int = 30
+    ) -> CompileResult:
+        """Compile C source code with gcc.
+
+        Args:
+            source_path: Path to .c source file.
+            output_path: Path for output binary.
+            timeout: Compile timeout in seconds.
+
+        Returns:
+            CompileResult with success status, output, errors, duration.
+        """
+        start = time.monotonic()
+        try:
+            result = subprocess.run(
+                [self._compiler, source_path, "-o", output_path, "-Wall", "-Wextra"],
+                capture_output=True,
+                text=True,
+                timeout=timeout,
+            )
+            duration = time.monotonic() - start
+            return CompileResult(
+                success=result.returncode == 0,
+                output=result.stdout,
+                errors=result.stderr,
+                duration=duration,
+            )
+        except subprocess.TimeoutExpired:
+            duration = time.monotonic() - start
+            return CompileResult(
+                success=False,
+                errors=f"Compilation timed out after {timeout}s",
+                duration=duration,
+            )
+        except FileNotFoundError:
+            duration = time.monotonic() - start
+            return CompileResult(
+                success=False,
+                errors=f"Compiler not found: {self._compiler}",
+                duration=duration,
+            )
+        except Exception as e:
+            duration = time.monotonic() - start
+            return CompileResult(
+                success=False,
+                errors=f"Compilation error: {e}",
+                duration=duration,
+            )
+
+    def execute(
+        self, binary_path: str, stdin: str = "", timeout: int = 60
+    ) -> ExecuteResult:
+        """Run a compiled binary.
+
+        Args:
+            binary_path: Path to the compiled binary.
+            stdin: Input to feed to the process via stdin.
+            timeout: Execution timeout in seconds.
+
+        Returns:
+            ExecuteResult with stdout, stderr, returncode, duration.
+        """
+        start = time.monotonic()
+        try:
+            result = subprocess.run(
+                [binary_path],
+                capture_output=True,
+                text=True,
+                timeout=timeout,
+                input=stdin if stdin else None,
+            )
+            duration = time.monotonic() - start
+            return ExecuteResult(
+                success=result.returncode == 0,
+                stdout=result.stdout,
+                stderr=result.stderr,
+                returncode=result.returncode,
+                duration=duration,
+            )
+        except subprocess.TimeoutExpired:
+            duration = time.monotonic() - start
+            return ExecuteResult(
+                success=False,
+                stderr=f"Execution timed out after {timeout}s",
+                returncode=-1,
+                duration=duration,
+            )
+        except Exception as e:
+            duration = time.monotonic() - start
+            return ExecuteResult(
+                success=False,
+                stderr=str(e),
+                returncode=-1,
+                duration=duration,
+            )
+
+
+class CppCompiler:
+    """Handler for compiling and executing C++ code via g++."""
+
+    def __init__(self) -> None:
+        self._compiler = "g++"
+
+    def compile(
+        self, source_path: str, output_path: str, timeout: int = 30
+    ) -> CompileResult:
+        """Compile C++ source code with g++.
+
+        Args:
+            source_path: Path to .cpp source file.
+            output_path: Path for output binary.
+            timeout: Compile timeout in seconds.
+
+        Returns:
+            CompileResult with success status, output, errors, duration.
+        """
+        start = time.monotonic()
+        try:
+            result = subprocess.run(
+                [self._compiler, source_path, "-o", output_path,
+                 "-std=c++17", "-Wall", "-Wextra"],
+                capture_output=True,
+                text=True,
+                timeout=timeout,
+            )
+            duration = time.monotonic() - start
+            return CompileResult(
+                success=result.returncode == 0,
+                output=result.stdout,
+                errors=result.stderr,
+                duration=duration,
+            )
+        except subprocess.TimeoutExpired:
+            duration = time.monotonic() - start
+            return CompileResult(
+                success=False,
+                errors=f"Compilation timed out after {timeout}s",
+                duration=duration,
+            )
+        except FileNotFoundError:
+            duration = time.monotonic() - start
+            return CompileResult(
+                success=False,
+                errors=f"Compiler not found: {self._compiler}",
+                duration=duration,
+            )
+        except Exception as e:
+            duration = time.monotonic() - start
+            return CompileResult(
+                success=False,
+                errors=f"Compilation error: {e}",
+                duration=duration,
+            )
+
+    def execute(
+        self, binary_path: str, stdin: str = "", timeout: int = 60
+    ) -> ExecuteResult:
+        """Run a compiled C++ binary.
+
+        Args:
+            binary_path: Path to the compiled binary.
+            stdin: Input to feed to the process via stdin.
+            timeout: Execution timeout in seconds.
+
+        Returns:
+            ExecuteResult with stdout, stderr, returncode, duration.
+        """
+        start = time.monotonic()
+        try:
+            result = subprocess.run(
+                [binary_path],
+                capture_output=True,
+                text=True,
+                timeout=timeout,
+                input=stdin if stdin else None,
+            )
+            duration = time.monotonic() - start
+            return ExecuteResult(
+                success=result.returncode == 0,
+                stdout=result.stdout,
+                stderr=result.stderr,
+                returncode=result.returncode,
+                duration=duration,
+            )
+        except subprocess.TimeoutExpired:
+            duration = time.monotonic() - start
+            return ExecuteResult(
+                success=False,
+                stderr=f"Execution timed out after {timeout}s",
+                returncode=-1,
+                duration=duration,
+            )
+        except Exception as e:
+            duration = time.monotonic() - start
+            return ExecuteResult(
+                success=False,
+                stderr=str(e),
+                returncode=-1,
+                duration=duration,
+            )
+
+
+class CudaCompiler:
+    """Handler for compiling and executing CUDA code via nvcc.
+
+    Supports two modes:
+    - GPU present: full compilation and execution
+    - GPU absent: compile-only mode (syntax validation, no execution)
+    """
+
+    def __init__(self) -> None:
+        self._compiler = "nvcc"
+        self._gpu_available = self._check_gpu()
+
+    @property
+    def gpu_available(self) -> bool:
+        """Whether a CUDA-capable GPU is available."""
+        return self._gpu_available
+
+    def _check_gpu(self) -> bool:
+        """Check GPU availability via nvidia-smi."""
+        try:
+            result = subprocess.run(
+                ["nvidia-smi"],
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+            return result.returncode == 0
+        except (FileNotFoundError, subprocess.TimeoutExpired, Exception):
+            return False
+
+    def compile(
+        self, source_path: str, output_path: str, timeout: int = 30
+    ) -> CompileResult:
+        """Compile CUDA source code with nvcc.
+
+        If GPU is absent and compile fails, tries CPU fallback with -DCPU_ONLY.
+
+        Args:
+            source_path: Path to .cu source file.
+            output_path: Path for output binary.
+            timeout: Compile timeout in seconds.
+
+        Returns:
+            CompileResult with success status, output, errors, duration.
+        """
+        start = time.monotonic()
+        try:
+            result = subprocess.run(
+                [self._compiler, source_path, "-o", output_path],
+                capture_output=True,
+                text=True,
+                timeout=timeout,
+            )
+            duration = time.monotonic() - start
+            if result.returncode == 0:
+                return CompileResult(
+                    success=True,
+                    output=result.stdout,
+                    errors=result.stderr,
+                    duration=duration,
+                )
+
+            # If GPU absent and compile failed, try CPU fallback
+            if not self._gpu_available:
+                start_fallback = time.monotonic()
+                try:
+                    fallback = subprocess.run(
+                        [self._compiler, source_path, "-o", output_path, "-DCPU_ONLY"],
+                        capture_output=True,
+                        text=True,
+                        timeout=timeout,
+                    )
+                    duration = time.monotonic() - start_fallback
+                    return CompileResult(
+                        success=fallback.returncode == 0,
+                        output=fallback.stdout,
+                        errors=fallback.stderr if fallback.returncode != 0 else "Compiled with CPU_ONLY fallback",
+                        duration=duration,
+                    )
+                except (subprocess.TimeoutExpired, Exception):
+                    pass
+
+            duration = time.monotonic() - start
+            return CompileResult(
+                success=False,
+                output=result.stdout,
+                errors=result.stderr,
+                duration=duration,
+            )
+        except subprocess.TimeoutExpired:
+            duration = time.monotonic() - start
+            return CompileResult(
+                success=False,
+                errors=f"Compilation timed out after {timeout}s",
+                duration=duration,
+            )
+        except FileNotFoundError:
+            duration = time.monotonic() - start
+            return CompileResult(
+                success=False,
+                errors=f"Compiler not found: {self._compiler}",
+                duration=duration,
+            )
+        except Exception as e:
+            duration = time.monotonic() - start
+            return CompileResult(
+                success=False,
+                errors=f"Compilation error: {e}",
+                duration=duration,
+            )
+
+    def execute(
+        self, binary_path: str, timeout: int = 60
+    ) -> ExecuteResult:
+        """Run a compiled CUDA binary.
+
+        Returns an error if no GPU is available (compile-only mode).
+
+        Args:
+            binary_path: Path to the compiled binary.
+            timeout: Execution timeout in seconds.
+
+        Returns:
+            ExecuteResult with stdout, stderr, returncode, duration.
+        """
+        if not self._gpu_available:
+            return ExecuteResult(
+                success=False,
+                error="No GPU available — compile-only mode",
+                returncode=-1,
+            )
+
+        start = time.monotonic()
+        try:
+            result = subprocess.run(
+                [binary_path],
+                capture_output=True,
+                text=True,
+                timeout=timeout,
+            )
+            duration = time.monotonic() - start
+            return ExecuteResult(
+                success=result.returncode == 0,
+                stdout=result.stdout,
+                stderr=result.stderr,
+                returncode=result.returncode,
+                duration=duration,
+            )
+        except subprocess.TimeoutExpired:
+            duration = time.monotonic() - start
+            return ExecuteResult(
+                success=False,
+                stderr=f"Execution timed out after {timeout}s",
+                returncode=-1,
+                duration=duration,
+            )
+        except Exception as e:
+            duration = time.monotonic() - start
+            return ExecuteResult(
+                success=False,
+                stderr=str(e),
+                returncode=-1,
+                duration=duration,
+            )
 
 
 class CodeSandbox:
@@ -432,6 +916,159 @@ class CodeSandbox:
             "violations": violations,
             "severity": severity,
         }
+
+    def execute_compiled(
+        self,
+        code: str,
+        language: str = None,
+        file_ext: str = None,
+        timeout: int = 60,
+        compile_timeout: int = 30,
+    ) -> dict[str, Any]:
+        """Compile and execute C, C++, or CUDA code in the sandbox.
+
+        Auto-detects language from code content or file_ext. Writes source
+        to sandbox directory, compiles with the appropriate compiler, then
+        executes the resulting binary.
+
+        Args:
+            code: Source code to compile and run.
+            language: Language override ("c", "cpp", "cuda"). Auto-detected if None.
+            file_ext: File extension hint for language detection.
+            timeout: Execution timeout in seconds.
+            compile_timeout: Compilation timeout in seconds.
+
+        Returns:
+            Dict with execution_id, language, compile_result, execute_result,
+            stdout, stderr, and safety info.
+        """
+        # Detect language
+        detected = language or detect_language(
+            file_path=f"code{file_ext}" if file_ext else None,
+            code=code,
+        )
+
+        # Safety validation for C/C++/CUDA
+        safety_violations = _validate_c_safety(code)
+        if safety_violations:
+            return {
+                "execution_id": str(uuid.uuid4()),
+                "language": detected,
+                "stdout": "",
+                "stderr": f"BLOCKED by safety validation: {'; '.join(safety_violations)}",
+                "exit_code": -1,
+                "compile_result": None,
+                "execute_result": None,
+                "timed_out": False,
+                "safety": {
+                    "safe": False,
+                    "violations": safety_violations,
+                    "severity": "block",
+                },
+            }
+
+        execution_id = str(uuid.uuid4())
+        exec_dir = self._sandbox_root / execution_id
+        exec_dir.mkdir(parents=True, exist_ok=True)
+
+        ext_map = {"c": ".c", "cpp": ".cpp", "cuda": ".cu"}
+        source_ext = ext_map.get(detected, ".c")
+        source_file = exec_dir / f"main{source_ext}"
+        binary_name = "main.exe" if platform.system() == "Windows" else "main"
+        binary_file = exec_dir / binary_name
+
+        try:
+            source_file.write_text(code, encoding="utf-8")
+
+            # Select compiler
+            if detected == "cpp":
+                compiler = CppCompiler()
+            elif detected == "cuda":
+                compiler = CudaCompiler()
+            else:
+                compiler = CCompiler()
+
+            # Compile
+            compile_result = compiler.compile(
+                str(source_file), str(binary_file), timeout=compile_timeout,
+            )
+
+            if not compile_result.success:
+                return {
+                    "execution_id": execution_id,
+                    "language": detected,
+                    "stdout": "",
+                    "stderr": compile_result.errors,
+                    "exit_code": -1,
+                    "compile_result": {
+                        "success": False,
+                        "output": compile_result.output,
+                        "errors": compile_result.errors,
+                        "duration": compile_result.duration,
+                    },
+                    "execute_result": None,
+                    "timed_out": False,
+                    "safety": {
+                        "safe": True,
+                        "violations": [],
+                        "severity": "clean",
+                    },
+                }
+
+            # Execute
+            if isinstance(compiler, CudaCompiler):
+                exec_result = compiler.execute(str(binary_file), timeout=timeout)
+            else:
+                exec_result = compiler.execute(str(binary_file), timeout=timeout)
+
+            return {
+                "execution_id": execution_id,
+                "language": detected,
+                "stdout": exec_result.stdout,
+                "stderr": exec_result.stderr,
+                "exit_code": exec_result.returncode,
+                "compile_result": {
+                    "success": compile_result.success,
+                    "output": compile_result.output,
+                    "errors": compile_result.errors,
+                    "duration": compile_result.duration,
+                },
+                "execute_result": {
+                    "success": exec_result.success,
+                    "stdout": exec_result.stdout,
+                    "stderr": exec_result.stderr,
+                    "returncode": exec_result.returncode,
+                    "duration": exec_result.duration,
+                    "error": exec_result.error,
+                },
+                "timed_out": False,
+                "safety": {
+                    "safe": True,
+                    "violations": [],
+                    "severity": "clean",
+                },
+            }
+
+        except Exception as e:
+            logger.error("execute_compiled failed: %s", e)
+            return {
+                "execution_id": execution_id,
+                "language": detected,
+                "stdout": "",
+                "stderr": str(e),
+                "exit_code": -1,
+                "compile_result": None,
+                "execute_result": None,
+                "timed_out": False,
+                "safety": {
+                    "safe": True,
+                    "violations": [],
+                    "severity": "clean",
+                },
+            }
+
+        finally:
+            self._cleanup_dir(exec_dir)
 
     def copy_to_production(
         self,
