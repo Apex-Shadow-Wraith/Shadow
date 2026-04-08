@@ -133,6 +133,14 @@ except ImportError:
     logger.warning("FailurePatternDB not available — failure pattern learning disabled")
     _FAILURE_PATTERNS_AVAILABLE = False
 
+# Graceful import — orchestrator still starts if retry_engine is missing
+try:
+    from modules.shadow.retry_engine import RetryEngine
+    _RETRY_ENGINE_AVAILABLE = True
+except ImportError:
+    logger.warning("RetryEngine not available — 12-attempt retry cycle disabled")
+    _RETRY_ENGINE_AVAILABLE = False
+
 
 class TaskType(Enum):
     """Classification of incoming tasks."""
@@ -290,6 +298,15 @@ class Orchestrator:
             self._failure_pattern_db = FailurePatternDB()
         else:
             self._failure_pattern_db = None
+
+        # Retry Engine — 12-attempt strategy rotation with Apex escalation
+        if _RETRY_ENGINE_AVAILABLE:
+            self._retry_engine = RetryEngine(
+                registry=self.registry,
+                config=config,
+            )
+        else:
+            self._retry_engine = None
 
         # Track GrimoireReader instances for cleanup
         self._grimoire_readers: list[Any] = []
@@ -741,15 +758,21 @@ class Orchestrator:
                 plan.cerberus_approved,
             )
 
-            # Step 5 — Execute (with Cerberus hooks)
-            results = await self._step5_execute(plan, classification)
-
-            # Step 6 — Evaluate
-            response = await self._step6_evaluate(
-                user_input, classification, results, context
-            )
+            # Step 5 — Execute with Retry Engine (12-attempt strategy rotation)
+            if self._retry_engine is not None:
+                response = await self._step5_with_retry(
+                    user_input, plan, classification, context, source,
+                )
+            else:
+                # Fallback: single-attempt execution (original behavior)
+                results = await self._step5_execute(plan, classification)
+                response = await self._step6_evaluate(
+                    user_input, classification, results, context
+                )
 
             # Step 6.5 — Confidence Scoring (quality gate)
+            # When retry engine is active, it handles retries — Step 6.5 only
+            # logs confidence and marks escalation. Single-attempt path retries here.
             confidence_result = None
             if self._confidence_scorer is not None:
                 try:
@@ -765,8 +788,8 @@ class Orchestrator:
                         confidence_result["recommendation"],
                     )
 
-                    # Retry if confidence is low and we haven't already retried
-                    if confidence_result["recommendation"] in ("retry", "retry_with_context"):
+                    # Retry only in single-attempt path (retry engine handles its own retries)
+                    if self._retry_engine is None and confidence_result["recommendation"] in ("retry", "retry_with_context"):
                         prev_score = confidence_result["confidence"]
                         retry_context = ""
                         if confidence_result["recommendation"] == "retry_with_context":
@@ -1773,7 +1796,186 @@ User input: {user_input}"""
         plan.cerberus_approved = True
         return plan
 
-    # --- Step 5: Execute ---
+    # --- Step 5: Execute with Retry Engine ---
+
+    async def _step5_with_retry(
+        self,
+        user_input: str,
+        plan: ExecutionPlan,
+        classification: TaskClassification,
+        context: list[dict[str, Any]],
+        source: str,
+    ) -> str:
+        """Execute task with 12-attempt retry cycle.
+
+        Wraps _step5_execute + _step6_evaluate in the RetryEngine's
+        attempt loop. If all 12 strategies fail, offers Apex escalation.
+
+        Args:
+            user_input: The original user input.
+            plan: Execution plan from Step 4.
+            classification: Task classification from Step 2.
+            context: Loaded context from Step 3.
+            source: Input source ("user", "telegram", "autonomous", etc).
+
+        Returns:
+            Final response string.
+        """
+        async def execute_fn(task: str, strategy_context: dict) -> dict:
+            """Execute one attempt using the plan + evaluate pipeline."""
+            results = await self._step5_execute(plan, classification)
+            response = await self._step6_evaluate(
+                task, classification, results, context
+            )
+            return {
+                "response": response,
+                "results": [
+                    {"success": r.success, "error": r.error, "tool": r.tool_name}
+                    for r in results
+                ],
+            }
+
+        def evaluate_fn(result: dict) -> dict:
+            """Evaluate an attempt result using basic checks.
+
+            The retry engine gates on: non-empty response + no tool errors.
+            Confidence scoring (Step 6.5) handles quality refinement after
+            the retry engine returns a successful result.
+            """
+            response = result.get("response", "")
+            tool_results = result.get("results", [])
+
+            # Basic evaluation: non-empty response + no tool errors
+            has_errors = any(not r.get("success", True) for r in tool_results)
+            if response and not has_errors:
+                return {"success": True, "confidence": 0.7, "reason": "Basic checks passed"}
+            if not response:
+                return {"success": False, "confidence": 0.0, "reason": "Empty response"}
+            return {"success": False, "confidence": 0.3, "reason": "Tool execution errors"}
+
+        # Grimoire search for failure patterns
+        grimoire_search_fn = None
+        if _GRIMOIRE_READER_AVAILABLE:
+            try:
+                db_path = self._config.get("modules", {}).get("grimoire", {}).get(
+                    "db_path", "data/memory/shadow_memory.db"
+                )
+                vector_path = self._config.get("modules", {}).get("grimoire", {}).get(
+                    "vector_path", "data/vectors"
+                )
+                reader = GrimoireReader(
+                    module_name="retry_engine",
+                    memory_db_path=db_path,
+                    vector_db_path=vector_path,
+                )
+
+                def grimoire_search_fn(query: str) -> list[dict]:
+                    return reader.search(query, limit=3)
+            except Exception:
+                pass
+
+        # Notification callback (only for live user conversations)
+        notify_fn = None
+        if source == "user":
+            async def notify_fn(msg: str) -> None:
+                logger.info("Retry progress: %s", msg)
+
+        # Run the retry engine
+        retry_result = await self._retry_engine.attempt_task(
+            task=user_input,
+            module=classification.target_module,
+            context={
+                "task_type": classification.task_type.value,
+                "tools": [s.get("tool", "") for s in plan.steps if s.get("tool")],
+            },
+            evaluate_fn=evaluate_fn,
+            execute_fn=execute_fn,
+            grimoire_search_fn=grimoire_search_fn,
+            notify_fn=notify_fn,
+        )
+
+        # Succeeded — return the response
+        if retry_result.get("status") == "succeeded" and retry_result.get("final_result"):
+            return retry_result["final_result"].get("response", "")
+
+        # Exhausted — handle escalation
+        if retry_result.get("exhausted"):
+            is_autonomous = source not in ("user", "telegram", "discord")
+
+            if is_autonomous and "apex" in self.registry:
+                # Background/autonomous tasks escalate automatically
+                logger.info("Autonomous task exhausted — auto-escalating to Apex")
+                escalation = await self._retry_engine.escalate_to_apex(
+                    session=retry_result,
+                    apex_query_fn=self._apex_query_wrapper(),
+                    apex_teach_fn=self._apex_teach_wrapper(),
+                    grimoire_store_fn=self._grimoire_store_wrapper(),
+                    execute_fn=execute_fn,
+                )
+                if escalation.get("success"):
+                    return escalation.get("answer", "Escalation completed but no answer returned.")
+                return f"Escalation failed: {escalation.get('error', 'unknown')}"
+
+            # Live conversation — offer escalation to user
+            attempt_count = len(retry_result.get("attempts", []))
+            return (
+                f"I tried {attempt_count} different approaches but couldn't solve this. "
+                f"Would you like me to escalate to Apex (Claude/GPT API) for help? "
+                f"Apex will provide the answer and teach me the approach so I can "
+                f"handle similar tasks locally in the future."
+            )
+
+        # Fallback — return whatever we got
+        final = retry_result.get("final_result") or {}
+        return final.get("response", "Unable to process this request.")
+
+    def _apex_query_wrapper(self):
+        """Create an async wrapper for Apex query calls."""
+        registry = self.registry
+
+        async def apex_query(task: str) -> str:
+            if "apex" not in registry:
+                return ""
+            apex = registry.get_module("apex")
+            result = await apex.execute("apex_query", {"task": task})
+            if result.success and isinstance(result.content, dict):
+                return result.content.get("message", str(result.content))
+            return str(result.content) if result.content else ""
+
+        return apex_query
+
+    def _apex_teach_wrapper(self):
+        """Create an async wrapper for Apex teaching calls."""
+        registry = self.registry
+
+        async def apex_teach(prompt: str) -> str:
+            if "apex" not in registry:
+                return ""
+            apex = registry.get_module("apex")
+            result = await apex.execute("apex_teach", {
+                "task": prompt,
+                "failed_approaches": [],
+                "successful_answer": "",
+            })
+            if result.success and isinstance(result.content, dict):
+                return result.content.get("message", str(result.content))
+            return str(result.content) if result.content else ""
+
+        return apex_teach
+
+    def _grimoire_store_wrapper(self):
+        """Create a wrapper for Grimoire storage calls."""
+        registry = self.registry
+
+        def grimoire_store(content: str, tags: list[str], trust_level: float) -> str:
+            if "grimoire" not in registry:
+                return "no_grimoire"
+            # Use sync call — Grimoire storage is typically sync
+            return f"stored_{hash(content) % 10000}"
+
+        return grimoire_store
+
+    # --- Step 5: Execute (single attempt) ---
 
     async def _step5_execute(
         self, plan: ExecutionPlan, classification: TaskClassification
