@@ -95,6 +95,14 @@ except ImportError:
     logger.warning("ConfidenceScorer not available — confidence scoring disabled")
     _CONFIDENCE_SCORER_AVAILABLE = False
 
+# Graceful import — orchestrator still starts if confidence_calibration is missing
+try:
+    from modules.shadow.confidence_calibration import ConfidenceCalibrator
+    _CONFIDENCE_CALIBRATOR_AVAILABLE = True
+except ImportError:
+    logger.warning("ConfidenceCalibrator not available — calibration disabled")
+    _CONFIDENCE_CALIBRATOR_AVAILABLE = False
+
 # Graceful import — orchestrator still starts if observability is missing
 try:
     from modules.shadow.observability import trace_interaction
@@ -188,6 +196,14 @@ try:
 except ImportError:
     logger.warning("ContextProfiler not available — context profiling disabled")
     _CONTEXT_PROFILER_AVAILABLE = False
+
+# Graceful import — orchestrator still starts if operational_state is missing
+try:
+    from modules.shadow.operational_state import OperationalState
+    _OPERATIONAL_STATE_AVAILABLE = True
+except ImportError:
+    logger.warning("OperationalState not available — state modeling disabled")
+    _OPERATIONAL_STATE_AVAILABLE = False
 
 
 class TaskType(Enum):
@@ -336,6 +352,12 @@ class Orchestrator:
         else:
             self._confidence_scorer = None
 
+        # Confidence Calibrator — tracks prediction accuracy over time
+        if _CONFIDENCE_CALIBRATOR_AVAILABLE:
+            self._confidence_calibrator = ConfidenceCalibrator()
+        else:
+            self._confidence_calibrator = None
+
         # Context window management
         if _CONTEXT_MANAGER_AVAILABLE:
             # Determine context limit for the primary model
@@ -433,6 +455,19 @@ class Orchestrator:
                 self._context_profiler = None
         else:
             self._context_profiler = None
+
+        # Operational State — work/rest/explore cycle modeling
+        if _OPERATIONAL_STATE_AVAILABLE:
+            try:
+                state_db = Path(config.get("system", {}).get(
+                    "operational_state_db", "data/operational_state.db"
+                ))
+                self._operational_state = OperationalState(db_path=str(state_db))
+            except Exception as e:
+                logger.warning("OperationalState init failed: %s", e)
+                self._operational_state = None
+        else:
+            self._operational_state = None
 
         # Track GrimoireReader instances for cleanup
         self._grimoire_readers: list[Any] = []
@@ -551,6 +586,8 @@ class Orchestrator:
             self._proactive_engine.save_triggers()
         if self._confidence_scorer is not None:
             self._confidence_scorer.close()
+        if self._confidence_calibrator is not None:
+            self._confidence_calibrator.close()
 
         for module_info in self.registry.list_modules():
             module = self.registry.get_module(module_info["name"])
@@ -981,6 +1018,20 @@ class Orchestrator:
                         except Exception:
                             pass
 
+                    # Record calibration data (prediction vs outcome)
+                    if self._confidence_calibrator is not None:
+                        try:
+                            task_succeeded = confidence_result["recommendation"] == "respond"
+                            self._confidence_calibrator.record(
+                                predicted_confidence=confidence_result["confidence"],
+                                actual_success=task_succeeded,
+                                task_type=classification.task_type.value,
+                                module=classification.target_module,
+                                was_escalated=confidence_result["recommendation"] == "escalate",
+                            )
+                        except Exception:
+                            pass
+
                 except Exception as e:
                     logger.warning("Step 6.5 — Confidence scoring failed: %s", e)
 
@@ -1082,6 +1133,33 @@ class Orchestrator:
                         )
                 except Exception as e:
                     logger.debug("Self-teaching failed (non-critical): %s", e)
+
+            # Step 7.10 — Update operational state (best-effort)
+            if self._operational_state is not None:
+                try:
+                    task_succeeded = bool(response and len(response) > 10)
+                    confidence_score = (
+                        confidence_result.get("confidence", 0.0)
+                        if confidence_result
+                        else 0.0
+                    )
+                    was_escalated = classification.brain == BrainType.SMART
+                    task_duration = time.time() - loop_start
+                    state = self._operational_state.update_after_task({
+                        "success": task_succeeded,
+                        "confidence": confidence_score,
+                        "task_type": classification.task_type.value,
+                        "duration": task_duration,
+                        "was_escalated": was_escalated,
+                        "was_retry": False,
+                    })
+                    if state.fatigue > 0.8:
+                        logger.warning(
+                            "Shadow fatigue high (%.2f) — cooldown recommended",
+                            state.fatigue,
+                        )
+                except Exception as e:
+                    logger.debug("State update failed (non-critical): %s", e)
 
             # Persist state after every interaction
             self._save_state()

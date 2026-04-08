@@ -81,6 +81,14 @@ class ConfidenceScorer:
         self._conn: sqlite3.Connection | None = None
         self._initialize_db()
 
+        # Optional calibration — adjusts raw scores based on historical accuracy
+        self.calibrator = None
+        try:
+            from modules.shadow.confidence_calibration import ConfidenceCalibrator
+            self.calibrator = ConfidenceCalibrator()
+        except Exception:
+            pass
+
     def _initialize_db(self) -> None:
         """Create the scoring history table."""
         self._conn = sqlite3.connect(str(self._db_path))
@@ -168,6 +176,14 @@ class ConfidenceScorer:
             "bonus": round(bonus, 4),
             "task_type": task_type,
         }
+
+        # Apply calibration if available
+        if self.calibrator is not None:
+            try:
+                calibrated = self.calibrator.calibrate(confidence)
+                result["calibrated_score"] = round(calibrated, 4)
+            except Exception:
+                pass
 
         # Persist to history
         self._record_score(task, task_type, result, len(response))
