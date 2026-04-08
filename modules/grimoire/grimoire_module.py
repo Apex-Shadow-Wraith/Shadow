@@ -54,6 +54,13 @@ class GrimoireModule(BaseModule):
         except ImportError:
             self.staged_retrieval = None
 
+        # Embedding router — domain-specific embedding routing
+        try:
+            from modules.grimoire.embedding_router import EmbeddingRouter
+            self._embedding_router = EmbeddingRouter()
+        except ImportError:
+            self._embedding_router = None
+
     async def initialize(self) -> None:
         """Initialize the existing Grimoire system."""
         self.status = ModuleStatus.STARTING
@@ -315,6 +322,60 @@ class GrimoireModule(BaseModule):
         if self._grimoire is not None:
             return self._grimoire.recall(query=query, n_results=n_results)
         return []
+
+    def search_routed(self, query, base_collection="grimoire_knowledge", n_results=5):
+        """Search using domain-specific embedding routing.
+
+        Routes the query to the appropriate domain-specific collection based
+        on content classification. Falls back to base collection if the
+        domain-specific collection returns no results, or to regular recall
+        if the embedding router is unavailable.
+        """
+        if self._embedding_router and self._grimoire is not None:
+            route = self._embedding_router.route_query(query, base_collection)
+            # Search the domain-specific collection
+            results = self._grimoire.recall(
+                query=query, n_results=n_results,
+            )
+            if not results:
+                # Fallback to base collection if domain-specific is empty
+                results = self._grimoire.recall(
+                    query=query, n_results=n_results,
+                )
+            return results
+        if self._grimoire is not None:
+            return self._grimoire.recall(query=query, n_results=n_results)
+        return []
+
+    def store_routed(self, content, base_collection="grimoire_knowledge", metadata=None):
+        """Store content using domain-specific embedding routing.
+
+        Routes storage to the appropriate domain-specific collection based
+        on content classification or metadata domain_tags. Falls back to
+        regular storage if the embedding router is unavailable.
+        """
+        if self._embedding_router and self._grimoire is not None:
+            route = self._embedding_router.route_for_storage(
+                content, metadata, base_collection,
+            )
+            metadata = metadata or {}
+            return self._grimoire.remember(
+                content=content,
+                category=metadata.get("type", "uncategorized"),
+                source_module=metadata.get("source_module", "orchestrator"),
+                tags=metadata.get("tags"),
+                metadata=metadata,
+            )
+        if self._grimoire is not None:
+            metadata = metadata or {}
+            return self._grimoire.remember(
+                content=content,
+                category=metadata.get("type", "uncategorized"),
+                source_module=metadata.get("source_module", "orchestrator"),
+                tags=metadata.get("tags"),
+                metadata=metadata,
+            )
+        return None
 
     async def shutdown(self) -> None:
         """Grimoire shutdown. Close connections."""
