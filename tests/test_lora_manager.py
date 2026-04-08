@@ -292,7 +292,7 @@ class TestPreRegistration:
         (adapters_dir / "ethics_lora").mkdir()
         (adapters_dir / "anti_sycophancy_lora").mkdir()
 
-        with patch("modules.shadow.lora_manager.LoRAPerformanceTracker", side_effect=ImportError):
+        with patch.dict("sys.modules", {"modules.shadow.lora_tracker": None}):
             mgr = LoRAManager(adapters_dir=str(adapters_dir))
 
         names = [a.name for a in mgr.list_available()]
@@ -304,7 +304,7 @@ class TestPreRegistration:
         adapters_dir = tmp_path / "lora_adapters"
         adapters_dir.mkdir()
 
-        with patch("modules.shadow.lora_manager.LoRAPerformanceTracker", side_effect=ImportError):
+        with patch.dict("sys.modules", {"modules.shadow.lora_tracker": None}):
             mgr = LoRAManager(adapters_dir=str(adapters_dir))
 
         assert len(mgr.list_available()) == 0
@@ -316,7 +316,7 @@ class TestPreRegistration:
 class TestEdgeCases:
     def test_no_adapters_directory(self, tmp_path):
         """Graceful empty state when directory doesn't exist."""
-        with patch("modules.shadow.lora_manager.LoRAPerformanceTracker", side_effect=ImportError):
+        with patch.dict("sys.modules", {"modules.shadow.lora_tracker": None}):
             mgr = LoRAManager(adapters_dir=str(tmp_path / "nonexistent"))
         assert len(mgr.list_available()) == 0
 
@@ -324,7 +324,7 @@ class TestEdgeCases:
         """No adapters registered from empty directory."""
         adapters_dir = tmp_path / "empty_adapters"
         adapters_dir.mkdir()
-        with patch("modules.shadow.lora_manager.LoRAPerformanceTracker", side_effect=ImportError):
+        with patch.dict("sys.modules", {"modules.shadow.lora_tracker": None}):
             mgr = LoRAManager(adapters_dir=str(adapters_dir))
         assert len(mgr.list_available()) == 0
 

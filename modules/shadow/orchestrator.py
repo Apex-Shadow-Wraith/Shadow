@@ -205,6 +205,14 @@ except ImportError:
     logger.warning("OperationalState not available — state modeling disabled")
     _OPERATIONAL_STATE_AVAILABLE = False
 
+# Graceful import — orchestrator still starts if lora_manager is missing
+try:
+    from modules.shadow.lora_manager import LoRAManager
+    _LORA_MANAGER_AVAILABLE = True
+except ImportError:
+    logger.warning("LoRAManager not available — LoRA adapter selection disabled")
+    _LORA_MANAGER_AVAILABLE = False
+
 
 class TaskType(Enum):
     """Classification of incoming tasks."""
@@ -468,6 +476,16 @@ class Orchestrator:
                 self._operational_state = None
         else:
             self._operational_state = None
+
+        # LoRA Manager — domain-specific adapter selection
+        if _LORA_MANAGER_AVAILABLE:
+            try:
+                self._lora_manager = LoRAManager()
+            except Exception as e:
+                logger.warning("LoRAManager init failed: %s", e)
+                self._lora_manager = None
+        else:
+            self._lora_manager = None
 
         # Track GrimoireReader instances for cleanup
         self._grimoire_readers: list[Any] = []
@@ -2407,6 +2425,20 @@ User input: {user_input}"""
                 error="Plan was denied by Cerberus",
             ))
             return results
+
+        # LoRA adapter recommendation (actual loading depends on backend support)
+        if self._lora_manager:
+            try:
+                adapter = self._lora_manager.get_adapter_for_task(
+                    task_type=classification.task_type.value if classification else "unknown",
+                    module=classification.target_module if classification else None,
+                )
+                if adapter:
+                    load_cmd = self._lora_manager.get_load_command(adapter)
+                    # Pass load_cmd to model-calling layer when backend supports it
+                    logger.info("LoRA adapter recommended: %s for %s", adapter.name, classification.target_module)
+            except Exception as e:
+                logger.debug("LoRA selection failed (non-critical): %s", e)
 
         cerberus = None
         if "cerberus" in self.registry:
