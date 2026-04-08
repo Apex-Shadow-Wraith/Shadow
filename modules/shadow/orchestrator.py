@@ -232,6 +232,14 @@ class Orchestrator:
         else:
             self._injection_detector = None
 
+        # Dynamic Tool Loading — load only active module's tools (saves 2-4K tokens)
+        try:
+            from modules.shadow.tool_loader import DynamicToolLoader
+            self._tool_loader = DynamicToolLoader(module_registry=self.registry)
+        except Exception as e:
+            logger.warning("DynamicToolLoader unavailable, falling back to full tool loading: %s", e)
+            self._tool_loader = None
+
         # Inter-module communication — initialized via _initialize_communication()
         self._message_bus = None
         self._event_system = None
@@ -1573,9 +1581,15 @@ User input: {user_input}"""
 
         # Skip memory loading for simple conversation — no context needed
         if classification.task_type == TaskType.CONVERSATION and classification.complexity == "simple":
+            if self._tool_loader:
+                tools = self._tool_loader.get_tools_for_task(
+                    module_name=getattr(classification, "target_module", None),
+                )
+            else:
+                tools = self.registry.list_tools()
             context_items.append({
                 "type": "available_tools",
-                "content": [t["name"] for t in self.registry.list_tools()],
+                "content": [t["name"] for t in tools],
             })
             return context_items
 
@@ -1629,8 +1643,21 @@ User input: {user_input}"""
                 "content": self._conversation_history[-10:],  # Last 5 exchanges
             })
 
-        # 4. Tool availability
-        available_tools = self.registry.list_tools()
+        # 4. Tool availability (dynamic loading saves 2-4K tokens)
+        if self._tool_loader:
+            available_tools = self._tool_loader.get_tools_for_task(
+                module_name=getattr(classification, "target_module", None),
+                task={"input": user_input},
+            )
+            report = self._tool_loader.get_loading_report()
+            logger.info(
+                "Dynamic tool loading: %d/%d tools, saved ~%d tokens",
+                report["tools_loaded"],
+                report["tools_available"],
+                report["tokens_saved"],
+            )
+        else:
+            available_tools = self.registry.list_tools()
         context_items.append({
             "type": "available_tools",
             "content": [t["name"] for t in available_tools],
