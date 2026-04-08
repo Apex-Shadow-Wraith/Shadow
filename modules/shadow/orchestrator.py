@@ -149,6 +149,22 @@ except ImportError:
     logger.warning("ContextOrchestrator not available — unified context assembly disabled")
     _CONTEXT_ORCHESTRATOR_AVAILABLE = False
 
+# Graceful import — orchestrator still starts if chain_of_thought is missing
+try:
+    from modules.shadow.chain_of_thought import ChainOfThought
+    _CHAIN_OF_THOUGHT_AVAILABLE = True
+except ImportError:
+    logger.warning("ChainOfThought not available — structured reasoning disabled")
+    _CHAIN_OF_THOUGHT_AVAILABLE = False
+
+# Graceful import — orchestrator still starts if self_teaching is missing
+try:
+    from modules.shadow.self_teaching import SelfTeacher
+    _SELF_TEACHING_AVAILABLE = True
+except ImportError:
+    logger.warning("SelfTeacher not available — self-teaching disabled")
+    _SELF_TEACHING_AVAILABLE = False
+
 
 class TaskType(Enum):
     """Classification of incoming tasks."""
@@ -340,6 +356,33 @@ class Orchestrator:
             )
         else:
             self._retry_engine = None
+
+        # Chain-of-Thought Scaffolding — structured multi-step reasoning
+        if _CHAIN_OF_THOUGHT_AVAILABLE:
+            try:
+                self._chain_of_thought = ChainOfThought(
+                    generate_fn=self._generate if hasattr(self, '_generate') else None,
+                    confidence_scorer=self._confidence_scorer if hasattr(self, '_confidence_scorer') else None,
+                )
+            except Exception as e:
+                logger.warning("ChainOfThought init failed: %s", e)
+                self._chain_of_thought = None
+        else:
+            self._chain_of_thought = None
+
+        # Self-Teaching — zero-cost knowledge accumulation from local successes
+        if _SELF_TEACHING_AVAILABLE:
+            try:
+                self._self_teacher = SelfTeacher(
+                    generate_fn=None,  # Set after model connection is ready
+                    grimoire=None,     # Set after grimoire module starts
+                    config=config.get("self_teaching", {}),
+                )
+            except Exception as e:
+                logger.warning("SelfTeacher init failed: %s", e)
+                self._self_teacher = None
+        else:
+            self._self_teacher = None
 
         # Track GrimoireReader instances for cleanup
         self._grimoire_readers: list[Any] = []
@@ -963,6 +1006,32 @@ class Orchestrator:
                     )
                 except Exception:
                     pass  # Never let event emission break the main loop
+
+            # Step 7.9 — Self-teaching on successful local completions (best-effort)
+            if self._self_teacher is not None:
+                try:
+                    confidence = (
+                        confidence_result.get("confidence", 0.0)
+                        if confidence_result
+                        else 0.0
+                    )
+                    was_escalated = classification.brain == BrainType.SMART
+                    teaching = self._self_teacher.teach_from_success(
+                        task={
+                            "description": user_input,
+                            "type": classification.task_type.value,
+                        },
+                        solution=response,
+                        confidence_score=confidence,
+                        was_escalated=was_escalated,
+                    )
+                    if teaching:
+                        logger.info(
+                            "Self-teaching generated for task type: %s",
+                            classification.task_type.value,
+                        )
+                except Exception as e:
+                    logger.debug("Self-teaching failed (non-critical): %s", e)
 
             # Persist state after every interaction
             self._save_state()
