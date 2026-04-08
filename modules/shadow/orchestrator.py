@@ -222,6 +222,14 @@ except ImportError:
     logger.warning("ChunkedProcessor not available — chunked processing disabled")
     _CHUNKED_PROCESSOR_AVAILABLE = False
 
+# Graceful import — orchestrator still starts if self_review is missing
+try:
+    from modules.shadow.self_review import SelfReviewer
+    _SELF_REVIEWER_AVAILABLE = True
+except ImportError:
+    logger.warning("SelfReviewer not available — adversarial self-review disabled")
+    _SELF_REVIEWER_AVAILABLE = False
+
 
 class TaskType(Enum):
     """Classification of incoming tasks."""
@@ -508,6 +516,19 @@ class Orchestrator:
                 self._chunked_processor = None
         else:
             self._chunked_processor = None
+
+        # Self-Reviewer — adversarial review pass before delivery
+        if _SELF_REVIEWER_AVAILABLE:
+            try:
+                self._self_reviewer = SelfReviewer(
+                    generate_fn=self._generate if hasattr(self, '_generate') else None,
+                    confidence_scorer=self._confidence_scorer if hasattr(self, '_confidence_scorer') else None,
+                )
+            except Exception as e:
+                logger.warning("SelfReviewer init failed: %s", e)
+                self._self_reviewer = None
+        else:
+            self._self_reviewer = None
 
         # Track GrimoireReader instances for cleanup
         self._grimoire_readers: list[Any] = []
@@ -1074,6 +1095,31 @@ class Orchestrator:
 
                 except Exception as e:
                     logger.warning("Step 6.5 — Confidence scoring failed: %s", e)
+
+            # Step 6.7 — Adversarial Self-Review
+            if hasattr(self, '_self_reviewer') and self._self_reviewer:
+                try:
+                    sr_confidence = (
+                        confidence_result["confidence"]
+                        if confidence_result is not None
+                        else 0.5
+                    )
+                    if self._self_reviewer.should_review(
+                        classification.task_type.value, sr_confidence
+                    ):
+                        review = self._self_reviewer.review(
+                            user_input, response, classification.task_type.value
+                        )
+                        if review.improved:
+                            response = review.reviewed_response
+                            logger.info(
+                                "Step 6.7 — Self-review improved response "
+                                "(%d cycles, %d issues fixed)",
+                                review.review_cycles,
+                                len(review.issues_fixed),
+                            )
+                except Exception as e:
+                    logger.debug("Step 6.7 — Self-review failed (non-critical): %s", e)
 
             # Step 7 — Log
             await self._step7_log(user_input, classification, response, loop_start)
