@@ -83,6 +83,17 @@ class Morpheus(BaseModule):
         self._max_queue = int(self._config.get("max_queue", 5))
         self._conn: sqlite3.Connection | None = None
 
+        # R&D Lab integration
+        try:
+            from modules.morpheus.rd_lab import RDLab
+            self._rd_lab = RDLab(
+                generate_fn=self._generate if hasattr(self, '_generate') else None,
+                grimoire=self._grimoire if hasattr(self, '_grimoire') else None,
+                experiment_store=self._experiment_store if hasattr(self, '_experiment_store') else None,
+            )
+        except ImportError:
+            self._rd_lab = None
+
     async def initialize(self) -> None:
         """Start Morpheus. Create DB and tables."""
         self.status = ModuleStatus.STARTING
