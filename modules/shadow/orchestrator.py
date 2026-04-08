@@ -165,6 +165,22 @@ except ImportError:
     logger.warning("SelfTeacher not available — self-teaching disabled")
     _SELF_TEACHING_AVAILABLE = False
 
+# Graceful import — orchestrator still starts if execution_planner is missing
+try:
+    from modules.shadow.execution_planner import ExecutionPlanner
+    _EXECUTION_PLANNER_AVAILABLE = True
+except ImportError:
+    logger.warning("ExecutionPlanner not available — pre-execution planning disabled")
+    _EXECUTION_PLANNER_AVAILABLE = False
+
+# Graceful import — orchestrator still starts if context_profiler is missing
+try:
+    from modules.shadow.context_profiler import ContextProfiler
+    _CONTEXT_PROFILER_AVAILABLE = True
+except ImportError:
+    logger.warning("ContextProfiler not available — context profiling disabled")
+    _CONTEXT_PROFILER_AVAILABLE = False
+
 
 class TaskType(Enum):
     """Classification of incoming tasks."""
@@ -383,6 +399,19 @@ class Orchestrator:
                 self._self_teacher = None
         else:
             self._self_teacher = None
+
+        # Context Profiler — diagnostic tool for context window usage
+        if _CONTEXT_PROFILER_AVAILABLE:
+            try:
+                profiler_db = Path(config.get("system", {}).get(
+                    "context_profiles_db", "data/context_profiles.db"
+                ))
+                self._context_profiler = ContextProfiler(db_path=str(profiler_db))
+            except Exception as e:
+                logger.warning("ContextProfiler init failed: %s", e)
+                self._context_profiler = None
+        else:
+            self._context_profiler = None
 
         # Track GrimoireReader instances for cleanup
         self._grimoire_readers: list[Any] = []
@@ -1810,6 +1839,19 @@ User input: {user_input}"""
                     "type": "available_tools",
                     "content": [t.get("name", "") for t in ctx.tool_schemas],
                 })
+
+                # Record context profile (observation only, non-critical)
+                if hasattr(self, '_context_profiler') and self._context_profiler:
+                    try:
+                        task_info = {
+                            "description": user_input,
+                            "type": classification.task_type.value if classification else "unknown",
+                            "module": getattr(classification, "target_module", None) or "",
+                            "model": current_model,
+                        }
+                        self._context_profiler.record_from_context_package(ctx, task_info)
+                    except Exception as e:
+                        logger.debug("Context profiling failed (non-critical): %s", e)
 
                 return context_items
 
