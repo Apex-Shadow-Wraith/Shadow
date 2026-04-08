@@ -96,6 +96,14 @@ class ContextManager:
             self._reserve_tokens = config_reserve
             self._effective_limit = self._max_tokens - self._reserve_tokens
 
+        # Context compressor — compress before trimming
+        self.compressor = None
+        try:
+            from modules.shadow.context_compressor import ContextCompressor
+            self.compressor = ContextCompressor(self._config.get("compressor", {}))
+        except Exception:
+            logger.debug("ContextCompressor not available, skipping compression")
+
         # Last build stats for reporting
         self._last_breakdown: TokenBreakdown | None = None
         self._last_trimmed: bool = False
@@ -225,6 +233,23 @@ class ContextManager:
             - trimmed: whether trimming occurred
             - trimmed_components: list of what was trimmed
         """
+        # Compress before checking if we fit
+        if self.compressor:
+            compressed = self.compressor.compress_all({
+                "grimoire_results": grimoire_memories,
+                "conversation_history": conversation_history,
+                "tool_results": tool_results,
+                "system_prompt": system_prompt,
+                "failure_patterns": failure_patterns,
+            })
+            grimoire_memories = compressed["grimoire_results"]
+            conversation_history = compressed["conversation_history"]
+            tool_results = compressed["tool_results"]
+            system_prompt = compressed["system_prompt"]
+            failure_patterns = compressed["failure_patterns"]
+            report = self.compressor.get_compression_report()
+            logger.info("Context compressed: %.0f%% reduction", report.get("overall_ratio", 0) * 100)
+
         # Calculate tokens for each component
         breakdown = TokenBreakdown()
         breakdown.system_prompt_tokens = self.estimate_tokens(system_prompt) + 4
