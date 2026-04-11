@@ -1744,3 +1744,185 @@ class TestGrimoireStoreWrapper:
         result = store_fn(content="test", tags=[], trust_level=0.5)
 
         assert result == "no_grimoire"
+
+
+# --- Apex Routing & Dispatch Tests (Fix 1, 2, 3) ---
+
+
+class TestExplicitModuleMentionRouting:
+    """FIX 2: Explicit module names in user input override keyword routing."""
+
+    def test_explicit_apex_mention_routes_to_apex(self, config: dict):
+        """'ask apex to write code' → apex, not omen."""
+        orch = Orchestrator(config)
+        result = orch._fast_path_classify("ask apex to write some cool code")
+        assert result is not None
+        assert result.target_module == "apex"
+
+    def test_escalate_routes_to_apex(self, config: dict):
+        """'escalate to apex' → apex."""
+        orch = Orchestrator(config)
+        result = orch._fast_path_classify("escalate to apex")
+        assert result is not None
+        assert result.target_module == "apex"
+
+    def test_use_apex_routes_to_apex(self, config: dict):
+        """'use apex for this question' → apex."""
+        orch = Orchestrator(config)
+        result = orch._fast_path_classify("use apex for this question")
+        assert result is not None
+        assert result.target_module == "apex"
+
+    def test_code_without_apex_routes_to_omen(self, config: dict):
+        """'write me some code' → omen (existing behavior preserved)."""
+        orch = Orchestrator(config)
+        result = orch._fast_path_classify("write me some python code for a web scraper")
+        assert result is not None
+        assert result.target_module == "omen"
+
+    def test_apex_mention_has_high_confidence(self, config: dict):
+        orch = Orchestrator(config)
+        result = orch._fast_path_classify("ask apex to explain quantum computing")
+        assert result is not None
+        assert result.confidence == 0.95
+
+
+class TestShortAmbiguousBypass:
+    """FIX 3: Short ambiguous messages fall through to LLM router."""
+
+    def test_short_ambiguous_uses_llm_router(self, config: dict):
+        """'what is the response?' → None (LLM router decides)."""
+        orch = Orchestrator(config)
+        result = orch._fast_path_classify("what is the response?")
+        assert result is None
+
+    def test_short_with_module_keyword_fast_paths(self, config: dict):
+        """'check sentinel' → sentinel (module name present)."""
+        orch = Orchestrator(config)
+        result = orch._fast_path_classify("check sentinel status")
+        assert result is not None
+        assert result.target_module == "sentinel"
+
+    def test_short_with_strong_keyword_fast_paths(self, config: dict):
+        """'debug this' → still uses fast-path because 'debug' is a strong keyword."""
+        orch = Orchestrator(config)
+        result = orch._fast_path_classify("debug this please now fast")
+        assert result is not None
+        assert result.target_module == "omen"
+
+    def test_short_math_expression_fast_paths(self, config: dict):
+        """'2 + 2' → still uses fast-path (math expression detected)."""
+        orch = Orchestrator(config)
+        result = orch._fast_path_classify("2 + 2")
+        assert result is not None
+        assert result.target_module == "cipher"
+
+    def test_say_that_again_bypasses(self, config: dict):
+        """'say that again' → None (follow-up, LLM decides)."""
+        orch = Orchestrator(config)
+        result = orch._fast_path_classify("say that again")
+        assert result is None
+
+    def test_greetings_still_fast_path(self, config: dict):
+        """'hello' → still fast-paths (handled before short bypass)."""
+        orch = Orchestrator(config)
+        result = orch._fast_path_classify("hello")
+        assert result is not None
+        assert result.task_type == TaskType.CONVERSATION
+
+
+class TestApexPlanGeneration:
+    """FIX 1: Apex-targeted tasks generate plans with apex_query tool."""
+
+    @pytest.mark.asyncio
+    async def test_apex_plan_has_tool_step(self, config: dict):
+        """When target_module='apex', plan must include apex_query tool."""
+        orch = Orchestrator(config)
+        classification = TaskClassification(
+            task_type=TaskType.QUESTION,
+            complexity="moderate",
+            target_module="apex",
+            brain=BrainType.FAST,
+            safety_flag=False,
+            priority=1,
+        )
+        plan = await orch._step4_plan("escalate to apex", classification, [])
+        tool_steps = [s for s in plan.steps if s.get("tool")]
+        assert len(tool_steps) >= 1
+        assert tool_steps[0]["tool"] == "apex_query"
+
+    @pytest.mark.asyncio
+    async def test_apex_execute_actually_called(self, config: dict):
+        """Route to apex → Apex.execute() is called with apex_query."""
+        orch = Orchestrator(config)
+
+        # Create a mock Apex module
+        mock_apex = AsyncMock()
+        mock_apex.name = "apex"
+        mock_apex.status = ModuleStatus.ONLINE
+        mock_apex.execute = AsyncMock(return_value=ToolResult(
+            success=True,
+            content={"message": "Apex response here", "model": "test"},
+            tool_name="apex_query",
+            module="apex",
+        ))
+
+        # Register mock in registry
+        orch.registry._modules["apex"] = mock_apex
+        orch.registry._tool_index["apex_query"] = "apex"
+
+        classification = TaskClassification(
+            task_type=TaskType.QUESTION,
+            complexity="moderate",
+            target_module="apex",
+            brain=BrainType.FAST,
+            safety_flag=False,
+            priority=1,
+        )
+        plan = await orch._step4_plan("test apex query", classification, [])
+        results = await orch._step5_execute(plan, classification)
+
+        # Verify Apex.execute was called
+        mock_apex.execute.assert_called_once()
+        call_args = mock_apex.execute.call_args
+        assert call_args[0][0] == "apex_query"
+
+        # Verify results are not empty
+        assert len(results) >= 1
+        assert results[0].success is True
+
+    @pytest.mark.asyncio
+    async def test_apex_failure_no_gemma_fallback(self, config: dict):
+        """When Apex execute fails, the protection block fires (no Gemma)."""
+        orch = Orchestrator(config)
+
+        # Mock Apex module that fails
+        mock_apex = AsyncMock()
+        mock_apex.name = "apex"
+        mock_apex.status = ModuleStatus.ONLINE
+        mock_apex.execute = AsyncMock(return_value=ToolResult(
+            success=False,
+            content=None,
+            tool_name="apex_query",
+            module="apex",
+            error="API key invalid",
+        ))
+
+        orch.registry._modules["apex"] = mock_apex
+        orch.registry._tool_index["apex_query"] = "apex"
+
+        classification = TaskClassification(
+            task_type=TaskType.QUESTION,
+            complexity="moderate",
+            target_module="apex",
+            brain=BrainType.FAST,
+            safety_flag=False,
+            priority=1,
+        )
+        plan = await orch._step4_plan("test apex query", classification, [])
+        results = await orch._step5_execute(plan, classification)
+
+        # Results should contain the failure
+        assert len(results) >= 1
+        assert results[0].success is False
+        assert "API key invalid" in results[0].error
