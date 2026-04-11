@@ -6,6 +6,7 @@ openai              # Ollama-compatible API client
 pyyaml              # Config file loading
 pydantic            # Data validation (future use)
 python-dotenv       # Environment variables
+tzdata              # Timezone data (required on Windows, harmless on Linux)
 
 # --- Memory (Grimoire) ---
 chromadb            # Vector database for semantic search

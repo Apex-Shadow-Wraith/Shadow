@@ -19,7 +19,7 @@ from modules.apex.apex import Apex
 @pytest.fixture
 def apex(tmp_path: Path) -> Apex:
     """Create an Apex instance with a temp log file."""
-    config = {"log_file": str(tmp_path / "apex_log.json"), "env_file": ""}
+    config = {"log_file": str(tmp_path / "apex_log.json")}
     return Apex(config)
 
 
@@ -69,7 +69,8 @@ class TestApexLifecycle:
 class TestAPIKeys:
     @pytest.mark.asyncio
     async def test_no_keys_warning(self, apex: Apex):
-        with patch.dict(os.environ, {}, clear=True):
+        with patch.dict(os.environ, {}, clear=True), \
+             patch("dotenv.load_dotenv"):
             await apex.initialize()
             assert apex.status == ModuleStatus.ONLINE
             assert apex._anthropic_key is None

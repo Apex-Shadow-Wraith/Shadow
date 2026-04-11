@@ -329,16 +329,14 @@ class Apex(BaseModule):
         self.status = ModuleStatus.STARTING
         try:
             # Load API keys from config/.env if not already in environment
-            env_file = self._config.get("env_file", "config/.env")
-            if env_file:
-                try:
-                    from dotenv import load_dotenv
-                    env_path = Path(env_file)
-                    if env_path.exists():
-                        load_dotenv(dotenv_path=env_path, override=False)
-                        logger.info("Loaded API keys from %s", env_path)
-                except ImportError:
-                    logger.warning("python-dotenv not installed — reading keys from environment only")
+            try:
+                from dotenv import load_dotenv
+                env_path = Path("config/.env")
+                if env_path.exists():
+                    load_dotenv(dotenv_path=env_path, override=False)
+                    logger.info("Loaded API keys from %s", env_path)
+            except ImportError:
+                logger.warning("python-dotenv not installed — reading keys from environment only")
 
             self._anthropic_key = os.environ.get("ANTHROPIC_API_KEY")
             self._openai_key = os.environ.get("OPENAI_API_KEY")
