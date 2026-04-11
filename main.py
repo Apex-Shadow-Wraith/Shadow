@@ -21,6 +21,7 @@ from pathlib import Path
 import yaml
 
 from modules.base import ModuleRegistry, ModuleStatus
+from modules.shadow.ollama_supervisor import OllamaSupervisor
 from modules.shadow.orchestrator import Orchestrator
 from modules.shadow.shadow_module import ShadowModule
 
@@ -299,6 +300,26 @@ async def main() -> None:
     else:
         logger.warning("Grimoire not in registry — self-test skipped")
 
+    # Start Ollama supervisor — ensure the AI runtime stays alive
+    harbinger_mod = orchestrator.registry.get_module("harbinger") if "harbinger" in orchestrator.registry else None
+    ollama_supervisor = OllamaSupervisor(
+        check_interval=30,
+        max_retries=5,
+        ollama_bin=config.get("system", {}).get("ollama_bin", "ollama"),
+        harbinger=harbinger_mod,
+    )
+
+    # Try one health check at startup; if Ollama is down, attempt a restart
+    if not await ollama_supervisor.health_check():
+        logger.warning("Ollama not responding at startup — attempting restart")
+        restarted = await ollama_supervisor.restart_ollama()
+        if restarted:
+            logger.info("Ollama restored at startup")
+        else:
+            logger.error("Ollama could not be started — local models unavailable")
+
+    await ollama_supervisor.start()
+
     online_count = len(orchestrator.registry.online_modules)
     print(f"\nShadow online. {online_count} modules active.")
     print("Type a message to begin. '/help' for commands. 'quit' to exit.\n")
@@ -336,6 +357,7 @@ async def main() -> None:
 
     # Shutdown
     print("\nShutting down...")
+    await ollama_supervisor.stop()
     await orchestrator.shutdown()
     print("Shadow offline. State saved.")
 
