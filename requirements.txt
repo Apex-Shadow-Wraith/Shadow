@@ -3,6 +3,7 @@
 
 # --- Core ---
 openai              # Ollama-compatible API client
+anthropic           # Apex escalation to Claude API
 pyyaml              # Config file loading
 pydantic            # Data validation (future use)
 python-dotenv       # Environment variables
