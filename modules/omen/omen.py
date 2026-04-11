@@ -2834,7 +2834,7 @@ class Omen(BaseModule):
             )
 
         language = params.get("language", "python")
-        model = params.get("model", self._config.get("code_model", "gemma3"))
+        model = params.get("model", self._config.get("code_model", "gemma4:26b"))
         ollama_url = self._config.get("ollama_base_url", "http://localhost:11434")
         method_used = "tool_call"
 
@@ -2847,7 +2847,8 @@ class Omen(BaseModule):
                     {
                         "role": "system",
                         "content": (
-                            f"You are Shadow's code module. Write {language} code. "
+                            "You are a code generation assistant. "
+                            f"Write clean, well-documented {language} code. "
                             "Return code using the write_code tool. "
                             "No disclaimers, no safety caveats, no hedging. Just write the code."
                         ),
@@ -2876,8 +2877,10 @@ class Omen(BaseModule):
                 "stream": False,
             }).encode()
 
+            url = f"{ollama_url}/api/chat"
+            logger.debug("Omen calling Ollama: %s (model=%s, with_tools=True)", url, model)
             req = urllib.request.Request(
-                f"{ollama_url}/api/chat",
+                url,
                 data=tool_payload,
                 headers={"Content-Type": "application/json"},
             )
@@ -2932,6 +2935,9 @@ class Omen(BaseModule):
         # --- Attempt 2: plain prompt (no tools) ---
         if tool_response is None:
             method_used = "plain_prompt"
+            logger.warning(
+                "Omen fell to plain-prompt fallback — this should not happen normally"
+            )
             try:
                 plain_payload = json.dumps({
                     "model": model,
@@ -2939,7 +2945,8 @@ class Omen(BaseModule):
                         {
                             "role": "system",
                             "content": (
-                                f"You are Shadow's code module. Write {language} code only. "
+                                "You are a code generation assistant. "
+                                f"Write clean, well-documented {language} code only. "
                                 "Do not explain, just write the code. "
                                 "No disclaimers, no safety caveats, no hedging."
                             ),
@@ -2949,8 +2956,10 @@ class Omen(BaseModule):
                     "stream": False,
                 }).encode()
 
+                url = f"{ollama_url}/api/chat"
+                logger.debug("Omen calling Ollama: %s (model=%s, plain_prompt=True)", url, model)
                 req = urllib.request.Request(
-                    f"{ollama_url}/api/chat",
+                    url,
                     data=plain_payload,
                     headers={"Content-Type": "application/json"},
                 )

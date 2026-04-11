@@ -681,6 +681,149 @@ class TestCodeGenerate:
         assert r.content["method"] == "content_direct"
 
 
+# --- Endpoint and model correctness ---
+
+class TestCodeGenerateEndpoint:
+    """Verify code_generate uses /api/chat and correct model."""
+
+    @pytest.mark.asyncio
+    async def test_code_generate_uses_correct_endpoint(self, online_omen: Omen, monkeypatch):
+        """Verify /api/chat is the endpoint called, not /api/generate or anything else."""
+        import urllib.request
+        import json
+
+        captured_urls = []
+
+        def mock_urlopen(req, timeout=None):
+            captured_urls.append(req.full_url)
+            class FakeResp:
+                def read(self_inner):
+                    return json.dumps({
+                        "message": {
+                            "content": "```python\ndef test():\n    pass\n```",
+                            "tool_calls": None,
+                        }
+                    }).encode()
+                def __enter__(self_inner): return self_inner
+                def __exit__(self_inner, *a): pass
+            return FakeResp()
+
+        monkeypatch.setattr(urllib.request, "urlopen", mock_urlopen)
+        await online_omen.execute("code_generate", {"prompt": "write a test function"})
+        assert len(captured_urls) >= 1
+        assert all(url.endswith("/api/chat") for url in captured_urls)
+
+    @pytest.mark.asyncio
+    async def test_code_generate_returns_content(self, online_omen: Omen, monkeypatch):
+        """Verify successful Ollama response yields ToolResult.success=True."""
+        import urllib.request
+        import json
+
+        def mock_urlopen(req, timeout=None):
+            class FakeResp:
+                def read(self_inner):
+                    return json.dumps({
+                        "message": {
+                            "content": "```python\ndef add(a, b):\n    return a + b\n```",
+                        }
+                    }).encode()
+                def __enter__(self_inner): return self_inner
+                def __exit__(self_inner, *a): pass
+            return FakeResp()
+
+        monkeypatch.setattr(urllib.request, "urlopen", mock_urlopen)
+        r = await online_omen.execute("code_generate", {"prompt": "add function"})
+        assert r.success is True
+        assert "def add(a, b):" in r.content["code"]
+
+    @pytest.mark.asyncio
+    async def test_code_generate_no_urllib_to_wrong_endpoint(self, online_omen: Omen, monkeypatch):
+        """Verify no calls go to /api/generate, /api/tools, or other non-existent endpoints."""
+        import urllib.request
+        import json
+
+        captured_urls = []
+
+        def mock_urlopen(req, timeout=None):
+            captured_urls.append(req.full_url)
+            class FakeResp:
+                def read(self_inner):
+                    return json.dumps({
+                        "message": {
+                            "content": "```python\nx = 1\n```",
+                        }
+                    }).encode()
+                def __enter__(self_inner): return self_inner
+                def __exit__(self_inner, *a): pass
+            return FakeResp()
+
+        monkeypatch.setattr(urllib.request, "urlopen", mock_urlopen)
+        await online_omen.execute("code_generate", {"prompt": "assign x"})
+        for url in captured_urls:
+            assert "/api/generate" not in url, f"Called wrong endpoint: {url}"
+            assert "/api/tools" not in url, f"Called wrong endpoint: {url}"
+
+    @pytest.mark.asyncio
+    async def test_fallback_logs_warning(self, online_omen: Omen, monkeypatch, caplog):
+        """When fallback fires, verify warning is logged."""
+        import urllib.request
+        import urllib.error
+        import json
+        import logging
+
+        call_count = {"n": 0}
+
+        def mock_urlopen(req, timeout=None):
+            call_count["n"] += 1
+            if call_count["n"] == 1:
+                raise urllib.error.URLError("Connection refused")
+            class FakeResp:
+                def read(self_inner):
+                    return json.dumps({
+                        "message": {
+                            "content": "```python\ndef fb():\n    return True\n```",
+                        }
+                    }).encode()
+                def __enter__(self_inner): return self_inner
+                def __exit__(self_inner, *a): pass
+            return FakeResp()
+
+        monkeypatch.setattr(urllib.request, "urlopen", mock_urlopen)
+        with caplog.at_level(logging.WARNING, logger="modules.omen.omen"):
+            r = await online_omen.execute("code_generate", {"prompt": "write fallback"})
+        assert r.success is True
+        assert any(
+            "plain-prompt fallback" in record.message
+            for record in caplog.records
+        ), "Expected warning about plain-prompt fallback"
+
+    @pytest.mark.asyncio
+    async def test_default_model_is_gemma4(self, online_omen: Omen, monkeypatch):
+        """Verify default model is gemma4:26b, not gemma3."""
+        import urllib.request
+        import json
+
+        captured_bodies = []
+
+        def mock_urlopen(req, timeout=None):
+            captured_bodies.append(json.loads(req.data.decode()))
+            class FakeResp:
+                def read(self_inner):
+                    return json.dumps({
+                        "message": {
+                            "content": "```python\nx = 1\n```",
+                        }
+                    }).encode()
+                def __enter__(self_inner): return self_inner
+                def __exit__(self_inner, *a): pass
+            return FakeResp()
+
+        monkeypatch.setattr(urllib.request, "urlopen", mock_urlopen)
+        await online_omen.execute("code_generate", {"prompt": "assign x"})
+        assert len(captured_bodies) >= 1
+        assert captured_bodies[0]["model"] == "gemma4:26b"
+
+
 # --- Unknown tool ---
 
 class TestUnknownTool:

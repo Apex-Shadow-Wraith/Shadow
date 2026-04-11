@@ -82,6 +82,11 @@ modules:
     openai_model: "gpt-4o"
     max_response_tokens: 2048
 
+  omen:
+    code_model: "gemma4:26b"
+    ollama_base_url: "http://localhost:11434"
+    project_root: "."
+
   reaper:
     search_backends:
       - "duckduckgo"

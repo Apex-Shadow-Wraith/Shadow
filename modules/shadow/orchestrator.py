@@ -469,8 +469,8 @@ class Orchestrator:
         if _SELF_TEACHING_AVAILABLE:
             try:
                 self._self_teacher = SelfTeacher(
-                    generate_fn=None,  # Set after model connection is ready
-                    grimoire=None,     # Set after grimoire module starts
+                    generate_fn=None,  # Wired in _initialize_communication()
+                    grimoire=None,     # Wired in _initialize_communication()
                     config=config.get("self_teaching", {}),
                 )
             except Exception as e:
@@ -795,17 +795,34 @@ class Orchestrator:
             module._message_bus = self._message_bus
             module._event_system = self._event_system
 
-        # Wire Grimoire into SelfTeacher (it was initialized with grimoire=None
-        # because Grimoire wasn't ready yet — now it is)
-        if self._self_teacher is not None and "grimoire" in self.registry:
-            grimoire_module = self.registry.get_module("grimoire")
-            if grimoire_module.status == ModuleStatus.ONLINE:
-                inner_grimoire = getattr(grimoire_module, "_grimoire", None)
-                if inner_grimoire is not None:
-                    self._self_teacher._grimoire = inner_grimoire
-                    logger.info("SelfTeacher wired to Grimoire instance")
-                else:
-                    logger.error("SelfTeacher: GrimoireModule online but _grimoire is None")
+        # Wire Grimoire and generate_fn into SelfTeacher (both were initialized
+        # as None because neither was ready yet — now they are)
+        if self._self_teacher is not None:
+            if "grimoire" in self.registry:
+                grimoire_module = self.registry.get_module("grimoire")
+                if grimoire_module.status == ModuleStatus.ONLINE:
+                    inner_grimoire = getattr(grimoire_module, "_grimoire", None)
+                    if inner_grimoire is not None:
+                        self._self_teacher._grimoire = inner_grimoire
+                        logger.info("SelfTeacher wired to Grimoire instance")
+                    else:
+                        logger.error("SelfTeacher: GrimoireModule online but _grimoire is None")
+
+            # Wire generate_fn — use fast_brain via _ollama_chat for
+            # zero-cost local teaching generation
+            if self._self_teacher._generate_fn is None:
+                fast_brain = self._fast_brain
+                ollama_chat = self._ollama_chat
+
+                def _self_teach_generate(prompt: str) -> str:
+                    return ollama_chat(
+                        model=fast_brain,
+                        messages=[{"role": "user", "content": prompt}],
+                        options={"temperature": 0.3, "num_predict": 512},
+                    )
+
+                self._self_teacher._generate_fn = _self_teach_generate
+                logger.info("SelfTeacher wired to generate_fn (model=%s)", fast_brain)
 
         logger.info(
             "Inter-module communication initialized (bus=%s, events=%s, handoff=%s)",
@@ -1994,9 +2011,137 @@ User input: {user_input}"""
                 confidence=0.95,
             )
 
+        # --- Short/ambiguous bypass ---
+        # Messages ≤5 words without an explicit module name or strong
+        # keyword are likely follow-ups ("what is the response?", "say
+        # that again").  The fast-path has no conversation history, so it
+        # can't resolve these — hand them to the LLM router which does.
+        _MODULE_NAMES = {
+            "apex", "grimoire", "reaper", "sentinel", "morpheus",
+            "cipher", "omen", "nova", "void", "harbinger", "wraith",
+            "cerberus", "shadow",
+        }
+        # Strong keywords that should still fast-path even in short inputs.
+        # This is the union of all keyword sets from the priority checks
+        # below so that short messages with clear intent still route fast.
+        _STRONG_KEYWORDS = {
+            # Omen (code)
+            "code", "debug", "lint", "refactor", "function", "class",
+            "script", "program", "coding", "syntax", "snippet", "algorithm",
+            "compile", "review",
+            # Wraith (scheduling)
+            "remind", "reminder", "timer", "schedule", "alarm",
+            "appointment", "deadline", "calendar", "todo",
+            # Sentinel (security)
+            "security", "vulnerability", "threat", "intrusion", "firewall",
+            "breach", "audit",
+            # Cipher (math)
+            "calculate", "compute", "solve", "math", "equation", "multiply",
+            "divide", "subtract", "factorial", "logarithm", "derivative",
+            "integral", "price", "quote", "cost", "estimate", "total",
+            "percentage",
+            # Nova (content)
+            "draft", "compose", "blog", "article", "essay", "paragraph",
+            "story", "creative", "content", "post", "copywriting",
+            "newsletter",
+            # Morpheus (discovery)
+            "discover", "explore", "experiment", "brainstorm", "imagine",
+            "speculate", "serendipity", "unconventional",
+            # Void (monitoring)
+            "metrics", "monitoring", "uptime", "diagnostics",
+            # Harbinger (briefings)
+            "briefing", "alert", "notification",
+            # Cerberus (ethics)
+            "ethics", "moral", "bible", "scripture",
+            # Grimoire (memory — as whole words)
+            "remember", "forget", "recall",
+        }
+        # Phrases that also indicate clear intent (checked separately)
+        _STRONG_PHRASES = [
+            "system health", "health check", "cpu usage", "memory usage",
+            "gpu usage", "disk usage", "system metrics", "resource usage",
+            "status report", "safety report", "daily briefing",
+            "morning briefing", "security check", "security scan",
+            "threat assessment", "vulnerability scan",
+            "intrusion detection",
+        ]
+        word_list = lower.split()
+        has_strong_phrase = any(p in lower for p in _STRONG_PHRASES)
+        if (len(word_list) <= 5
+                and not (set(word_list) & _MODULE_NAMES)
+                and not (set(word_list) & _STRONG_KEYWORDS)
+                and not has_strong_phrase
+                and not re.search(r'\d+\s*[+\-*/×÷xX^%]\s*\d+', lower)):
+            logger.info(
+                "Fast-path bypass: short input (%d words), no module/keyword → LLM router",
+                len(word_list),
+            )
+            return None
+
         # --- Keyword fast-path: module routing by keyword presence ---
         # Split once for whole-word matching
-        words = set(lower.split())
+        words = set(word_list)
+
+        # ── Priority 0: Explicit module mentions override all keywords ──
+        # "ask apex to write code" → apex, NOT omen.  The user's explicit
+        # module reference takes precedence over incidental keyword matches.
+        _MODULE_TASK_TYPES = {
+            "apex": TaskType.QUESTION,
+            "grimoire": TaskType.MEMORY,
+            "reaper": TaskType.RESEARCH,
+            "sentinel": TaskType.ACTION,
+            "morpheus": TaskType.RESEARCH,
+            "cipher": TaskType.ANALYSIS,
+            "omen": TaskType.CREATION,
+            "nova": TaskType.CREATION,
+            "void": TaskType.ANALYSIS,
+            "harbinger": TaskType.ACTION,
+            "wraith": TaskType.ACTION,
+            "cerberus": TaskType.QUESTION,
+        }
+
+        def _classify_for_module(mod: str, reason: str) -> TaskClassification:
+            logger.info("Fast-path explicit module → %s (%s)", mod, reason)
+            return TaskClassification(
+                task_type=_MODULE_TASK_TYPES.get(mod, TaskType.QUESTION),
+                complexity="moderate",
+                target_module=mod,
+                brain=BrainType.FAST,
+                safety_flag=False,
+                priority=1,
+                confidence=0.95,
+            )
+
+        # Check bare module names as whole words first (most common case).
+        # Excludes "void", "nova", "shadow" — too common as English words.
+        _BARE_MODULE_WORDS = {
+            "apex", "grimoire", "reaper", "sentinel", "morpheus",
+            "cipher", "omen", "harbinger", "wraith", "cerberus",
+        }
+        bare_match = words & _BARE_MODULE_WORDS
+        if bare_match:
+            return _classify_for_module(bare_match.pop(), "bare word")
+
+        # Check multi-word phrases (e.g. "ask apex", "escalate to apex")
+        _EXPLICIT_MODULE_PHRASES = [
+            ("escalate to apex", "apex"),
+            ("ask apex", "apex"),
+            ("use apex", "apex"),
+            ("ask grimoire", "grimoire"),
+            ("ask reaper", "reaper"),
+            ("ask sentinel", "sentinel"),
+            ("ask morpheus", "morpheus"),
+            ("ask cipher", "cipher"),
+            ("ask omen", "omen"),
+            ("ask nova", "nova"),
+            ("ask void", "void"),
+            ("ask harbinger", "harbinger"),
+            ("ask wraith", "wraith"),
+            ("ask cerberus", "cerberus"),
+        ]
+        for phrase, mod in _EXPLICIT_MODULE_PHRASES:
+            if phrase in lower:
+                return _classify_for_module(mod, f"phrase={phrase!r}")
 
         # Code indicator set — used for Nova vs Omen conflict resolution
         code_indicators = {
@@ -3130,7 +3275,28 @@ User input: {user_input}"""
         # Build plan based on classification
         steps = []
 
-        if classification.task_type == TaskType.RESEARCH:
+        if classification.target_module == "apex":
+            # Apex tasks — always dispatch to apex_query tool so that
+            # Apex.execute() is actually called.  Without an explicit tool
+            # step the plan falls into the "no tool" default and _step5
+            # skips execution, leaving results empty.  This check must be
+            # BEFORE task_type checks since Apex can be any task type.
+            steps = [
+                {
+                    "step": 1,
+                    "description": "Query Apex (cloud API fallback)",
+                    "tool": "apex_query",
+                    "params": {"task": user_input},
+                },
+                {
+                    "step": 2,
+                    "description": "Generate response from Apex results",
+                    "tool": None,
+                    "params": {},
+                },
+            ]
+
+        elif classification.task_type == TaskType.RESEARCH:
             query = self._extract_search_query(user_input)
             steps = [
                 {
@@ -3222,7 +3388,11 @@ User input: {user_input}"""
                         "step": 1,
                         "description": "Generate code via Omen LLM",
                         "tool": "code_generate",
-                        "params": {"prompt": user_input, "language": "python"},
+                        "params": {
+                            "prompt": user_input,
+                            "language": "python",
+                            "model": self._smart_brain,
+                        },
                     },
                     {
                         "step": 2,
@@ -3341,13 +3511,15 @@ User input: {user_input}"""
 
             results = await self._step5_execute(plan, classification)
 
-            # Apex protection: if target is "apex" and ALL tool results failed,
-            # do NOT fall back to local model — pass through Apex's error directly.
-            # This prevents Gemma from generating fake responses pretending to be
-            # Apex API results (the worst confabulation failure mode).
+            # Apex protection: if target is "apex" and execution failed or
+            # produced no results, do NOT fall back to local model — pass
+            # through Apex's error directly.  This prevents Gemma from
+            # generating fake responses pretending to be Apex API results
+            # (the worst confabulation failure mode).
+            # Empty results means no tool steps fired at all (plan bug).
             if (target == "apex"
-                    and results
-                    and all(not r.success for r in results)):
+                    and (not results
+                         or all(not r.success for r in results))):
                 error_msgs = [r.error for r in results if r.error]
                 combined_error = "; ".join(error_msgs) if error_msgs else "Apex module failed"
                 logger.warning(
@@ -3712,7 +3884,12 @@ User input: {user_input}"""
             start_time = time.time()
             try:
                 module = self.registry.get_module_for_tool(tool_name)
+                logger.info("Calling %s.execute(%s)", module.name, tool_name)
                 result = await module.execute(tool_name, params)
+                logger.info(
+                    "%s.execute(%s) returned: success=%s",
+                    module.name, tool_name, result.success,
+                )
                 result.execution_time_ms = (time.time() - start_time) * 1000
             except KeyError:
                 result = ToolResult(
