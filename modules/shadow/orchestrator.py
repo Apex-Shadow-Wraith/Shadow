@@ -3287,15 +3287,14 @@ User input: {user_input}"""
 
             results = await self._step5_execute(plan, classification)
 
-            # Omen fallback: if target is "omen" and ALL tool results failed,
-            # the model likely generated a response but the tool framework
-            # rejected it (e.g. Gemma 4 can't produce valid tool-call JSON).
-            # Fall back to a plain-prompt LLM call without tool definitions.
+            # Omen fallback: if target is "omen" and ALL tool results failed
+            # (no content or tool_calls from the model at all), try a plain
+            # prompt as last resort.
             if (target == "omen"
                     and results
                     and all(not r.success for r in results)):
                 logger.info(
-                    "Omen tool call failed, falling back to plain prompt"
+                    "Omen: all tool results failed, trying orchestrator plain-prompt fallback"
                 )
                 try:
                     plain_response = self._ollama_chat(

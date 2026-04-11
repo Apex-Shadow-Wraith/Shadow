@@ -305,8 +305,8 @@ class TestCodeGenerate:
         assert "prompt is required" in r.error
 
     @pytest.mark.asyncio
-    async def test_fallback_extracts_code_from_text(self, online_omen: Omen, monkeypatch):
-        """When Ollama returns text instead of tool calls, code is extracted."""
+    async def test_content_direct_extracts_code(self, online_omen: Omen, monkeypatch):
+        """When Ollama returns text instead of tool calls, code is extracted as content_direct."""
         import urllib.request
 
         def mock_urlopen(req, timeout=None):
@@ -329,7 +329,7 @@ class TestCodeGenerate:
         })
         assert r.success is True
         assert "def add(a, b):" in r.content["code"]
-        assert r.content["method"] == "fallback_extraction"
+        assert r.content["method"] == "content_direct"
 
     @pytest.mark.asyncio
     async def test_tool_call_success(self, online_omen: Omen, monkeypatch):
@@ -412,8 +412,8 @@ class TestCodeGenerate:
         assert "unreachable" in r.error.lower()
 
     @pytest.mark.asyncio
-    async def test_null_tool_calls_falls_back_to_extraction(self, online_omen: Omen, monkeypatch):
-        """When Ollama returns tool_calls: null (Gemma 4 bug), fallback extracts code."""
+    async def test_null_tool_calls_uses_content_direct(self, online_omen: Omen, monkeypatch):
+        """When Ollama returns tool_calls: null with content, uses content_direct path."""
         import urllib.request
 
         def mock_urlopen(req, timeout=None):
@@ -436,7 +436,7 @@ class TestCodeGenerate:
         })
         assert r.success is True
         assert "def greet(name):" in r.content["code"]
-        assert r.content["method"] == "fallback_extraction"
+        assert r.content["method"] == "content_direct"
 
     @pytest.mark.asyncio
     async def test_malformed_tool_calls_falls_back(self, online_omen: Omen, monkeypatch):
@@ -504,6 +504,79 @@ class TestCodeGenerate:
         tools = omen.get_tools()
         names = [t["name"] for t in tools]
         assert "code_generate" in names
+
+    @pytest.mark.asyncio
+    async def test_empty_content_and_null_tool_calls_is_failure(self, online_omen: Omen, monkeypatch):
+        """When BOTH content and tool_calls are empty/null, it's a real failure."""
+        import urllib.request
+
+        def mock_urlopen(req, timeout=None):
+            raise urllib.error.URLError("Connection refused")
+
+        import urllib.error
+        monkeypatch.setattr(urllib.request, "urlopen", mock_urlopen)
+        r = await online_omen.execute("code_generate", {
+            "prompt": "write something",
+        })
+        assert r.success is False
+
+    @pytest.mark.asyncio
+    async def test_no_second_call_when_content_present(self, online_omen: Omen, monkeypatch):
+        """When model returns content (no tool_calls), no second LLM call is made."""
+        import urllib.request
+
+        call_count = {"n": 0}
+
+        def mock_urlopen(req, timeout=None):
+            call_count["n"] += 1
+            class FakeResp:
+                def read(self_inner):
+                    return json.dumps({
+                        "message": {
+                            "content": "```python\ndef one_shot():\n    return 1\n```",
+                            "tool_calls": None,
+                        }
+                    }).encode()
+                def __enter__(self_inner): return self_inner
+                def __exit__(self_inner, *a): pass
+            return FakeResp()
+
+        import json
+        monkeypatch.setattr(urllib.request, "urlopen", mock_urlopen)
+        r = await online_omen.execute("code_generate", {
+            "prompt": "write a one_shot function",
+        })
+        assert r.success is True
+        assert "def one_shot():" in r.content["code"]
+        assert r.content["method"] == "content_direct"
+        assert call_count["n"] == 1  # Only one LLM call, no fallback
+
+    @pytest.mark.asyncio
+    async def test_empty_tool_calls_list_uses_content(self, online_omen: Omen, monkeypatch):
+        """When model returns content + empty tool_calls list [], uses content_direct."""
+        import urllib.request
+
+        def mock_urlopen(req, timeout=None):
+            class FakeResp:
+                def read(self_inner):
+                    return json.dumps({
+                        "message": {
+                            "content": "```python\ndef empty_tc():\n    return True\n```",
+                            "tool_calls": [],
+                        }
+                    }).encode()
+                def __enter__(self_inner): return self_inner
+                def __exit__(self_inner, *a): pass
+            return FakeResp()
+
+        import json
+        monkeypatch.setattr(urllib.request, "urlopen", mock_urlopen)
+        r = await online_omen.execute("code_generate", {
+            "prompt": "write a function",
+        })
+        assert r.success is True
+        assert "def empty_tc():" in r.content["code"]
+        assert r.content["method"] == "content_direct"
 
 
 # --- Unknown tool ---

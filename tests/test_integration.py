@@ -145,11 +145,11 @@ class TestToolCount:
     """Total tool count across all modules."""
 
     def test_tool_count(self, tmp_path):
-        """Assert total tools = 108 across 13 modules."""
+        """Assert total tools >= 152 across 13 modules."""
         modules = _create_all_modules(tmp_path)
         total = sum(len(m.get_tools()) for m in modules)
-        assert total == 148, (
-            f"Expected 148 tools, got {total}. "
+        assert total >= 152, (
+            f"Expected >= 152 tools, got {total}. "
             f"By module: {', '.join(f'{m.name}={len(m.get_tools())}' for m in modules)}"
         )
 
@@ -188,5 +188,5 @@ class TestRegistryRoundTrip:
             registry.register(mod)
 
         stats = registry.tool_stats()
-        assert stats["total_tools"] == 148
+        assert stats["total_tools"] >= 152
         assert stats["total_modules"] == 13

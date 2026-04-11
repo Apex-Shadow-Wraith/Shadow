@@ -2908,15 +2908,17 @@ class Omen(BaseModule):
                                 module=self.name,
                             )
 
-            # Tool call returned but no usable tool_calls — try extracting
-            # from the content field (Gemma 4 bug: returns text instead)
+            # No usable tool_calls — check if model returned content directly.
+            # This is valid behavior (e.g. Gemma 4 responds with content
+            # instead of tool calls). Use content as the response.
             raw_content = msg.get("content", "")
             if raw_content:
                 tool_response = raw_content
+                method_used = "content_direct"
 
         except Exception as e:
             logger.info(
-                "Omen: tool call failed, falling back to plain prompt (%s: %s)",
+                "Omen: tool call request failed (%s: %s), trying plain prompt",
                 type(e).__name__, e,
             )
 
@@ -2957,13 +2959,14 @@ class Omen(BaseModule):
                     error=f"Ollama unreachable for code generation: {e}",
                 )
         else:
-            method_used = "fallback_extraction"
+            if method_used == "tool_call":
+                method_used = "fallback_extraction"
 
         # --- Extract code from raw text ---
         code = self._extract_code_from_response(tool_response)
         if code:
             logger.info(
-                "Omen: extracted code via fallback (method=%s)", method_used,
+                "Omen: extracted code (method=%s)", method_used,
             )
             return ToolResult(
                 success=True,

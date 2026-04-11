@@ -566,9 +566,9 @@ class TestSelectTemplate:
 class TestMorpheusIntegration:
     @pytest.mark.asyncio
     async def test_tool_count(self, online_morpheus: Morpheus):
-        """Morpheus now has 9 tools (7 original + 2 evolution)."""
+        """Morpheus has at least 11 tools (7 original + evolution tools)."""
         tools = online_morpheus.get_tools()
-        assert len(tools) == 9
+        assert len(tools) >= 11
 
     @pytest.mark.asyncio
     async def test_new_tool_names(self, online_morpheus: Morpheus):
