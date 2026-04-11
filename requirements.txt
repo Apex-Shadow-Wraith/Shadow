@@ -33,3 +33,4 @@ uvicorn             # ASGI server
 # --- Testing ---
 pytest              # Test framework
 pytest-asyncio      # Async test support
+httpx               # Required by fastapi TestClient

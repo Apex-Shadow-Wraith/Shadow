@@ -12,6 +12,12 @@ Scoring factors (weighted average):
   - specificity (0.15): Concrete details vs vague generalities
   - self_consistency (0.15): No contradictions, minimal hedging
 
+Hard gate (not weighted — caps overall score):
+  - factual_grounding: Detects confabulation — claims about actions
+    that never occurred. If score <= 0.3, overall confidence is capped
+    at 0.3 regardless of other factors. Checks response against
+    execution metadata (which module ran, API calls, tools executed).
+
 Feeds into: RetryEngine (retry decisions), Growth Engine (analytics),
 Harbinger (briefing metrics).
 """
@@ -52,6 +58,30 @@ _STOP_WORDS = {
     "it", "its", "i", "me", "my", "we", "our", "you", "your", "he",
     "she", "they", "them", "his", "her", "their",
 }
+
+
+# Phrases that claim Apex / external API involvement
+_APEX_CLAIM_PHRASES = [
+    "apex sent", "apex generated", "apex went", "apex produced",
+    "apex returned", "escalation protocol", "frontier model",
+    "api returned", "claude responded", "openai responded",
+    "ran through apex", "apex validated", "stress-tested",
+    "payload from apex", "apex confirmed", "apex analyzed",
+]
+
+# Phrases that claim tool execution
+_TOOL_CLAIM_PHRASES = [
+    "executed the code", "ran the script", "test results show",
+    "benchmark results", "scan complete", "analysis complete",
+    "ran this through omen", "ran this through sentinel",
+]
+
+# Phrases that claim async waiting / processing
+_FAKE_ASYNC_PHRASES = [
+    "waiting for", "processing your", "payload to clear",
+    "data stream", "buffer", "standing by for results",
+    "initiated the escalation",
+]
 
 
 class ConfidenceScorer:
@@ -134,6 +164,7 @@ class ConfidenceScorer:
         response: str,
         task_type: str,
         context: dict[str, Any] | None = None,
+        metadata: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """Evaluate response quality using rule-based checks.
 
@@ -142,6 +173,9 @@ class ConfidenceScorer:
             response: The generated response text.
             task_type: Classification type (question, code, math, research, etc.).
             context: Optional additional context (e.g., tool results).
+            metadata: Execution metadata for confabulation detection.
+                Keys: target_module (str), used_fallback (bool),
+                source (str), tools_executed (list[str]).
 
         Returns:
             Dict with confidence (0.0-1.0), factors dict, and recommendation.
@@ -157,7 +191,11 @@ class ConfidenceScorer:
             "self_consistency": self._score_self_consistency(response),
         }
 
-        # Weighted average
+        # Factual grounding — confabulation detection (hard gate)
+        factual_grounding = self._score_factual_grounding(response, metadata)
+        factors["factual_grounding"] = factual_grounding
+
+        # Weighted average (factual_grounding is NOT weighted — it's a hard gate)
         confidence = sum(
             factors[k] * self.WEIGHTS[k] for k in self.WEIGHTS
         )
@@ -165,6 +203,10 @@ class ConfidenceScorer:
         # Task-type-specific bonuses/penalties
         bonus = self._task_type_adjustments(response, task_type)
         confidence = max(0.0, min(1.0, confidence + bonus))
+
+        # Hard gate: if factual_grounding <= 0.3, cap overall confidence at 0.3
+        if factual_grounding <= 0.3:
+            confidence = min(confidence, 0.3)
 
         # Determine recommendation
         recommendation = self._get_recommendation(confidence)
@@ -411,6 +453,83 @@ class ConfidenceScorer:
                 score -= 0.1
 
         return max(0.0, score)
+
+    # ================================================================
+    # FACTUAL GROUNDING (CONFABULATION DETECTION)
+    # ================================================================
+
+    def _score_factual_grounding(
+        self, response: str, metadata: dict[str, Any] | None,
+    ) -> float:
+        """Detect confabulation — claims about actions that never occurred.
+
+        Checks the response text against execution metadata to catch lies
+        about API calls, tool execution, and fake async processing.
+
+        Args:
+            response: The generated response text.
+            metadata: Execution metadata with keys:
+                target_module, used_fallback, source, tools_executed.
+                If None or empty, returns 1.0 (can't verify, don't penalize).
+
+        Returns:
+            Score from 0.0 (confirmed confabulation) to 1.0 (grounded).
+        """
+        if not metadata or not response:
+            return 1.0
+
+        response_lower = response.lower()
+        score = 1.0
+        source = metadata.get("source", "")
+        tools_executed = metadata.get("tools_executed", [])
+        used_fallback = metadata.get("used_fallback", False)
+
+        # --- Check 1: Claims Apex/API involvement but no API was called ---
+        api_sources = {"claude_api", "openai_api"}
+        if source not in api_sources:
+            for phrase in _APEX_CLAIM_PHRASES:
+                if phrase in response_lower:
+                    actual_state = f"source='{source}', no API call made"
+                    logger.warning(
+                        "CONFABULATION DETECTED: Response claims '%s' but %s. "
+                        "Factual grounding: 0.0",
+                        phrase, actual_state,
+                    )
+                    return 0.0
+
+        # --- Check 2: Claims tool execution but no tools actually ran ---
+        if not tools_executed:
+            for phrase in _TOOL_CLAIM_PHRASES:
+                if phrase in response_lower:
+                    actual_state = "tools_executed=[], no tools ran"
+                    logger.warning(
+                        "CONFABULATION DETECTED: Response claims '%s' but %s. "
+                        "Factual grounding: %.1f",
+                        phrase, actual_state, score * 0.3,
+                    )
+                    score *= 0.3
+
+        # --- Check 3: Claims async waiting/processing that isn't happening ---
+        for phrase in _FAKE_ASYNC_PHRASES:
+            if phrase in response_lower:
+                actual_state = "no async operation in progress"
+                logger.warning(
+                    "CONFABULATION DETECTED: Response claims '%s' but %s. "
+                    "Factual grounding: %.1f",
+                    phrase, actual_state, score * 0.2,
+                )
+                score *= 0.2
+
+        # --- Check 4: Fallback response missing [Fallback] prefix ---
+        if (used_fallback or source == "fallback") and "[fallback" not in response_lower:
+            logger.warning(
+                "CONFABULATION DETECTED: Response from fallback missing "
+                "[Fallback] prefix. Factual grounding: %.1f",
+                score * 0.4,
+            )
+            score *= 0.4
+
+        return score
 
     # ================================================================
     # TASK-TYPE ADJUSTMENTS

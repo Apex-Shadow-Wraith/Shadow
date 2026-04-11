@@ -381,3 +381,174 @@ class TestEdgeCases:
             "question",
         )
         assert 0.0 <= result["confidence"] <= 1.0
+
+
+# ================================================================
+# CONFABULATION DETECTION (FACTUAL GROUNDING)
+# ================================================================
+
+
+class TestConfabulationDetection:
+    """Factual grounding catches false claims about actions that never happened."""
+
+    def test_confabulation_apex_claim_without_api(self, scorer):
+        """Response claims Apex generated it, but source is fallback → 0.0."""
+        result = scorer.score_response(
+            task="Explain quantum computing",
+            response="Apex generated this detailed analysis of quantum computing for you.",
+            task_type="question",
+            metadata={
+                "target_module": "apex",
+                "used_fallback": True,
+                "source": "fallback",
+                "tools_executed": [],
+            },
+        )
+        assert result["factors"]["factual_grounding"] == 0.0
+        assert result["confidence"] <= 0.3
+
+    def test_honest_apex_response(self, scorer):
+        """Response claims Apex generated it, and source IS claude_api → 1.0."""
+        result = scorer.score_response(
+            task="Explain quantum computing",
+            response="Apex generated this detailed analysis of quantum computing for you.",
+            task_type="question",
+            metadata={
+                "target_module": "apex",
+                "used_fallback": False,
+                "source": "claude_api",
+                "tools_executed": ["ask_claude"],
+            },
+        )
+        assert result["factors"]["factual_grounding"] == 1.0
+
+    def test_confabulation_tool_claim_without_execution(self, scorer):
+        """Response claims 'ran this through Omen' but no tools ran → low score."""
+        result = scorer.score_response(
+            task="Review this code",
+            response="I ran this through Omen and the analysis is complete. The code looks solid.",
+            task_type="question",
+            metadata={
+                "target_module": "omen",
+                "used_fallback": False,
+                "source": "module_direct",
+                "tools_executed": [],
+            },
+        )
+        fg = result["factors"]["factual_grounding"]
+        # "ran this through omen" triggers tool claim (0.3) AND
+        # "analysis complete" triggers another tool claim (0.3 * 0.3 = 0.09)
+        assert fg <= 0.3
+        assert result["confidence"] <= 0.3
+
+    def test_confabulation_fake_async(self, scorer):
+        """Response claims 'waiting for payload to clear the buffer' → low score."""
+        result = scorer.score_response(
+            task="What is 2+2?",
+            response="I'm still waiting for the payload to clear the buffer before I can respond.",
+            task_type="question",
+            metadata={
+                "target_module": "cipher",
+                "used_fallback": False,
+                "source": "module_direct",
+                "tools_executed": [],
+            },
+        )
+        fg = result["factors"]["factual_grounding"]
+        # "waiting for" → *0.2, "payload to clear" → *0.2, "buffer" → *0.2
+        assert fg <= 0.3
+        assert result["confidence"] <= 0.3
+
+    def test_grounded_response_high_score(self, scorer):
+        """Normal response with no false claims → factual_grounding = 1.0."""
+        result = scorer.score_response(
+            task="What is the capital of France?",
+            response="The capital of France is Paris. It has been the capital since the 10th century.",
+            task_type="question",
+            metadata={
+                "target_module": "wraith",
+                "used_fallback": False,
+                "source": "module_direct",
+                "tools_executed": ["general_query"],
+            },
+        )
+        assert result["factors"]["factual_grounding"] == 1.0
+
+    def test_confabulation_caps_overall(self, scorer):
+        """factual_grounding=0.0 → overall confidence capped at 0.3."""
+        result = scorer.score_response(
+            task="Help me with Python",
+            response=(
+                "Apex generated this comprehensive Python guide. "
+                "Python is a versatile programming language used for web development, "
+                "data science, machine learning, automation, scripting, and more. "
+                "It has a large ecosystem of libraries like Django, NumPy, and TensorFlow."
+            ),
+            task_type="question",
+            metadata={
+                "target_module": "wraith",
+                "used_fallback": False,
+                "source": "module_direct",
+                "tools_executed": ["general_query"],
+            },
+        )
+        assert result["factors"]["factual_grounding"] == 0.0
+        # Even though the response is excellent on other factors,
+        # confidence is capped at 0.3
+        assert result["confidence"] <= 0.3
+
+    def test_fallback_without_prefix_detected(self, scorer):
+        """Response from fallback missing [Fallback] prefix → score reduced."""
+        result = scorer.score_response(
+            task="What is Python?",
+            response="Python is a programming language used for many applications.",
+            task_type="question",
+            metadata={
+                "target_module": "wraith",
+                "used_fallback": True,
+                "source": "fallback",
+                "tools_executed": [],
+            },
+        )
+        fg = result["factors"]["factual_grounding"]
+        # Missing [Fallback] prefix → *0.4
+        assert fg <= 0.4
+
+    def test_normal_fallback_with_prefix_ok(self, scorer):
+        """Response with [Fallback] prefix, no false claims → normal score."""
+        result = scorer.score_response(
+            task="What is Python?",
+            response=(
+                "[Fallback — local model, not validated by Apex] "
+                "Python is a programming language used for many applications."
+            ),
+            task_type="question",
+            metadata={
+                "target_module": "wraith",
+                "used_fallback": True,
+                "source": "fallback",
+                "tools_executed": [],
+            },
+        )
+        fg = result["factors"]["factual_grounding"]
+        # Has [Fallback] prefix, no false claims → 1.0
+        assert fg == 1.0
+
+    def test_metadata_missing_graceful(self, scorer):
+        """If metadata is None, factual_grounding defaults to 1.0."""
+        result = scorer.score_response(
+            task="What is Python?",
+            response="Python is a versatile programming language.",
+            task_type="question",
+            metadata=None,
+        )
+        assert result["factors"]["factual_grounding"] == 1.0
+
+        # Also test with empty dict
+        result2 = scorer.score_response(
+            task="What is Python?",
+            response="Python is a versatile programming language.",
+            task_type="question",
+            metadata={},
+        )
+        assert result2["factors"]["factual_grounding"] == 1.0

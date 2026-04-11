@@ -1164,11 +1164,41 @@ class Orchestrator:
             confidence_result = None
             if self._confidence_scorer is not None:
                 try:
+                    # Build execution metadata for confabulation detection
+                    _is_fallback = response.startswith("[Fallback")
+                    if self._retry_engine is not None:
+                        # Retry engine path — extract what we can from the response
+                        _tools_ran = []  # tools are internal to retry engine
+                        if classification.target_module == "apex":
+                            _source = "fallback" if _is_fallback else "claude_api"
+                        else:
+                            _source = "fallback" if _is_fallback else "module_direct"
+                    else:
+                        # Single-attempt path — we have the results list
+                        _tools_ran = [
+                            r.tool_name for r in results
+                            if r.success and r.tool_name
+                        ]
+                        _all_failed = results and all(not r.success for r in results)
+                        if classification.target_module == "apex" and not _all_failed:
+                            _source = "claude_api"
+                        elif _all_failed:
+                            _source = "fallback"
+                        else:
+                            _source = "module_direct"
+                    _confab_metadata = {
+                        "target_module": classification.target_module,
+                        "used_fallback": _is_fallback,
+                        "source": _source,
+                        "tools_executed": _tools_ran,
+                    }
+
                     confidence_result = self._confidence_scorer.score_response(
                         task=user_input,
                         response=response,
                         task_type=classification.task_type.value,
                         context={"module": classification.target_module},
+                        metadata=_confab_metadata,
                     )
                     logger.info(
                         "Step 6.5 — Confidence: %.3f (%s)",
@@ -1199,12 +1229,19 @@ class Orchestrator:
                             classification, results, context,
                         )
 
-                        # Score the retry
+                        # Score the retry — reuse metadata but update fallback status
+                        _retry_is_fallback = retry_response.startswith("[Fallback")
+                        _retry_metadata = {
+                            **_confab_metadata,
+                            "used_fallback": _retry_is_fallback,
+                            "source": "fallback" if _retry_is_fallback else _confab_metadata["source"],
+                        }
                         retry_score = self._confidence_scorer.score_response(
                             task=user_input,
                             response=retry_response,
                             task_type=classification.task_type.value,
                             context={"module": classification.target_module, "is_retry": True},
+                            metadata=_retry_metadata,
                         )
                         improvement = self._confidence_scorer.score_improvement(
                             prev_score, retry_score["confidence"],
