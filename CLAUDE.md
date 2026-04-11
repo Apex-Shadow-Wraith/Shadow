@@ -131,6 +131,12 @@ python -m pytest tests/test_decision_loop.py -v
 - Keep all model names in config files, never hardcoded
 - Test before committing
 
+## Prompt Philosophy
+- Describe the SYMPTOM and the expected behavior. Do NOT prescribe the specific fix.
+- Let Claude Code investigate the root cause and choose the solution.
+- Overly prescriptive prompts cause Claude Code to implement the given fix even when the real root cause is different.
+- Every prompt must include: "RULE: No bandaid fixes, no temporary workarounds, no TODO-later patches."
+
 ## Fix Quality Rule
 No bandaid fixes, no temporary workarounds, no TODO-later patches. Every fix must be permanent and complete. If the root cause requires a larger refactor, do the refactor. Do not paper over the problem. If a fix would require changes beyond the scope of the current prompt, flag it and stop — do not commit a partial fix that masks the real issue.
 
@@ -148,14 +154,11 @@ No bandaid fixes, no temporary workarounds, no TODO-later patches. Every fix mus
 - Architecture decisions happen in Opus sessions, not Claude Code sessions
 
 ## Allowed Commands
-The following commands are pre-approved and do not need confirmation:
-- `python` (any python command)
-- `pip install`
-- `pytest`
-- `git add`, `git commit`, `git status`, `git diff`, `git log`
-- `cd`, `ls`, `dir`, `cat`, `type`, `head`, `tail`
-- `mkdir`, `cp`, `copy`, `move`, `mv`
-- `ollama`
+Claude Code is pre-approved to run these commands without asking:
+- pytest (any flags)
+- git add, git commit, git push, git stash, git status, git diff, git log
+- python (running scripts, tests)
+- pip install (adding dependencies)
 
 ## What NOT to Do
 - Don't rename module codenames
