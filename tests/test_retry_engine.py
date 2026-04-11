@@ -14,6 +14,8 @@ from modules.shadow.retry_engine import (
     RetrySession,
     Attempt,
     STRATEGY_CATEGORIES,
+    FailureType,
+    classify_failure,
 )
 
 
@@ -654,3 +656,211 @@ async def test_grimoire_search_failure_graceful(engine):
     )
 
     assert result["status"] == "succeeded"
+
+
+# ── Test: Infrastructure failure does NOT increment fatigue ──────────
+
+@pytest.mark.asyncio
+async def test_infrastructure_failure_no_fatigue(engine):
+    """Infrastructure failures (tool_loader empty) do NOT increment fatigue."""
+    assert engine.fatigue_counter == 0
+
+    async def infra_fail_execute(task, ctx):
+        return {
+            "response": "",
+            "results": [],
+            "tool_loader_empty": True,
+            "infrastructure_error": True,
+        }
+
+    def infra_evaluate(result):
+        if result.get("tool_loader_empty"):
+            return {
+                "success": False,
+                "confidence": 0.0,
+                "reason": "Tool loader empty — infrastructure issue",
+            }
+        return {"success": False, "confidence": 0.0, "reason": "failed"}
+
+    result = await engine.attempt_task(
+        task="Task with empty tool loader",
+        module="wraith",
+        context={"task_type": "test"},
+        evaluate_fn=infra_evaluate,
+        execute_fn=infra_fail_execute,
+    )
+
+    # Fatigue counter should NOT have incremented
+    assert engine.fatigue_counter == 0
+    assert result.get("infrastructure_failure") is True
+
+
+# ── Test: Model failure DOES increment fatigue ──────────────────────
+
+@pytest.mark.asyncio
+async def test_model_failure_increments_fatigue(engine):
+    """Model failures (bad LLM output) DO increment fatigue."""
+    assert engine.fatigue_counter == 0
+
+    result = await engine.attempt_task(
+        task="Task that model fails",
+        module="wraith",
+        context={"task_type": "test"},
+        evaluate_fn=make_evaluate_fn(succeed_on=None),  # Always fail
+        execute_fn=mock_execute_fn,
+    )
+
+    # All 12 attempts should have incremented fatigue
+    assert engine.fatigue_counter == 12
+    assert result["status"] == "exhausted"
+
+
+# ── Test: Early exit on empty tool_loader (1 attempt, not 12) ────────
+
+@pytest.mark.asyncio
+async def test_early_exit_on_tool_loader_empty(engine):
+    """When tool_loader returns empty on first attempt, skip ALL remaining retries."""
+    call_count = {"n": 0}
+
+    async def counting_execute(task, ctx):
+        call_count["n"] += 1
+        return {
+            "response": "",
+            "results": [],
+            "tool_loader_empty": True,
+            "infrastructure_error": True,
+        }
+
+    def infra_evaluate(result):
+        if result.get("tool_loader_empty"):
+            return {
+                "success": False,
+                "confidence": 0.0,
+                "reason": "Tool loader empty — infrastructure issue",
+            }
+        return {"success": False, "confidence": 0.0, "reason": "failed"}
+
+    result = await engine.attempt_task(
+        task="Task with tool loader down",
+        module="wraith",
+        context={"task_type": "test"},
+        evaluate_fn=infra_evaluate,
+        execute_fn=counting_execute,
+    )
+
+    # Only 1 attempt, not 12
+    assert call_count["n"] == 1
+    assert len(result["attempts"]) == 1
+    assert result.get("infrastructure_failure") is True
+    assert result["status"] == "exhausted"
+    # Should NOT be ready to escalate (infrastructure problem, not model problem)
+    assert result.get("ready_to_escalate") is False
+
+
+# ── Test: /reset fatigue command works ───────────────────────────────
+
+@pytest.mark.asyncio
+async def test_reset_fatigue_command(engine):
+    """/reset fatigue resets the fatigue counter to 0."""
+    # Accumulate some fatigue from model failures
+    await engine.attempt_task(
+        task="Failing task",
+        module="wraith",
+        context={"task_type": "test"},
+        evaluate_fn=make_evaluate_fn(succeed_on=None),
+        execute_fn=mock_execute_fn,
+    )
+    assert engine.fatigue_counter > 0
+
+    # Reset
+    engine.reset_fatigue()
+    assert engine.fatigue_counter == 0
+
+
+# ── Test: classify_failure correctly identifies infrastructure ────────
+
+def test_classify_failure_infrastructure_markers():
+    """classify_failure identifies infrastructure errors from error strings."""
+    assert classify_failure("Tool loader empty") == FailureType.INFRASTRUCTURE
+    assert classify_failure("Network timeout on request") == FailureType.INFRASTRUCTURE
+    assert classify_failure("Ollama not responding") == FailureType.INFRASTRUCTURE
+    assert classify_failure("ChromaDB connection error") == FailureType.INFRASTRUCTURE
+    assert classify_failure("Connection timed out") == FailureType.INFRASTRUCTURE
+
+
+def test_classify_failure_model_markers():
+    """classify_failure defaults to model failure for non-infrastructure errors."""
+    assert classify_failure("not sufficient") == FailureType.MODEL
+    assert classify_failure("Empty response") == FailureType.MODEL
+    assert classify_failure("Low confidence score") == FailureType.MODEL
+    assert classify_failure(None) == FailureType.MODEL
+
+
+def test_classify_failure_from_result_dict():
+    """classify_failure reads tool_loader_empty from result dict."""
+    result = {"tool_loader_empty": True, "response": ""}
+    assert classify_failure(None, result) == FailureType.INFRASTRUCTURE
+
+    result = {"tool_loader_empty": False, "response": "some output"}
+    assert classify_failure("bad format", result) == FailureType.MODEL
+
+
+# ── Test: Failure type recorded in attempt data ──────────────────────
+
+@pytest.mark.asyncio
+async def test_failure_type_recorded_in_attempts(engine):
+    """Each failed attempt records its failure_type classification."""
+    result = await engine.attempt_task(
+        task="Model-failing task",
+        module="wraith",
+        context={"task_type": "test"},
+        evaluate_fn=make_evaluate_fn(succeed_on=None),
+        execute_fn=mock_execute_fn,
+    )
+
+    for attempt in result["attempts"]:
+        assert attempt["failure_type"] == FailureType.MODEL
+
+
+# ── Test: Mixed infrastructure and model failures ────────────────────
+
+@pytest.mark.asyncio
+async def test_mixed_failure_types_fatigue(engine):
+    """Only model failures increment fatigue, not infrastructure failures."""
+    call_count = {"n": 0}
+
+    async def mixed_execute(task, ctx):
+        call_count["n"] += 1
+        # First attempt succeeds to avoid early exit, then alternate
+        return {
+            "response": f"attempt {call_count['n']}",
+            "results": [],
+        }
+
+    def mixed_evaluate(result):
+        # Always fail but with different reasons
+        resp = result.get("response", "")
+        attempt_n = int(resp.split()[-1]) if resp else 0
+        if attempt_n % 2 == 0:
+            return {
+                "success": False,
+                "confidence": 0.0,
+                "reason": "Ollama not responding",
+            }
+        return {
+            "success": False,
+            "confidence": 0.0,
+            "reason": "Bad format from model",
+        }
+
+    result = await engine.attempt_task(
+        task="Mixed failure task",
+        module="wraith",
+        context={"task_type": "test"},
+        evaluate_fn=mixed_evaluate,
+        execute_fn=mixed_execute,
+    )
+
+    # 12 attempts total: odd attempts (1,3,5,7,9,11) = model failures = 6
+    # Even attempts (2,4,6,8,10,12) = infrastructure failures = 6
+    assert engine.fatigue_counter == 6

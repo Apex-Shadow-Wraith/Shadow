@@ -32,6 +32,74 @@ except ImportError:
     _DECOMPOSER_AVAILABLE = False
 
 
+# ── Failure Type Classification ─────────────────────────────────────
+
+class FailureType:
+    """Classify failures as infrastructure vs model to avoid inflating fatigue."""
+
+    INFRASTRUCTURE = "infrastructure_failure"
+    MODEL = "model_failure"
+
+
+# Infrastructure failure indicators — the model never got a chance
+_INFRASTRUCTURE_MARKERS = [
+    "tool loader empty",
+    "tool_loader returned empty",
+    "no tools loaded",
+    "network timeout",
+    "connection timed out",
+    "ollama not responding",
+    "ollama connection refused",
+    "chromadb connection error",
+    "chromadb connection refused",
+    "database connection failed",
+    "sqlite3.operationalerror",
+    "connection reset by peer",
+    "errno 111",  # connection refused
+    "errno 110",  # connection timed out
+    "service unavailable",
+    "502 bad gateway",
+    "503 service unavailable",
+]
+
+
+def classify_failure(error: str | None, result: dict | None = None) -> str:
+    """Classify a failure as infrastructure or model.
+
+    Infrastructure failures: tool_loader empty, network timeout, Ollama down,
+    ChromaDB connection error. The model never got a chance.
+
+    Model failures: LLM returned garbage, wrong format, hallucinated tool name,
+    confidence below threshold. The model ran but produced bad output.
+
+    Args:
+        error: Error string from the attempt.
+        result: Result dict from the attempt (may contain tool_loader info).
+
+    Returns:
+        FailureType.INFRASTRUCTURE or FailureType.MODEL.
+    """
+    # Check result dict for tool_loader empty signal
+    if result is not None:
+        if result.get("tool_loader_empty", False):
+            return FailureType.INFRASTRUCTURE
+        # Empty results list with no response often means infrastructure issue
+        tool_results = result.get("results", [])
+        if not result.get("response") and not tool_results:
+            if result.get("infrastructure_error"):
+                return FailureType.INFRASTRUCTURE
+
+    # Check error string for infrastructure markers
+    if error:
+        error_lower = error.lower()
+        for marker in _INFRASTRUCTURE_MARKERS:
+            if marker in error_lower:
+                return FailureType.INFRASTRUCTURE
+
+    # Default: model failure (the model ran but produced bad output)
+    return FailureType.MODEL
+
+
 # ── Strategy Definitions ─────────────────────────────────────────────
 
 STRATEGY_CATEGORIES: list[tuple[str, str]] = [
@@ -128,6 +196,7 @@ class Attempt:
     success: bool = False
     duration_seconds: float = 0.0
     timestamp: datetime = field(default_factory=datetime.now)
+    failure_type: Optional[str] = None  # FailureType.INFRASTRUCTURE or FailureType.MODEL
 
 
 @dataclass
@@ -167,6 +236,7 @@ class RetryEngine:
         self._config = config or {}
         self._session_history: list[dict[str, Any]] = []
         self._max_history = 100
+        self._fatigue_counter: int = 0  # Only incremented by model failures
 
         # Recursive decomposer for strategy #2 (decomposition)
         self._decomposer = None
@@ -273,11 +343,22 @@ class RetryEngine:
 
                 if not attempt.success:
                     attempt.error = evaluation.get("reason", "Evaluation failed")
+                    # Classify failure type
+                    attempt.failure_type = classify_failure(
+                        attempt.error, attempt.result
+                    )
+                    # Only model failures increment fatigue
+                    if attempt.failure_type == FailureType.MODEL:
+                        self._fatigue_counter += 1
 
             except Exception as e:
                 attempt.duration_seconds = time.time() - start_time
                 attempt.error = str(e)
                 attempt.success = False
+                # Classify exception-based failures
+                attempt.failure_type = classify_failure(str(e))
+                if attempt.failure_type == FailureType.MODEL:
+                    self._fatigue_counter += 1
                 logger.warning(
                     "Attempt %d (%s) raised exception: %s",
                     attempt_num, strategy_name, e,
@@ -295,6 +376,21 @@ class RetryEngine:
                 )
                 self._record_session(session)
                 return self._session_to_dict(session)
+
+            # Early exit: infrastructure failure on first attempt — skip all retries
+            if (attempt_num == 1
+                    and attempt.failure_type == FailureType.INFRASTRUCTURE):
+                logger.warning(
+                    "Tool loader empty — skipping retries "
+                    "(infrastructure issue, not model failure)"
+                )
+                session.status = "exhausted"
+                self._record_session(session)
+                result_dict = self._session_to_dict(session)
+                result_dict["exhausted"] = True
+                result_dict["ready_to_escalate"] = False
+                result_dict["infrastructure_failure"] = True
+                return result_dict
 
             # Progress notifications
             if notify_fn is not None:
@@ -557,6 +653,16 @@ class RetryEngine:
 
         return len(session.attempts) >= session.max_attempts or session.status == "exhausted"
 
+    @property
+    def fatigue_counter(self) -> int:
+        """Current fatigue counter. Only model failures increment this."""
+        return self._fatigue_counter
+
+    def reset_fatigue(self) -> None:
+        """Reset fatigue counter to 0. Called by /reset fatigue command."""
+        self._fatigue_counter = 0
+        logger.info("Fatigue counter reset to 0")
+
     def get_session_history(self, limit: int = 20) -> list[dict[str, Any]]:
         """Return recent retry sessions for analytics.
 
@@ -684,6 +790,7 @@ class RetryEngine:
                     "success": a.success,
                     "duration_seconds": a.duration_seconds,
                     "timestamp": a.timestamp.isoformat(),
+                    "failure_type": a.failure_type,
                 }
                 for a in session.attempts
             ],
