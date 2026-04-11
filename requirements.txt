@@ -16,6 +16,7 @@ chromadb            # Vector database for semantic search
 ddgs                # DDG search (formerly duckduckgo-search)
 beautifulsoup4      # Web scraping
 requests            # HTTP client
+aiohttp             # Async HTTP client
 playwright          # Stealth browser automation
 yt-dlp              # YouTube subtitle download
 praw                # Reddit API
