@@ -1046,9 +1046,23 @@ class Orchestrator:
                 self._save_state()
                 return response
 
+            # Handle /ingest commands directly (no LLM needed)
+            if classification.target_module == "transcript_ingestor":
+                response = await self._handle_ingest_command(user_input)
+                await self._step7_log(user_input, classification, response, loop_start)
+                self._save_state()
+                return response
+
             # Handle /export commands directly (no LLM needed)
             if classification.target_module == "snapshot_exporter":
                 response = await self._handle_export_command(user_input)
+                await self._step7_log(user_input, classification, response, loop_start)
+                self._save_state()
+                return response
+
+            # Handle /generate commands directly (no LLM needed)
+            if classification.target_module == "generate":
+                response = await self._handle_generate_command(user_input)
                 await self._step7_log(user_input, classification, response, loop_start)
                 self._save_state()
                 return response
@@ -1801,6 +1815,28 @@ User input: {user_input}"""
                 priority=1,
             )
 
+        # --- Generate commands ---
+        if lower.startswith("/generate"):
+            return TaskClassification(
+                task_type=TaskType.SYSTEM,
+                complexity="simple",
+                target_module="generate",
+                brain=BrainType.ROUTER,
+                safety_flag=False,
+                priority=1,
+            )
+
+        # --- Transcript ingestion commands ---
+        if lower.startswith("/ingest"):
+            return TaskClassification(
+                task_type=TaskType.SYSTEM,
+                complexity="simple",
+                target_module="transcript_ingestor",
+                brain=BrainType.ROUTER,
+                safety_flag=False,
+                priority=1,
+            )
+
         # --- System commands (slash commands) ---
         if stripped.startswith("/"):
             return TaskClassification(
@@ -2458,6 +2494,51 @@ User input: {user_input}"""
 
     # --- Benchmark Handler ---
 
+    # --- Transcript Ingestor Handler ---
+
+    async def _handle_ingest_command(self, user_input: str) -> str:
+        """Handle /ingest commands for Claude Code transcript ingestion.
+
+        Supported:
+            /ingest transcripts  — scan, parse, and ingest new transcripts
+            /ingest stats        — show ingestion history statistics
+        """
+        from modules.grimoire.conversation_ingestor import ConversationIngestor
+
+        lower = user_input.strip().lower()
+
+        # Initialize ingestor with Grimoire
+        try:
+            ingestor = ConversationIngestor(self._grimoire)
+        except Exception as e:
+            return f"Failed to initialize transcript ingestor: {e}"
+
+        if lower.startswith("/ingest stats"):
+            stats = ingestor.get_stats()
+            lines = ["**Transcript Ingestion Stats**"]
+            lines.append(f"Total files processed: {stats['total_files']}")
+            lines.append(f"Total entries created: {stats['total_entries']}")
+            lines.append(f"Last run: {stats['last_run'] or 'never'}")
+            lines.append(f"Tracked files: {stats['processed_files_count']}")
+            return "\n".join(lines)
+
+        if lower.startswith("/ingest transcripts") or lower == "/ingest":
+            result = ingestor.ingest()
+            lines = ["**Transcript Ingestion Complete**"]
+            lines.append(f"Files processed: {result['files_processed']}")
+            lines.append(f"Entries created: {result['entries_created']}")
+            if result["errors"]:
+                lines.append(f"Errors: {len(result['errors'])}")
+                for err in result["errors"][:5]:
+                    lines.append(f"  - {err}")
+            return "\n".join(lines)
+
+        return (
+            "Unknown /ingest command. Available:\n"
+            "  /ingest transcripts  — scan and ingest Claude Code transcripts\n"
+            "  /ingest stats        — show ingestion history statistics"
+        )
+
     async def _handle_benchmark_command(self, user_input: str) -> str:
         """Handle /benchmark commands for the monthly benchmark suite.
 
@@ -2540,6 +2621,70 @@ User input: {user_input}"""
             "  /benchmark run      — execute full benchmark suite\n"
             "  /benchmark history  — show score trends over time\n"
             "  /benchmark compare YYYY-MM-DD YYYY-MM-DD — compare two runs"
+        )
+
+    # --- Generate Handler ---
+
+    async def _handle_generate_command(self, user_input: str) -> str:
+        """Handle /generate commands.
+
+        Supported:
+            /generate claudemd           — regenerate full CLAUDE.md
+            /generate claudemd <section> — update a single section
+        """
+        try:
+            from modules.shadow.claudemd_generator import ClaudeMDGenerator
+        except ImportError:
+            return "ClaudeMDGenerator module not available."
+
+        lower = user_input.strip().lower()
+
+        if lower.startswith("/generate claudemd"):
+            # Check for section-specific update
+            parts = user_input.strip().split()
+            grimoire = None
+            if "grimoire" in self.registry:
+                try:
+                    gmod = self.registry.get_module("grimoire")
+                    if gmod.status == ModuleStatus.ONLINE:
+                        grimoire = getattr(gmod, "_grimoire", None)
+                except Exception:
+                    pass
+
+            config = dict(self._config) if hasattr(self, "_config") else {}
+            config["project_root"] = str(Path(__file__).resolve().parent.parent.parent)
+            generator = ClaudeMDGenerator(config, grimoire=grimoire)
+
+            if len(parts) > 2:
+                section_name = parts[2]
+                # Generate fresh content for that section
+                method_name = f"_section_{section_name}"
+                if hasattr(generator, method_name):
+                    content = getattr(generator, method_name)()
+                    filepath = generator.update_section(section_name, content)
+                    return f"**CLAUDE.md** section `{section_name}` updated at `{filepath}`."
+                else:
+                    return (
+                        f"Unknown section: `{section_name}`.\n"
+                        "Available sections: header, permissions, overview, creator, "
+                        "tech_stack, venv, structure, modules, recent_changes, "
+                        "known_issues, decisions, test_status, testing, "
+                        "coding_conventions, critical_policies, allowed_commands, "
+                        "what_not_to_do, git_workflow"
+                    )
+
+            # Full regeneration
+            try:
+                filepath = generator.generate()
+                return f"**CLAUDE.md regenerated** at `{filepath}`."
+            except Exception as e:
+                logger.error("CLAUDE.md generation failed: %s", e)
+                return f"CLAUDE.md generation failed: {e}"
+
+        return (
+            "Unknown /generate command. Available:\n"
+            "  /generate claudemd           — regenerate full CLAUDE.md\n"
+            "  /generate claudemd <section> — update a single section"
         )
 
     # --- Embedding Evaluation Handler ---
