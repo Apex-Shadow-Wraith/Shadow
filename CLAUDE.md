@@ -155,10 +155,13 @@ No bandaid fixes, no temporary workarounds, no TODO-later patches. Every fix mus
 
 ## Allowed Commands
 Claude Code is pre-approved to run these commands without asking:
-- pytest (any flags)
-- git add, git commit, git push, git stash, git status, git diff, git log
-- python (running scripts, tests)
-- pip install (adding dependencies)
+- `python` (any python command)
+- `pip install`
+- `pytest`
+- `git add`, `git commit`, `git push`, `git stash`, `git status`, `git diff`, `git log`
+- `cd`, `ls`, `dir`, `cat`, `type`, `head`, `tail`
+- `mkdir`, `cp`, `copy`, `move`, `mv`
+- `ollama`
 
 ## What NOT to Do
 - Don't rename module codenames
