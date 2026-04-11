@@ -318,6 +318,16 @@ class Apex(BaseModule):
         self._log_file = Path(
             self._config.get("log_file", "data/apex_log.json")
         )
+        self._dry_run: bool = self._config.get("dry_run", False)
+        self._claude_model: str = self._config.get(
+            "claude_model", "claude-sonnet-4-20250514"
+        )
+        self._openai_model: str = self._config.get(
+            "openai_model", "gpt-4o"
+        )
+        self._max_response_tokens: int = self._config.get(
+            "max_response_tokens", 2048
+        )
 
         # Escalation-learning infrastructure
         self._escalation_log: EscalationLog | None = None
@@ -480,8 +490,8 @@ class Apex(BaseModule):
     def _apex_query(self, params: dict[str, Any]) -> ToolResult:
         """Send a task to a frontier API.
 
-        Phase 1: Logs the request. Actual API calls require httpx
-        (deferred to avoid test dependencies on live APIs).
+        Makes real API calls when keys are present and dry_run is False.
+        Falls back to dry-run logging when keys are missing or dry_run is True.
 
         Args:
             params: 'task' (required), 'model_preference' (claude/openai).
@@ -496,30 +506,80 @@ class Apex(BaseModule):
         preference = params.get("model_preference", "claude")
         api = self._select_api(preference)
 
-        # Log the call
-        entry = {
-            "timestamp": datetime.now().isoformat(),
-            "task": task[:500],  # Truncate for logging
-            "api_selected": api,
-            "model_preference": preference,
-            "tokens_in": 0,
-            "tokens_out": 0,
-            "cost": 0.0,
-            "teaching_triggered": False,
-            "status": "dry_run" if api == "none" else "logged",
-        }
-        self._call_log.append(entry)
-        self._save_log()
-
         if api == "none":
+            logger.warning("Apex in dry-run mode (no API key)")
+            entry = {
+                "timestamp": datetime.now().isoformat(),
+                "task": task[:500],
+                "api_selected": "none",
+                "model_preference": preference,
+                "tokens_in": 0,
+                "tokens_out": 0,
+                "cost": 0.0,
+                "teaching_triggered": False,
+                "status": "dry_run",
+            }
+            self._call_log.append(entry)
+            self._save_log()
             return ToolResult(
                 success=False, content=None, tool_name="apex_query",
                 module=self.name,
                 error="No API keys available. Configure ANTHROPIC_API_KEY or OPENAI_API_KEY.",
             )
 
-        # Phase 1: Log only, no actual API call
-        logger.info("Apex query logged (dry-run): api=%s, task=%s", api, task[:50])
+        if self._dry_run:
+            logger.info("Apex in dry-run mode (config): api=%s, task=%s", api, task[:50])
+            entry = {
+                "timestamp": datetime.now().isoformat(),
+                "task": task[:500],
+                "api_selected": api,
+                "model_preference": preference,
+                "tokens_in": 0,
+                "tokens_out": 0,
+                "cost": 0.0,
+                "teaching_triggered": False,
+                "status": "dry_run",
+            }
+            self._call_log.append(entry)
+            self._save_log()
+            return ToolResult(
+                success=True,
+                content={
+                    "api": api,
+                    "status": "dry_run",
+                    "message": f"Dry-run mode enabled in config. Query logged for {api} API but not dispatched.",
+                    "task_preview": task[:200],
+                },
+                tool_name="apex_query",
+                module=self.name,
+            )
+
+        # Live API dispatch
+        response_text, input_tokens, output_tokens, model_used = self._call_api(api, task)
+
+        cost = self._estimate_cost(api, input_tokens, output_tokens)
+        self._total_cost += cost
+        self._update_daily_cost(cost)
+
+        entry = {
+            "timestamp": datetime.now().isoformat(),
+            "task": task[:500],
+            "api_selected": api,
+            "model_preference": preference,
+            "model_used": model_used,
+            "tokens_in": input_tokens,
+            "tokens_out": output_tokens,
+            "cost": cost,
+            "teaching_triggered": False,
+            "status": "completed",
+        }
+        self._call_log.append(entry)
+        self._save_log()
+
+        logger.info(
+            "Apex calling %s API (live): model=%s, tokens_in=%d, tokens_out=%d, cost=$%.4f",
+            api, model_used, input_tokens, output_tokens, cost,
+        )
 
         # Escalation-learning cycle: log, extract, store
         self._record_escalation(
@@ -527,20 +587,23 @@ class Apex(BaseModule):
             task_summary=task[:500],
             reason=params.get("reason", "local_model_insufficient"),
             api_provider=api,
-            api_model=params.get("model_preference", "claude"),
-            api_response=params.get("api_response", ""),
-            input_tokens=0,
-            output_tokens=0,
-            cost_usd=0.0,
+            api_model=model_used,
+            api_response=response_text,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            cost_usd=cost,
         )
 
         return ToolResult(
             success=True,
             content={
                 "api": api,
-                "status": "logged",
-                "message": f"Query logged for {api} API. Actual dispatch deferred to Phase 2.",
-                "task_preview": task[:200],
+                "model": model_used,
+                "status": "completed",
+                "response": response_text,
+                "tokens_in": input_tokens,
+                "tokens_out": output_tokens,
+                "cost": cost,
             },
             tool_name="apex_query",
             module=self.name,
@@ -883,6 +946,89 @@ class Apex(BaseModule):
         return None
 
     # --- Internal helpers ---
+
+    def _call_api(self, api: str, task: str) -> tuple[str, int, int, str]:
+        """Dispatch a task to the selected API provider.
+
+        Args:
+            api: "claude" or "openai".
+            task: The task/prompt to send.
+
+        Returns:
+            Tuple of (response_text, input_tokens, output_tokens, model_used).
+
+        Raises:
+            RuntimeError: If the API call fails.
+        """
+        if api == "claude":
+            return self._call_claude(task)
+        elif api == "openai":
+            return self._call_openai(task)
+        else:
+            raise RuntimeError(f"Unknown API provider: {api}")
+
+    def _call_claude(self, task: str) -> tuple[str, int, int, str]:
+        """Call the Anthropic Claude API.
+
+        Returns:
+            Tuple of (response_text, input_tokens, output_tokens, model_used).
+        """
+        import anthropic
+
+        client = anthropic.Anthropic(api_key=self._anthropic_key)
+        model = self._claude_model
+
+        response = client.messages.create(
+            model=model,
+            max_tokens=self._max_response_tokens,
+            messages=[{"role": "user", "content": task}],
+        )
+
+        response_text = response.content[0].text if response.content else ""
+        input_tokens = response.usage.input_tokens
+        output_tokens = response.usage.output_tokens
+
+        return response_text, input_tokens, output_tokens, model
+
+    def _call_openai(self, task: str) -> tuple[str, int, int, str]:
+        """Call the OpenAI API.
+
+        Returns:
+            Tuple of (response_text, input_tokens, output_tokens, model_used).
+        """
+        import openai
+
+        client = openai.OpenAI(api_key=self._openai_key)
+        model = self._openai_model
+
+        response = client.chat.completions.create(
+            model=model,
+            max_tokens=self._max_response_tokens,
+            messages=[{"role": "user", "content": task}],
+        )
+
+        choice = response.choices[0] if response.choices else None
+        response_text = choice.message.content if choice else ""
+        usage = response.usage
+        input_tokens = usage.prompt_tokens if usage else 0
+        output_tokens = usage.completion_tokens if usage else 0
+
+        return response_text, input_tokens, output_tokens, model
+
+    def _estimate_cost(self, api: str, input_tokens: int, output_tokens: int) -> float:
+        """Estimate cost in USD for an API call.
+
+        Args:
+            api: "claude" or "openai".
+            input_tokens: Number of input tokens.
+            output_tokens: Number of output tokens.
+
+        Returns:
+            Estimated cost in USD.
+        """
+        rates = self.COST_PER_1K.get(api, {"input": 0.0, "output": 0.0})
+        cost = (input_tokens / 1000) * rates["input"] + (output_tokens / 1000) * rates["output"]
+        return round(cost, 6)
 
     def _select_api(self, preference: str) -> str:
         """Select the best available API.

@@ -73,6 +73,14 @@ modules:
     # Phase 1: config-only, no LLM judgment for ambiguous cases
     use_llm_judgment: false
 
+  apex:
+    dry_run: false  # Set true to log-only without making API calls
+    escalation_db: "data/apex_escalation.db"
+    log_file: "data/apex_log.json"
+    claude_model: "claude-sonnet-4-20250514"
+    openai_model: "gpt-4o"
+    max_response_tokens: 2048
+
   reaper:
     search_backends:
       - "duckduckgo"

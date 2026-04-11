@@ -11,7 +11,7 @@ import pytest
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 from modules.apex.apex import Apex, EscalationLog, TeachingExtractor
 
@@ -390,11 +390,12 @@ class TestFullCycle:
     async def test_query_triggers_escalation_log(self, online_apex: Apex):
         """Apex query logs escalation in the SQLite escalation log."""
         online_apex._anthropic_key = "sk-test"
-        await online_apex.execute("apex_query", {
-            "task": "Explain quantum computing",
-            "task_type": "explanation",
-            "reason": "too_complex",
-        })
+        with patch.object(online_apex, "_call_claude", return_value=("Quantum computing is...", 20, 50, "claude-sonnet-4-20250514")):
+            await online_apex.execute("apex_query", {
+                "task": "Explain quantum computing",
+                "task_type": "explanation",
+                "reason": "too_complex",
+            })
 
         stats = online_apex._escalation_log.get_escalation_stats(days=1)
         assert stats["total_escalations"] == 1
@@ -408,10 +409,11 @@ class TestFullCycle:
         online_apex.set_grimoire(mock_grimoire)
 
         online_apex._anthropic_key = "sk-test"
-        await online_apex.execute("apex_query", {
-            "task": "Complex task needing API",
-            "task_type": "reasoning",
-        })
+        with patch.object(online_apex, "_call_claude", return_value=("Complex answer", 30, 60, "claude-sonnet-4-20250514")):
+            await online_apex.execute("apex_query", {
+                "task": "Complex task needing API",
+                "task_type": "reasoning",
+            })
 
         # Grimoire.remember should have been called
         mock_grimoire.remember.assert_called_once()

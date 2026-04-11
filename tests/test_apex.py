@@ -2,7 +2,7 @@
 Tests for Apex — API Fallback and Active Learning
 ===================================================
 Covers API key loading, cost tracking, call logging, API selection,
-teaching cycle, and persistence.
+teaching cycle, persistence, dry-run gating, and live API dispatch.
 """
 
 import json
@@ -10,7 +10,7 @@ import os
 import pytest
 from pathlib import Path
 from typing import Any
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock
 
 from modules.base import ModuleStatus, ToolResult
 from modules.apex.apex import Apex
@@ -18,8 +18,15 @@ from modules.apex.apex import Apex
 
 @pytest.fixture
 def apex(tmp_path: Path) -> Apex:
-    """Create an Apex instance with a temp log file."""
+    """Create an Apex instance with a temp log file (dry_run=False by default)."""
     config = {"log_file": str(tmp_path / "apex_log.json")}
+    return Apex(config)
+
+
+@pytest.fixture
+def dry_run_apex(tmp_path: Path) -> Apex:
+    """Create an Apex instance with dry_run explicitly enabled."""
+    config = {"log_file": str(tmp_path / "apex_log.json"), "dry_run": True}
     return Apex(config)
 
 
@@ -135,22 +142,89 @@ class TestApexQuery:
         assert "No API keys" in result.error
 
     @pytest.mark.asyncio
-    async def test_query_dry_run_with_key(self, online_apex: Apex):
-        online_apex._anthropic_key = "sk-test"
-        result = await online_apex.execute("apex_query", {"task": "What is Python?"})
-        assert result.success is True
-        assert result.content["status"] == "logged"
-
-    @pytest.mark.asyncio
     async def test_query_empty_task_fails(self, online_apex: Apex):
         result = await online_apex.execute("apex_query", {"task": ""})
         assert result.success is False
 
     @pytest.mark.asyncio
     async def test_query_logged(self, online_apex: Apex):
+        """With key + dry_run=False, a live call is attempted (mocked)."""
         online_apex._anthropic_key = "sk-test"
-        await online_apex.execute("apex_query", {"task": "Test"})
+        with patch.object(online_apex, "_call_claude", return_value=("Test response", 10, 20, "claude-sonnet-4-20250514")):
+            await online_apex.execute("apex_query", {"task": "Test"})
         assert len(online_apex._call_log) == 1
+        assert online_apex._call_log[0]["status"] == "completed"
+
+
+# --- Dry-run gating tests ---
+
+class TestDryRunGating:
+    @pytest.mark.asyncio
+    async def test_dry_run_true_skips_api_call(self, dry_run_apex: Apex):
+        """dry_run=True with a valid key should NOT call the API."""
+        await dry_run_apex.initialize()
+        dry_run_apex._anthropic_key = "sk-test"
+        with patch.object(dry_run_apex, "_call_claude") as mock_call:
+            result = await dry_run_apex.execute("apex_query", {"task": "Should be skipped"})
+            mock_call.assert_not_called()
+        assert result.success is True
+        assert result.content["status"] == "dry_run"
+        assert "Dry-run" in result.content["message"]
+
+    @pytest.mark.asyncio
+    async def test_dry_run_false_with_key_calls_api(self, online_apex: Apex):
+        """dry_run=False (default) with a valid key should make a real API call."""
+        online_apex._anthropic_key = "sk-test"
+        with patch.object(online_apex, "_call_claude", return_value=("Live response", 15, 25, "claude-sonnet-4-20250514")) as mock_call:
+            result = await online_apex.execute("apex_query", {"task": "What is Python?"})
+            mock_call.assert_called_once()
+        assert result.success is True
+        assert result.content["status"] == "completed"
+        assert result.content["response"] == "Live response"
+        assert result.content["tokens_in"] == 15
+        assert result.content["tokens_out"] == 25
+
+    @pytest.mark.asyncio
+    async def test_missing_keys_fallback_to_dry_run(self, online_apex: Apex):
+        """No API keys should return failure with dry-run warning, no API call."""
+        online_apex._anthropic_key = None
+        online_apex._openai_key = None
+        result = await online_apex.execute("apex_query", {"task": "No keys"})
+        assert result.success is False
+        assert "No API keys" in result.error
+        assert len(online_apex._call_log) == 1
+        assert online_apex._call_log[0]["status"] == "dry_run"
+
+    @pytest.mark.asyncio
+    async def test_live_call_openai(self, online_apex: Apex):
+        """OpenAI preference with key should call OpenAI API."""
+        online_apex._openai_key = "sk-oai-test"
+        online_apex._anthropic_key = None
+        with patch.object(online_apex, "_call_openai", return_value=("OpenAI response", 12, 18, "gpt-4o")) as mock_call:
+            result = await online_apex.execute("apex_query", {
+                "task": "Test OpenAI",
+                "model_preference": "openai",
+            })
+            mock_call.assert_called_once()
+        assert result.success is True
+        assert result.content["response"] == "OpenAI response"
+        assert result.content["api"] == "openai"
+
+    @pytest.mark.asyncio
+    async def test_live_call_tracks_cost(self, online_apex: Apex):
+        """Live API call should accumulate cost."""
+        online_apex._anthropic_key = "sk-test"
+        with patch.object(online_apex, "_call_claude", return_value=("Response", 1000, 1000, "claude-sonnet-4-20250514")):
+            await online_apex.execute("apex_query", {"task": "Cost test"})
+        assert online_apex._total_cost > 0
+
+    @pytest.mark.asyncio
+    async def test_api_error_returns_failure(self, online_apex: Apex):
+        """API errors should propagate as failed ToolResult."""
+        online_apex._anthropic_key = "sk-test"
+        with patch.object(online_apex, "_call_claude", side_effect=RuntimeError("API down")):
+            result = await online_apex.execute("apex_query", {"task": "Will fail"})
+        assert result.success is False
 
 
 # --- Teaching tests ---
