@@ -85,6 +85,67 @@ SOURCE_MORPHEUS = "morpheus_speculative"   # Creative/speculative output
 SOURCE_SYSTEM = "system"                   # Shadow's own operational data
 
 
+# =============================================================================
+# FACETED TAG DIMENSIONS (32C Item 7)
+# =============================================================================
+# Multi-dimensional tags for precision retrieval. Each dimension constrains
+# search along a different axis. Values are validated on write; unknown values
+# are rejected to keep the taxonomy clean.
+
+VALID_DOMAINS = {
+    "code", "bible", "business", "security", "hardware", "ai_research", "general"
+}
+
+VALID_CONTENT_TYPES = {
+    "fact", "procedure", "decision", "error_pattern", "lesson", "opinion", "reference"
+}
+
+VALID_SOURCE_MODULES = {
+    "apex", "omen", "reaper", "morpheus", "cipher", "manual", "ingestor",
+    "grimoire", "wraith", "cerberus", "sentinel", "harbinger", "nova",
+    "void", "shadow"
+}
+
+VALID_PHASES = {
+    "design", "implementation", "testing", "deployment", "maintenance"
+}
+
+VALID_TEMPORAL_RELEVANCE = {
+    "permanent", "current", "historical"
+}
+
+# Keys that are stored as ChromaDB metadata (flat string fields)
+FACETED_TAG_KEYS = {
+    "domain", "content_type", "source_module", "entities", "phase",
+    "temporal_relevance"
+}
+
+# Validation mapping: tag key → set of allowed values (None = free-form)
+_FACETED_VALIDATORS = {
+    "domain": VALID_DOMAINS,
+    "content_type": VALID_CONTENT_TYPES,
+    "source_module": VALID_SOURCE_MODULES,
+    "phase": VALID_PHASES,
+    "temporal_relevance": VALID_TEMPORAL_RELEVANCE,
+    "entities": None,  # Free-form list
+}
+
+# Regex patterns for auto-tagging heuristics
+import re as _re
+
+_CODE_PATTERN = _re.compile(
+    r'\b(def |class |import |from \w+ import|\.py\b|function |const |var |let )',
+    _re.IGNORECASE
+)
+_BIBLE_PATTERN = _re.compile(
+    r'\b(\d?\s?[A-Z][a-z]+)\s+\d{1,3}:\d{1,3}'
+)
+_BUSINESS_PATTERN = _re.compile(
+    r'\b(price|quote|mow|trim|invoice|estimate|customer|bid|landscap)',
+    _re.IGNORECASE
+)
+
+
 class Grimoire:
     """
     Shadow's memory system — stores, searches, corrects, and manages all knowledge.
@@ -384,6 +445,95 @@ class Grimoire:
         self.conn.commit()
 
     # =========================================================================
+    # FACETED TAGGING — Multi-dimensional tag support (32C Item 7)
+    # =========================================================================
+
+    @staticmethod
+    def _validate_faceted_tags(faceted_tags):
+        """
+        Validate a faceted_tags dict against the allowed dimensions and values.
+
+        Args:
+            faceted_tags: Dict with keys from FACETED_TAG_KEYS.
+
+        Returns:
+            Cleaned dict (unknown keys stripped, entities normalised to list).
+
+        Raises:
+            ValueError: If a known dimension has an invalid value.
+        """
+        if not faceted_tags:
+            return {}
+
+        cleaned = {}
+        for key, value in faceted_tags.items():
+            if key not in FACETED_TAG_KEYS:
+                continue  # Silently drop unknown dimensions
+
+            validator = _FACETED_VALIDATORS.get(key)
+            if key == "entities":
+                # Accept list of strings — normalise to lowercase list
+                if isinstance(value, str):
+                    value = [v.strip() for v in value.split(",") if v.strip()]
+                cleaned["entities"] = [v.lower() for v in value]
+            elif validator is not None:
+                if value not in validator:
+                    raise ValueError(
+                        f"[Grimoire] Invalid faceted tag: {key}='{value}'. "
+                        f"Allowed: {sorted(validator)}"
+                    )
+                cleaned[key] = value
+            else:
+                cleaned[key] = value
+
+        return cleaned
+
+    @staticmethod
+    def _auto_tag(content):
+        """
+        Apply heuristic rules to infer faceted tags from content.
+
+        Only sets domain and content_type. Caller-supplied tags always override.
+
+        Args:
+            content: The memory text to analyse.
+
+        Returns:
+            Dict with inferred tag dimensions (may be empty).
+        """
+        tags = {}
+
+        # Domain detection
+        if _CODE_PATTERN.search(content):
+            tags["domain"] = "code"
+        elif _BIBLE_PATTERN.search(content):
+            tags["domain"] = "bible"
+        elif _BUSINESS_PATTERN.search(content):
+            tags["domain"] = "business"
+
+        # Default content_type
+        tags["content_type"] = "fact"
+
+        return tags
+
+    @staticmethod
+    def _faceted_tags_to_chromadb(faceted_tags):
+        """
+        Flatten faceted_tags dict into ChromaDB-compatible metadata fields.
+
+        ChromaDB metadata values must be str, int, float, or bool.
+        - entities list → comma-separated string stored as "tag_entities"
+        - Other dimensions → prefixed with "tag_" to avoid collisions
+        """
+        meta = {}
+        for key, value in faceted_tags.items():
+            if key == "entities":
+                meta["tag_entities"] = ",".join(value) if value else ""
+            else:
+                meta[f"tag_{key}"] = value
+        return meta
+
+    # =========================================================================
     # EMBEDDING — Converting text to vectors
     # =========================================================================
 
@@ -475,7 +625,8 @@ class Grimoire:
                  tags=None, metadata=None, parent_id=None,
                  model_used=None, tools_called=None,
                  safety_class=None, user_feedback=None,
-                 check_duplicates=True, content_blocks=None):
+                 check_duplicates=True, content_blocks=None,
+                 faceted_tags=None):
         """
         Store a new memory in both SQLite and ChromaDB.
         
@@ -509,7 +660,11 @@ class Grimoire:
                             Valid types: text, code, tool_use, tool_result, error, plan,
                             approval, correction. Stored as JSON in SQLite.
                             ChromaDB embeddings still use the full text content field.
-            
+            faceted_tags: Optional dict of multi-dimensional tags for precision retrieval.
+                          Keys: domain, content_type, source_module, entities, phase,
+                          temporal_relevance. See FACETED_TAG_KEYS and VALID_* constants.
+                          If None, auto-tagging heuristics are applied.
+
         Returns:
             The UUID string of the new memory, or the ID of an existing duplicate
             
@@ -530,6 +685,7 @@ class Grimoire:
                 model_used=model_used, tools_called=tools_called,
                 safety_class=safety_class, user_feedback=user_feedback,
                 check_duplicates=check_duplicates, content_blocks=content_blocks,
+                faceted_tags=faceted_tags,
             )
         except Exception as e:
             logger.error("Grimoire storage FAILED: %s: %s", type(e).__name__, e)
@@ -539,7 +695,7 @@ class Grimoire:
     def _remember_impl(self, content, source, source_module, category,
                        trust_level, confidence, tags, metadata, parent_id,
                        model_used, tools_called, safety_class, user_feedback,
-                       check_duplicates, content_blocks):
+                       check_duplicates, content_blocks, faceted_tags):
         """Internal implementation of remember() — separated for error logging."""
         # Generate a unique ID for this memory
         # UUID4 = random, virtually impossible to collide
@@ -599,6 +755,17 @@ class Grimoire:
                           f"(confidence now {new_confidence})")
                     return existing_id
 
+        # ── Step 1.8: Faceted tags — validate or auto-tag ──
+        if faceted_tags is not None:
+            resolved_tags = self._validate_faceted_tags(faceted_tags)
+        else:
+            resolved_tags = self._auto_tag(content)
+
+        # Store faceted tags in metadata_json so SQLite has the full picture
+        merged_metadata = dict(metadata or {})
+        if resolved_tags:
+            merged_metadata["faceted_tags"] = resolved_tags
+
         # ── Step 2: Store in SQLite ──
         cursor = self.conn.cursor()
         cursor.execute("""
@@ -624,7 +791,7 @@ class Grimoire:
             json.dumps(tools_called) if tools_called else None,  # tools_called
             safety_class,                 # safety_class (from design doc)
             user_feedback,                # user_feedback (from design doc)
-            json.dumps(metadata or {}),   # metadata_json
+            json.dumps(merged_metadata),   # metadata_json
             json.dumps(content_blocks) if content_blocks is not None else None  # content_blocks
         ))
 
@@ -643,17 +810,22 @@ class Grimoire:
         # ── Step 4: Store in ChromaDB ──
         # ChromaDB gets the embedding vector plus lightweight metadata
         # (ChromaDB metadata must be simple types: str, int, float, bool)
+        chroma_meta = {
+            "category": category,
+            "source": source,
+            "source_module": source_module,
+            "trust_level": trust_level,
+            "created_at": now
+        }
+        # Merge flattened faceted tags into ChromaDB metadata
+        if resolved_tags:
+            chroma_meta.update(self._faceted_tags_to_chromadb(resolved_tags))
+
         self.collection.add(
             ids=[memory_id],
             embeddings=[embedding],
             documents=[content],
-            metadatas=[{
-                "category": category,
-                "source": source,
-                "source_module": source_module,
-                "trust_level": trust_level,
-                "created_at": now
-            }]
+            metadatas=[chroma_meta]
         )
 
         print(f"[Grimoire] Remembered: {content[:80]}...")
@@ -676,7 +848,8 @@ class Grimoire:
     # READ PIPELINE — Retrieving memories
     # =========================================================================
 
-    def recall(self, query, n_results=5, min_trust=0.0, category=None):
+    def recall(self, query, n_results=5, min_trust=0.0, category=None,
+               tag_filters=None):
         """
         Search memories by meaning (semantic search).
         
@@ -699,7 +872,12 @@ class Grimoire:
             n_results: Maximum number of memories to return (default 5)
             min_trust: Only return memories with trust >= this value
             category: Only search within this category (None = search all)
-            
+            tag_filters: Optional dict of faceted tag filters for precision retrieval.
+                         Keys: domain, content_type, source_module, phase,
+                         temporal_relevance. Uses AND logic — all specified
+                         dimensions must match. Example:
+                         {"domain": "code", "content_type": "error_pattern"}
+
         Returns:
             List of dicts, each containing:
                 - id: Memory UUID
@@ -717,21 +895,38 @@ class Grimoire:
 
         # ── Step 2: Build ChromaDB filter ──
         # ChromaDB supports filtering on metadata fields
-        # We can filter by trust level, category, or both
-        where_filter = None
-        
-        if min_trust > 0 and category:
-            # Both filters: trust AND category
-            where_filter = {
-                "$and": [
-                    {"trust_level": {"$gte": min_trust}},
-                    {"category": category}
-                ]
-            }
-        elif min_trust > 0:
-            where_filter = {"trust_level": {"$gte": min_trust}}
-        elif category:
-            where_filter = {"category": category}
+        # We can combine trust, category, and faceted tag filters with AND logic
+        conditions = []
+
+        if min_trust > 0:
+            conditions.append({"trust_level": {"$gte": min_trust}})
+        if category:
+            conditions.append({"category": category})
+
+        # Faceted tag filters — each dimension becomes a ChromaDB where clause
+        if tag_filters:
+            for key, value in tag_filters.items():
+                if key in FACETED_TAG_KEYS and key != "entities":
+                    conditions.append({f"tag_{key}": value})
+                elif key == "entities":
+                    # entities is comma-separated; use $contains for substring match
+                    if isinstance(value, list):
+                        for entity in value:
+                            conditions.append(
+                                {"tag_entities": {"$contains": entity.lower()}}
+                            )
+                    else:
+                        conditions.append(
+                            {"tag_entities": {"$contains": value.lower()}}
+                        )
+
+        # Collapse conditions into a single where filter
+        if len(conditions) == 0:
+            where_filter = None
+        elif len(conditions) == 1:
+            where_filter = conditions[0]
+        else:
+            where_filter = {"$and": conditions}
 
         # ── Step 3: Search ChromaDB ──
         # query_embeddings takes a list because you COULD search for multiple
@@ -787,6 +982,7 @@ class Grimoire:
                     else:
                         blocks = [{"type": "text", "content": row["content"]}]
 
+                    parsed_meta = json.loads(row["metadata_json"] or "{}")
                     memories.append({
                         "id": row["id"],
                         "content": row["content"],
@@ -799,7 +995,8 @@ class Grimoire:
                         "access_count": row["access_count"] + 1,
                         "tags": memory_tags,
                         "relevance": round(relevance, 4),
-                        "metadata": json.loads(row["metadata_json"] or "{}"),
+                        "metadata": parsed_meta,
+                        "faceted_tags": parsed_meta.get("faceted_tags", {}),
                         "content_blocks": blocks
                     })
 
