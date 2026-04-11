@@ -38,14 +38,16 @@ def env_file(tmp_path):
 
 
 @pytest.fixture
-def override(env_file):
+def override(env_file, monkeypatch):
     """CreatorOverride with a known token."""
+    monkeypatch.delenv("CREATOR_AUTH_TOKEN", raising=False)
     return CreatorOverride(env_path=env_file)
 
 
 @pytest.fixture
-def override_no_token(tmp_path):
+def override_no_token(tmp_path, monkeypatch):
     """CreatorOverride with no token configured."""
+    monkeypatch.delenv("CREATOR_AUTH_TOKEN", raising=False)
     env = tmp_path / ".env"
     env.write_text("OTHER_VAR=hello\n", encoding="utf-8")
     return CreatorOverride(env_path=str(env))

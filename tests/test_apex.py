@@ -33,7 +33,8 @@ def dry_run_apex(tmp_path: Path) -> Apex:
 @pytest.fixture
 async def online_apex(apex: Apex) -> Apex:
     """Create and initialize Apex (no API keys)."""
-    await apex.initialize()
+    with patch("dotenv.load_dotenv"):
+        await apex.initialize()
     return apex
 
 
@@ -42,12 +43,14 @@ async def online_apex(apex: Apex) -> Apex:
 class TestApexLifecycle:
     @pytest.mark.asyncio
     async def test_initialize_sets_online(self, apex: Apex):
-        await apex.initialize()
+        with patch("dotenv.load_dotenv"):
+            await apex.initialize()
         assert apex.status == ModuleStatus.ONLINE
 
     @pytest.mark.asyncio
     async def test_shutdown_sets_offline(self, apex: Apex):
-        await apex.initialize()
+        with patch("dotenv.load_dotenv"):
+            await apex.initialize()
         await apex.shutdown()
         assert apex.status == ModuleStatus.OFFLINE
 
@@ -85,13 +88,15 @@ class TestAPIKeys:
 
     @pytest.mark.asyncio
     async def test_anthropic_key_loaded(self, apex: Apex):
-        with patch.dict(os.environ, {"ANTHROPIC_API_KEY": "sk-test-123"}):
+        with patch.dict(os.environ, {"ANTHROPIC_API_KEY": "sk-test-123"}), \
+             patch("dotenv.load_dotenv"):
             await apex.initialize()
             assert apex._anthropic_key == "sk-test-123"
 
     @pytest.mark.asyncio
     async def test_openai_key_loaded(self, apex: Apex):
-        with patch.dict(os.environ, {"OPENAI_API_KEY": "sk-openai-test"}):
+        with patch.dict(os.environ, {"OPENAI_API_KEY": "sk-openai-test"}), \
+             patch("dotenv.load_dotenv"):
             await apex.initialize()
             assert apex._openai_key == "sk-openai-test"
 
@@ -162,7 +167,8 @@ class TestDryRunGating:
     @pytest.mark.asyncio
     async def test_dry_run_true_skips_api_call(self, dry_run_apex: Apex):
         """dry_run=True with a valid key should NOT call the API."""
-        await dry_run_apex.initialize()
+        with patch("dotenv.load_dotenv"):
+            await dry_run_apex.initialize()
         dry_run_apex._anthropic_key = "sk-test"
         with patch.object(dry_run_apex, "_call_claude") as mock_call:
             result = await dry_run_apex.execute("apex_query", {"task": "Should be skipped"})
@@ -283,12 +289,14 @@ class TestApexPersistence:
         config = {"log_file": str(tmp_path / "apex_log.json")}
 
         a1 = Apex(config)
-        await a1.initialize()
+        with patch("dotenv.load_dotenv"):
+            await a1.initialize()
         await a1.execute("apex_log", {"entry": {"cost": 0.05, "api": "claude"}})
         await a1.shutdown()
 
         a2 = Apex(config)
-        await a2.initialize()
+        with patch("dotenv.load_dotenv"):
+            await a2.initialize()
         assert a2._total_cost == pytest.approx(0.05)
         await a2.shutdown()
 

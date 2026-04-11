@@ -45,7 +45,8 @@ def apex(tmp_path: Path) -> Apex:
 @pytest.fixture
 async def online_apex(apex: Apex) -> Apex:
     """Create and initialize Apex."""
-    await apex.initialize()
+    with patch("dotenv.load_dotenv"):
+        await apex.initialize()
     return apex
 
 
