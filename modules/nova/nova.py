@@ -12,10 +12,13 @@ rule-driven. Density over length: every word earns its place.
 
 from __future__ import annotations
 
+import json
 import logging
 import re
 import time
 from typing import Any
+
+import httpx
 
 from modules.base import BaseModule, ModuleStatus, ToolResult
 
@@ -139,6 +142,11 @@ class Nova(BaseModule):
             description="Content creation — documents, templates, formatting",
         )
         self._config = config or {}
+        self._ollama_base_url = self._config.get(
+            "ollama_base_url", "http://localhost:11434",
+        )
+        self._content_model = self._config.get("content_model", "gemma4:26b")
+        self._ollama_client = httpx.Client(timeout=300.0)
 
     async def initialize(self) -> None:
         """Start Nova."""
@@ -183,6 +191,7 @@ class Nova(BaseModule):
 
     async def shutdown(self) -> None:
         """Shut down Nova."""
+        self._ollama_client.close()
         self.status = ModuleStatus.OFFLINE
         logger.info("Nova offline.")
 
@@ -272,6 +281,125 @@ class Nova(BaseModule):
         slug = re.sub(r"[^a-z0-9\-]", "", slug)
         return slug
 
+    @staticmethod
+    def _is_raw_content_request(params: dict[str, Any]) -> bool:
+        """Check if params contain only a raw 'content' string from the orchestrator."""
+        return (
+            "content" in params
+            and isinstance(params["content"], str)
+            and "title" not in params
+            and "sections" not in params
+        )
+
+    def _generate_via_ollama(
+        self, system_prompt: str, user_content: str,
+    ) -> dict[str, Any]:
+        """Call Ollama to generate structured content from a raw request.
+
+        Args:
+            system_prompt: Instructions telling the LLM what JSON structure to produce.
+            user_content: The user's raw content request.
+
+        Returns:
+            Parsed JSON dict from the LLM response.
+
+        Raises:
+            ValueError: If the LLM response cannot be parsed as JSON.
+            httpx.HTTPStatusError: If the Ollama API returns an error.
+        """
+        payload = {
+            "model": self._content_model,
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_content},
+            ],
+            "stream": False,
+        }
+        resp = self._ollama_client.post(
+            f"{self._ollama_base_url}/api/chat",
+            json=payload,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        text = data.get("message", {}).get("content", "")
+        if not text.strip():
+            raise ValueError("Ollama returned empty response")
+
+        text = text.strip()
+        # Strip markdown code fences if present
+        if text.startswith("```"):
+            lines = text.split("\n")
+            lines = lines[1:]  # remove opening fence
+            if lines and lines[-1].strip() == "```":
+                lines = lines[:-1]
+            text = "\n".join(lines)
+
+        return json.loads(text)
+
+    # ------------------------------------------------------------------
+    # Raw-content generation (orchestrator sends {"content": user_input})
+    # ------------------------------------------------------------------
+
+    def _generate_document_from_content(self, content: str) -> ToolResult:
+        """Generate a structured document from a raw content request via Ollama."""
+        system_prompt = (
+            "You are a document generator. Given the user's request, produce a JSON object with:\n"
+            '- "title": a concise document title (string)\n'
+            '- "sections": an array of objects, each with "heading" (string) and "body" (string)\n'
+            "Respond ONLY with valid JSON. No explanation, no markdown outside the JSON."
+        )
+        try:
+            structured = self._generate_via_ollama(system_prompt, content)
+            return self._format_document(structured)
+        except Exception as e:
+            logger.error("Nova document generation failed: %s", e)
+            return ToolResult(
+                success=False, content=None, tool_name="format_document",
+                module=self.name, error=f"Content generation failed: {e}",
+            )
+
+    def _generate_email_from_content(self, content: str) -> ToolResult:
+        """Generate a formatted email from a raw content request via Ollama."""
+        system_prompt = (
+            "You are an email composer. Given the user's request, produce a JSON object with:\n"
+            '- "to": recipient name or email (string)\n'
+            '- "subject": email subject line (string)\n'
+            '- "body": email body text (string)\n'
+            '- "tone": one of "professional", "casual", or "formal" (string)\n'
+            "Infer appropriate values from context. Respond ONLY with valid JSON."
+        )
+        try:
+            structured = self._generate_via_ollama(system_prompt, content)
+            return self._format_email(structured)
+        except Exception as e:
+            logger.error("Nova email generation failed: %s", e)
+            return ToolResult(
+                success=False, content=None, tool_name="format_email",
+                module=self.name, error=f"Content generation failed: {e}",
+            )
+
+    def _generate_report_from_content(self, content: str) -> ToolResult:
+        """Generate a formatted report from a raw content request via Ollama."""
+        system_prompt = (
+            "You are a report writer. Given the user's request, produce a JSON object with:\n"
+            '- "title": report title (string)\n'
+            '- "date": today\'s date in YYYY-MM-DD format (string)\n'
+            '- "executive_summary": a brief executive summary (string)\n'
+            '- "findings": array of objects with "finding", "detail", and "source" keys\n'
+            '- "recommendations": array of recommendation strings\n'
+            '- "conclusion": concluding paragraph (string)\n'
+            "Respond ONLY with valid JSON."
+        )
+        try:
+            structured = self._generate_via_ollama(system_prompt, content)
+            return self._format_report(structured)
+        except Exception as e:
+            logger.error("Nova report generation failed: %s", e)
+            return ToolResult(
+                success=False, content=None, tool_name="format_report",
+                module=self.name, error=f"Content generation failed: {e}",
+            )
+
     # ------------------------------------------------------------------
     # Direct tool handlers
     # ------------------------------------------------------------------
@@ -282,7 +410,11 @@ class Nova(BaseModule):
         Args:
             params: title (str), sections (list of {heading, body}),
                     optional metadata (dict).
+                    OR: content (str) — raw request forwarded by orchestrator.
         """
+        if self._is_raw_content_request(params):
+            return self._generate_document_from_content(params["content"])
+
         title = params.get("title", "")
         sections = params.get("sections", [])
         metadata = params.get("metadata")
@@ -344,7 +476,11 @@ class Nova(BaseModule):
             params: title, date, executive_summary, findings (list of
                     {finding, detail, source}), recommendations (list of str),
                     conclusion.
+                    OR: content (str) — raw request forwarded by orchestrator.
         """
+        if self._is_raw_content_request(params):
+            return self._generate_report_from_content(params["content"])
+
         required = ["title", "date", "executive_summary",
                      "findings", "recommendations", "conclusion"]
         for field in required:
@@ -416,7 +552,11 @@ class Nova(BaseModule):
 
         Args:
             params: to, subject, body, tone (professional|casual|formal).
+                    OR: content (str) — raw request forwarded by orchestrator.
         """
+        if self._is_raw_content_request(params):
+            return self._generate_email_from_content(params["content"])
+
         required = ["to", "subject", "body", "tone"]
         for field in required:
             value = params.get(field)

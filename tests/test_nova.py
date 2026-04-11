@@ -1,8 +1,11 @@
 """
-Tests for Nova — Content Creation (Phase 1)
-=============================================
-6 tools, template system, document formatting.
+Tests for Nova — Content Creation (Phase 1 + Ollama generation)
+================================================================
+6 tools, template system, document formatting, raw content generation.
 """
+
+import json
+from unittest.mock import MagicMock, patch
 
 import pytest
 from pathlib import Path
@@ -497,3 +500,143 @@ class TestTemplateApply:
         assert "Ship by Friday" in md
         assert "## Action Items" in md
         assert "| Alice | Update board | 2026-04-07 |" in md
+
+
+# ---------------------------------------------------------------
+# Raw content generation (orchestrator sends {"content": ...})
+# ---------------------------------------------------------------
+
+class TestRawContentGeneration:
+    """Tests for the Ollama-backed raw content generation path."""
+
+    def test_is_raw_content_request_true(self):
+        nova = Nova({})
+        assert nova._is_raw_content_request({"content": "write an article"}) is True
+
+    def test_is_raw_content_request_false_with_title(self):
+        nova = Nova({})
+        assert nova._is_raw_content_request({"title": "X", "content": "Y"}) is False
+
+    def test_is_raw_content_request_false_with_sections(self):
+        nova = Nova({})
+        assert nova._is_raw_content_request({"sections": [], "content": "Y"}) is False
+
+    def test_is_raw_content_request_false_no_content(self):
+        nova = Nova({})
+        assert nova._is_raw_content_request({"title": "X"}) is False
+
+    @pytest.mark.asyncio
+    async def test_format_document_raw_content(self, online_nova: Nova):
+        """format_document with raw content calls Ollama and formats the result."""
+        ollama_response = {
+            "title": "Guide to Gardening",
+            "sections": [
+                {"heading": "Introduction", "body": "Gardening is rewarding."},
+                {"heading": "Tools", "body": "You need a shovel and rake."},
+            ],
+        }
+        with patch.object(
+            online_nova, "_generate_via_ollama", return_value=ollama_response,
+        ) as mock_ollama:
+            r = await online_nova.execute(
+                "format_document", {"content": "write a guide to gardening"},
+            )
+
+        assert r.success is True
+        assert "# Guide to Gardening" in r.content["markdown"]
+        assert "## Introduction" in r.content["markdown"]
+        assert r.content["section_count"] == 2
+        mock_ollama.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_format_email_raw_content(self, online_nova: Nova):
+        """format_email with raw content calls Ollama and formats the result."""
+        ollama_response = {
+            "to": "John",
+            "subject": "Project Update",
+            "body": "The project is on track.",
+            "tone": "professional",
+        }
+        with patch.object(
+            online_nova, "_generate_via_ollama", return_value=ollama_response,
+        ) as mock_ollama:
+            r = await online_nova.execute(
+                "format_email", {"content": "write a project update email to John"},
+            )
+
+        assert r.success is True
+        assert "Dear John," in r.content["formatted"]
+        assert "Best regards" in r.content["formatted"]
+        assert r.content["tone"] == "professional"
+        mock_ollama.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_format_report_raw_content(self, online_nova: Nova):
+        """format_report with raw content calls Ollama and formats the result."""
+        ollama_response = {
+            "title": "Q1 Analysis",
+            "date": "2026-04-01",
+            "executive_summary": "Revenue increased by 12%.",
+            "findings": [
+                {"finding": "Growth", "detail": "Steady increase", "source": "Internal"},
+            ],
+            "recommendations": ["Continue current strategy"],
+            "conclusion": "Strong quarter overall.",
+        }
+        with patch.object(
+            online_nova, "_generate_via_ollama", return_value=ollama_response,
+        ) as mock_ollama:
+            r = await online_nova.execute(
+                "format_report", {"content": "write a Q1 analysis report"},
+            )
+
+        assert r.success is True
+        md = r.content["markdown"]
+        assert "# Q1 Analysis" in md
+        assert "## Executive Summary" in md
+        assert r.content["finding_count"] == 1
+        mock_ollama.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_ollama_failure_returns_error(self, online_nova: Nova):
+        """Ollama exception produces success=False with error message."""
+        with patch.object(
+            online_nova, "_generate_via_ollama",
+            side_effect=ConnectionError("Ollama unreachable"),
+        ):
+            r = await online_nova.execute(
+                "format_document", {"content": "write something"},
+            )
+
+        assert r.success is False
+        assert "Content generation failed" in r.error
+        assert "Ollama unreachable" in r.error
+
+    @pytest.mark.asyncio
+    async def test_ollama_invalid_json_returns_error(self, online_nova: Nova):
+        """Non-JSON Ollama response produces success=False."""
+        with patch.object(
+            online_nova, "_generate_via_ollama",
+            side_effect=ValueError("Expecting value: line 1"),
+        ):
+            r = await online_nova.execute(
+                "format_document", {"content": "write something"},
+            )
+
+        assert r.success is False
+        assert "Content generation failed" in r.error
+
+    @pytest.mark.asyncio
+    async def test_structured_params_bypass_ollama(self, online_nova: Nova):
+        """Structured params still work without calling Ollama (regression check)."""
+        with patch.object(
+            online_nova, "_generate_via_ollama",
+            side_effect=AssertionError("Should not be called"),
+        ):
+            r = await online_nova.execute("format_document", {
+                "title": "Direct Doc",
+                "sections": [{"heading": "Intro", "body": "Hello."}],
+            })
+
+        assert r.success is True
+        assert "# Direct Doc" in r.content["markdown"]
