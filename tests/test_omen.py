@@ -412,6 +412,94 @@ class TestCodeGenerate:
         assert "unreachable" in r.error.lower()
 
     @pytest.mark.asyncio
+    async def test_null_tool_calls_falls_back_to_extraction(self, online_omen: Omen, monkeypatch):
+        """When Ollama returns tool_calls: null (Gemma 4 bug), fallback extracts code."""
+        import urllib.request
+
+        def mock_urlopen(req, timeout=None):
+            class FakeResp:
+                def read(self):
+                    return json.dumps({
+                        "message": {
+                            "content": "```python\ndef greet(name):\n    return f'Hello {name}'\n```",
+                            "tool_calls": None,
+                        }
+                    }).encode()
+                def __enter__(self): return self
+                def __exit__(self, *a): pass
+            return FakeResp()
+
+        import json
+        monkeypatch.setattr(urllib.request, "urlopen", mock_urlopen)
+        r = await online_omen.execute("code_generate", {
+            "prompt": "write a greet function",
+        })
+        assert r.success is True
+        assert "def greet(name):" in r.content["code"]
+        assert r.content["method"] == "fallback_extraction"
+
+    @pytest.mark.asyncio
+    async def test_malformed_tool_calls_falls_back(self, online_omen: Omen, monkeypatch):
+        """When Ollama returns malformed tool_calls, fallback extracts code."""
+        import urllib.request
+
+        def mock_urlopen(req, timeout=None):
+            class FakeResp:
+                def read(self):
+                    return json.dumps({
+                        "message": {
+                            "content": "def square(x):\n    return x ** 2",
+                            "tool_calls": [{"not_a_function": True}],
+                        }
+                    }).encode()
+                def __enter__(self): return self
+                def __exit__(self, *a): pass
+            return FakeResp()
+
+        import json
+        monkeypatch.setattr(urllib.request, "urlopen", mock_urlopen)
+        r = await online_omen.execute("code_generate", {
+            "prompt": "write a square function",
+        })
+        assert r.success is True
+        assert "def square(x):" in r.content["code"]
+
+    @pytest.mark.asyncio
+    async def test_tool_call_exception_falls_back_to_plain(self, online_omen: Omen, monkeypatch):
+        """When tool call raises unexpected exception (TypeError etc), plain prompt is used."""
+        import urllib.request
+
+        call_count = {"n": 0}
+
+        def mock_urlopen(req, timeout=None):
+            call_count["n"] += 1
+            body = json.loads(req.data.decode())
+            if "tools" in body:
+                # First call with tools — raise unexpected error
+                raise TypeError("unexpected None iteration")
+
+            class FakeResp:
+                def read(self):
+                    return json.dumps({
+                        "message": {
+                            "content": "```python\ndef rescued():\n    return True\n```",
+                        }
+                    }).encode()
+                def __enter__(self): return self
+                def __exit__(self, *a): pass
+            return FakeResp()
+
+        import json
+        monkeypatch.setattr(urllib.request, "urlopen", mock_urlopen)
+        r = await online_omen.execute("code_generate", {
+            "prompt": "write a rescued function",
+        })
+        assert r.success is True
+        assert "def rescued():" in r.content["code"]
+        assert r.content["method"] == "plain_prompt"
+        assert call_count["n"] == 2  # tool call + plain prompt = 2 total calls
+
+    @pytest.mark.asyncio
     async def test_code_generate_in_tools(self, omen: Omen):
         tools = omen.get_tools()
         names = [t["name"] for t in tools]

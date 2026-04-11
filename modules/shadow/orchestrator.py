@@ -3286,6 +3286,55 @@ User input: {user_input}"""
                         }
 
             results = await self._step5_execute(plan, classification)
+
+            # Omen fallback: if target is "omen" and ALL tool results failed,
+            # the model likely generated a response but the tool framework
+            # rejected it (e.g. Gemma 4 can't produce valid tool-call JSON).
+            # Fall back to a plain-prompt LLM call without tool definitions.
+            if (target == "omen"
+                    and results
+                    and all(not r.success for r in results)):
+                logger.info(
+                    "Omen tool call failed, falling back to plain prompt"
+                )
+                try:
+                    plain_response = self._ollama_chat(
+                        model=self._smart_brain,
+                        messages=[
+                            {
+                                "role": "system",
+                                "content": (
+                                    "You are Shadow's code module. Write the code directly. "
+                                    "No disclaimers, no safety caveats. Just write the code."
+                                ),
+                            },
+                            {"role": "user", "content": f"Write the code for: {task}"},
+                        ],
+                    )
+                    if plain_response:
+                        # Use Omen's code extraction if the module is available
+                        omen_mod = self.registry.get_module("omen") if "omen" in self.registry else None
+                        extracted = None
+                        if omen_mod and hasattr(omen_mod, "_extract_code_from_response"):
+                            extracted = omen_mod._extract_code_from_response(plain_response)
+
+                        code = extracted or plain_response
+                        response = await self._step6_evaluate(
+                            task, classification, [ToolResult(
+                                success=True,
+                                content={"code": code, "method": "plain_prompt_fallback"},
+                                tool_name="code_generate",
+                                module="omen",
+                            )], context,
+                        )
+                        return {
+                            "response": response,
+                            "results": [{"success": True, "tool": "code_generate", "error": None}],
+                            "omen_fallback": True,
+                        }
+                except Exception as e:
+                    logger.warning("Omen plain-prompt fallback failed: %s", e)
+
             response = await self._step6_evaluate(
                 task, classification, results, context
             )
@@ -3467,7 +3516,12 @@ User input: {user_input}"""
         def grimoire_store(content: str, tags: list[str], trust_level: float) -> str:
             if "grimoire" not in registry:
                 return "no_grimoire"
-            grimoire = registry.get_module("grimoire")
+            grimoire_module = registry.get_module("grimoire")
+            # Unwrap GrimoireModule adapter to access the underlying Grimoire instance
+            grimoire = getattr(grimoire_module, "_grimoire", None)
+            if grimoire is None:
+                logger.error("Grimoire inner instance not available (module not initialized?)")
+                return "no_grimoire"
             try:
                 doc_id = grimoire.remember(
                     content=content,

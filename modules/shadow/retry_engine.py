@@ -50,6 +50,7 @@ _INFRASTRUCTURE_MARKERS = [
     "connection timed out",
     "ollama not responding",
     "ollama connection refused",
+    "ollama unreachable",
     "chromadb connection error",
     "chromadb connection refused",
     "database connection failed",

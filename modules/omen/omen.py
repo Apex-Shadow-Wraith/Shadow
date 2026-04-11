@@ -2886,7 +2886,9 @@ class Omen(BaseModule):
 
             # Check if the model returned proper tool calls
             msg = result.get("message", {})
-            tool_calls = msg.get("tool_calls", [])
+            # Gemma 4 bug: may return "tool_calls": null → .get default
+            # is skipped when key exists with None value.
+            tool_calls = msg.get("tool_calls") or []
             if tool_calls:
                 for tc in tool_calls:
                     fn = tc.get("function", {})
@@ -2912,10 +2914,10 @@ class Omen(BaseModule):
             if raw_content:
                 tool_response = raw_content
 
-        except (urllib.error.URLError, OSError, json.JSONDecodeError, KeyError) as e:
+        except Exception as e:
             logger.info(
-                "code_generate tool call attempt failed (%s), falling back to plain prompt",
-                e,
+                "Omen: tool call failed, falling back to plain prompt (%s: %s)",
+                type(e).__name__, e,
             )
 
         # --- Attempt 2: plain prompt (no tools) ---
@@ -2960,6 +2962,9 @@ class Omen(BaseModule):
         # --- Extract code from raw text ---
         code = self._extract_code_from_response(tool_response)
         if code:
+            logger.info(
+                "Omen: extracted code via fallback (method=%s)", method_used,
+            )
             return ToolResult(
                 success=True,
                 content={
