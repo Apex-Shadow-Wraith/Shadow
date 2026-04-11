@@ -35,3 +35,7 @@ data/vectors/
 data/shadow_state.json
 logs/
 data/research/
+# Runtime data files
+brave_usage.json
+cerberus_heartbeat.json
+wraith_reminders.json

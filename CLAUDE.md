@@ -131,6 +131,9 @@ python -m pytest tests/test_decision_loop.py -v
 - Keep all model names in config files, never hardcoded
 - Test before committing
 
+## Fix Quality Rule
+No bandaid fixes, no temporary workarounds, no TODO-later patches. Every fix must be permanent and complete. If the root cause requires a larger refactor, do the refactor. Do not paper over the problem. If a fix would require changes beyond the scope of the current prompt, flag it and stop — do not commit a partial fix that masks the real issue.
+
 ## Critical Policies
 - **NEVER** access financial accounts — permanent rule
 - **NEVER** take external-facing actions without explicit approval
