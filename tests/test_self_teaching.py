@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import os
+import tempfile
 import time
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -328,3 +331,146 @@ class TestGrimoireModuleUnwrap:
 
         teacher = SelfTeacher(grimoire=grimoire)
         assert teacher._grimoire is grimoire
+
+
+# ── Integration tests: SelfTeacher → real Grimoire storage ─────────────
+
+class TestStoreTeachingIntegration:
+    """End-to-end tests: generate_fn produces content → store_teaching()
+    persists in a real Grimoire (SQLite + ChromaDB in tmp dir) → recall works."""
+
+    @pytest.fixture
+    def real_grimoire(self, tmp_path):
+        """Create a real Grimoire instance backed by SQLite + ChromaDB in a temp dir."""
+        from modules.grimoire.grimoire import Grimoire
+
+        db_path = str(tmp_path / "test_memory.db")
+        vector_dir = str(tmp_path / "vectors")
+        os.makedirs(vector_dir, exist_ok=True)
+
+        grimoire = Grimoire(
+            db_path=db_path,
+            vector_path=vector_dir,
+        )
+        return grimoire
+
+    @pytest.fixture
+    def teaching_payload(self):
+        """A valid teaching dict as generate_teaching() would produce."""
+        return {
+            "raw_teaching": (
+                "<specific_solution>Use Floyd's tortoise-hare algorithm.</specific_solution>"
+                "<general_principle>Two-pointer techniques solve cycle detection in O(1) space.</general_principle>"
+                "<meta_principle>Consider space-time tradeoffs before reaching for hash sets.</meta_principle>"
+            ),
+            "tiers": {
+                "specific_solution": "Use Floyd's tortoise-hare algorithm.",
+                "general_principle": "Two-pointer techniques solve cycle detection in O(1) space.",
+                "meta_principle": "Consider space-time tradeoffs before reaching for hash sets.",
+            },
+            "task_hash": "abc123deadbeef",
+            "domain_tags": ["code", "algorithms"],
+            "generated_at": time.time(),
+            "source": "self_teaching",
+        }
+
+    def test_store_teaching_succeeds(self, real_grimoire, teaching_payload):
+        """store_teaching() with a real Grimoire returns non-empty ID list."""
+        teacher = SelfTeacher(grimoire=real_grimoire)
+        ids = teacher.store_teaching(teaching_payload)
+        assert len(ids) == 3
+        for mid in ids:
+            assert mid is not None
+            assert isinstance(mid, str)
+            assert len(mid) > 0
+
+    def test_store_teaching_content_valid(self, real_grimoire, teaching_payload):
+        """Content passed to remember() is a non-empty string for each tier."""
+        teacher = SelfTeacher(grimoire=real_grimoire)
+        ids = teacher.store_teaching(teaching_payload)
+        assert len(ids) == 3  # All 3 tiers had non-empty content
+
+    def test_store_teaching_category_valid(self, real_grimoire, teaching_payload):
+        """Category stored in Grimoire is the expected 'self_teaching' string."""
+        teacher = SelfTeacher(grimoire=real_grimoire)
+        ids = teacher.store_teaching(teaching_payload)
+        # Verify via direct DB query that category is correct
+        import sqlite3
+        db_path = str(real_grimoire.db_path)
+        conn = sqlite3.connect(db_path)
+        for mid in ids:
+            row = conn.execute(
+                "SELECT category FROM memories WHERE id = ?", (mid,)
+            ).fetchone()
+            assert row is not None, f"Memory {mid} not found in DB"
+            assert row[0] == "self_teaching"
+        conn.close()
+
+    def test_store_teaching_returns_ids(self, real_grimoire, teaching_payload):
+        """store_teaching() returns a list of string memory IDs."""
+        teacher = SelfTeacher(grimoire=real_grimoire)
+        ids = teacher.store_teaching(teaching_payload)
+        assert isinstance(ids, list)
+        assert all(isinstance(i, str) for i in ids)
+        assert len(ids) > 0
+
+    def test_teaching_persists_in_db(self, real_grimoire, teaching_payload):
+        """After store_teaching(), Grimoire.recall() can find the memories."""
+        teacher = SelfTeacher(grimoire=real_grimoire)
+        ids = teacher.store_teaching(teaching_payload)
+        assert len(ids) > 0
+
+        # recall() should find at least one of the stored teachings
+        results = real_grimoire.recall("Floyd's tortoise-hare algorithm", n_results=5)
+        assert len(results) > 0
+        # At least one result should match our stored content
+        found = any(
+            "Floyd" in (r.get("content", "") if isinstance(r, dict) else str(r))
+            for r in results
+        )
+        assert found, f"Expected to find Floyd's algorithm in recall results: {results}"
+
+    def test_generate_fn_none_produces_empty_tiers(self):
+        """When generate_fn is None, all tiers are empty → 0 stored."""
+        grimoire = MagicMock()
+        grimoire.remember = MagicMock(return_value="id-1")
+        teacher = SelfTeacher(generate_fn=None, grimoire=grimoire)
+        teaching = teacher.generate_teaching(
+            task={"description": "complex task", "type": "code"},
+            solution="the solution",
+        )
+        # All tiers should be empty since generate_fn is None
+        for tier_content in teaching["tiers"].values():
+            assert tier_content == ""
+        # store_teaching should store nothing (all tiers empty)
+        ids = teacher.store_teaching(teaching)
+        assert ids == []
+        grimoire.remember.assert_not_called()
+
+    def test_full_pipeline_with_real_grimoire(self, real_grimoire):
+        """End-to-end: generate_fn → generate_teaching → store_teaching → recall."""
+        gen_fn = MagicMock(return_value=(
+            "<specific_solution>Use binary search for sorted arrays.</specific_solution>"
+            "<general_principle>Divide and conquer reduces O(n) to O(log n).</general_principle>"
+            "<meta_principle>Always check if input is sorted before choosing algorithm.</meta_principle>"
+        ))
+        teacher = SelfTeacher(
+            generate_fn=gen_fn,
+            grimoire=real_grimoire,
+            config={"difficulty_threshold": 1, "confidence_threshold": 0.1},
+        )
+        result = teacher.teach_from_success(
+            task={
+                "description": "Implement efficient search in a sorted array with edge case handling",
+                "type": "code",
+                "difficulty": 8,
+            },
+            solution="Use binary search with boundary checks",
+            confidence_score=0.95,
+            was_escalated=False,
+        )
+        assert result is not None
+        assert len(result["stored_ids"]) == 3
+        # Verify persistence
+        results = real_grimoire.recall("binary search sorted", n_results=5)
+        assert len(results) > 0

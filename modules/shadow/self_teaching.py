@@ -187,10 +187,20 @@ class SelfTeacher:
         raw_teaching = ""
         if self._generate_fn is not None:
             try:
+                logger.info("generate_teaching() calling generate_fn, "
+                            "task_type=%s, prompt_len=%d",
+                            task.get("type", "unknown"), len(prompt))
                 raw_teaching = self._generate_fn(prompt)
+                logger.info("generate_teaching() raw output length=%d, "
+                            "preview=%.100s",
+                            len(raw_teaching) if raw_teaching else 0,
+                            raw_teaching[:100] if raw_teaching else "(empty)")
             except Exception as e:
                 logger.warning("Self-teaching generation failed: %s", e)
                 raw_teaching = ""
+        else:
+            logger.error("generate_teaching() called but generate_fn is None — "
+                         "no model available to generate teachings")
 
         tiers = self._extract_tiers(raw_teaching)
 
@@ -217,6 +227,9 @@ class SelfTeacher:
             List of stored document IDs.
         """
         stored_ids: list[str] = []
+        logger.info("store_teaching() called: tiers=%s, task_hash=%s",
+                     list(teaching.get("tiers", {}).keys()),
+                     teaching.get("task_hash", "?"))
 
         # Try TeachingExtractor first
         if self._teaching_extractor is not None:
