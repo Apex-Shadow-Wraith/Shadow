@@ -247,6 +247,14 @@ DDG_MAX_RESULTS = 20
 BING_MAX_RESULTS = 20
 BING_SEARCH_URL = "https://www.bing.com/search"
 
+# Brave Search API (free tier: 2,000 queries/month)
+BRAVE_API_URL = "https://api.search.brave.com/res/v1/web/search"
+BRAVE_MAX_RESULTS = 20
+BRAVE_TIMEOUT = 15  # seconds
+BRAVE_MONTHLY_QUOTA = 2000
+BRAVE_QUOTA_WARNING = 1800  # Warn and fallback to DDG above this
+BRAVE_USAGE_FILE = "data/brave_usage.json"
+
 # Query expansion — how many search variants per original query
 QUERY_EXPANSION_COUNT = 3  # Original + 2 variants
 

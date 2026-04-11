@@ -1,0 +1,84 @@
+{
+  "name": "reaper",
+  "display_name": "Reaper — Research & Web Search",
+  "description": "Shadow's research module exposed as MCP tools. Search the web, fetch pages, and synthesize research summaries.",
+  "version": "1.0.0",
+  "server": {
+    "type": "http",
+    "host": "127.0.0.1",
+    "port": 8101,
+    "base_url": "http://127.0.0.1:8101"
+  },
+  "tools": [
+    {
+      "name": "reaper_search",
+      "description": "Search the web using DuckDuckGo, Brave Search, or SearXNG with automatic fallback.",
+      "endpoint": "/tools/reaper_search",
+      "method": "POST",
+      "parameters": {
+        "type": "object",
+        "required": ["query"],
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "The search query string"
+          },
+          "max_results": {
+            "type": "integer",
+            "description": "Maximum number of results to return (1-20)",
+            "default": 5
+          },
+          "source": {
+            "type": "string",
+            "description": "Search backend to use: ddg, brave, searxng, or auto",
+            "default": "auto",
+            "enum": ["auto", "ddg", "brave", "searxng"]
+          }
+        }
+      }
+    },
+    {
+      "name": "reaper_fetch",
+      "description": "Fetch a web page and extract its text content with stealth headers and safety checks.",
+      "endpoint": "/tools/reaper_fetch",
+      "method": "POST",
+      "parameters": {
+        "type": "object",
+        "required": ["url"],
+        "properties": {
+          "url": {
+            "type": "string",
+            "description": "The URL to fetch and extract content from"
+          },
+          "extract_mode": {
+            "type": "string",
+            "description": "Content extraction mode: text, markdown, or raw",
+            "default": "text",
+            "enum": ["text", "markdown", "raw"]
+          }
+        }
+      }
+    },
+    {
+      "name": "reaper_summarize",
+      "description": "Search for a topic and synthesize results from multiple sources into a concise summary.",
+      "endpoint": "/tools/reaper_summarize",
+      "method": "POST",
+      "parameters": {
+        "type": "object",
+        "required": ["query"],
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "The topic to search and summarize"
+          },
+          "max_sources": {
+            "type": "integer",
+            "description": "Maximum number of sources to synthesize (1-10)",
+            "default": 3
+          }
+        }
+      }
+    }
+  ]
+}

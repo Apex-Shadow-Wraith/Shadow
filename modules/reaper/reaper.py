@@ -77,6 +77,8 @@ from .config import (
     OLLAMA_URL, LLM_MODEL,
     TEMP_RELEVANCE_SCORING, TEMP_SUMMARIZATION, TEMP_QUERY_EXPANSION,
     BING_MAX_RESULTS, BING_SEARCH_URL,
+    BRAVE_API_URL, BRAVE_MAX_RESULTS, BRAVE_TIMEOUT,
+    BRAVE_MONTHLY_QUOTA, BRAVE_QUOTA_WARNING, BRAVE_USAGE_FILE,
 )
 
 
@@ -243,11 +245,15 @@ class Reaper:
         self.searxng_available = self._check_searxng()
         self.ddg_available = HAS_DDG
         self.bing_available = HAS_BS4  # Bing scraping only needs BeautifulSoup
+        self.brave_api_key = os.environ.get("BRAVE_SEARCH_API_KEY")
+        self.brave_available = bool(self.brave_api_key)
+        self.search_backend = "ddg"  # Default; set via shadow_config.yaml
 
         print(f"[Reaper] Initialized")
         print(f"[Reaper] SearXNG: {'✅ Available' if self.searxng_available else '❌ Not running'}")
         print(f"[Reaper] DuckDuckGo: {'✅ Available' if self.ddg_available else '❌ Not installed'}")
         print(f"[Reaper] Bing scraper: {'✅ Available' if self.bing_available else '❌ beautifulsoup4 not installed'}")
+        print(f"[Reaper] Brave Search: {'✅ Available' if self.brave_available else '❌ No API key'}")
         print(f"[Reaper] Standing topics: {len(STANDING_TOPICS)}")
 
         if not self.searxng_available and not self.ddg_available and not self.bing_available:
@@ -342,15 +348,14 @@ class Reaper:
                                  note="results may be limited" if not results else None)
 
     def _search_once(self, query, max_results=10):
-        """Execute a single search attempt across all backends."""
-        # Try SearXNG first
-        if self.searxng_available:
-            results = self._search_searxng(query, max_results)
-            if results:
-                return results
-            # SearXNG returned nothing — re-check if it's still running
-            self.searxng_available = self._check_searxng()
+        """Execute a single search attempt across all backends.
 
+        Backend priority is determined by self.search_backend config:
+          - "brave": Brave → DDG → Bing (SearXNG if available)
+          - "ddg": SearXNG → DDG → Brave → Bing (default)
+          - "searxng": SearXNG → DDG → Brave → Bing
+        Reddit .json is always tried first for Reddit-specific queries.
+        """
         # Reddit .json for Reddit-specific queries (before general fallbacks)
         if self._is_reddit_query(query):
             subreddit, search_term = self._extract_reddit_target(query)
@@ -372,15 +377,40 @@ class Reaper:
                     for r in results[:max_results]
                 ]
 
-        # Fall back to DuckDuckGo
-        if self.ddg_available:
-            results = self._search_ddg(query, max_results)
+        backend = getattr(self, "search_backend", "ddg")
+
+        if backend == "brave":
+            # Brave-primary cascade
+            order = [
+                ("brave", self.brave_available and self._brave_get_usage() < BRAVE_MONTHLY_QUOTA, self._search_brave),
+                ("searxng", self.searxng_available, self._search_searxng),
+                ("ddg", self.ddg_available, self._search_ddg),
+                ("bing", self.bing_available, self._search_bing),
+            ]
+        elif backend == "searxng":
+            order = [
+                ("searxng", self.searxng_available, self._search_searxng),
+                ("brave", self.brave_available and self._brave_get_usage() < BRAVE_MONTHLY_QUOTA, self._search_brave),
+                ("ddg", self.ddg_available, self._search_ddg),
+                ("bing", self.bing_available, self._search_bing),
+            ]
+        else:  # "ddg" (default)
+            order = [
+                ("searxng", self.searxng_available, self._search_searxng),
+                ("ddg", self.ddg_available, self._search_ddg),
+                ("brave", self.brave_available and self._brave_get_usage() < BRAVE_MONTHLY_QUOTA, self._search_brave),
+                ("bing", self.bing_available, self._search_bing),
+            ]
+
+        for name, available, method in order:
+            if not available:
+                continue
+            results = method(query, max_results)
             if results:
                 return results
-
-        # Final fallback: Bing scraping
-        if self.bing_available:
-            return self._search_bing(query, max_results)
+            # SearXNG may go down — re-check
+            if name == "searxng":
+                self.searxng_available = self._check_searxng()
 
         print(f"[Reaper] No search backend available for: '{query}'")
         return []
@@ -520,6 +550,106 @@ class Reaper:
         except Exception as e:
             print(f"[Reaper] Bing error: {e}")
             return []
+
+    def _search_brave(self, query, max_results=10):
+        """Search using Brave Search API. Free tier: 2,000 queries/month."""
+        if not self.brave_available:
+            return []
+
+        # Check monthly quota
+        usage = self._brave_get_usage()
+        if usage >= BRAVE_QUOTA_WARNING:
+            print(f"[Reaper] Brave quota warning: {usage}/{BRAVE_MONTHLY_QUOTA} queries used this month")
+            if usage >= BRAVE_MONTHLY_QUOTA:
+                print("[Reaper] Brave monthly quota exceeded, skipping")
+                return []
+
+        self._stealth_delay()
+
+        try:
+            response = requests.get(
+                BRAVE_API_URL,
+                params={"q": query, "count": min(max_results, BRAVE_MAX_RESULTS)},
+                headers={
+                    "Accept": "application/json",
+                    "Accept-Encoding": "gzip",
+                    "X-Subscription-Token": self.brave_api_key,
+                },
+                timeout=BRAVE_TIMEOUT,
+            )
+
+            # Handle rate limiting
+            if response.status_code == 429:
+                retry_after = int(response.headers.get("Retry-After", 2))
+                print(f"[Reaper] Brave rate limited, waiting {retry_after}s")
+                time.sleep(min(retry_after, 10))
+                response = requests.get(
+                    BRAVE_API_URL,
+                    params={"q": query, "count": min(max_results, BRAVE_MAX_RESULTS)},
+                    headers={
+                        "Accept": "application/json",
+                        "Accept-Encoding": "gzip",
+                        "X-Subscription-Token": self.brave_api_key,
+                    },
+                    timeout=BRAVE_TIMEOUT,
+                )
+                if response.status_code == 429:
+                    print("[Reaper] Brave still rate limited after retry, skipping")
+                    return []
+
+            response.raise_for_status()
+            data = response.json()
+
+            results = []
+            for item in data.get("web", {}).get("results", [])[:max_results]:
+                results.append({
+                    "title": item.get("title", ""),
+                    "url": item.get("url", ""),
+                    "snippet": item.get("description", ""),
+                    "engine": "brave",
+                    "source_eval": evaluate_source(item.get("url", "")),
+                })
+
+            self._brave_increment_usage()
+            print(f"[Reaper] Brave: {len(results)} results for '{query[:50]}'")
+            return results
+
+        except Exception as e:
+            print(f"[Reaper] Brave error: {e}")
+            return []
+
+    def _brave_get_usage(self):
+        """Get current month's Brave API query count."""
+        usage_path = Path(BRAVE_USAGE_FILE)
+        if not usage_path.exists():
+            return 0
+        try:
+            data = json.loads(usage_path.read_text())
+            current_month = datetime.now().strftime("%Y-%m")
+            if data.get("month") != current_month:
+                return 0
+            return data.get("count", 0)
+        except (json.JSONDecodeError, KeyError):
+            return 0
+
+    def _brave_increment_usage(self):
+        """Increment monthly Brave API usage counter."""
+        usage_path = Path(BRAVE_USAGE_FILE)
+        current_month = datetime.now().strftime("%Y-%m")
+        count = 0
+        if usage_path.exists():
+            try:
+                data = json.loads(usage_path.read_text())
+                if data.get("month") == current_month:
+                    count = data.get("count", 0)
+            except (json.JSONDecodeError, KeyError):
+                pass
+        usage_path.parent.mkdir(parents=True, exist_ok=True)
+        usage_path.write_text(json.dumps({
+            "month": current_month,
+            "count": count + 1,
+            "last_query": datetime.now().isoformat(),
+        }, indent=2))
 
     # =========================================================================
     # STEALTH UTILITIES
