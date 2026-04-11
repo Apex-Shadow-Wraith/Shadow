@@ -64,12 +64,13 @@ class TestLifecycle:
 
     def test_get_tools(self, morpheus: Morpheus):
         tools = morpheus.get_tools()
-        assert len(tools) == 9
+        assert len(tools) == 11
         names = {t["name"] for t in tools}
         assert names == {
             "experiment_propose", "experiment_start", "experiment_complete",
             "experiment_evaluate", "experiment_list", "experiment_queue",
             "morpheus_report", "prompt_evolve", "prompt_stats",
+            "self_improve_analyze", "self_improve_proposals",
         }
         # All autonomous
         for t in tools:

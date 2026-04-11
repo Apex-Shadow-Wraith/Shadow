@@ -94,6 +94,14 @@ class Morpheus(BaseModule):
         except ImportError:
             self._rd_lab = None
 
+        # Self-improvement engine integration
+        try:
+            from modules.morpheus.self_improvement import SelfImprovementEngine
+            self._self_improvement = SelfImprovementEngine(db_path=self._db_path)
+        except Exception:
+            self._self_improvement = None
+            logger.debug("Self-improvement engine not available")
+
         # Prompt evolution engine
         try:
             from modules.morpheus.prompt_evolution import PromptEvolutionEngine
@@ -198,6 +206,8 @@ class Morpheus(BaseModule):
                 "morpheus_report": self._morpheus_report,
                 "prompt_evolve": self._prompt_evolve,
                 "prompt_stats": self._prompt_stats,
+                "self_improve_analyze": self._self_improve_analyze,
+                "self_improve_proposals": self._self_improve_proposals,
             }
 
             handler = handlers.get(tool_name)
@@ -317,6 +327,24 @@ class Morpheus(BaseModule):
                 "description": "Show template performance stats — which templates produce the best ideas",
                 "parameters": {
                     "template_id": "str — specific template ID for single-template stats (optional)",
+                },
+                "permission_level": "autonomous",
+            },
+            {
+                "name": "self_improve_analyze",
+                "description": "Analyze a Shadow module for improvement opportunities",
+                "parameters": {
+                    "module_name": "str — module codename (required)",
+                    "source_path": "str — path to source file (default: modules/{module_name}/{module_name}.py)",
+                },
+                "permission_level": "autonomous",
+            },
+            {
+                "name": "self_improve_proposals",
+                "description": "List/filter improvement proposals",
+                "parameters": {
+                    "status": "str — filter by status",
+                    "module": "str — filter by module name",
                 },
                 "permission_level": "autonomous",
             },
@@ -832,3 +860,72 @@ class Morpheus(BaseModule):
                 except (json.JSONDecodeError, TypeError):
                     pass  # Leave as string if not valid JSON
         return d
+
+    # --- Self-improvement tool handlers ---
+
+    def _self_improve_analyze(self, params: dict[str, Any]) -> ToolResult:
+        """Analyze a Shadow module for improvement opportunities.
+
+        Delegates to SelfImprovementEngine: runs static analysis then
+        generates rule-based proposals.
+        """
+        if self._self_improvement is None:
+            return ToolResult(
+                success=False, content=None,
+                tool_name="self_improve_analyze", module=self.name,
+                error="Self-improvement engine not available",
+            )
+
+        module_name = params.get("module_name", "").strip()
+        if not module_name:
+            return ToolResult(
+                success=False, content=None,
+                tool_name="self_improve_analyze", module=self.name,
+                error="module_name is required",
+            )
+
+        source_path = params.get("source_path", "").strip()
+        if not source_path:
+            source_path = f"modules/{module_name}/{module_name}.py"
+
+        analysis = self._self_improvement.analyze_module(module_name, source_path)
+        proposals = self._self_improvement.generate_proposals(
+            module_name, source_path,
+        )
+
+        return ToolResult(
+            success=True,
+            content={
+                "analysis": analysis,
+                "proposals": proposals,
+                "proposal_count": len(proposals),
+            },
+            tool_name="self_improve_analyze",
+            module=self.name,
+        )
+
+    def _self_improve_proposals(self, params: dict[str, Any]) -> ToolResult:
+        """List/filter improvement proposals.
+
+        Delegates to SelfImprovementEngine.get_proposals().
+        """
+        if self._self_improvement is None:
+            return ToolResult(
+                success=False, content=None,
+                tool_name="self_improve_proposals", module=self.name,
+                error="Self-improvement engine not available",
+            )
+
+        status = params.get("status")
+        module = params.get("module")
+
+        proposals = self._self_improvement.get_proposals(
+            status=status, module=module,
+        )
+
+        return ToolResult(
+            success=True,
+            content={"proposals": proposals, "count": len(proposals)},
+            tool_name="self_improve_proposals",
+            module=self.name,
+        )
