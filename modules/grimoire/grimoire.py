@@ -44,6 +44,7 @@ from datetime import datetime   # Timestamps for everything
 from pathlib import Path        # Cross-platform file paths (Windows + Linux)
 import requests                 # HTTP calls to Ollama API (pip install requests)
 import chromadb                 # Vector database for semantic search (pip install chromadb)
+import yaml                     # For reading config to check auto_link flag
 
 logger = logging.getLogger("grimoire")
 
@@ -168,10 +169,28 @@ class Grimoire:
             metadata={"hnsw:space": "cosine"}
         )
 
+        # ── Initialize Cross-Reference Linker ──
+        # Lazy import to avoid circular dependency
+        from modules.grimoire.cross_reference import CrossReferenceLinker
+        self.cross_linker = CrossReferenceLinker(self)
+
+        # Check config for auto_link flag
+        self._auto_link = False
+        try:
+            config_path = Path("config/shadow_config.yaml")
+            if config_path.exists():
+                with open(config_path, "r") as f:
+                    config = yaml.safe_load(f)
+                grimoire_cfg = config.get("modules", {}).get("grimoire", {})
+                self._auto_link = grimoire_cfg.get("auto_link", False)
+        except Exception:
+            pass  # Config read failure is non-fatal
+
         print(f"[Grimoire] Initialized — SQLite: {self.db_path}")
         print(f"[Grimoire] Initialized — ChromaDB: {self.vector_path}")
         print(f"[Grimoire] Embedding model: {self.embed_model}")
         print(f"[Grimoire] Existing memories: {self.collection.count()}")
+        print(f"[Grimoire] Auto-link: {self._auto_link}")
 
     # =========================================================================
     # DATABASE SCHEMA
@@ -639,7 +658,18 @@ class Grimoire:
 
         print(f"[Grimoire] Remembered: {content[:80]}...")
         print(f"[Grimoire] ID: {memory_id} | Trust: {trust_level} | Category: {category}")
-        
+
+        # ── Step 5: Auto-link cross-references ──
+        # If enabled in config, find and link related memories
+        if self._auto_link:
+            try:
+                link_count = self.cross_linker.auto_link_new_entry(memory_id)
+                if link_count > 0:
+                    print(f"[Grimoire] Cross-linked to {link_count} related memories")
+            except Exception as e:
+                # Cross-linking failure should never block memory storage
+                logger.warning("Cross-link failed for %s: %s", memory_id[:8], e)
+
         return memory_id
 
     # =========================================================================
