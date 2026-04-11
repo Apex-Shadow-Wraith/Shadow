@@ -23,6 +23,7 @@ Phase 1-2 (current):
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import re
@@ -260,6 +261,7 @@ class TaskClassification:
     brain: BrainType
     safety_flag: bool  # does Cerberus need to pre-screen?
     priority: int  # 1 = highest
+    confidence: float = 0.0  # 0.95 = exact keyword, 0.85 = regex/set, 0.70 = LLM, 0.50 = fallback
 
 
 @dataclass
@@ -872,7 +874,7 @@ class Orchestrator:
 
         try:
             # Step 1 — Receive Input
-            logger.info("Step 1 — Receive: '%s'", user_input[:100])
+            logger.info("Step 1 — Receive: '%s' (len=%d)", user_input[:100], len(user_input))
 
             # Step 1.0 — Cerberus Watchdog lockfile check
             if _WATCHDOG_AVAILABLE and CerberusWatchdog.is_locked():
@@ -1034,8 +1036,8 @@ class Orchestrator:
                                 "event_type": f"user_query_{classification.task_type.value}",
                                 "metadata": {"module": classification.target_module, "complexity": classification.complexity},
                             })
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        logger.debug("Wraith temporal record failed: %s", e)
                 # Record growth metrics for fast responses too
                 if self._growth_engine is not None:
                     try:
@@ -1043,8 +1045,8 @@ class Orchestrator:
                             "response_latency", time.time() - loop_start,
                             json.dumps({"fast_response": True}),
                         )
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        logger.debug("Growth metric recording failed: %s", e)
                 self._save_state()
                 # Prepend fired reminders to fast response
                 if fired_reminders:
@@ -1160,8 +1162,8 @@ class Orchestrator:
                                     "recommendation": confidence_result["recommendation"],
                                 }),
                             )
-                        except Exception:
-                            pass
+                        except Exception as e:
+                            logger.debug("Growth confidence recording failed: %s", e)
 
                     # Record calibration data (prediction vs outcome)
                     if self._confidence_calibrator is not None:
@@ -1174,8 +1176,8 @@ class Orchestrator:
                                 module=classification.target_module,
                                 was_escalated=confidence_result["recommendation"] == "escalate",
                             )
-                        except Exception:
-                            pass
+                        except Exception as e:
+                            logger.debug("Confidence calibration failed: %s", e)
 
                 except Exception as e:
                     logger.warning("Step 6.5 — Confidence scoring failed: %s", e)
@@ -1243,8 +1245,8 @@ class Orchestrator:
                             "event_type": f"user_query_{classification.task_type.value}",
                             "metadata": {"module": classification.target_module, "complexity": classification.complexity},
                         })
-                except Exception:
-                    pass  # Never let temporal tracking break the main loop
+                except Exception as e:
+                    logger.debug("Wraith temporal record failed: %s", e)
 
             # Step 7.6 — Record growth metrics (best-effort)
             if self._growth_engine is not None:
@@ -1260,8 +1262,8 @@ class Orchestrator:
                             "apex_escalation_count", 1.0,
                             json.dumps({"task_type": classification.task_type.value}),
                         )
-                except Exception:
-                    pass  # Never let growth tracking break the main loop
+                except Exception as e:
+                    logger.debug("Growth metric recording failed: %s", e)
 
             # Step 7.8 — Emit interaction event for proactive system (best-effort)
             if self._event_system is not None:
@@ -1275,8 +1277,8 @@ class Orchestrator:
                             "complexity": classification.complexity,
                         },
                     )
-                except Exception:
-                    pass  # Never let event emission break the main loop
+                except Exception as e:
+                    logger.debug("Event emission failed: %s", e)
 
             # Step 7.9 — Self-teaching on successful local completions (best-effort)
             if self._self_teacher is not None:
@@ -1394,8 +1396,8 @@ class Orchestrator:
                                 "source": source,
                             })
                         )
-                    except Exception:
-                        pass  # Best-effort audit logging
+                    except Exception as e:
+                        logger.debug("Cerberus audit log failed: %s", e)
 
         elif result.action == "warn":
             logger.info(
@@ -1454,8 +1456,8 @@ class Orchestrator:
             wraith_mod = self.registry.get_module("wraith")
             if wraith_mod.status == ModuleStatus.ONLINE:
                 return wraith_mod.check_reminders()
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("Wraith check_reminders failed: %s", e)
         return []
 
     # --- Step 2: Classify & Route ---
@@ -1473,8 +1475,9 @@ class Orchestrator:
         fast = self._fast_path_classify(user_input)
         if fast is not None:
             logger.info(
-                "Fast-path classified: '%s' → %s (%s)",
+                "Fast-path classified: '%s' → %s (%s, conf=%.2f, input_len=%d, skipped LLM router)",
                 user_input[:50], fast.target_module, fast.task_type.value,
+                fast.confidence, len(user_input),
             )
             return fast
 
@@ -1534,10 +1537,12 @@ User input: {user_input}"""
                 brain=BrainType(data.get("brain", "fast_brain")),
                 safety_flag=data.get("safety_flag", False),
                 priority=data.get("priority", 1),
+                confidence=0.70,
             )
             logger.info(
-                "LLM router classified: '%s' → %s (%s)",
+                "LLM router classified: '%s' → %s (%s, conf=%.2f, input_len=%d)",
                 user_input[:50], classification.target_module, classification.task_type.value,
+                classification.confidence, len(user_input),
             )
             return classification
 
@@ -1558,7 +1563,7 @@ User input: {user_input}"""
             return TaskClassification(
                 task_type=TaskType.ANALYSIS, complexity="moderate",
                 target_module="cipher", brain=BrainType.FAST,
-                safety_flag=False, priority=1,
+                safety_flag=False, priority=1, confidence=0.50,
             )
 
         # Code tasks
@@ -1566,7 +1571,7 @@ User input: {user_input}"""
             return TaskClassification(
                 task_type=TaskType.CREATION, complexity="moderate",
                 target_module="omen", brain=BrainType.FAST,
-                safety_flag=False, priority=1,
+                safety_flag=False, priority=1, confidence=0.50,
             )
 
         # Security
@@ -1574,7 +1579,7 @@ User input: {user_input}"""
             return TaskClassification(
                 task_type=TaskType.ACTION, complexity="moderate",
                 target_module="sentinel", brain=BrainType.FAST,
-                safety_flag=False, priority=1,
+                safety_flag=False, priority=1, confidence=0.50,
             )
 
         # Math / financial words
@@ -1582,7 +1587,7 @@ User input: {user_input}"""
             return TaskClassification(
                 task_type=TaskType.ANALYSIS, complexity="moderate",
                 target_module="cipher", brain=BrainType.FAST,
-                safety_flag=False, priority=1,
+                safety_flag=False, priority=1, confidence=0.50,
             )
 
         # Memory operations
@@ -1590,7 +1595,7 @@ User input: {user_input}"""
             return TaskClassification(
                 task_type=TaskType.MEMORY, complexity="simple",
                 target_module="grimoire", brain=BrainType.FAST,
-                safety_flag=False, priority=1,
+                safety_flag=False, priority=1, confidence=0.50,
             )
 
         # Content creation (no code words)
@@ -1598,7 +1603,7 @@ User input: {user_input}"""
             return TaskClassification(
                 task_type=TaskType.CREATION, complexity="moderate",
                 target_module="nova", brain=BrainType.FAST,
-                safety_flag=False, priority=1,
+                safety_flag=False, priority=1, confidence=0.50,
             )
 
         # Discovery / exploration
@@ -1606,7 +1611,7 @@ User input: {user_input}"""
             return TaskClassification(
                 task_type=TaskType.RESEARCH, complexity="moderate",
                 target_module="morpheus", brain=BrainType.SMART,
-                safety_flag=False, priority=1,
+                safety_flag=False, priority=1, confidence=0.50,
             )
 
         # Research / web search
@@ -1614,7 +1619,7 @@ User input: {user_input}"""
             return TaskClassification(
                 task_type=TaskType.RESEARCH, complexity="moderate",
                 target_module="reaper", brain=BrainType.FAST,
-                safety_flag=False, priority=1,
+                safety_flag=False, priority=1, confidence=0.50,
             )
 
         # Metrics / monitoring
@@ -1622,7 +1627,7 @@ User input: {user_input}"""
             return TaskClassification(
                 task_type=TaskType.ANALYSIS, complexity="moderate",
                 target_module="void", brain=BrainType.FAST,
-                safety_flag=False, priority=1,
+                safety_flag=False, priority=1, confidence=0.50,
             )
 
         # Briefings / alerts
@@ -1630,7 +1635,7 @@ User input: {user_input}"""
             return TaskClassification(
                 task_type=TaskType.ACTION, complexity="moderate",
                 target_module="harbinger", brain=BrainType.FAST,
-                safety_flag=False, priority=1,
+                safety_flag=False, priority=1, confidence=0.50,
             )
 
         # Default: direct conversation
@@ -1641,6 +1646,7 @@ User input: {user_input}"""
             brain=BrainType.FAST,
             safety_flag=False,
             priority=1,
+            confidence=0.50,
         )
 
     @staticmethod
@@ -1714,6 +1720,7 @@ User input: {user_input}"""
                 brain=BrainType.ROUTER,
                 safety_flag=False,
                 priority=1,
+                confidence=0.95,
             )
 
         # --- Proactive control commands ---
@@ -1732,6 +1739,7 @@ User input: {user_input}"""
                 brain=BrainType.ROUTER,
                 safety_flag=False,
                 priority=1,
+                confidence=0.95,
             )
 
         # --- Greetings and short conversation ---
@@ -1750,6 +1758,7 @@ User input: {user_input}"""
                 brain=BrainType.FAST,
                 safety_flag=False,
                 priority=1,
+                confidence=0.95,
             )
 
         # --- Self-referential questions (about Shadow himself) ---
@@ -1772,6 +1781,7 @@ User input: {user_input}"""
                 brain=BrainType.FAST,
                 safety_flag=False,
                 priority=1,
+                confidence=0.95,
             )
 
         # --- Questions directed AT Shadow (not web searches) ---
@@ -1789,6 +1799,7 @@ User input: {user_input}"""
                 brain=BrainType.FAST,
                 safety_flag=False,
                 priority=1,
+                confidence=0.95,
             )
 
         # --- Explicit memory commands ---
@@ -1806,6 +1817,7 @@ User input: {user_input}"""
                     brain=BrainType.FAST,
                     safety_flag=False,
                     priority=1,
+                    confidence=0.95,
                 )
             return TaskClassification(
                 task_type=TaskType.MEMORY,
@@ -1814,6 +1826,7 @@ User input: {user_input}"""
                 brain=BrainType.FAST,
                 safety_flag=False,
                 priority=1,
+                confidence=0.95,
             )
 
         # --- Explicit search commands ---
@@ -1829,6 +1842,7 @@ User input: {user_input}"""
                 brain=BrainType.FAST,
                 safety_flag=False,
                 priority=1,
+                confidence=0.95,
             )
 
         # --- Keyword fast-path: module routing by keyword presence ---
@@ -1861,6 +1875,7 @@ User input: {user_input}"""
                 brain=BrainType.FAST,
                 safety_flag=False,
                 priority=1,
+                confidence=0.85,
             )
 
         # ── Priority 2: Omen — code tasks ──
@@ -1885,6 +1900,7 @@ User input: {user_input}"""
                 brain=BrainType.FAST,
                 safety_flag=False,
                 priority=1,
+                confidence=0.85,
             )
 
         # ── Priority 3: Wraith — reminders / scheduling ──
@@ -1901,6 +1917,7 @@ User input: {user_input}"""
                 brain=BrainType.FAST,
                 safety_flag=False,
                 priority=1,
+                confidence=0.85,
             )
 
         # ── Priority 4: Sentinel — security ──
@@ -1921,6 +1938,7 @@ User input: {user_input}"""
                 brain=BrainType.FAST,
                 safety_flag=False,
                 priority=1,
+                confidence=0.85,
             )
 
         # ── Priority 5: Cipher — math / financial WORDS ──
@@ -1940,6 +1958,7 @@ User input: {user_input}"""
                 brain=BrainType.FAST,
                 safety_flag=False,
                 priority=1,
+                confidence=0.85,
             )
 
         # ── Priority 6: Nova — content creation (only if NO code indicators) ──
@@ -1959,6 +1978,7 @@ User input: {user_input}"""
                 brain=BrainType.FAST,
                 safety_flag=False,
                 priority=1,
+                confidence=0.85,
             )
 
         # ── Priority 7: Morpheus — discovery / exploration ──
@@ -1978,6 +1998,7 @@ User input: {user_input}"""
                 brain=BrainType.SMART,
                 safety_flag=False,
                 priority=1,
+                confidence=0.85,
             )
 
         # ── Priority 8: Reaper — research / web search ──
@@ -1992,6 +2013,7 @@ User input: {user_input}"""
                 brain=BrainType.FAST,
                 safety_flag=False,
                 priority=1,
+                confidence=0.85,
             )
 
         # ── Priority 9: Void — metrics / monitoring ──
@@ -2010,6 +2032,7 @@ User input: {user_input}"""
                 brain=BrainType.FAST,
                 safety_flag=False,
                 priority=1,
+                confidence=0.85,
             )
 
         # ── Priority 10: Harbinger — briefings / alerts ──
@@ -2027,6 +2050,7 @@ User input: {user_input}"""
                 brain=BrainType.FAST,
                 safety_flag=False,
                 priority=1,
+                confidence=0.85,
             )
 
         # ── Priority 11: Grimoire — memory keywords ──
@@ -2040,6 +2064,7 @@ User input: {user_input}"""
                 brain=BrainType.FAST,
                 safety_flag=False,
                 priority=1,
+                confidence=0.85,
             )
 
         # ── Priority 12: Cerberus — ethics / moral questions ──
@@ -2054,6 +2079,7 @@ User input: {user_input}"""
                 brain=BrainType.SMART,
                 safety_flag=True,
                 priority=1,
+                confidence=0.85,
             )
 
         # --- Not obvious — let the LLM decide ---
@@ -2257,6 +2283,10 @@ User input: {user_input}"""
                     conversation_history=self._conversation_history[-10:] if self._conversation_history else [],
                     model=current_model,
                 )
+                logger.debug(
+                    "Step 3 — History: %d messages passed to ContextOrchestrator",
+                    len(self._conversation_history[-10:]) if self._conversation_history else 0,
+                )
 
                 logger.info(
                     "Step 3 — Context via ContextOrchestrator: %d/%d tokens (%.0f%%)",
@@ -2338,49 +2368,67 @@ User input: {user_input}"""
                 context_items = []  # Reset and fall through to manual path
 
         # --- Fallback: Manual context assembly (original behavior) ---
+        # Steps 1 & 2 are independent — run them concurrently when both are available
 
-        # 1. Grimoire semantic search for relevant memories
+        grimoire_coro = None
+        failure_coro = None
+        grimoire = None
+
         if "grimoire" in self.registry:
             grimoire = self.registry.get_module("grimoire")
             if grimoire.status == ModuleStatus.ONLINE:
-                try:
-                    max_results = self._config.get("decision_loop", {}).get(
-                        "context_memories", 5
-                    )
-                    result = await grimoire.execute(
-                        "memory_search",
-                        {"query": user_input, "n_results": max_results},
-                    )
-                    if result.success and result.content:
-                        context_items.append({
-                            "type": "memories",
-                            "content": result.content,
-                        })
-                except Exception as e:
-                    logger.warning("Context loading from Grimoire failed: %s", e)
+                max_results = self._config.get("decision_loop", {}).get(
+                    "context_memories", 5
+                )
+                grimoire_coro = grimoire.execute(
+                    "memory_search",
+                    {"query": user_input, "n_results": max_results},
+                )
 
-        # 2. Failure pattern search — learn from past mistakes
-        if self._failure_pattern_db is not None and "grimoire" in self.registry:
-            grimoire = self.registry.get_module("grimoire")
-            if grimoire.status == ModuleStatus.ONLINE:
-                try:
-                    patterns = await self._failure_pattern_db.search_failure_patterns(
+                if self._failure_pattern_db is not None:
+                    failure_coro = self._failure_pattern_db.search_failure_patterns(
                         grimoire=grimoire,
                         query=user_input,
                         limit=3,
                     )
-                    if patterns:
-                        formatted = self._failure_pattern_db.format_patterns_for_context(patterns)
-                        context_items.append({
-                            "type": "failure_patterns",
-                            "content": formatted,
-                        })
-                        logger.info(
-                            "Step 3 — Loaded %d failure patterns for context",
-                            len(formatted),
-                        )
-                except Exception as e:
-                    logger.warning("Failure pattern search failed: %s", e)
+
+        # Run both searches concurrently
+        if grimoire_coro and failure_coro:
+            grimoire_result, failure_result = await asyncio.gather(
+                grimoire_coro, failure_coro, return_exceptions=True,
+            )
+        elif grimoire_coro:
+            grimoire_result = await asyncio.gather(grimoire_coro, return_exceptions=True)
+            grimoire_result = grimoire_result[0]
+            failure_result = None
+        else:
+            grimoire_result = None
+            failure_result = None
+
+        # 1. Process Grimoire memory results
+        if grimoire_result is not None:
+            if isinstance(grimoire_result, Exception):
+                logger.warning("Context loading from Grimoire failed: %s", grimoire_result)
+            elif grimoire_result.success and grimoire_result.content:
+                context_items.append({
+                    "type": "memories",
+                    "content": grimoire_result.content,
+                })
+
+        # 2. Process failure pattern results
+        if failure_result is not None:
+            if isinstance(failure_result, Exception):
+                logger.warning("Failure pattern search failed: %s", failure_result)
+            elif failure_result:
+                formatted = self._failure_pattern_db.format_patterns_for_context(failure_result)
+                context_items.append({
+                    "type": "failure_patterns",
+                    "content": formatted,
+                })
+                logger.info(
+                    "Step 3 — Loaded %d failure patterns for context",
+                    len(formatted),
+                )
 
         # 3. Conversation history (working memory)
         if self._conversation_history:
@@ -2388,6 +2436,10 @@ User input: {user_input}"""
                 "type": "conversation_history",
                 "content": self._conversation_history[-10:],  # Last 5 exchanges
             })
+        logger.debug(
+            "Step 3 — Fallback history: %d messages included",
+            len(self._conversation_history[-10:]) if self._conversation_history else 0,
+        )
 
         # 4. Tool availability (dynamic loading saves 2-4K tokens)
         if self._tool_loader:
@@ -2531,7 +2583,9 @@ User input: {user_input}"""
         plan = ExecutionPlan(steps=steps, raw_plan=json.dumps(steps, indent=2))
 
         # --- Cerberus Safety Gate ---
-        # Every plan passes through Cerberus before execution
+        # Every plan passes through Cerberus before execution.
+        # Safety checks are intentionally sequential — a DENY on step N
+        # must prevent checking step N+1 (short-circuit on denial).
         if "cerberus" in self.registry:
             cerberus = self.registry.get_module("cerberus")
             if cerberus.status == ModuleStatus.ONLINE:
@@ -2594,6 +2648,11 @@ User input: {user_input}"""
         Returns:
             Final response string.
         """
+        logger.info(
+            "Step 5 — Dispatch: input_len=%d, module=%s",
+            len(user_input), classification.target_module,
+        )
+
         async def execute_fn(task: str, strategy_context: dict) -> dict:
             """Execute one attempt using the plan + evaluate pipeline."""
             # Check tool_loader before executing — empty means infrastructure failure
@@ -2670,8 +2729,8 @@ User input: {user_input}"""
 
                 def grimoire_search_fn(query: str) -> list[dict]:
                     return reader.search(query, limit=3)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug("GrimoireReader init for retry failed: %s", e)
 
         # Notification callback (only for live user conversations)
         notify_fn = None
@@ -2976,6 +3035,10 @@ User input: {user_input}"""
             )
             self._context_manager.update_model(model)
 
+            logger.debug(
+                "Step 6 — Passing %d history messages to context builder",
+                len(self._conversation_history[-10:]) if self._conversation_history else 0,
+            )
             build_result = self._context_manager.build_context(
                 system_prompt=system_prompt,
                 conversation_history=self._conversation_history[-10:],
@@ -3032,6 +3095,10 @@ User input: {user_input}"""
                 messages.append({"role": "system", "content": "\n".join(pattern_lines)})
 
             messages.extend(self._conversation_history[-10:])
+            logger.debug(
+                "Step 6 — Fallback: injected %d history messages into prompt",
+                len(self._conversation_history[-10:]) if self._conversation_history else 0,
+            )
 
             user_message = user_input
             if tool_context:
@@ -3051,8 +3118,8 @@ User input: {user_input}"""
                     prior_learning = apex_mod.check_grimoire_for_prior_learning(
                         user_input, classification.task_type.value,
                     )
-            except Exception:
-                pass  # Best-effort — skip and escalate normally
+            except Exception as e:
+                logger.debug("Apex prior learning check failed: %s", e)
 
         if prior_learning:
             # Inject prior learning as context — try fast brain first

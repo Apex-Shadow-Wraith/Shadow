@@ -1213,3 +1213,240 @@ class TestPersonalitySystemPrompt:
         assert orch._master_name == "Master"
         assert orch._personality_tone == "direct"
         assert orch._system_prompt_override is None
+
+
+# --- Session 34: Router Confidence Tests ---
+
+class TestRouterConfidence:
+    """Test confidence scoring on routing classifications."""
+
+    def test_confidence_default_zero(self, config: dict):
+        """TaskClassification default confidence should be 0.0."""
+        tc = TaskClassification(
+            task_type=TaskType.CONVERSATION,
+            complexity="simple",
+            target_module="direct",
+            brain=BrainType.FAST,
+            safety_flag=False,
+            priority=1,
+        )
+        assert tc.confidence == 0.0
+
+    def test_fast_path_exact_match_confidence_095(self, config: dict):
+        """Exact-match fast-path (greetings) should have 0.95 confidence."""
+        orch = Orchestrator(config)
+        result = orch._fast_path_classify("hello")
+        assert result is not None
+        assert result.confidence == 0.95
+
+    def test_fast_path_slash_command_confidence_095(self, config: dict):
+        """Slash commands should have 0.95 confidence."""
+        orch = Orchestrator(config)
+        result = orch._fast_path_classify("/status")
+        assert result is not None
+        assert result.confidence == 0.95
+
+    def test_fast_path_search_command_confidence_095(self, config: dict):
+        """Search commands (startswith match) should have 0.95 confidence."""
+        orch = Orchestrator(config)
+        result = orch._fast_path_classify("search for RTX 5090")
+        assert result is not None
+        assert result.confidence == 0.95
+
+    def test_fast_path_memory_command_confidence_095(self, config: dict):
+        """Memory commands (startswith match) should have 0.95 confidence."""
+        orch = Orchestrator(config)
+        result = orch._fast_path_classify("remember that I like coffee")
+        assert result is not None
+        assert result.confidence == 0.95
+
+    def test_fast_path_keyword_match_confidence_085(self, config: dict):
+        """Keyword-set fast-path should have 0.85 confidence."""
+        orch = Orchestrator(config)
+        result = orch._fast_path_classify("debug this function for me")
+        assert result is not None
+        assert result.target_module == "omen"
+        assert result.confidence == 0.85
+
+    def test_fast_path_math_pattern_confidence_085(self, config: dict):
+        """Math regex pattern should have 0.85 confidence."""
+        orch = Orchestrator(config)
+        result = orch._fast_path_classify("what is 347 + 892")
+        assert result is not None
+        assert result.target_module == "cipher"
+        assert result.confidence == 0.85
+
+    def test_fast_path_wraith_keyword_confidence_085(self, config: dict):
+        """Wraith keyword match should have 0.85 confidence."""
+        orch = Orchestrator(config)
+        result = orch._fast_path_classify("set a reminder for tomorrow")
+        assert result is not None
+        assert result.target_module == "wraith"
+        assert result.confidence == 0.85
+
+    def test_fallback_classify_confidence_050(self, config: dict):
+        """Fallback classifier should have 0.50 confidence."""
+        orch = Orchestrator(config)
+        result = orch._fallback_classify("remember that I like coffee")
+        assert result.confidence == 0.50
+
+    def test_fallback_default_confidence_050(self, config: dict):
+        """Fallback default (conversation) should have 0.50 confidence."""
+        orch = Orchestrator(config)
+        result = orch._fallback_classify("the weather is nice today")
+        assert result.confidence == 0.50
+
+    @pytest.mark.asyncio
+    async def test_llm_router_sets_confidence_070(self, config: dict):
+        """LLM router classification should set 0.70 confidence."""
+        orch = Orchestrator(config)
+        # Mock LLM to return a valid classification
+        orch._ollama_chat = lambda model, messages, options=None: json.dumps({
+            "task_type": "research",
+            "complexity": "moderate",
+            "target_module": "reaper",
+            "brain": "fast_brain",
+            "safety_flag": False,
+            "priority": 1,
+        })
+        # Provide input that won't match fast-path
+        result = await orch._step2_classify(
+            "tell me something interesting about quantum physics and art"
+        )
+        assert result.confidence == 0.70
+
+
+# --- Session 34: Fast-Path Skips LLM Router ---
+
+class TestFastPathSkipsLLM:
+    """Verify fast-path high-confidence matches skip the LLM router entirely."""
+
+    @pytest.mark.asyncio
+    async def test_fast_path_skips_llm_call(self, config: dict):
+        """When fast-path matches, the LLM router should NOT be called."""
+        orch = Orchestrator(config)
+        llm_called = {"count": 0}
+
+        original_chat = orch._ollama_chat
+
+        def spy_ollama_chat(model, messages, options=None):
+            llm_called["count"] += 1
+            return original_chat(model, messages, options)
+
+        orch._ollama_chat = spy_ollama_chat
+
+        result = await orch._step2_classify("hello")
+        assert result.target_module == "direct"
+        assert result.confidence == 0.95
+        assert llm_called["count"] == 0, "LLM router should not be called for fast-path match"
+
+    @pytest.mark.asyncio
+    async def test_ambiguous_input_calls_llm(self, config: dict):
+        """When fast-path returns None, the LLM router SHOULD be called."""
+        orch = Orchestrator(config)
+        llm_called = {"count": 0}
+
+        def mock_ollama_chat(model, messages, options=None):
+            llm_called["count"] += 1
+            return json.dumps({
+                "task_type": "conversation",
+                "complexity": "simple",
+                "target_module": "direct",
+                "brain": "fast_brain",
+                "safety_flag": False,
+                "priority": 1,
+            })
+
+        orch._ollama_chat = mock_ollama_chat
+
+        # Input that doesn't match any fast-path keyword
+        result = await orch._step2_classify(
+            "I'm feeling philosophical about the nature of existence today"
+        )
+        assert llm_called["count"] == 1, "LLM router should be called for ambiguous input"
+        assert result.confidence == 0.70
+
+
+# --- Session 34: Input Length Reaches Dispatch ---
+
+class TestInputNotTruncated:
+    """Verify long input is not truncated before module dispatch."""
+
+    @pytest.mark.asyncio
+    async def test_long_input_reaches_step5(self, config: dict, caplog):
+        """A 5000-char input should reach Step 5 with full length logged."""
+        import logging
+        orch = Orchestrator(config)
+
+        long_input = "x" * 5000
+
+        # Mock the LLM router to return a valid classification
+        orch._ollama_chat = lambda model, messages, options=None: json.dumps({
+            "task_type": "conversation",
+            "complexity": "simple",
+            "target_module": "direct",
+            "brain": "fast_brain",
+            "safety_flag": False,
+            "priority": 1,
+        })
+
+        # Verify the fast-path won't match this
+        assert orch._fast_path_classify(long_input) is None
+
+        # Verify step2 logs the full length
+        with caplog.at_level(logging.INFO):
+            result = await orch._step2_classify(long_input)
+            assert "input_len=5000" in caplog.text
+
+
+# --- Session 34: Parallel Context Loading ---
+
+class TestParallelContextLoading:
+    """Test Step 3 fallback context loading runs in parallel."""
+
+    @pytest.mark.asyncio
+    async def test_step3_fallback_both_succeed(self, config: dict):
+        """Both grimoire and failure pattern searches should return results."""
+        orch = Orchestrator(config)
+        grimoire = MockMemoryModule()
+        await grimoire.initialize()
+        grimoire._memories = ["test memory"]
+        orch.registry.register(grimoire)
+
+        classification = TaskClassification(
+            task_type=TaskType.QUESTION,
+            complexity="simple",
+            target_module="direct",
+            brain=BrainType.FAST,
+            safety_flag=False,
+            priority=1,
+        )
+
+        context = await orch._step3_load_context("test query", classification)
+        # Should have at least the tool availability entry
+        types = [c["type"] for c in context]
+        assert "available_tools" in types
+
+    @pytest.mark.asyncio
+    async def test_step3_fallback_grimoire_failure_doesnt_crash(self, config: dict):
+        """If grimoire fails, context loading should still complete."""
+        orch = Orchestrator(config)
+
+        # Create a grimoire that raises on execute
+        grimoire = MockMemoryModule()
+        await grimoire.initialize()
+        grimoire.execute = AsyncMock(side_effect=Exception("DB connection lost"))
+        orch.registry.register(grimoire)
+
+        classification = TaskClassification(
+            task_type=TaskType.QUESTION,
+            complexity="simple",
+            target_module="direct",
+            brain=BrainType.FAST,
+            safety_flag=False,
+            priority=1,
+        )
+
+        # Should not raise
+        context = await orch._step3_load_context("test query", classification)
+        assert isinstance(context, list)

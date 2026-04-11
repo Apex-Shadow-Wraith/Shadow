@@ -21,20 +21,34 @@ from pathlib import Path
 import yaml
 
 from modules.base import ModuleRegistry, ModuleStatus
-from modules.apex.apex import Apex
-from modules.cerberus.cerberus import Cerberus
-from modules.cipher.cipher import Cipher
-from modules.grimoire.grimoire_module import GrimoireModule
-from modules.harbinger.harbinger import Harbinger
-from modules.morpheus.morpheus import Morpheus
-from modules.nova.nova import Nova
-from modules.omen.omen import Omen
-from modules.reaper.reaper_module import ReaperModule
-from modules.sentinel.sentinel import Sentinel
 from modules.shadow.orchestrator import Orchestrator
 from modules.shadow.shadow_module import ShadowModule
-from modules.void.void import Void
-from modules.wraith.wraith import Wraith
+
+# Module imports — graceful degradation if any module fails to import.
+# Logger not yet configured at import time, so collect failures for later.
+_IMPORT_FAILURES: list[tuple[str, str, str]] = []
+
+def _try_import(module_path: str, class_name: str):
+    """Import a module class, returning None on failure."""
+    try:
+        mod = __import__(module_path, fromlist=[class_name])
+        return getattr(mod, class_name)
+    except Exception as e:
+        _IMPORT_FAILURES.append((module_path, class_name, str(e)))
+        return None
+
+Apex = _try_import("modules.apex.apex", "Apex")
+Cerberus = _try_import("modules.cerberus.cerberus", "Cerberus")
+Cipher = _try_import("modules.cipher.cipher", "Cipher")
+GrimoireModule = _try_import("modules.grimoire.grimoire_module", "GrimoireModule")
+Harbinger = _try_import("modules.harbinger.harbinger", "Harbinger")
+Morpheus = _try_import("modules.morpheus.morpheus", "Morpheus")
+Nova = _try_import("modules.nova.nova", "Nova")
+Omen = _try_import("modules.omen.omen", "Omen")
+ReaperModule = _try_import("modules.reaper.reaper_module", "ReaperModule")
+Sentinel = _try_import("modules.sentinel.sentinel", "Sentinel")
+Void = _try_import("modules.void.void", "Void")
+Wraith = _try_import("modules.wraith.wraith", "Wraith")
 
 
 def setup_logging(level: str = "INFO") -> None:
@@ -86,36 +100,43 @@ async def startup(config: dict, logger: logging.Logger) -> Orchestrator:
     """
     module_configs = config.get("modules", {})
 
-    # Step 1: Create module instances
+    # Log any import failures detected at module load time
+    for mod_path, cls_name, err in _IMPORT_FAILURES:
+        logger.warning("Import failed — %s.%s: %s", mod_path, cls_name, err)
+
+    # Step 1: Create module instances (skip any that failed to import)
     # --- Core (always running) ---
-    grimoire = GrimoireModule(module_configs.get("grimoire", {}))
-    cerberus = Cerberus(module_configs.get("cerberus", {}))
+    grimoire = GrimoireModule(module_configs.get("grimoire", {})) if GrimoireModule else None
+    cerberus = Cerberus(module_configs.get("cerberus", {})) if Cerberus else None
 
     # --- Operations ---
     wraith_config = dict(module_configs.get("wraith", {}))
     wraith_config.setdefault("timezone", config.get("system", {}).get("timezone", "America/Chicago"))
-    wraith = Wraith(wraith_config)
-    reaper = ReaperModule(module_configs.get("reaper", {}))
-    harbinger = Harbinger(module_configs.get("harbinger", {}))
+    wraith = Wraith(wraith_config) if Wraith else None
+    reaper = ReaperModule(module_configs.get("reaper", {})) if ReaperModule else None
+    harbinger = Harbinger(module_configs.get("harbinger", {})) if Harbinger else None
 
     # --- Specialized ---
-    apex = Apex(module_configs.get("apex", {}))
-    cipher = Cipher(module_configs.get("cipher", {}))
-    omen = Omen(module_configs.get("omen", {}))
-    sentinel = Sentinel(module_configs.get("sentinel", {}))
-    void = Void(module_configs.get("void", {}))
-    nova = Nova(module_configs.get("nova", {}))
-    morpheus = Morpheus(module_configs.get("morpheus", {}))
+    apex = Apex(module_configs.get("apex", {})) if Apex else None
+    cipher = Cipher(module_configs.get("cipher", {})) if Cipher else None
+    omen = Omen(module_configs.get("omen", {})) if Omen else None
+    sentinel = Sentinel(module_configs.get("sentinel", {})) if Sentinel else None
+    void = Void(module_configs.get("void", {})) if Void else None
+    nova = Nova(module_configs.get("nova", {})) if Nova else None
+    morpheus = Morpheus(module_configs.get("morpheus", {})) if Morpheus else None
 
     # Step 2: Initialize Grimoire first (Reaper depends on it)
-    try:
-        await grimoire.initialize()
-        logger.info("Grimoire initialized: %s", grimoire.status.value)
-    except Exception as e:
-        logger.error("Grimoire failed to initialize: %s", e)
+    if grimoire is not None:
+        try:
+            await grimoire.initialize()
+            logger.info("Grimoire initialized: %s", grimoire.status.value)
+        except Exception as e:
+            logger.error("Grimoire failed to initialize: %s", e)
+    else:
+        logger.error("Grimoire failed to import — memory system unavailable")
 
     # Step 3: Wire Grimoire's internal object into Reaper
-    if grimoire._grimoire is not None:
+    if grimoire is not None and grimoire._grimoire is not None and reaper is not None:
         reaper._grimoire_instance = grimoire._grimoire
         logger.info("Reaper wired to Grimoire")
     else:
@@ -123,8 +144,10 @@ async def startup(config: dict, logger: logging.Logger) -> Orchestrator:
 
     # Step 4: Initialize remaining modules
     all_modules = [
-        cerberus, wraith, reaper, harbinger,
-        apex, cipher, omen, sentinel, void, nova, morpheus,
+        m for m in [
+            cerberus, wraith, reaper, harbinger,
+            apex, cipher, omen, sentinel, void, nova, morpheus,
+        ] if m is not None
     ]
     for module in all_modules:
         try:
@@ -135,9 +158,17 @@ async def startup(config: dict, logger: logging.Logger) -> Orchestrator:
 
     # Step 5: Create orchestrator and register modules
     orchestrator = Orchestrator(config)
-    for module in [grimoire] + all_modules:
+    registerable = ([grimoire] if grimoire else []) + all_modules
+    for module in registerable:
         orchestrator.registry.register(module)
         logger.info("Registered module: %s", module.name)
+
+    if _IMPORT_FAILURES:
+        logger.error(
+            "DEGRADED START: %d module(s) failed to import: %s",
+            len(_IMPORT_FAILURES),
+            ", ".join(cls for _, cls, _ in _IMPORT_FAILURES),
+        )
 
     # Step 5b: Register ShadowModule (task tracking + health)
     shadow_mod = ShadowModule(
