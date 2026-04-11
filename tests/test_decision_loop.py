@@ -54,7 +54,13 @@ class MockWraithModule(BaseModule):
 
 
 class MockCipherModule(BaseModule):
-    """Mock Cipher that handles calculate tool."""
+    """Mock Cipher that handles all cipher tools (calculate, percentage, etc.)."""
+
+    # All tool names that _step4_plan can route to cipher
+    CIPHER_TOOLS = {
+        "calculate", "percentage", "unit_convert", "financial",
+        "statistics", "logic_check", "date_math",
+    }
 
     def __init__(self):
         super().__init__(name="cipher", description="Mock Cipher")
@@ -65,7 +71,7 @@ class MockCipherModule(BaseModule):
 
     async def execute(self, tool_name: str, params: dict[str, Any]) -> ToolResult:
         self.calls.append((tool_name, params))
-        if tool_name == "calculate":
+        if tool_name in self.CIPHER_TOOLS:
             return ToolResult(
                 success=True,
                 content={"result": 127.05, "expression": "15% of 847"},
@@ -79,8 +85,9 @@ class MockCipherModule(BaseModule):
 
     def get_tools(self) -> list[dict[str, Any]]:
         return [
-            {"name": "calculate", "description": "Evaluate math expression",
-             "parameters": {}, "permission_level": "autonomous"},
+            {"name": name, "description": f"Cipher {name} tool",
+             "parameters": {}, "permission_level": "autonomous"}
+            for name in self.CIPHER_TOOLS
         ]
 
 
