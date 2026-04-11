@@ -44,24 +44,18 @@ _ANALYSIS_KEYWORDS = re.compile(
     re.IGNORECASE,
 )
 
-_TEACHING_PROMPT = """You just solved this task successfully. Now teach someone else how to solve it.
+_TEACHING_PROMPT = """You completed a {task_type} task. The user asked: "{task_description}"
+You responded with: "{solution}"
 
-Task: {task_description}
-Your solution: {solution}
-{reasoning_section}
-Structure your teaching in three sections:
+What did you learn? Write three short paragraphs:
 
-<specific_solution>
-The exact solution with implementation details.
-</specific_solution>
+1. SOLUTION: What specifically solved this problem.
+2. PRINCIPLE: What general pattern or approach works for this type of problem.
+3. STRATEGY: How to think about this class of problem in the future."""
 
-<general_principle>
-The underlying pattern — what approach works for this type of problem and why.
-</general_principle>
+_RETRY_PROMPT = """You completed a {task_type} task: "{task_description}"
 
-<meta_principle>
-The high-level reasoning strategy — how to think about this class of problem.
-</meta_principle>"""
+What is the key lesson from this? Write 1-2 sentences about what you learned that would help handle similar tasks better."""
 
 
 class SelfTeacher:
@@ -172,32 +166,22 @@ class SelfTeacher:
             generated_at, and source fields.
         """
         description = task.get("description", "")
-        reasoning_section = ""
-        if reasoning_steps:
-            reasoning_section = "Your reasoning steps: " + "; ".join(
-                str(s) for s in reasoning_steps
-            )
+        task_type = task.get("type", "general")
+        # Truncate long inputs to keep prompt under 2000 chars
+        desc_short = description[:300]
+        solution_short = solution[:400]
 
         prompt = _TEACHING_PROMPT.format(
-            task_description=description,
-            solution=solution,
-            reasoning_section=reasoning_section,
+            task_type=task_type,
+            task_description=desc_short,
+            solution=solution_short,
         )
 
         raw_teaching = ""
         if self._generate_fn is not None:
-            try:
-                logger.info("generate_teaching() calling generate_fn, "
-                            "task_type=%s, prompt_len=%d",
-                            task.get("type", "unknown"), len(prompt))
-                raw_teaching = self._generate_fn(prompt)
-                logger.info("generate_teaching() raw output length=%d, "
-                            "preview=%.100s",
-                            len(raw_teaching) if raw_teaching else 0,
-                            raw_teaching[:100] if raw_teaching else "(empty)")
-            except Exception as e:
-                logger.warning("Self-teaching generation failed: %s", e)
-                raw_teaching = ""
+            raw_teaching = self._call_generate_with_retry(
+                prompt, task_type, desc_short,
+            )
         else:
             logger.error("generate_teaching() called but generate_fn is None — "
                          "no model available to generate teachings")
@@ -323,15 +307,120 @@ class SelfTeacher:
 
     # --- Private helpers ---
 
+    def _call_generate_with_retry(
+        self, prompt: str, task_type: str, desc_short: str,
+    ) -> str:
+        """Call generate_fn with one retry using a simpler fallback prompt."""
+        logger.debug("Teaching prompt:\n%s", prompt)
+        logger.info(
+            "generate_teaching() calling generate_fn, "
+            "task_type=%s, prompt_len=%d",
+            task_type, len(prompt),
+        )
+        try:
+            raw = self._generate_fn(prompt)
+        except Exception as e:
+            logger.warning("Self-teaching generation failed: %s", e)
+            raw = ""
+
+        if raw and raw.strip():
+            logger.info(
+                "generate_teaching() raw output length=%d, preview=%.100s",
+                len(raw), raw[:100],
+            )
+            return raw.strip()
+
+        # First attempt returned empty — retry with shorter fallback prompt
+        logger.warning(
+            "generate_teaching() got empty response on first attempt, "
+            "retrying with simplified prompt"
+        )
+        retry_prompt = _RETRY_PROMPT.format(
+            task_type=task_type,
+            task_description=desc_short,
+        )
+        logger.debug("Retry prompt:\n%s", retry_prompt)
+        try:
+            raw = self._generate_fn(retry_prompt)
+        except Exception as e:
+            logger.warning("Self-teaching retry also failed: %s", e)
+            return ""
+
+        if raw and raw.strip():
+            logger.info(
+                "generate_teaching() retry succeeded, length=%d, preview=%.100s",
+                len(raw), raw[:100],
+            )
+            return raw.strip()
+
+        logger.error(
+            "generate_teaching() retry also returned empty — "
+            "model may be refusing or misconfigured"
+        )
+        return ""
+
     def _extract_tiers(self, raw: str) -> dict:
-        """Extract three-tier content from tagged model output."""
-        tiers = {}
+        """Extract three-tier content from model output.
+
+        Supports two formats:
+        1. XML-tagged: <specific_solution>...</specific_solution> etc.
+        2. Numbered paragraphs: 1. SOLUTION: ... 2. PRINCIPLE: ... 3. STRATEGY: ...
+        Falls back to storing the entire response as specific_solution.
+        """
+        if not raw:
+            return {"specific_solution": "", "general_principle": "", "meta_principle": ""}
+
+        # Try XML tags first (backward compatibility)
+        tiers: dict[str, str] = {}
+        xml_found = False
         for tier in ("specific_solution", "general_principle", "meta_principle"):
             match = re.search(
                 rf"<{tier}>(.*?)</{tier}>", raw, re.DOTALL,
             )
-            tiers[tier] = match.group(1).strip() if match else ""
-        return tiers
+            if match:
+                tiers[tier] = match.group(1).strip()
+                xml_found = True
+            else:
+                tiers[tier] = ""
+
+        if xml_found and any(tiers.values()):
+            return tiers
+
+        # Try numbered paragraph extraction
+        paragraphs = self._split_numbered_paragraphs(raw)
+        if len(paragraphs) >= 3:
+            return {
+                "specific_solution": paragraphs[0],
+                "general_principle": paragraphs[1],
+                "meta_principle": paragraphs[2],
+            }
+        if len(paragraphs) == 2:
+            return {
+                "specific_solution": paragraphs[0],
+                "general_principle": paragraphs[1],
+                "meta_principle": "",
+            }
+
+        # Fallback: store entire response as specific_solution
+        return {
+            "specific_solution": raw.strip(),
+            "general_principle": "",
+            "meta_principle": "",
+        }
+
+    @staticmethod
+    def _split_numbered_paragraphs(text: str) -> list[str]:
+        """Split text by numbered headings (1. / 2. / 3.) or keyword labels."""
+        # Match patterns like "1.", "1. SOLUTION:", "SOLUTION:", "**SOLUTION:**"
+        parts = re.split(
+            r"(?:^|\n)\s*(?:\d+[\.\)]\s*)?(?:\*{0,2})"
+            r"(?:SOLUTION|PRINCIPLE|STRATEGY|LESSON)"
+            r"(?:\*{0,2})\s*:?\s*",
+            text,
+            flags=re.IGNORECASE,
+        )
+        # Filter empty chunks
+        return [p.strip() for p in parts if p and p.strip()]
 
     def _infer_domain_tags(self, task_type: str, description: str) -> list[str]:
         """Infer domain tags from task type and description."""

@@ -152,15 +152,14 @@ class TestGenerateTeaching:
         assert "O(1) lookups" in tiers["general_principle"]
         assert "data access patterns" in tiers["meta_principle"]
 
-    def test_passes_reasoning_steps_in_prompt(self, teacher, hard_code_task):
-        teacher.generate_teaching(
+    def test_reasoning_steps_accepted_without_error(self, teacher, hard_code_task):
+        """reasoning_steps parameter is accepted (not used in prompt to keep it simple)."""
+        result = teacher.generate_teaching(
             hard_code_task,
             solution="result",
             reasoning_steps=["step1", "step2"],
         )
-        prompt = teacher._generate_fn.call_args[0][0]
-        assert "step1" in prompt
-        assert "step2" in prompt
+        assert result["raw_teaching"] != ""
 
     def test_graceful_when_generate_fn_fails(self, teacher, hard_code_task):
         teacher._generate_fn.side_effect = RuntimeError("model crashed")
@@ -172,6 +171,104 @@ class TestGenerateTeaching:
         teacher = SelfTeacher(generate_fn=None)
         result = teacher.generate_teaching(hard_code_task, solution="x")
         assert result["raw_teaching"] == ""
+
+    def test_teaching_prompt_not_empty_and_under_limit(self, teacher, hard_code_task):
+        """The prompt sent to generate_fn must be a non-empty string under 2000 chars."""
+        teacher.generate_teaching(hard_code_task, solution="Use Floyd's algorithm")
+        prompt = teacher._generate_fn.call_args[0][0]
+        assert isinstance(prompt, str)
+        assert 0 < len(prompt) < 2000
+
+    def test_teaching_prompt_simplified(self, teacher, hard_code_task):
+        """The prompt should not require complex XML formatting from the model."""
+        teacher.generate_teaching(hard_code_task, solution="Use Floyd's algorithm")
+        prompt = teacher._generate_fn.call_args[0][0]
+        # Should NOT contain XML tags that local models struggle with
+        assert "<specific_solution>" not in prompt
+        assert "<general_principle>" not in prompt
+        assert "<meta_principle>" not in prompt
+
+    def test_empty_response_retries(self, hard_code_task):
+        """When generate_fn returns empty, it should retry once with a simpler prompt."""
+        gen_fn = MagicMock(side_effect=["", "Lesson: use hash maps for O(1) lookup."])
+        teacher = SelfTeacher(generate_fn=gen_fn)
+        result = teacher.generate_teaching(hard_code_task, solution="hash map")
+        assert gen_fn.call_count == 2
+        assert result["raw_teaching"] == "Lesson: use hash maps for O(1) lookup."
+        # Second prompt should be shorter than the first
+        first_prompt = gen_fn.call_args_list[0][0][0]
+        retry_prompt = gen_fn.call_args_list[1][0][0]
+        assert len(retry_prompt) < len(first_prompt)
+
+    def test_empty_response_both_attempts_returns_empty(self, hard_code_task):
+        """When both attempts return empty, raw_teaching is empty."""
+        gen_fn = MagicMock(return_value="")
+        teacher = SelfTeacher(generate_fn=gen_fn)
+        result = teacher.generate_teaching(hard_code_task, solution="x")
+        assert gen_fn.call_count == 2
+        assert result["raw_teaching"] == ""
+
+    def test_successful_teaching_stores(self):
+        """When generate_fn returns valid text, store_teaching stores it."""
+        gen_fn = MagicMock(return_value="1. SOLUTION: Use a hash map.\n2. PRINCIPLE: O(1) lookups.\n3. STRATEGY: Think about access patterns.")
+        grimoire = MagicMock()
+        grimoire.remember = MagicMock(return_value="stored-id")
+        teacher = SelfTeacher(generate_fn=gen_fn, grimoire=grimoire)
+        teaching = teacher.generate_teaching(
+            task={"description": "Optimize lookup performance", "type": "code", "difficulty": 7},
+            solution="Use a hash map",
+        )
+        ids = teacher.store_teaching(teaching)
+        assert len(ids) >= 1
+        grimoire.remember.assert_called()
+
+    def test_extract_tiers_from_numbered_paragraphs(self):
+        """_extract_tiers handles numbered paragraph format."""
+        teacher = SelfTeacher()
+        raw = (
+            "1. SOLUTION: Use binary search.\n"
+            "2. PRINCIPLE: Divide and conquer.\n"
+            "3. STRATEGY: Check if input is sorted first."
+        )
+        tiers = teacher._extract_tiers(raw)
+        assert "binary search" in tiers["specific_solution"].lower()
+        assert "divide" in tiers["general_principle"].lower()
+        assert "sorted" in tiers["meta_principle"].lower()
+
+    def test_extract_tiers_fallback_whole_response(self):
+        """When model returns plain text without structure, store as specific_solution."""
+        teacher = SelfTeacher()
+        raw = "The key lesson is to always validate input before processing."
+        tiers = teacher._extract_tiers(raw)
+        assert tiers["specific_solution"] == raw
+        assert tiers["general_principle"] == ""
+        assert tiers["meta_principle"] == ""
+
+    def test_extract_tiers_xml_still_works(self):
+        """XML-tagged output still works for backward compatibility."""
+        teacher = SelfTeacher()
+        raw = (
+            "<specific_solution>Use a hash map.</specific_solution>"
+            "<general_principle>O(1) lookups.</general_principle>"
+            "<meta_principle>Access patterns first.</meta_principle>"
+        )
+        tiers = teacher._extract_tiers(raw)
+        assert tiers["specific_solution"] == "Use a hash map."
+        assert tiers["general_principle"] == "O(1) lookups."
+        assert tiers["meta_principle"] == "Access patterns first."
+
+    def test_long_inputs_truncated_in_prompt(self):
+        """Long task descriptions and solutions are truncated to keep prompt short."""
+        gen_fn = MagicMock(return_value="Lesson learned.")
+        teacher = SelfTeacher(generate_fn=gen_fn)
+        long_desc = "x " * 500  # 1000 chars
+        long_solution = "y " * 500
+        teacher.generate_teaching(
+            task={"description": long_desc, "type": "code"},
+            solution=long_solution,
+        )
+        prompt = gen_fn.call_args_list[0][0][0]
+        assert len(prompt) < 2000
 
 
 # --- store_teaching tests ---
