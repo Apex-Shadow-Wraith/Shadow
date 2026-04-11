@@ -2530,8 +2530,20 @@ User input: {user_input}"""
         def grimoire_store(content: str, tags: list[str], trust_level: float) -> str:
             if "grimoire" not in registry:
                 return "no_grimoire"
-            # Use sync call — Grimoire storage is typically sync
-            return f"stored_{hash(content) % 10000}"
+            grimoire = registry.get_module("grimoire")
+            try:
+                doc_id = grimoire.remember(
+                    content=content,
+                    source="apex_escalation",
+                    source_module="apex",
+                    category="self_teaching",
+                    trust_level=trust_level,
+                    tags=tags,
+                )
+                return str(doc_id) if doc_id else "no_id"
+            except Exception as e:
+                logger.warning("Grimoire store failed: %s", e)
+                return "store_error"
 
         return grimoire_store
 

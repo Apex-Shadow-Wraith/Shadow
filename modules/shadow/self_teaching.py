@@ -241,15 +241,16 @@ class SelfTeacher:
             if not tier_content:
                 continue
             try:
-                doc_id = self._grimoire.store(
+                doc_id = self._grimoire.remember(
                     content=tier_content,
+                    source="self_teaching",
+                    source_module="shadow",
+                    category="self_teaching",
+                    trust_level=0.5,
+                    tags=teaching.get("domain_tags", []),
                     metadata={
-                        "category": "self_teaching",
-                        "trust_level": 0.5,
-                        "source": "self_teaching",
                         "tier": tier_name,
                         "task_hash": teaching.get("task_hash", ""),
-                        "domain_tags": teaching.get("domain_tags", []),
                         "generated_at": teaching.get("generated_at", 0),
                     },
                 )

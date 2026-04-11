@@ -158,6 +158,16 @@ async def startup(config: dict, logger: logging.Logger) -> Orchestrator:
     except Exception as e:
         logger.error("Failed to initialize inter-module communication: %s", e)
 
+    # Step 8: Rebuild tool loader index now that all modules are registered and online
+    if orchestrator._tool_loader is not None:
+        orchestrator._tool_loader.refresh()
+        report = orchestrator._tool_loader.get_loading_report()
+        logger.info(
+            "Tool loader index rebuilt: %d modules, %d tools",
+            len(orchestrator._tool_loader._index),
+            report.get("tools_available", 0),
+        )
+
     return orchestrator
 
 
