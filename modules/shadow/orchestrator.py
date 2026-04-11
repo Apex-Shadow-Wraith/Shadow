@@ -3262,23 +3262,28 @@ User input: {user_input}"""
 
         async def execute_fn(task: str, strategy_context: dict) -> dict:
             """Execute one attempt using the plan + evaluate pipeline."""
-            # Check tool_loader before executing — empty means infrastructure failure
+            # Check tool_loader before executing — empty means infrastructure failure.
+            # Skip for non-module targets like "direct" / "conversation" that
+            # don't need tools — they just call the LLM directly.
+            NON_MODULE_TARGETS = {"direct", "conversation"}
+            target = getattr(classification, "target_module", None)
             tool_loader_empty = False
-            if hasattr(self, '_tool_loader') and self._tool_loader is not None:
-                tools = self._tool_loader.get_tools_for_task(
-                    module_name=getattr(classification, "target_module", None),
-                )
-                if not tools:
-                    tool_loader_empty = True
-                    logger.warning(
-                        "Tool loader empty — infrastructure issue, not model failure"
+            if target not in NON_MODULE_TARGETS:
+                if hasattr(self, '_tool_loader') and self._tool_loader is not None:
+                    tools = self._tool_loader.get_tools_for_task(
+                        module_name=target,
                     )
-                    return {
-                        "response": "",
-                        "results": [],
-                        "tool_loader_empty": True,
-                        "infrastructure_error": True,
-                    }
+                    if not tools:
+                        tool_loader_empty = True
+                        logger.warning(
+                            "Tool loader empty — infrastructure issue, not model failure"
+                        )
+                        return {
+                            "response": "",
+                            "results": [],
+                            "tool_loader_empty": True,
+                            "infrastructure_error": True,
+                        }
 
             results = await self._step5_execute(plan, classification)
             response = await self._step6_evaluate(
@@ -3316,7 +3321,14 @@ User input: {user_input}"""
                 return {"success": True, "confidence": 0.7, "reason": "Basic checks passed"}
             if not response:
                 return {"success": False, "confidence": 0.0, "reason": "Empty response"}
-            return {"success": False, "confidence": 0.3, "reason": "Tool execution errors"}
+            # Propagate actual tool error text so classify_failure can
+            # detect infrastructure issues (e.g. "Ollama unreachable").
+            error_details = "; ".join(
+                r.get("error", "") for r in tool_results
+                if r.get("error") and not r.get("success", True)
+            )
+            reason = f"Tool execution errors: {error_details}" if error_details else "Tool execution errors"
+            return {"success": False, "confidence": 0.3, "reason": reason}
 
         # Grimoire search for failure patterns
         grimoire_search_fn = None

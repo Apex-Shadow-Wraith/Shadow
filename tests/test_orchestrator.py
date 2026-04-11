@@ -1450,3 +1450,126 @@ class TestParallelContextLoading:
         # Should not raise
         context = await orch._step3_load_context("test query", classification)
         assert isinstance(context, list)
+
+
+# --- Direct Route Bypass Tool Loader ---
+
+class TestDirectRouteBypassesToolLoader:
+    """Routing to 'direct' must skip the tool_loader check and produce a response."""
+
+    @pytest.mark.asyncio
+    async def test_direct_route_skips_tool_loader(self, config: dict):
+        """'Hey buddy' routed to direct should generate a response, not fail
+        with an infrastructure error from tool_loader returning empty."""
+        orch = Orchestrator(config)
+
+        # Wire up a tool_loader that returns empty for everything —
+        # if 'direct' still queries it, we'd get infrastructure_error.
+        mock_loader = MagicMock()
+        mock_loader.get_tools_for_task.return_value = []
+        mock_loader.get_loading_report.return_value = {"loaded": 0, "failed": 0}
+        orch._tool_loader = mock_loader
+
+        classification = TaskClassification(
+            task_type=TaskType.CONVERSATION,
+            complexity="simple",
+            target_module="direct",
+            brain=BrainType.FAST,
+            safety_flag=False,
+            priority=1,
+        )
+
+        plan = ExecutionPlan(
+            steps=[],
+            cerberus_approved=True,
+            raw_plan="Direct conversation — no tools needed",
+        )
+
+        context: list[dict[str, Any]] = []
+
+        # Mock _step5_execute and _step6_evaluate to isolate the bypass logic
+        orch._step5_execute = AsyncMock(return_value=[])
+        orch._step6_evaluate = AsyncMock(return_value="Hey! How can I help you?")
+
+        response = await orch._step5_with_retry(
+            "Hey buddy", plan, classification, context, source="user",
+        )
+
+        # The tool_loader should never have been consulted for 'direct'
+        mock_loader.get_tools_for_task.assert_not_called()
+        # And we should have a real response, not empty
+        assert response
+        assert "Hey" in response
+
+    @pytest.mark.asyncio
+    async def test_conversation_route_skips_tool_loader(self, config: dict):
+        """'conversation' target should also bypass the tool_loader check."""
+        orch = Orchestrator(config)
+
+        mock_loader = MagicMock()
+        mock_loader.get_tools_for_task.return_value = []
+        mock_loader.get_loading_report.return_value = {"loaded": 0, "failed": 0}
+        orch._tool_loader = mock_loader
+
+        classification = TaskClassification(
+            task_type=TaskType.CONVERSATION,
+            complexity="simple",
+            target_module="conversation",
+            brain=BrainType.FAST,
+            safety_flag=False,
+            priority=1,
+        )
+
+        plan = ExecutionPlan(
+            steps=[],
+            cerberus_approved=True,
+            raw_plan="Conversation — no tools",
+        )
+
+        orch._step5_execute = AsyncMock(return_value=[])
+        orch._step6_evaluate = AsyncMock(return_value="Hello there!")
+
+        response = await orch._step5_with_retry(
+            "Hi there", plan, classification, [], source="user",
+        )
+
+        mock_loader.get_tools_for_task.assert_not_called()
+        assert response == "Hello there!"
+
+    @pytest.mark.asyncio
+    async def test_real_module_still_checks_tool_loader(self, config: dict):
+        """A real module like 'reaper' should still go through tool_loader."""
+        orch = Orchestrator(config)
+
+        mock_loader = MagicMock()
+        mock_loader.get_tools_for_task.return_value = []  # empty = infra failure
+        mock_loader.get_loading_report.return_value = {"loaded": 0, "failed": 0}
+        orch._tool_loader = mock_loader
+
+        classification = TaskClassification(
+            task_type=TaskType.RESEARCH,
+            complexity="simple",
+            target_module="reaper",
+            brain=BrainType.FAST,
+            safety_flag=False,
+            priority=1,
+        )
+
+        plan = ExecutionPlan(
+            steps=[{"tool": "web_search", "params": {"query": "test"}}],
+            cerberus_approved=True,
+            raw_plan="Search the web",
+        )
+
+        orch._step5_execute = AsyncMock(return_value=[])
+        orch._step6_evaluate = AsyncMock(return_value="results")
+
+        response = await orch._step5_with_retry(
+            "search for test", plan, classification, [], source="user",
+        )
+
+        # Tool loader SHOULD have been called for a real module
+        mock_loader.get_tools_for_task.assert_called()
+        # And the empty result should have caused an infrastructure failure path
+        # (response will be empty since retry engine gets infra error)
+        assert response is not None
