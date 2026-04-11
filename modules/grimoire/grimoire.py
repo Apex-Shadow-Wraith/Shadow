@@ -440,6 +440,22 @@ class Grimoire:
         except sqlite3.OperationalError:
             pass  # Column already exists — safe to ignore
 
+        # ── Migration: Add temporal validity columns (32C Item 5) ──
+        # valid_from: when this memory becomes relevant (ISO timestamp)
+        # valid_until: when this memory expires (ISO timestamp or NULL = never)
+        # superseded_by: UUID of the newer entry that replaced this one (or NULL)
+        for col, col_type in [
+            ("valid_from", "TEXT"),
+            ("valid_until", "TEXT"),
+            ("superseded_by", "TEXT"),
+        ]:
+            try:
+                cursor.execute(
+                    f"ALTER TABLE memories ADD COLUMN {col} {col_type}"
+                )
+            except sqlite3.OperationalError:
+                pass  # Column already exists — safe to ignore
+
         # commit() saves all changes to disk
         # Without this, changes exist only in memory and are lost on crash
         self.conn.commit()
@@ -626,7 +642,8 @@ class Grimoire:
                  model_used=None, tools_called=None,
                  safety_class=None, user_feedback=None,
                  check_duplicates=True, content_blocks=None,
-                 faceted_tags=None):
+                 faceted_tags=None,
+                 valid_from=None, valid_until=None, supersedes=None):
         """
         Store a new memory in both SQLite and ChromaDB.
         
@@ -664,6 +681,12 @@ class Grimoire:
                           Keys: domain, content_type, source_module, entities, phase,
                           temporal_relevance. See FACETED_TAG_KEYS and VALID_* constants.
                           If None, auto-tagging heuristics are applied.
+            valid_from: ISO timestamp for when this memory becomes relevant.
+                        Defaults to now if not provided.
+            valid_until: ISO timestamp for when this memory expires. None = never expires.
+                         Expired memories are deprioritized in recall, never deleted.
+            supersedes: UUID of an older memory this one replaces. If provided,
+                        the old entry's superseded_by field is set to this new entry's ID.
 
         Returns:
             The UUID string of the new memory, or the ID of an existing duplicate
@@ -686,6 +709,8 @@ class Grimoire:
                 safety_class=safety_class, user_feedback=user_feedback,
                 check_duplicates=check_duplicates, content_blocks=content_blocks,
                 faceted_tags=faceted_tags,
+                valid_from=valid_from, valid_until=valid_until,
+                supersedes=supersedes,
             )
         except Exception as e:
             logger.error("Grimoire storage FAILED: %s: %s", type(e).__name__, e)
@@ -695,7 +720,8 @@ class Grimoire:
     def _remember_impl(self, content, source, source_module, category,
                        trust_level, confidence, tags, metadata, parent_id,
                        model_used, tools_called, safety_class, user_feedback,
-                       check_duplicates, content_blocks, faceted_tags):
+                       check_duplicates, content_blocks, faceted_tags,
+                       valid_from, valid_until, supersedes):
         """Internal implementation of remember() — separated for error logging."""
         # Generate a unique ID for this memory
         # UUID4 = random, virtually impossible to collide
@@ -766,6 +792,10 @@ class Grimoire:
         if resolved_tags:
             merged_metadata["faceted_tags"] = resolved_tags
 
+        # ── Step 1.9: Resolve temporal validity fields ──
+        # valid_from defaults to now; valid_until and supersedes can be None
+        resolved_valid_from = valid_from or now
+
         # ── Step 2: Store in SQLite ──
         cursor = self.conn.cursor()
         cursor.execute("""
@@ -773,8 +803,9 @@ class Grimoire:
             (id, content, category, source, source_module, trust_level,
              confidence, created_at, updated_at, embedding_id, parent_id,
              model_used, tools_called, safety_class, user_feedback,
-             metadata_json, content_blocks)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             metadata_json, content_blocks,
+             valid_from, valid_until, superseded_by)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             memory_id,                    # id
             content,                      # content
@@ -792,7 +823,10 @@ class Grimoire:
             safety_class,                 # safety_class (from design doc)
             user_feedback,                # user_feedback (from design doc)
             json.dumps(merged_metadata),   # metadata_json
-            json.dumps(content_blocks) if content_blocks is not None else None  # content_blocks
+            json.dumps(content_blocks) if content_blocks is not None else None,  # content_blocks
+            resolved_valid_from,          # valid_from (32C Item 5)
+            valid_until,                  # valid_until (32C Item 5)
+            None,                         # superseded_by — set by supersede() caller
         ))
 
         # ── Step 3: Store tags ──
@@ -828,6 +862,15 @@ class Grimoire:
             metadatas=[chroma_meta]
         )
 
+        # ── Step 4.5: Handle supersedes chain (32C Item 5) ──
+        # If this memory supersedes an older one, link old → new
+        if supersedes:
+            cursor.execute(
+                "UPDATE memories SET superseded_by = ?, updated_at = ? WHERE id = ?",
+                (memory_id, now, supersedes)
+            )
+            self.conn.commit()
+
         print(f"[Grimoire] Remembered: {content[:80]}...")
         print(f"[Grimoire] ID: {memory_id} | Trust: {trust_level} | Category: {category}")
 
@@ -849,24 +892,27 @@ class Grimoire:
     # =========================================================================
 
     def recall(self, query, n_results=5, min_trust=0.0, category=None,
-               tag_filters=None):
+               tag_filters=None, include_expired=False,
+               include_superseded=False):
         """
         Search memories by meaning (semantic search).
-        
+
         This is the core read function. You describe what you're looking for
         in natural language, and Grimoire finds the most relevant memories —
         even if the exact words don't match.
-        
+
         Example: query "GPU specs" will find a memory about "RTX 5090 with 32GB VRAM"
         even though those strings share no words.
-        
+
         HOW IT WORKS:
             1. Your query gets embedded (converted to a vector)
             2. ChromaDB finds the nearest vectors (most similar meanings)
             3. Those memory IDs are used to fetch full records from SQLite
             4. Results are returned with relevance scores
             5. Access tracking is updated (so we know which memories matter)
-        
+            6. Temporal validity applied: expired entries get score * 0.5,
+               superseded entries get score * 0.3 (32C Item 5)
+
         Args:
             query: Natural language description of what you're looking for
             n_results: Maximum number of memories to return (default 5)
@@ -877,6 +923,10 @@ class Grimoire:
                          temporal_relevance. Uses AND logic — all specified
                          dimensions must match. Example:
                          {"domain": "code", "content_type": "error_pattern"}
+            include_expired: If True, include expired entries in results
+                             (with deprioritized scores). Default False.
+            include_superseded: If True, include superseded entries in results
+                                (with deprioritized scores). Default False.
 
         Returns:
             List of dicts, each containing:
@@ -889,6 +939,10 @@ class Grimoire:
                 - created_at: When stored
                 - access_count: How often retrieved
                 - relevance: Similarity score (0.0–1.0, higher = more relevant)
+                - temporal_status: "active", "expired", or "superseded"
+                - valid_from: When this memory became relevant
+                - valid_until: When this memory expires (None = never)
+                - superseded_by: UUID of newer replacement (None if current)
         """
         # ── Step 1: Embed the query ──
         query_embedding = self._get_embedding(query)
@@ -929,78 +983,115 @@ class Grimoire:
             where_filter = {"$and": conditions}
 
         # ── Step 3: Search ChromaDB ──
-        # query_embeddings takes a list because you COULD search for multiple
-        # queries at once, but we just pass one
+        # Fetch extra results when including expired/superseded — some will be
+        # filtered out, so we over-fetch then trim to n_results at the end.
+        fetch_n = n_results * 3 if (include_expired or include_superseded) else n_results
         results = self.collection.query(
             query_embeddings=[query_embedding],
-            n_results=n_results,
+            n_results=fetch_n,
             where=where_filter
         )
 
-        # ── Step 4: Enrich results with SQLite data ──
+        now_iso = datetime.now().isoformat()
+
+        # ── Step 4: Enrich results with SQLite data + temporal ranking ──
         memories = []
-        
+
         # results['ids'] is a list of lists (one per query). We only have one query.
         if results and results['ids'] and results['ids'][0]:
             for i, memory_id in enumerate(results['ids'][0]):
-                
-                # Fetch full record from SQLite
+
+                # Fetch full record from SQLite — include all rows (active or not)
+                # so we can check temporal status before deciding visibility
                 cursor = self.conn.cursor()
                 cursor.execute(
                     "SELECT * FROM memories WHERE id = ? AND is_active = 1",
                     (memory_id,)
                 )
                 row = cursor.fetchone()
-                
-                if row:
-                    # ── Step 5: Update access tracking ──
-                    # This is how Grimoire learns which memories are important
-                    cursor.execute("""
-                        UPDATE memories 
-                        SET accessed_at = ?, access_count = access_count + 1
-                        WHERE id = ?
-                    """, (datetime.now().isoformat(), memory_id))
-                    self.conn.commit()
 
-                    # ChromaDB returns DISTANCE (lower = more similar)
-                    # Convert to RELEVANCE (higher = more similar) for readability
-                    distance = results['distances'][0][i]
-                    relevance = max(0.0, 1.0 - distance)  # Flip it
+                if not row:
+                    continue
 
-                    # Fetch tags for this memory
-                    cursor.execute(
-                        "SELECT tag FROM tags WHERE memory_id = ?",
-                        (memory_id,)
-                    )
-                    memory_tags = [r["tag"] for r in cursor.fetchall()]
+                # ── Temporal status check (32C Item 5) ──
+                valid_until = row["valid_until"]
+                superseded_by = row["superseded_by"]
 
-                    # Parse content_blocks — legacy entries (NULL) become
-                    # a single text block so callers always get a list
-                    raw_blocks = row["content_blocks"]
-                    if raw_blocks:
-                        blocks = json.loads(raw_blocks)
-                    else:
-                        blocks = [{"type": "text", "content": row["content"]}]
+                is_expired = bool(valid_until and valid_until < now_iso)
+                is_superseded = bool(superseded_by)
 
-                    parsed_meta = json.loads(row["metadata_json"] or "{}")
-                    memories.append({
-                        "id": row["id"],
-                        "content": row["content"],
-                        "category": row["category"],
-                        "source": row["source"],
-                        "source_module": row["source_module"],
-                        "trust_level": row["trust_level"],
-                        "confidence": row["confidence"],
-                        "created_at": row["created_at"],
-                        "access_count": row["access_count"] + 1,
-                        "tags": memory_tags,
-                        "relevance": round(relevance, 4),
-                        "metadata": parsed_meta,
-                        "faceted_tags": parsed_meta.get("faceted_tags", {}),
-                        "content_blocks": blocks
-                    })
+                if is_superseded:
+                    temporal_status = "superseded"
+                elif is_expired:
+                    temporal_status = "expired"
+                else:
+                    temporal_status = "active"
 
-        return memories
+                # Filter out expired/superseded unless caller opted in
+                if is_expired and not include_expired:
+                    continue
+                if is_superseded and not include_superseded:
+                    continue
+
+                # ── Step 5: Update access tracking ──
+                cursor.execute("""
+                    UPDATE memories
+                    SET accessed_at = ?, access_count = access_count + 1
+                    WHERE id = ?
+                """, (now_iso, memory_id))
+                self.conn.commit()
+
+                # ChromaDB returns DISTANCE (lower = more similar)
+                # Convert to RELEVANCE (higher = more similar) for readability
+                distance = results['distances'][0][i]
+                relevance = max(0.0, 1.0 - distance)
+
+                # Apply temporal penalty — deprioritise stale entries
+                if is_superseded:
+                    relevance *= 0.3
+                elif is_expired:
+                    relevance *= 0.5
+
+                # Fetch tags for this memory
+                cursor.execute(
+                    "SELECT tag FROM tags WHERE memory_id = ?",
+                    (memory_id,)
+                )
+                memory_tags = [r["tag"] for r in cursor.fetchall()]
+
+                # Parse content_blocks — legacy entries (NULL) become
+                # a single text block so callers always get a list
+                raw_blocks = row["content_blocks"]
+                if raw_blocks:
+                    blocks = json.loads(raw_blocks)
+                else:
+                    blocks = [{"type": "text", "content": row["content"]}]
+
+                parsed_meta = json.loads(row["metadata_json"] or "{}")
+                memories.append({
+                    "id": row["id"],
+                    "content": row["content"],
+                    "category": row["category"],
+                    "source": row["source"],
+                    "source_module": row["source_module"],
+                    "trust_level": row["trust_level"],
+                    "confidence": row["confidence"],
+                    "created_at": row["created_at"],
+                    "access_count": row["access_count"] + 1,
+                    "tags": memory_tags,
+                    "relevance": round(relevance, 4),
+                    "metadata": parsed_meta,
+                    "faceted_tags": parsed_meta.get("faceted_tags", {}),
+                    "content_blocks": blocks,
+                    "temporal_status": temporal_status,
+                    "valid_from": row["valid_from"],
+                    "valid_until": row["valid_until"],
+                    "superseded_by": row["superseded_by"],
+                })
+
+        # Sort by relevance (temporal penalties already applied) and trim
+        memories.sort(key=lambda m: m["relevance"], reverse=True)
+        return memories[:n_results]
 
     def recall_by_tag(self, tag, limit=10):
         """
@@ -1632,10 +1723,128 @@ class Grimoire:
         """, (limit,))
         return [dict(row) for row in cursor.fetchall()]
 
+    # =========================================================================
+    # TEMPORAL VALIDITY — Time-aware memory management (32C Item 5)
+    # =========================================================================
+
+    def supersede(self, old_id, new_content, **kwargs):
+        """
+        Replace an old memory with updated content, preserving the chain.
+
+        The old memory is NOT deleted — it gets a superseded_by pointer to the
+        new entry. Superseded memories are deprioritised in recall (score * 0.3)
+        but remain in the database for perfect recall.
+
+        Args:
+            old_id: UUID of the memory being superseded.
+            new_content: The updated content for the new memory.
+            **kwargs: Additional keyword arguments passed to remember()
+                      (e.g., category, trust_level, tags, valid_until).
+
+        Returns:
+            The UUID string of the new memory.
+
+        Raises:
+            ValueError: If old_id doesn't exist.
+        """
+        # Verify old entry exists
+        cursor = self.conn.cursor()
+        cursor.execute("SELECT * FROM memories WHERE id = ?", (old_id,))
+        old_row = cursor.fetchone()
+        if not old_row:
+            raise ValueError(f"[Grimoire] Memory not found: {old_id}")
+
+        # Inherit category from old entry unless caller overrides
+        if "category" not in kwargs:
+            kwargs["category"] = old_row["category"]
+
+        # Create the new memory, linking back via supersedes
+        new_id = self.remember(
+            content=new_content,
+            supersedes=old_id,
+            check_duplicates=False,
+            **kwargs,
+        )
+
+        print(f"[Grimoire] Superseded {old_id[:8]}... → {new_id[:8]}...")
+        return new_id
+
+    def get_temporal_stats(self):
+        """
+        Return counts of active, expired, and superseded memories plus
+        entries expiring in the next 7 days.
+
+        Returns:
+            Dict with keys:
+                - active_count: memories that are current and not superseded
+                - expired_count: memories past their valid_until date
+                - superseded_count: memories replaced by a newer entry
+                - entries_expiring_soon: list of dicts for entries expiring
+                  within the next 7 days (id, content preview, valid_until)
+        """
+        from datetime import timedelta
+
+        now_iso = datetime.now().isoformat()
+        soon_iso = (datetime.now() + timedelta(days=7)).isoformat()
+
+        cursor = self.conn.cursor()
+
+        # Active: is_active=1, not superseded, not expired
+        cursor.execute("""
+            SELECT COUNT(*) FROM memories
+            WHERE is_active = 1
+              AND (superseded_by IS NULL)
+              AND (valid_until IS NULL OR valid_until >= ?)
+        """, (now_iso,))
+        active_count = cursor.fetchone()[0]
+
+        # Expired: valid_until < now (still is_active=1 — we never delete)
+        cursor.execute("""
+            SELECT COUNT(*) FROM memories
+            WHERE is_active = 1
+              AND valid_until IS NOT NULL
+              AND valid_until < ?
+        """, (now_iso,))
+        expired_count = cursor.fetchone()[0]
+
+        # Superseded: has a superseded_by pointer
+        cursor.execute("""
+            SELECT COUNT(*) FROM memories
+            WHERE is_active = 1
+              AND superseded_by IS NOT NULL
+        """)
+        superseded_count = cursor.fetchone()[0]
+
+        # Expiring soon: valid_until between now and now+7d
+        cursor.execute("""
+            SELECT id, content, valid_until FROM memories
+            WHERE is_active = 1
+              AND superseded_by IS NULL
+              AND valid_until IS NOT NULL
+              AND valid_until >= ?
+              AND valid_until < ?
+            ORDER BY valid_until ASC
+        """, (now_iso, soon_iso))
+        expiring_soon = [
+            {
+                "id": row["id"],
+                "content": row["content"][:120],
+                "valid_until": row["valid_until"],
+            }
+            for row in cursor.fetchall()
+        ]
+
+        return {
+            "active_count": active_count,
+            "expired_count": expired_count,
+            "superseded_count": superseded_count,
+            "entries_expiring_soon": expiring_soon,
+        }
+
     def close(self):
         """
         Clean shutdown. Always call this when you're done.
-        
+
         SQLite connections should be closed properly to ensure all data
         is flushed to disk. ChromaDB's PersistentClient handles its own cleanup.
         """
