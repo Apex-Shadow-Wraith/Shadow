@@ -21,7 +21,7 @@ def teacher():
         "<meta_principle>Think about data access patterns first.</meta_principle>"
     ))
     grimoire = MagicMock()
-    grimoire.store = MagicMock(side_effect=lambda **kwargs: f"id_{kwargs.get('metadata', {}).get('tier', 'x')}")
+    grimoire.remember = MagicMock(side_effect=lambda **kwargs: f"id_{kwargs.get('metadata', {}).get('tier', 'x')}")
     return SelfTeacher(
         generate_fn=gen_fn,
         grimoire=grimoire,
@@ -185,10 +185,10 @@ class TestStoreTeaching:
         ids = teacher.store_teaching(teaching)
         assert len(ids) == 3
         # Verify trust_level 0.5 in all calls
-        for call in teacher._grimoire.store.call_args_list:
-            metadata = call[1]["metadata"]
-            assert metadata["trust_level"] == 0.5
-            assert metadata["source"] == "self_teaching"
+        for call in teacher._grimoire.remember.call_args_list:
+            kwargs = call[1]
+            assert kwargs["trust_level"] == 0.5
+            assert kwargs["source"] == "self_teaching"
 
     def test_metadata_includes_self_teaching_source(self, teacher):
         teaching = {
@@ -199,8 +199,8 @@ class TestStoreTeaching:
             "source": "self_teaching",
         }
         teacher.store_teaching(teaching)
-        call_metadata = teacher._grimoire.store.call_args[1]["metadata"]
-        assert call_metadata["category"] == "self_teaching"
+        call_kwargs = teacher._grimoire.remember.call_args[1]
+        assert call_kwargs["category"] == "self_teaching"
 
     def test_uses_teaching_extractor_when_available(self):
         extractor = MagicMock()
@@ -231,7 +231,7 @@ class TestStoreTeaching:
         extractor = MagicMock()
         extractor.store_three_tiers = MagicMock(side_effect=RuntimeError("boom"))
         grimoire = MagicMock()
-        grimoire.store = MagicMock(return_value="fallback_id")
+        grimoire.remember = MagicMock(return_value="fallback_id")
         teacher = SelfTeacher(teaching_extractor=extractor, grimoire=grimoire)
         teaching = {
             "tiers": {"specific_solution": "a", "general_principle": "", "meta_principle": ""},
