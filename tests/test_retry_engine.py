@@ -864,3 +864,17 @@ async def test_mixed_failure_types_fatigue(engine):
     # 12 attempts total: odd attempts (1,3,5,7,9,11) = model failures = 6
     # Even attempts (2,4,6,8,10,12) = infrastructure failures = 6
     assert engine.fatigue_counter == 6
+
+
+# ── Test: "Tool execution errors" classified as infrastructure ────────
+
+def test_classify_failure_tool_execution_errors():
+    """Tool execution errors should be classified as infrastructure, not model.
+
+    When the model generates a response but the tool framework rejects it
+    (e.g. malformed tool-call JSON from Gemma 4), the model is not at fault.
+    """
+    assert classify_failure("Tool execution errors") == FailureType.INFRASTRUCTURE
+    assert classify_failure(
+        "Tool execution errors: invalid JSON in tool call"
+    ) == FailureType.INFRASTRUCTURE

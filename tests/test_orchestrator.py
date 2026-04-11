@@ -1573,3 +1573,111 @@ class TestDirectRouteBypassesToolLoader:
         # And the empty result should have caused an infrastructure failure path
         # (response will be empty since retry engine gets infra error)
         assert response is not None
+
+
+# ── Test: Omen plain-prompt fallback ──��───────────────────────────────
+
+class TestOmenPlainPromptFallback:
+    """When Omen tool calls fail, the orchestrator should fall back to a
+    plain-prompt LLM call and extract code from the raw response."""
+
+    @pytest.mark.asyncio
+    async def test_omen_fallback_triggers_on_tool_failure(self, config: dict):
+        """If all tool results fail for target 'omen', execute_fn should
+        attempt a plain-prompt LLM call and return extracted code."""
+        orch = Orchestrator(config)
+
+        # Tool loader returns tools (non-empty) so infra early-exit won't fire
+        mock_loader = MagicMock()
+        mock_loader.get_tools_for_task.return_value = [{"name": "code_generate"}]
+        mock_loader.get_loading_report.return_value = {"loaded": 1, "failed": 0}
+        orch._tool_loader = mock_loader
+
+        classification = TaskClassification(
+            task_type=TaskType.CREATION,
+            complexity="simple",
+            target_module="omen",
+            brain=BrainType.SMART,
+            safety_flag=False,
+            priority=1,
+        )
+
+        plan = ExecutionPlan(
+            steps=[{"tool": "code_generate", "params": {"prompt": "hello world"}}],
+            cerberus_approved=True,
+            raw_plan="Generate code",
+        )
+
+        # _step5_execute returns all-failed results
+        failed_result = ToolResult(
+            success=False, content=None, tool_name="code_generate",
+            module="omen", error="Invalid tool call JSON",
+        )
+        orch._step5_execute = AsyncMock(return_value=[failed_result])
+        orch._step6_evaluate = AsyncMock(
+            return_value="```python\nprint('hello')\n```"
+        )
+
+        # Mock the plain-prompt LLM call
+        orch._ollama_chat = MagicMock(
+            return_value="```python\nprint('hello world')\n```"
+        )
+
+        # Mock Omen module in registry for code extraction
+        mock_omen = MagicMock()
+        mock_omen._extract_code_from_response = MagicMock(
+            return_value="print('hello world')"
+        )
+        orch.registry._modules["omen"] = mock_omen
+
+        response = await orch._step5_with_retry(
+            "write hello world", plan, classification, [], source="user",
+        )
+
+        # Plain prompt should have been called
+        orch._ollama_chat.assert_called()
+        # And we should get a response (not empty infrastructure failure)
+        assert response
+
+
+# ── Test: Grimoire store wrapper unwraps GrimoireModule ───────────────
+
+class TestGrimoireStoreWrapper:
+    """_grimoire_store_wrapper must unwrap GrimoireModule to access the
+    inner Grimoire instance's .remember() method."""
+
+    def test_wrapper_unwraps_grimoire_module(self, config: dict):
+        """When registry returns a GrimoireModule adapter, the wrapper
+        should call ._grimoire.remember(), not GrimoireModule.remember()."""
+        orch = Orchestrator(config)
+
+        # Create a mock GrimoireModule with ._grimoire but no .remember()
+        mock_grimoire_module = MagicMock()
+        del mock_grimoire_module.remember
+        inner_grimoire = MagicMock()
+        inner_grimoire.remember.return_value = "doc-123"
+        mock_grimoire_module._grimoire = inner_grimoire
+
+        orch.registry._modules["grimoire"] = mock_grimoire_module
+
+        store_fn = orch._grimoire_store_wrapper()
+        result = store_fn(
+            content="test content", tags=["test"], trust_level=0.7
+        )
+
+        assert result == "doc-123"
+        inner_grimoire.remember.assert_called_once()
+
+    def test_wrapper_handles_missing_inner_grimoire(self, config: dict):
+        """If GrimoireModule._grimoire is None (not initialized),
+        return error string."""
+        orch = Orchestrator(config)
+
+        mock_grimoire_module = MagicMock()
+        mock_grimoire_module._grimoire = None
+        orch.registry._modules["grimoire"] = mock_grimoire_module
+
+        store_fn = orch._grimoire_store_wrapper()
+        result = store_fn(content="test", tags=[], trust_level=0.5)
+
+        assert result == "no_grimoire"

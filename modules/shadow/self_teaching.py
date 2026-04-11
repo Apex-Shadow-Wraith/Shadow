@@ -80,6 +80,10 @@ class SelfTeacher:
         config: dict | None = None,
     ) -> None:
         self._generate_fn = generate_fn
+        # Unwrap GrimoireModule adapter if needed — we need the inner
+        # Grimoire instance that has the .remember() method.
+        if grimoire is not None and not hasattr(grimoire, "remember"):
+            grimoire = getattr(grimoire, "_grimoire", grimoire)
         self._grimoire = grimoire
         self._teaching_extractor = teaching_extractor
         cfg = config or {}

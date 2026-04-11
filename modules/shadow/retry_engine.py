@@ -46,6 +46,7 @@ _INFRASTRUCTURE_MARKERS = [
     "tool loader empty",
     "tool_loader returned empty",
     "no tools loaded",
+    "tool execution errors",  # model generated response but tool framework rejected it
     "network timeout",
     "connection timed out",
     "ollama not responding",

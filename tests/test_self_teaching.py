@@ -297,3 +297,34 @@ class TestDomainTags:
         task = {"description": "Implement a function", "type": "code"}
         result = teacher.generate_teaching(task, solution="def foo(): pass")
         assert len(result["domain_tags"]) == len(set(result["domain_tags"]))
+
+
+# ── Test: GrimoireModule unwrapping in SelfTeacher ────────────────────
+
+class TestGrimoireModuleUnwrap:
+    """SelfTeacher should unwrap a GrimoireModule adapter to access the
+    inner Grimoire instance that has the .remember() method."""
+
+    def test_unwraps_grimoire_module_at_init(self):
+        """If passed an object without .remember() but with ._grimoire,
+        SelfTeacher should use the inner object."""
+        inner_grimoire = MagicMock()
+        inner_grimoire.remember = MagicMock(return_value="doc-1")
+
+        # Simulate GrimoireModule: has ._grimoire but no .remember()
+        class FakeGrimoireModule:
+            pass
+
+        wrapper = FakeGrimoireModule()
+        wrapper._grimoire = inner_grimoire
+
+        teacher = SelfTeacher(grimoire=wrapper)
+        assert teacher._grimoire is inner_grimoire
+
+    def test_keeps_real_grimoire_as_is(self):
+        """If passed an object that already has .remember(), use it directly."""
+        grimoire = MagicMock()
+        grimoire.remember = MagicMock(return_value="doc-1")
+
+        teacher = SelfTeacher(grimoire=grimoire)
+        assert teacher._grimoire is grimoire
