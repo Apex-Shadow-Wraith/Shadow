@@ -620,7 +620,7 @@ class TestOmenToolIntegration:
         from modules.omen.omen import Omen
         omen = Omen(config={"project_root": "."})
         tools = omen.get_tools()
-        assert len(tools) == 37  # 21 original + 5 analyzer + 7 model evaluator + 4 sandbox
+        assert len(tools) == 38  # 21 original + 5 analyzer + 7 model evaluator + 4 sandbox + 1 code_generate
 
     def test_new_tool_names_registered(self):
         from modules.omen.omen import Omen

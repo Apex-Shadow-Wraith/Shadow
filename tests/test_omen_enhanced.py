@@ -45,9 +45,9 @@ class TestOmenEnhancedLifecycle:
         assert "omen_failures" in tables
 
     @pytest.mark.asyncio
-    async def test_37_tools(self, online_omen):
+    async def test_38_tools(self, online_omen):
         tools = online_omen.get_tools()
-        assert len(tools) == 37
+        assert len(tools) == 38
 
     @pytest.mark.asyncio
     async def test_shutdown_closes_conn(self, omen):
@@ -390,8 +390,8 @@ class TestScaffoldTest:
             "module_name": "Omen",
         })
         assert result.success
-        # Omen has 37 tools, scaffold_test should cover them
-        assert len(result.content["tools_covered"]) == 37
+        # Omen has 38 tools, scaffold_test should cover them
+        assert len(result.content["tools_covered"]) == 38
 
     @pytest.mark.asyncio
     async def test_missing_module_name(self, online_omen):

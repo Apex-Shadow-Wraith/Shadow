@@ -594,6 +594,7 @@ class Omen(BaseModule):
                 "code_analyze_url": self._code_analyze_url,
                 "code_learn": self._code_learn,
                 "code_compare": self._code_compare,
+                "code_generate": self._code_generate,
                 # --- Sandbox tools ---
                 "sandbox_execute": self._sandbox_execute,
                 "sandbox_validate": self._sandbox_validate,
@@ -822,6 +823,17 @@ class Omen(BaseModule):
                 "name": "code_compare",
                 "description": "Compare external code patterns against Shadow's codebase",
                 "parameters": {"file_path": "str"},
+                "permission_level": "autonomous",
+            },
+            # --- Code generation with LLM fallback ---
+            {
+                "name": "code_generate",
+                "description": "Generate code via LLM with fallback extraction when tool calls fail",
+                "parameters": {
+                    "prompt": "str",
+                    "language": "str",
+                    "model": "str",
+                },
                 "permission_level": "autonomous",
             },
             # --- Model Evaluator tools (Phase 4) ---
@@ -2712,3 +2724,262 @@ class Omen(BaseModule):
                 success=False, content=None, tool_name="model_recommend",
                 module=self.name, error=f"Recommendation failed: {e}",
             )
+
+    # --- Code generation with LLM fallback ---
+
+    # Patterns stripped from the start of LLM responses before code extraction
+    _PREAMBLE_PATTERNS = re.compile(
+        r"^(sure[,!.]?\s*|here(?:'s| is| you go)[^:]*[:\s]*|"
+        r"of course[,!.]?\s*|certainly[,!.]?\s*|"
+        r"here(?:'s| is) the code[:\s]*|"
+        r"i'?ll write that for you[:\s]*|"
+        r"below is[^:]*[:\s]*)",
+        re.IGNORECASE | re.MULTILINE,
+    )
+
+    # Keywords that indicate a line is likely Python code
+    _CODE_KEYWORDS = re.compile(
+        r"^\s*(def |class |import |from |return |print\(|for |while |if |"
+        r"elif |else:|try:|except |with |yield |raise |async |await |"
+        r"@\w+|[a-zA-Z_]\w*\s*=[^=])"
+    )
+
+    def _extract_code_from_response(self, raw_text: str) -> str | None:
+        """Extract code blocks from raw LLM response when tool calls fail.
+
+        Tries in order:
+        1. Fenced markdown code blocks (```python or ```).
+        2. Lines that look like Python code (indentation, keywords).
+
+        Conversational preamble is stripped first.
+
+        Args:
+            raw_text: The raw LLM text response.
+
+        Returns:
+            Extracted code string, or None if nothing found.
+        """
+        if not raw_text or not raw_text.strip():
+            return None
+
+        # Strip conversational preamble
+        text = self._PREAMBLE_PATTERNS.sub("", raw_text).strip()
+
+        # --- Strategy 1: fenced code blocks ---
+        fenced = re.findall(
+            r"```(?:python|py|code)?\s*\n(.*?)```",
+            text,
+            re.DOTALL,
+        )
+        if fenced:
+            # Join all code blocks (there may be multiple)
+            code = "\n\n".join(block.strip() for block in fenced if block.strip())
+            if code:
+                return code
+
+        # --- Strategy 2: lines that look like code ---
+        lines = text.splitlines()
+        code_lines: list[str] = []
+        in_code_block = False
+
+        for line in lines:
+            stripped = line.rstrip()
+            # Indented lines (continuation of code)
+            if stripped and (stripped[0] in " \t"):
+                if in_code_block or code_lines:
+                    code_lines.append(stripped)
+                    in_code_block = True
+                    continue
+            # Lines matching code keywords
+            if self._CODE_KEYWORDS.match(stripped):
+                code_lines.append(stripped)
+                in_code_block = True
+                continue
+            # Blank line inside a code block — keep it
+            if not stripped and in_code_block:
+                code_lines.append("")
+                continue
+            # Non-code line — end block
+            in_code_block = False
+
+        # Trim trailing blank lines
+        while code_lines and not code_lines[-1].strip():
+            code_lines.pop()
+
+        if code_lines:
+            return "\n".join(code_lines)
+
+        return None
+
+    def _code_generate(self, params: dict[str, Any]) -> ToolResult:
+        """Generate code via local LLM with fallback extraction.
+
+        First attempts an Ollama call with tool definitions. If that fails
+        (tool_loader empty, Gemma 4 returns malformed tool JSON, or Ollama
+        unreachable), retries as a plain prompt and extracts code from the
+        raw text response.
+
+        Args:
+            params: 'prompt' (str) required, 'language' (str) optional,
+                    'model' (str) optional.
+        """
+        import urllib.request
+        import urllib.error
+
+        prompt = params.get("prompt", "")
+        if not prompt:
+            return ToolResult(
+                success=False, content=None, tool_name="code_generate",
+                module=self.name, error="prompt is required",
+            )
+
+        language = params.get("language", "python")
+        model = params.get("model", self._config.get("code_model", "gemma3"))
+        ollama_url = self._config.get("ollama_base_url", "http://localhost:11434")
+        method_used = "tool_call"
+
+        # --- Attempt 1: tool call path ---
+        tool_response = None
+        try:
+            tool_payload = json.dumps({
+                "model": model,
+                "messages": [
+                    {
+                        "role": "system",
+                        "content": (
+                            f"You are a code generator. Write {language} code. "
+                            "Return code using the write_code tool."
+                        ),
+                    },
+                    {"role": "user", "content": prompt},
+                ],
+                "tools": [
+                    {
+                        "type": "function",
+                        "function": {
+                            "name": "write_code",
+                            "description": f"Write {language} code",
+                            "parameters": {
+                                "type": "object",
+                                "properties": {
+                                    "code": {
+                                        "type": "string",
+                                        "description": "The generated code",
+                                    },
+                                },
+                                "required": ["code"],
+                            },
+                        },
+                    },
+                ],
+                "stream": False,
+            }).encode()
+
+            req = urllib.request.Request(
+                f"{ollama_url}/api/chat",
+                data=tool_payload,
+                headers={"Content-Type": "application/json"},
+            )
+            with urllib.request.urlopen(req, timeout=60) as resp:
+                result = json.loads(resp.read().decode())
+
+            # Check if the model returned proper tool calls
+            msg = result.get("message", {})
+            tool_calls = msg.get("tool_calls", [])
+            if tool_calls:
+                for tc in tool_calls:
+                    fn = tc.get("function", {})
+                    if fn.get("name") == "write_code":
+                        args = fn.get("arguments", {})
+                        code = args.get("code", "")
+                        if code:
+                            return ToolResult(
+                                success=True,
+                                content={
+                                    "code": code,
+                                    "language": language,
+                                    "model": model,
+                                    "method": "tool_call",
+                                },
+                                tool_name="code_generate",
+                                module=self.name,
+                            )
+
+            # Tool call returned but no usable tool_calls — try extracting
+            # from the content field (Gemma 4 bug: returns text instead)
+            raw_content = msg.get("content", "")
+            if raw_content:
+                tool_response = raw_content
+
+        except (urllib.error.URLError, OSError, json.JSONDecodeError, KeyError) as e:
+            logger.info(
+                "code_generate tool call attempt failed (%s), falling back to plain prompt",
+                e,
+            )
+
+        # --- Attempt 2: plain prompt (no tools) ---
+        if tool_response is None:
+            method_used = "plain_prompt"
+            try:
+                plain_payload = json.dumps({
+                    "model": model,
+                    "messages": [
+                        {
+                            "role": "system",
+                            "content": (
+                                f"You are a code generator. Write {language} code only. "
+                                "Do not explain, just write the code."
+                            ),
+                        },
+                        {"role": "user", "content": prompt},
+                    ],
+                    "stream": False,
+                }).encode()
+
+                req = urllib.request.Request(
+                    f"{ollama_url}/api/chat",
+                    data=plain_payload,
+                    headers={"Content-Type": "application/json"},
+                )
+                with urllib.request.urlopen(req, timeout=60) as resp:
+                    result = json.loads(resp.read().decode())
+
+                tool_response = result.get("message", {}).get("content", "")
+
+            except (urllib.error.URLError, OSError, json.JSONDecodeError) as e:
+                return ToolResult(
+                    success=False, content=None, tool_name="code_generate",
+                    module=self.name,
+                    error=f"Ollama unreachable for code generation: {e}",
+                )
+        else:
+            method_used = "fallback_extraction"
+
+        # --- Extract code from raw text ---
+        code = self._extract_code_from_response(tool_response)
+        if code:
+            return ToolResult(
+                success=True,
+                content={
+                    "code": code,
+                    "language": language,
+                    "model": model,
+                    "method": method_used,
+                },
+                tool_name="code_generate",
+                module=self.name,
+            )
+
+        # Nothing extractable — return the raw text so the user still gets something
+        return ToolResult(
+            success=True,
+            content={
+                "code": tool_response.strip() if tool_response else "",
+                "language": language,
+                "model": model,
+                "method": "raw_response",
+                "note": "Could not extract structured code; returning raw LLM output",
+            },
+            tool_name="code_generate",
+            module=self.name,
+        )

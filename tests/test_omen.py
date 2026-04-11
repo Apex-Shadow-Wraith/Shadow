@@ -42,7 +42,7 @@ class TestOmenLifecycle:
 
     def test_get_tools(self, omen: Omen):
         tools = omen.get_tools()
-        assert len(tools) == 37
+        assert len(tools) == 38
         names = [t["name"] for t in tools]
         assert "code_execute" in names
         assert "code_lint" in names
@@ -222,6 +222,200 @@ class TestTeachingMode:
         r = await online_omen.execute("code_execute", {"code": "raise ValueError('oops')"})
         assert r.success is False
         assert "teaching_note" not in r.content
+
+
+# --- Code extraction fallback ---
+
+class TestExtractCodeFromResponse:
+    """Test _extract_code_from_response directly."""
+
+    def test_extract_fenced_python_block(self, omen: Omen):
+        raw = "Sure, here's the code:\n```python\ndef hello():\n    return 'hi'\n```"
+        result = omen._extract_code_from_response(raw)
+        assert result is not None
+        assert "def hello():" in result
+        assert "return 'hi'" in result
+
+    def test_extract_fenced_plain_block(self, omen: Omen):
+        raw = "```\nimport os\nprint(os.getcwd())\n```"
+        result = omen._extract_code_from_response(raw)
+        assert result is not None
+        assert "import os" in result
+
+    def test_extract_multiple_fenced_blocks(self, omen: Omen):
+        raw = "```python\ndef a():\n    pass\n```\nSome text\n```python\ndef b():\n    pass\n```"
+        result = omen._extract_code_from_response(raw)
+        assert result is not None
+        assert "def a():" in result
+        assert "def b():" in result
+
+    def test_extract_indented_code_no_markdown(self, omen: Omen):
+        raw = "Here you go:\ndef greet(name):\n    return f'Hello {name}'\n\nprint(greet('world'))"
+        result = omen._extract_code_from_response(raw)
+        assert result is not None
+        assert "def greet(name):" in result
+        assert "print(" in result
+
+    def test_strip_preamble(self, omen: Omen):
+        raw = "Sure! Here's the code:\n```python\nx = 42\n```"
+        result = omen._extract_code_from_response(raw)
+        assert result is not None
+        assert "x = 42" in result
+        assert "Sure" not in result
+
+    def test_strip_certainly_preamble(self, omen: Omen):
+        raw = "Certainly, here is the code:\n```python\nprint('done')\n```"
+        result = omen._extract_code_from_response(raw)
+        assert result is not None
+        assert "print('done')" in result
+
+    def test_none_on_non_code_response(self, omen: Omen):
+        raw = "I'm sorry, I don't know how to help with that."
+        result = omen._extract_code_from_response(raw)
+        assert result is None
+
+    def test_none_on_empty_string(self, omen: Omen):
+        assert omen._extract_code_from_response("") is None
+        assert omen._extract_code_from_response("   ") is None
+
+    def test_none_on_none_input(self, omen: Omen):
+        assert omen._extract_code_from_response(None) is None
+
+    def test_keyword_detection_for_class(self, omen: Omen):
+        raw = "class Foo:\n    def bar(self):\n        pass"
+        result = omen._extract_code_from_response(raw)
+        assert result is not None
+        assert "class Foo:" in result
+
+    def test_import_detection(self, omen: Omen):
+        raw = "Try this:\nimport json\nfrom pathlib import Path\ndata = json.loads('{}')"
+        result = omen._extract_code_from_response(raw)
+        assert result is not None
+        assert "import json" in result
+        assert "from pathlib import Path" in result
+
+
+class TestCodeGenerate:
+    """Test code_generate tool with mocked Ollama."""
+
+    @pytest.mark.asyncio
+    async def test_prompt_required(self, online_omen: Omen):
+        r = await online_omen.execute("code_generate", {"prompt": ""})
+        assert r.success is False
+        assert "prompt is required" in r.error
+
+    @pytest.mark.asyncio
+    async def test_fallback_extracts_code_from_text(self, online_omen: Omen, monkeypatch):
+        """When Ollama returns text instead of tool calls, code is extracted."""
+        import urllib.request
+
+        def mock_urlopen(req, timeout=None):
+            class FakeResp:
+                def read(self):
+                    return json.dumps({
+                        "message": {
+                            "content": "Here's your code:\n```python\ndef add(a, b):\n    return a + b\n```",
+                            "tool_calls": [],
+                        }
+                    }).encode()
+                def __enter__(self): return self
+                def __exit__(self, *a): pass
+            return FakeResp()
+
+        import json
+        monkeypatch.setattr(urllib.request, "urlopen", mock_urlopen)
+        r = await online_omen.execute("code_generate", {
+            "prompt": "write an add function",
+        })
+        assert r.success is True
+        assert "def add(a, b):" in r.content["code"]
+        assert r.content["method"] == "fallback_extraction"
+
+    @pytest.mark.asyncio
+    async def test_tool_call_success(self, online_omen: Omen, monkeypatch):
+        """When Ollama returns proper tool calls, they are used directly."""
+        import urllib.request
+
+        def mock_urlopen(req, timeout=None):
+            class FakeResp:
+                def read(self):
+                    return json.dumps({
+                        "message": {
+                            "tool_calls": [{
+                                "function": {
+                                    "name": "write_code",
+                                    "arguments": {"code": "def multiply(a, b):\n    return a * b"},
+                                }
+                            }],
+                        }
+                    }).encode()
+                def __enter__(self): return self
+                def __exit__(self, *a): pass
+            return FakeResp()
+
+        import json
+        monkeypatch.setattr(urllib.request, "urlopen", mock_urlopen)
+        r = await online_omen.execute("code_generate", {
+            "prompt": "write a multiply function",
+        })
+        assert r.success is True
+        assert "def multiply(a, b):" in r.content["code"]
+        assert r.content["method"] == "tool_call"
+
+    @pytest.mark.asyncio
+    async def test_ollama_unreachable_falls_back_to_plain(self, online_omen: Omen, monkeypatch):
+        """When first Ollama call fails, falls back to plain prompt."""
+        import urllib.request
+        import urllib.error
+
+        call_count = {"n": 0}
+
+        def mock_urlopen(req, timeout=None):
+            call_count["n"] += 1
+            if call_count["n"] == 1:
+                raise urllib.error.URLError("Connection refused")
+
+            class FakeResp:
+                def read(self):
+                    return json.dumps({
+                        "message": {
+                            "content": "```python\ndef fallback():\n    return True\n```",
+                        }
+                    }).encode()
+                def __enter__(self): return self
+                def __exit__(self, *a): pass
+            return FakeResp()
+
+        import json
+        monkeypatch.setattr(urllib.request, "urlopen", mock_urlopen)
+        r = await online_omen.execute("code_generate", {
+            "prompt": "write a fallback function",
+        })
+        assert r.success is True
+        assert "def fallback():" in r.content["code"]
+        assert r.content["method"] == "plain_prompt"
+
+    @pytest.mark.asyncio
+    async def test_ollama_fully_unreachable(self, online_omen: Omen, monkeypatch):
+        """When Ollama is completely unreachable, returns error."""
+        import urllib.request
+        import urllib.error
+
+        def mock_urlopen(req, timeout=None):
+            raise urllib.error.URLError("Connection refused")
+
+        monkeypatch.setattr(urllib.request, "urlopen", mock_urlopen)
+        r = await online_omen.execute("code_generate", {
+            "prompt": "write something",
+        })
+        assert r.success is False
+        assert "unreachable" in r.error.lower()
+
+    @pytest.mark.asyncio
+    async def test_code_generate_in_tools(self, omen: Omen):
+        tools = omen.get_tools()
+        names = [t["name"] for t in tools]
+        assert "code_generate" in names
 
 
 # --- Unknown tool ---
