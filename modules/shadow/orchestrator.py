@@ -795,6 +795,18 @@ class Orchestrator:
             module._message_bus = self._message_bus
             module._event_system = self._event_system
 
+        # Wire Grimoire into SelfTeacher (it was initialized with grimoire=None
+        # because Grimoire wasn't ready yet — now it is)
+        if self._self_teacher is not None and "grimoire" in self.registry:
+            grimoire_module = self.registry.get_module("grimoire")
+            if grimoire_module.status == ModuleStatus.ONLINE:
+                inner_grimoire = getattr(grimoire_module, "_grimoire", None)
+                if inner_grimoire is not None:
+                    self._self_teacher._grimoire = inner_grimoire
+                    logger.info("SelfTeacher wired to Grimoire instance")
+                else:
+                    logger.error("SelfTeacher: GrimoireModule online but _grimoire is None")
+
         logger.info(
             "Inter-module communication initialized (bus=%s, events=%s, handoff=%s)",
             type(self._message_bus).__name__,
@@ -1348,12 +1360,23 @@ class Orchestrator:
                         was_escalated=was_escalated,
                     )
                     if teaching:
+                        stored_ids = teaching.get("stored_ids", [])
                         logger.info(
-                            "Self-teaching generated for task type: %s",
+                            "Self-teaching generated for task type: %s — "
+                            "stored %d memories (ids: %s)",
                             classification.task_type.value,
+                            len(stored_ids),
+                            stored_ids[:3],
                         )
+                        if not stored_ids:
+                            logger.error(
+                                "Self-teaching generated but NOTHING stored! "
+                                "grimoire=%s",
+                                type(self._self_teacher._grimoire).__name__
+                                if self._self_teacher._grimoire else "None",
+                            )
                 except Exception as e:
-                    logger.debug("Self-teaching failed (non-critical): %s", e)
+                    logger.exception("Self-teaching failed: %s", e)
 
             # Step 7.10 — Update operational state (best-effort)
             if self._operational_state is not None:
@@ -2507,9 +2530,16 @@ User input: {user_input}"""
 
         lower = user_input.strip().lower()
 
-        # Initialize ingestor with Grimoire
+        # Initialize ingestor with Grimoire — unwrap from registry
+        grimoire_instance = None
+        if "grimoire" in self.registry:
+            grimoire_module = self.registry.get_module("grimoire")
+            if grimoire_module.status == ModuleStatus.ONLINE:
+                grimoire_instance = getattr(grimoire_module, "_grimoire", None)
+        if grimoire_instance is None:
+            return "Grimoire not available — cannot ingest transcripts."
         try:
-            ingestor = ConversationIngestor(self._grimoire)
+            ingestor = ConversationIngestor(grimoire_instance)
         except Exception as e:
             return f"Failed to initialize transcript ingestor: {e}"
 
@@ -3162,21 +3192,45 @@ User input: {user_input}"""
                 }]
 
         elif classification.target_module == "omen":
-            # Code tasks — dispatch through Omen's tool pipeline
-            steps = [
-                {
-                    "step": 1,
-                    "description": "Execute code task via Omen",
-                    "tool": "code_execute",
-                    "params": {"code": user_input, "timeout": 30},
-                },
-                {
-                    "step": 2,
-                    "description": "Generate response from Omen results",
-                    "tool": None,
-                    "params": {},
-                },
-            ]
+            # Code tasks — determine whether to generate or execute.
+            # CREATION/QUESTION tasks need code_generate (LLM writes code).
+            # ACTION tasks with actual code to run use code_execute.
+            lower_input = user_input.lower()
+            has_runnable_code = any(
+                kw in lower_input
+                for kw in ["run this", "execute this", "run the following"]
+            ) or lower_input.strip().startswith(("import ", "def ", "class ", "print("))
+
+            if has_runnable_code and classification.task_type == TaskType.ACTION:
+                steps = [
+                    {
+                        "step": 1,
+                        "description": "Execute code via Omen sandbox",
+                        "tool": "code_execute",
+                        "params": {"code": user_input, "timeout": 30},
+                    },
+                    {
+                        "step": 2,
+                        "description": "Generate response from execution results",
+                        "tool": None,
+                        "params": {},
+                    },
+                ]
+            else:
+                steps = [
+                    {
+                        "step": 1,
+                        "description": "Generate code via Omen LLM",
+                        "tool": "code_generate",
+                        "params": {"prompt": user_input, "language": "python"},
+                    },
+                    {
+                        "step": 2,
+                        "description": "Generate response from Omen results",
+                        "tool": None,
+                        "params": {},
+                    },
+                ]
 
         else:
             # Default: single-step plan
@@ -3287,14 +3341,38 @@ User input: {user_input}"""
 
             results = await self._step5_execute(plan, classification)
 
+            # Apex protection: if target is "apex" and ALL tool results failed,
+            # do NOT fall back to local model — pass through Apex's error directly.
+            # This prevents Gemma from generating fake responses pretending to be
+            # Apex API results (the worst confabulation failure mode).
+            if (target == "apex"
+                    and results
+                    and all(not r.success for r in results)):
+                error_msgs = [r.error for r in results if r.error]
+                combined_error = "; ".join(error_msgs) if error_msgs else "Apex module failed"
+                logger.warning(
+                    "FALLBACK: Module 'apex' failed, NOT using local model. "
+                    "Response is NOT from the intended module. Errors: %s",
+                    combined_error,
+                )
+                return {
+                    "response": combined_error,
+                    "results": [
+                        {"success": r.success, "error": r.error, "tool": r.tool_name}
+                        for r in results
+                    ],
+                    "apex_passthrough": True,
+                }
+
             # Omen fallback: if target is "omen" and ALL tool results failed
             # (no content or tool_calls from the model at all), try a plain
-            # prompt as last resort.
+            # prompt as last resort — but label it clearly.
             if (target == "omen"
                     and results
                     and all(not r.success for r in results)):
-                logger.info(
-                    "Omen: all tool results failed, trying orchestrator plain-prompt fallback"
+                logger.warning(
+                    "FALLBACK: Module 'omen' failed, using local model. "
+                    "Response is NOT from the intended module."
                 )
                 try:
                     plain_response = self._ollama_chat(
@@ -3326,6 +3404,7 @@ User input: {user_input}"""
                                 module="omen",
                             )], context,
                         )
+                        response = f"[Fallback — local model, not validated by Apex] {response}"
                         return {
                             "response": response,
                             "results": [{"success": True, "tool": "code_generate", "error": None}],
@@ -3334,9 +3413,22 @@ User input: {user_input}"""
                 except Exception as e:
                     logger.warning("Omen plain-prompt fallback failed: %s", e)
 
+            # General fallback detection: if ALL tool results failed for any module,
+            # label the response so the user knows it came from local model, not the module.
+            all_failed = results and all(not r.success for r in results)
+
             response = await self._step6_evaluate(
                 task, classification, results, context
             )
+
+            if all_failed:
+                logger.warning(
+                    "FALLBACK: Module '%s' failed, using local model. "
+                    "Response is NOT from the intended module.",
+                    target,
+                )
+                response = f"[Fallback — local model, not validated by Apex] {response}"
+
             return {
                 "response": response,
                 "results": [
@@ -3522,6 +3614,7 @@ User input: {user_input}"""
                 logger.error("Grimoire inner instance not available (module not initialized?)")
                 return "no_grimoire"
             try:
+                logger.info("Grimoire store attempt: source=apex_escalation, content_preview=%.80s", content)
                 doc_id = grimoire.remember(
                     content=content,
                     source="apex_escalation",
@@ -3530,11 +3623,15 @@ User input: {user_input}"""
                     trust_level=trust_level,
                     tags=tags,
                 )
+                if doc_id:
+                    logger.info("Grimoire store SUCCESS: memory_id=%s", doc_id)
+                else:
+                    logger.error("Grimoire store FAILED: remember() returned None")
                 return str(doc_id) if doc_id else "no_id"
             except Exception as e:
-                logger.error("Grimoire store failed in escalation wrapper: "
-                             "%s: %s (content_len=%d)",
-                             type(e).__name__, e, len(content))
+                logger.exception("Grimoire store FAILED in escalation wrapper: "
+                                 "%s: %s (content_len=%d)",
+                                 type(e).__name__, e, len(content))
                 return "store_error"
 
         return grimoire_store

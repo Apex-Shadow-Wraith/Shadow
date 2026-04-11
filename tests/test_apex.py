@@ -168,16 +168,17 @@ class TestApexQuery:
 class TestDryRunGating:
     @pytest.mark.asyncio
     async def test_dry_run_true_skips_api_call(self, dry_run_apex: Apex):
-        """dry_run=True with a valid key should NOT call the API."""
+        """dry_run=True with a valid key should NOT call the API and returns failure."""
         with patch("dotenv.load_dotenv"):
             await dry_run_apex.initialize()
         dry_run_apex._anthropic_key = "sk-test"
         with patch.object(dry_run_apex, "_call_claude") as mock_call:
             result = await dry_run_apex.execute("apex_query", {"task": "Should be skipped"})
             mock_call.assert_not_called()
-        assert result.success is True
+        assert result.success is False
         assert result.content["status"] == "dry_run"
-        assert "Dry-run" in result.content["message"]
+        assert result.content["source"] == "dry_run"
+        assert "dry-run" in result.error.lower()
 
     @pytest.mark.asyncio
     async def test_dry_run_false_with_key_calls_api(self, online_apex: Apex):
@@ -188,6 +189,7 @@ class TestDryRunGating:
             mock_call.assert_called_once()
         assert result.success is True
         assert result.content["status"] == "completed"
+        assert result.content["source"] == "claude_api"
         assert result.content["response"] == "Live response"
         assert result.content["tokens_in"] == 15
         assert result.content["tokens_out"] == 25
@@ -228,11 +230,14 @@ class TestDryRunGating:
 
     @pytest.mark.asyncio
     async def test_api_error_returns_failure(self, online_apex: Apex):
-        """API errors should propagate as failed ToolResult."""
+        """API errors should propagate as failed ToolResult with source=failed."""
         online_apex._anthropic_key = "sk-test"
         with patch.object(online_apex, "_call_claude", side_effect=RuntimeError("API down")):
             result = await online_apex.execute("apex_query", {"task": "Will fail"})
         assert result.success is False
+        assert "API down" in result.error
+        assert "NOT validated" in result.error
+        assert result.content["source"] == "failed"
 
 
 # --- Teaching tests ---
@@ -304,6 +309,62 @@ class TestApexPersistence:
 
 
 # --- Unknown tool ---
+
+class TestConfabulationPrevention:
+    """Tests ensuring Apex NEVER generates fake responses."""
+
+    @pytest.mark.asyncio
+    async def test_dry_run_returns_failure(self, dry_run_apex: Apex):
+        """When dry_run=True, execute returns success=False with 'dry-run' in message."""
+        with patch("dotenv.load_dotenv"):
+            await dry_run_apex.initialize()
+        dry_run_apex._anthropic_key = "sk-test"
+        result = await dry_run_apex.execute("apex_query", {"task": "Test query"})
+        assert result.success is False
+        assert "dry-run" in result.error.lower()
+        assert result.content["source"] == "dry_run"
+
+    @pytest.mark.asyncio
+    async def test_failed_api_returns_failure(self, online_apex: Apex):
+        """Mock a failed API call, verify success=False and clear error message."""
+        online_apex._anthropic_key = "sk-test"
+        with patch.object(online_apex, "_call_claude", side_effect=ConnectionError("Connection refused")):
+            result = await online_apex.execute("apex_query", {"task": "Test query"})
+        assert result.success is False
+        assert "Connection refused" in result.error
+        assert "NOT validated by a frontier model" in result.error
+        assert result.content["source"] == "failed"
+
+    @pytest.mark.asyncio
+    async def test_success_includes_source(self, online_apex: Apex):
+        """Mock a successful API call, verify content includes 'source' field."""
+        online_apex._anthropic_key = "sk-test"
+        with patch.object(online_apex, "_call_claude", return_value=("Response text", 10, 20, "claude-sonnet-4-20250514")):
+            result = await online_apex.execute("apex_query", {"task": "Test query"})
+        assert result.success is True
+        assert result.content["source"] == "claude_api"
+
+        # Now test OpenAI source
+        online_apex._anthropic_key = None
+        online_apex._openai_key = "sk-oai-test"
+        with patch.object(online_apex, "_call_openai", return_value=("Response text", 10, 20, "gpt-4o")):
+            result = await online_apex.execute("apex_query", {"task": "Test query", "model_preference": "openai"})
+        assert result.success is True
+        assert result.content["source"] == "openai_api"
+
+    @pytest.mark.asyncio
+    async def test_never_generates_local_response(self, online_apex: Apex):
+        """Verify Apex NEVER calls Ollama/local model — it either calls the real API or fails."""
+        online_apex._anthropic_key = "sk-test"
+        # Patch _call_api to fail
+        with patch.object(online_apex, "_call_api", side_effect=RuntimeError("API down")):
+            result = await online_apex.execute("apex_query", {"task": "Test query"})
+        assert result.success is False
+        # Verify no local model was called — check that _call_api was the only dispatch
+        # and that success is False (no local fallback generated a fake response)
+        assert result.content["source"] == "failed"
+        assert "NOT validated" in result.error
+
 
 class TestUnknownTool:
     @pytest.mark.asyncio

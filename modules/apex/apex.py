@@ -543,14 +543,17 @@ class Apex(BaseModule):
             }
             self._call_log.append(entry)
             self._save_log()
+            logger.warning("Apex API call FAILED: no API keys configured. No frontier model validation occurred.")
             return ToolResult(
-                success=False, content=None, tool_name="apex_query",
+                success=False,
+                content={"source": "failed", "status": "no_keys"},
+                tool_name="apex_query",
                 module=self.name,
-                error="No API keys available. Configure ANTHROPIC_API_KEY or OPENAI_API_KEY.",
+                error="No API keys available. Configure ANTHROPIC_API_KEY or OPENAI_API_KEY. This response was NOT validated by a frontier model.",
             )
 
         if self._dry_run:
-            logger.info("Apex in dry-run mode (config): api=%s, task=%s", api, task[:50])
+            logger.warning("Apex in dry-run mode (config): api=%s, task=%s. No API call was made.", api, task[:50])
             entry = {
                 "timestamp": datetime.now().isoformat(),
                 "task": task[:500],
@@ -565,23 +568,54 @@ class Apex(BaseModule):
             self._call_log.append(entry)
             self._save_log()
             return ToolResult(
-                success=True,
+                success=False,
                 content={
                     "api": api,
                     "status": "dry_run",
-                    "message": f"Dry-run mode enabled in config. Query logged for {api} API but not dispatched.",
+                    "source": "dry_run",
+                    "message": "Apex is in dry-run mode. No API call was made. Enable live mode in config.",
                     "task_preview": task[:200],
                 },
                 tool_name="apex_query",
                 module=self.name,
+                error="Apex is in dry-run mode. No API call was made. Enable live mode in config.",
             )
 
-        # Live API dispatch
-        response_text, input_tokens, output_tokens, model_used = self._call_api(api, task)
+        # Live API dispatch — must either succeed or return explicit failure.
+        # NEVER generate a local response pretending to be API results.
+        try:
+            response_text, input_tokens, output_tokens, model_used = self._call_api(api, task)
+        except Exception as api_err:
+            logger.warning(
+                "Apex API call FAILED: %s. No frontier model validation occurred.",
+                api_err,
+            )
+            entry = {
+                "timestamp": datetime.now().isoformat(),
+                "task": task[:500],
+                "api_selected": api,
+                "model_preference": preference,
+                "tokens_in": 0,
+                "tokens_out": 0,
+                "cost": 0.0,
+                "teaching_triggered": False,
+                "status": "failed",
+            }
+            self._call_log.append(entry)
+            self._save_log()
+            return ToolResult(
+                success=False,
+                content={"source": "failed", "status": "api_error", "error_detail": str(api_err)},
+                tool_name="apex_query",
+                module=self.name,
+                error=f"Apex API call failed: {api_err}. This response was NOT validated by a frontier model.",
+            )
 
         cost = self._estimate_cost(api, input_tokens, output_tokens)
         self._total_cost += cost
         self._update_daily_cost(cost)
+
+        source_label = "claude_api" if api == "claude" else "openai_api"
 
         entry = {
             "timestamp": datetime.now().isoformat(),
@@ -599,8 +633,8 @@ class Apex(BaseModule):
         self._save_log()
 
         logger.info(
-            "Apex calling %s API (live): model=%s, tokens_in=%d, tokens_out=%d, cost=$%.4f",
-            api, model_used, input_tokens, output_tokens, cost,
+            "Apex API call successful: %s, %s, tokens_used=%d",
+            api, model_used, input_tokens + output_tokens,
         )
 
         # Escalation-learning cycle: log, extract, store
@@ -621,6 +655,7 @@ class Apex(BaseModule):
             content={
                 "api": api,
                 "model": model_used,
+                "source": source_label,
                 "status": "completed",
                 "response": response_text,
                 "tokens_in": input_tokens,
