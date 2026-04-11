@@ -1,0 +1,104 @@
+{
+  "name": "shadow-grimoire",
+  "version": "1.0.0",
+  "description": "Shadow's persistent memory system",
+  "tools": [
+    {
+      "name": "grimoire_recall",
+      "description": "Semantic search — find memories by meaning. Returns top-k results ranked by relevance.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "Natural language query to search memories by meaning"
+          },
+          "top_k": {
+            "type": "integer",
+            "description": "Number of results to return (1-50)",
+            "default": 5
+          },
+          "collection": {
+            "type": "string",
+            "description": "Optional category/collection to filter by"
+          }
+        },
+        "required": ["query"]
+      }
+    },
+    {
+      "name": "grimoire_remember",
+      "description": "Store a new memory in Shadow's knowledge base.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "content": {
+            "type": "string",
+            "description": "The memory content to store"
+          },
+          "category": {
+            "type": "string",
+            "description": "Category for the memory (e.g. 'conversation', 'research', 'code')",
+            "default": "uncategorized"
+          },
+          "metadata": {
+            "type": "object",
+            "description": "Optional metadata key-value pairs"
+          }
+        },
+        "required": ["content"]
+      }
+    },
+    {
+      "name": "grimoire_search",
+      "description": "Full-text search with filters for category, date range, and source module.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "Search query"
+          },
+          "filters": {
+            "type": "object",
+            "description": "Optional filters: category (str), date_range ({start, end} ISO strings), module (str), min_trust (float)",
+            "properties": {
+              "category": { "type": "string" },
+              "date_range": {
+                "type": "object",
+                "properties": {
+                  "start": { "type": "string" },
+                  "end": { "type": "string" }
+                }
+              },
+              "module": { "type": "string" },
+              "min_trust": { "type": "number" }
+            }
+          },
+          "top_k": {
+            "type": "integer",
+            "description": "Number of results to return (1-50)",
+            "default": 5
+          }
+        },
+        "required": ["query"]
+      }
+    },
+    {
+      "name": "grimoire_collections",
+      "description": "List all memory collections (categories) and their counts.",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      }
+    },
+    {
+      "name": "grimoire_stats",
+      "description": "Return memory system statistics: total memories, per-collection counts, DB size.",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      }
+    }
+  ]
+}

@@ -66,6 +66,7 @@ modules:
     vector_path: "data/vectors"
     collection_name: "shadow_memories"
     max_search_results: 5
+    auto_link: true  # Auto-discover and link related memories on store
 
   cerberus:
     limits_file: "config/cerberus_limits.yaml"
@@ -84,7 +85,9 @@ modules:
   reaper:
     search_backends:
       - "duckduckgo"
+      - "brave"
       - "bing"
+    search_backend: "ddg"  # Primary backend: "ddg", "brave", "searxng"
     max_results_per_query: 5
     stealth_mode: true
     # SearXNG deferred to Ubuntu Phase 1
@@ -144,3 +147,14 @@ personality:
   system_prompt_override: null
   master_name: "Master"
   tone: "direct"
+
+# --- MCP Server Configuration ---
+mcp:
+  grimoire:
+    enabled: true
+    host: "127.0.0.1"
+    port: 8100
+  reaper:
+    enabled: true
+    host: "127.0.0.1"
+    port: 8101
