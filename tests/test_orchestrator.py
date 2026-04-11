@@ -277,6 +277,193 @@ class TestFastPathClassifier:
         result = orch._fast_path_classify("tell me something interesting about space")
         assert result is None
 
+    # --- BUG 6: Security → Sentinel ---
+
+    def test_sentinel_security_check(self, config: dict):
+        orch = Orchestrator(config)
+        result = orch._fast_path_classify("Run a security check on your system")
+        assert result is not None
+        assert result.target_module == "sentinel"
+
+    def test_sentinel_vulnerability_keyword(self, config: dict):
+        orch = Orchestrator(config)
+        result = orch._fast_path_classify("scan for vulnerability in the network")
+        assert result is not None
+        assert result.target_module == "sentinel"
+
+    def test_sentinel_threat_assessment_phrase(self, config: dict):
+        orch = Orchestrator(config)
+        result = orch._fast_path_classify("threat assessment of my network")
+        assert result is not None
+        assert result.target_module == "sentinel"
+
+    def test_sentinel_firewall_keyword(self, config: dict):
+        orch = Orchestrator(config)
+        result = orch._fast_path_classify("check the firewall status")
+        assert result is not None
+        assert result.target_module == "sentinel"
+
+    # --- BUG 7: System metrics → Void ---
+
+    def test_void_system_metrics(self, config: dict):
+        orch = Orchestrator(config)
+        result = orch._fast_path_classify("Show me your system metrics")
+        assert result is not None
+        assert result.target_module == "void"
+
+    def test_void_system_health_phrase(self, config: dict):
+        orch = Orchestrator(config)
+        result = orch._fast_path_classify("how is your system health")
+        assert result is not None
+        assert result.target_module == "void"
+
+    def test_void_cpu_usage_phrase(self, config: dict):
+        orch = Orchestrator(config)
+        result = orch._fast_path_classify("show me the cpu usage")
+        assert result is not None
+        assert result.target_module == "void"
+
+    def test_void_monitoring_keyword(self, config: dict):
+        orch = Orchestrator(config)
+        result = orch._fast_path_classify("monitoring dashboard status")
+        assert result is not None
+        assert result.target_module == "void"
+
+    def test_void_diagnostics_keyword(self, config: dict):
+        orch = Orchestrator(config)
+        result = orch._fast_path_classify("run diagnostics on the system")
+        assert result is not None
+        assert result.target_module == "void"
+
+    # --- BUG 8: Content creation → Nova ---
+
+    def test_nova_write_paragraph(self, config: dict):
+        orch = Orchestrator(config)
+        result = orch._fast_path_classify("Write me a short paragraph about why landscaping is rewarding")
+        assert result is not None
+        assert result.target_module == "nova"
+        assert result.task_type == TaskType.CREATION
+
+    def test_nova_blog_post(self, config: dict):
+        orch = Orchestrator(config)
+        result = orch._fast_path_classify("write a blog post about landscaping")
+        assert result is not None
+        assert result.target_module == "nova"
+
+    def test_nova_essay_keyword(self, config: dict):
+        orch = Orchestrator(config)
+        result = orch._fast_path_classify("draft an essay on business growth")
+        assert result is not None
+        assert result.target_module == "nova"
+
+    def test_nova_article_keyword(self, config: dict):
+        orch = Orchestrator(config)
+        result = orch._fast_path_classify("compose an article about lawn care tips")
+        assert result is not None
+        assert result.target_module == "nova"
+
+    # --- BUG 8 conflict: "write code" → Omen, NOT Nova ---
+
+    def test_omen_beats_nova_write_function(self, config: dict):
+        orch = Orchestrator(config)
+        result = orch._fast_path_classify("write a Python function to sort a list")
+        assert result is not None
+        assert result.target_module == "omen"
+
+    def test_omen_beats_nova_write_script(self, config: dict):
+        orch = Orchestrator(config)
+        result = orch._fast_path_classify("write a script to automate backups")
+        assert result is not None
+        assert result.target_module == "omen"
+
+    def test_omen_beats_nova_create_api(self, config: dict):
+        orch = Orchestrator(config)
+        result = orch._fast_path_classify("create an api endpoint for user login")
+        assert result is not None
+        assert result.target_module == "omen"
+
+    # --- BUG 9: Discovery → Morpheus ---
+
+    def test_morpheus_discover(self, config: dict):
+        orch = Orchestrator(config)
+        result = orch._fast_path_classify("Discover something interesting about neural network architecture")
+        assert result is not None
+        assert result.target_module == "morpheus"
+
+    def test_morpheus_brainstorm(self, config: dict):
+        orch = Orchestrator(config)
+        result = orch._fast_path_classify("brainstorm ideas for a new feature")
+        assert result is not None
+        assert result.target_module == "morpheus"
+
+    def test_morpheus_what_if_phrase(self, config: dict):
+        orch = Orchestrator(config)
+        result = orch._fast_path_classify("what if we combined neural networks with scheduling")
+        assert result is not None
+        assert result.target_module == "morpheus"
+
+    def test_morpheus_explore_keyword(self, config: dict):
+        orch = Orchestrator(config)
+        result = orch._fast_path_classify("explore connections between AI and landscaping")
+        assert result is not None
+        assert result.target_module == "morpheus"
+
+    # --- BUG 10: Math with × → Cipher (not Reaper) ---
+
+    def test_cipher_multiply_symbol(self, config: dict):
+        orch = Orchestrator(config)
+        result = orch._fast_path_classify("What is 347 × 892?")
+        assert result is not None
+        assert result.target_module == "cipher"
+        assert result.task_type == TaskType.ANALYSIS
+
+    def test_cipher_asterisk_multiply(self, config: dict):
+        orch = Orchestrator(config)
+        result = orch._fast_path_classify("347 * 892")
+        assert result is not None
+        assert result.target_module == "cipher"
+
+    def test_cipher_addition(self, config: dict):
+        orch = Orchestrator(config)
+        result = orch._fast_path_classify("5 + 3")
+        assert result is not None
+        assert result.target_module == "cipher"
+
+    def test_cipher_division_symbol(self, config: dict):
+        orch = Orchestrator(config)
+        result = orch._fast_path_classify("100 ÷ 4")
+        assert result is not None
+        assert result.target_module == "cipher"
+
+    def test_cipher_math_before_omen(self, config: dict):
+        """Math patterns must be checked before code keywords."""
+        orch = Orchestrator(config)
+        result = orch._fast_path_classify("10 + 20")
+        assert result is not None
+        assert result.target_module == "cipher"
+
+    # --- Priority conflict tests ---
+
+    def test_cipher_beats_reaper_calculate(self, config: dict):
+        orch = Orchestrator(config)
+        result = orch._fast_path_classify("calculate 15% of 2400")
+        assert result is not None
+        assert result.target_module == "cipher"
+
+    # --- Harbinger tests ---
+
+    def test_harbinger_briefing(self, config: dict):
+        orch = Orchestrator(config)
+        result = orch._fast_path_classify("give me my daily briefing")
+        assert result is not None
+        assert result.target_module == "harbinger"
+
+    def test_harbinger_status_report(self, config: dict):
+        orch = Orchestrator(config)
+        result = orch._fast_path_classify("show me the status report")
+        assert result is not None
+        assert result.target_module == "harbinger"
+
 
 class TestQueryExtraction:
     """Test search query extraction from user input."""

@@ -1448,12 +1448,21 @@ class Orchestrator:
         prompt = f"""You are Shadow's router. Classify this user input and decide which module handles it.
 
 Available modules: {', '.join(available_modules)}
-Module capabilities:
-- omen: Code writing, debugging, review, linting, execution, scaffolding. Use for ANY code-related task.
-- grimoire: Memory storage, recall, search. Use for "remember this", "what do you know about", memory queries.
-- reaper: Web research, search, YouTube transcription, data gathering. Use for questions needing current info.
-- cipher: Math, calculations, unit conversions, financial estimates.
-- cerberus: Safety checks. Internal only — never route user tasks here.
+
+Module capabilities (use the MOST specific module — avoid "direct" unless it's truly casual conversation):
+- shadow: Meta-tasks about Shadow itself, orchestration, system-level commands.
+- wraith: Reminders, timers, calendar, daily tasks, scheduling, appointments, deadlines, to-do lists.
+- cerberus: Ethics questions, moral dilemmas, biblical values, safety checks. Internal safety — rarely route user tasks here.
+- apex: Cloud API fallback (Claude/GPT). Only when explicitly requested or after local model failure.
+- grimoire: Memory storage, recall, knowledge retrieval, "remember this", "what do you know about", Bible verse lookup.
+- sentinel: Security scans, vulnerability checks, system integrity, threat assessment, firewall, intrusion detection, audits.
+- harbinger: Briefings, daily reports, alerts, notifications, status summaries, safety reports.
+- reaper: Web search, research, current events, news, looking things up online, YouTube transcription.
+- cipher: Math, calculations, unit conversions, financial estimates, statistics, logic puzzles, data analysis. ANY math or numbers task.
+- omen: Code writing, debugging, programming, scripts, functions, technical implementation, linting, code review.
+- nova: Creative writing, content creation, paragraphs, articles, blog posts, essays, stories, copywriting, newsletters. NOT code.
+- void: System metrics, monitoring, performance stats, resource usage, health checks, uptime, diagnostics, CPU/memory/GPU/disk usage.
+- morpheus: Discovery, exploration, creative connections, brainstorming, speculation, "what if" scenarios, cross-pollination of ideas.
 
 Classify the input and respond with ONLY valid JSON (no markdown, no explanation):
 {{
@@ -1505,26 +1514,84 @@ User input: {user_input}"""
         """
         lower = user_input.lower()
 
+        # Math patterns (digits + operators)
+        if re.search(r'\d+\s*[+\-*/×÷^%]\s*\d+', lower) or any(c in lower for c in "×÷±√²³"):
+            return TaskClassification(
+                task_type=TaskType.ANALYSIS, complexity="moderate",
+                target_module="cipher", brain=BrainType.FAST,
+                safety_flag=False, priority=1,
+            )
+
+        # Code tasks
+        if any(kw in lower for kw in ["code", "debug", "script", "function", "program", "compile", "lint"]):
+            return TaskClassification(
+                task_type=TaskType.CREATION, complexity="moderate",
+                target_module="omen", brain=BrainType.FAST,
+                safety_flag=False, priority=1,
+            )
+
+        # Security
+        if any(kw in lower for kw in ["security", "vulnerability", "threat", "firewall", "breach", "audit"]):
+            return TaskClassification(
+                task_type=TaskType.ACTION, complexity="moderate",
+                target_module="sentinel", brain=BrainType.FAST,
+                safety_flag=False, priority=1,
+            )
+
+        # Math / financial words
+        if any(kw in lower for kw in ["calculate", "compute", "solve", "math", "equation", "price", "cost", "total"]):
+            return TaskClassification(
+                task_type=TaskType.ANALYSIS, complexity="moderate",
+                target_module="cipher", brain=BrainType.FAST,
+                safety_flag=False, priority=1,
+            )
+
         # Memory operations
         if any(kw in lower for kw in ["remember", "forget", "recall", "what do you know"]):
             return TaskClassification(
-                task_type=TaskType.MEMORY,
-                complexity="simple",
-                target_module="grimoire",
-                brain=BrainType.FAST,
-                safety_flag=False,
-                priority=1,
+                task_type=TaskType.MEMORY, complexity="simple",
+                target_module="grimoire", brain=BrainType.FAST,
+                safety_flag=False, priority=1,
+            )
+
+        # Content creation (no code words)
+        if any(kw in lower for kw in ["draft", "compose", "blog", "article", "essay", "paragraph", "story", "newsletter"]):
+            return TaskClassification(
+                task_type=TaskType.CREATION, complexity="moderate",
+                target_module="nova", brain=BrainType.FAST,
+                safety_flag=False, priority=1,
+            )
+
+        # Discovery / exploration
+        if any(kw in lower for kw in ["discover", "explore", "brainstorm", "speculate", "what if"]):
+            return TaskClassification(
+                task_type=TaskType.RESEARCH, complexity="moderate",
+                target_module="morpheus", brain=BrainType.SMART,
+                safety_flag=False, priority=1,
             )
 
         # Research / web search
-        if any(kw in lower for kw in ["search", "look up", "find", "research", "what is"]):
+        if any(kw in lower for kw in ["search", "look up", "research", "what is"]):
             return TaskClassification(
-                task_type=TaskType.RESEARCH,
-                complexity="moderate",
-                target_module="reaper",
-                brain=BrainType.FAST,
-                safety_flag=False,
-                priority=1,
+                task_type=TaskType.RESEARCH, complexity="moderate",
+                target_module="reaper", brain=BrainType.FAST,
+                safety_flag=False, priority=1,
+            )
+
+        # Metrics / monitoring
+        if any(kw in lower for kw in ["metrics", "monitoring", "uptime", "diagnostics", "system health", "cpu usage"]):
+            return TaskClassification(
+                task_type=TaskType.ANALYSIS, complexity="moderate",
+                target_module="void", brain=BrainType.FAST,
+                safety_flag=False, priority=1,
+            )
+
+        # Briefings / alerts
+        if any(kw in lower for kw in ["briefing", "alert", "notification", "status report"]):
+            return TaskClassification(
+                task_type=TaskType.ACTION, complexity="moderate",
+                target_module="harbinger", brain=BrainType.FAST,
+                safety_flag=False, priority=1,
             )
 
         # Default: direct conversation
@@ -1729,13 +1796,40 @@ User input: {user_input}"""
         # Split once for whole-word matching
         words = set(lower.split())
 
-        # Omen — code tasks
+        # Code indicator set — used for Nova vs Omen conflict resolution
+        code_indicators = {
+            "code", "function", "script", "program", "class", "module", "debug",
+            "compile", "api", "endpoint", "database", "sql", "python", "javascript",
+            "typescript", "rust", "java", "html", "css", "react", "django", "flask",
+            "bot", "parser", "handler", "decorator", "lambda", "variable", "method",
+            "lint", "refactor", "syntax", "algorithm", "snippet", "coding",
+        }
+
+        # ── Priority 1: Cipher math PATTERNS (digits + operators) ──
+        # Must be checked FIRST so "347 × 892" never falls through to Reaper/Omen
+        _MATH_SYMBOLS = {"×", "÷", "±", "√", "²", "³"}
+        has_math_symbol = bool(set(lower) & _MATH_SYMBOLS)
+        has_numeric_expr = bool(re.search(
+            r'\d+\s*[+\-*/×÷xX^%]\s*\d+', lower
+        ))
+        if has_math_symbol or has_numeric_expr:
+            logger.info("Fast-path pattern → cipher (math_symbol=%s, numeric_expr=%s)",
+                        has_math_symbol, has_numeric_expr)
+            return TaskClassification(
+                task_type=TaskType.ANALYSIS,
+                complexity="moderate",
+                target_module="cipher",
+                brain=BrainType.FAST,
+                safety_flag=False,
+                priority=1,
+            )
+
+        # ── Priority 2: Omen — code tasks ──
         omen_keywords = {
             "code", "debug", "review", "lint", "refactor",
             "function", "class", "script", "program",
-            "coding", "syntax", "snippet", "algorithm",
+            "coding", "syntax", "snippet", "algorithm", "compile",
         }
-        # "write/generate" only route to Omen when paired with code context
         omen_context_words = {"write", "generate", "create", "build", "execute"}
         omen_code_context = {
             "function", "class", "script", "program", "code",
@@ -1754,35 +1848,10 @@ User input: {user_input}"""
                 priority=1,
             )
 
-        # Cipher — math / financial calculations
-        cipher_keywords = {
-            "calculate", "compute", "solve", "math", "equation",
-            "multiply", "divide", "add", "subtract",
-            "sum", "product", "difference", "quotient",
-            "price", "quote", "cost", "estimate", "total", "percentage",
-        }
-        # Detect math symbols: ×, ÷, ², ³, ±, √ and ASCII operators in numeric context
-        _MATH_SYMBOLS = {"×", "÷", "±", "√", "²", "³"}
-        has_math_symbol = bool(set(lower) & _MATH_SYMBOLS)
-        # Detect numeric expressions: digits operator digits (e.g. "347 * 892", "5+3")
-        has_numeric_expr = bool(re.search(
-            r'\d+\s*[+\-*/×÷xX^%]\s*\d+', lower
-        ))
-        if (words & cipher_keywords) or has_math_symbol or has_numeric_expr:
-            logger.info("Fast-path keyword → cipher (keywords=%s, math_symbol=%s, numeric_expr=%s)",
-                        words & cipher_keywords, has_math_symbol, has_numeric_expr)
-            return TaskClassification(
-                task_type=TaskType.ANALYSIS,
-                complexity="moderate",
-                target_module="cipher",
-                brain=BrainType.FAST,
-                safety_flag=False,
-                priority=1,
-            )
-
-        # Wraith — reminders / scheduling
+        # ── Priority 3: Wraith — reminders / scheduling ──
         wraith_keywords = {
-            "remind", "timer", "schedule", "alarm", "appointment", "deadline",
+            "remind", "reminder", "timer", "schedule", "alarm",
+            "appointment", "deadline", "calendar", "todo",
         }
         if words & wraith_keywords:
             logger.info("Fast-path keyword → wraith (matched: %s)", words & wraith_keywords)
@@ -1795,8 +1864,85 @@ User input: {user_input}"""
                 priority=1,
             )
 
-        # Reaper — research (broader keyword catch beyond explicit commands)
-        reaper_keywords = {"research", "search", "find"}
+        # ── Priority 4: Sentinel — security ──
+        sentinel_keywords = {
+            "security", "vulnerability", "threat", "intrusion",
+            "firewall", "breach", "audit",
+        }
+        sentinel_phrases = [
+            "security check", "security scan", "threat assessment",
+            "vulnerability scan", "intrusion detection",
+        ]
+        if (words & sentinel_keywords) or any(p in lower for p in sentinel_phrases):
+            logger.info("Fast-path keyword → sentinel")
+            return TaskClassification(
+                task_type=TaskType.ACTION,
+                complexity="moderate",
+                target_module="sentinel",
+                brain=BrainType.FAST,
+                safety_flag=False,
+                priority=1,
+            )
+
+        # ── Priority 5: Cipher — math / financial WORDS ──
+        cipher_keywords = {
+            "calculate", "compute", "solve", "math", "equation",
+            "multiply", "divide", "subtract",
+            "sum", "product", "difference", "quotient",
+            "price", "quote", "cost", "estimate", "total", "percentage",
+            "factorial", "logarithm", "derivative", "integral",
+        }
+        if words & cipher_keywords:
+            logger.info("Fast-path keyword → cipher (matched: %s)", words & cipher_keywords)
+            return TaskClassification(
+                task_type=TaskType.ANALYSIS,
+                complexity="moderate",
+                target_module="cipher",
+                brain=BrainType.FAST,
+                safety_flag=False,
+                priority=1,
+            )
+
+        # ── Priority 6: Nova — content creation (only if NO code indicators) ──
+        nova_keywords = {
+            "draft", "compose", "blog", "article", "essay",
+            "paragraph", "story", "creative", "content", "post",
+            "copywriting", "newsletter",
+        }
+        nova_context_words = {"write", "generate", "create"}
+        has_nova_context = bool(words & nova_context_words) and not bool(words & code_indicators)
+        if (words & nova_keywords) or has_nova_context:
+            logger.info("Fast-path keyword → nova")
+            return TaskClassification(
+                task_type=TaskType.CREATION,
+                complexity="moderate",
+                target_module="nova",
+                brain=BrainType.FAST,
+                safety_flag=False,
+                priority=1,
+            )
+
+        # ── Priority 7: Morpheus — discovery / exploration ──
+        morpheus_keywords = {
+            "discover", "explore", "experiment", "brainstorm",
+            "imagine", "speculate", "serendipity", "unconventional",
+        }
+        morpheus_phrases = [
+            "what if", "cross-pollinate", "creative connection",
+        ]
+        if (words & morpheus_keywords) or any(p in lower for p in morpheus_phrases):
+            logger.info("Fast-path keyword → morpheus")
+            return TaskClassification(
+                task_type=TaskType.RESEARCH,
+                complexity="moderate",
+                target_module="morpheus",
+                brain=BrainType.SMART,
+                safety_flag=False,
+                priority=1,
+            )
+
+        # ── Priority 8: Reaper — research / web search ──
+        reaper_keywords = {"research", "search"}
         reaper_phrases = ["look up", "what is", "who is"]
         if (words & reaper_keywords) or any(p in lower for p in reaper_phrases):
             logger.info("Fast-path keyword → reaper")
@@ -1809,7 +1955,55 @@ User input: {user_input}"""
                 priority=1,
             )
 
-        # Cerberus — ethics / moral questions
+        # ── Priority 9: Void — metrics / monitoring ──
+        void_keywords = {"metrics", "monitoring", "uptime", "diagnostics"}
+        void_phrases = [
+            "system status", "system health", "health check",
+            "resource usage", "cpu usage", "memory usage",
+            "gpu usage", "disk usage", "system metrics",
+        ]
+        if (words & void_keywords) or any(p in lower for p in void_phrases):
+            logger.info("Fast-path keyword → void")
+            return TaskClassification(
+                task_type=TaskType.ANALYSIS,
+                complexity="moderate",
+                target_module="void",
+                brain=BrainType.FAST,
+                safety_flag=False,
+                priority=1,
+            )
+
+        # ── Priority 10: Harbinger — briefings / alerts ──
+        harbinger_keywords = {"briefing", "alert", "notification"}
+        harbinger_phrases = [
+            "daily briefing", "morning briefing", "status report",
+            "safety report",
+        ]
+        if (words & harbinger_keywords) or any(p in lower for p in harbinger_phrases):
+            logger.info("Fast-path keyword → harbinger")
+            return TaskClassification(
+                task_type=TaskType.ACTION,
+                complexity="moderate",
+                target_module="harbinger",
+                brain=BrainType.FAST,
+                safety_flag=False,
+                priority=1,
+            )
+
+        # ── Priority 11: Grimoire — memory keywords ──
+        grimoire_keywords = {"remember", "forget", "recall"}
+        if words & grimoire_keywords:
+            logger.info("Fast-path keyword → grimoire")
+            return TaskClassification(
+                task_type=TaskType.MEMORY,
+                complexity="simple",
+                target_module="grimoire",
+                brain=BrainType.FAST,
+                safety_flag=False,
+                priority=1,
+            )
+
+        # ── Priority 12: Cerberus — ethics / moral questions ──
         cerberus_keywords = {"ethics", "moral", "bible", "scripture"}
         cerberus_phrases = ["right or wrong", "should i", "is it ethical", "is it right", "is it wrong"]
         if (words & cerberus_keywords) or any(p in lower for p in cerberus_phrases):
@@ -2542,7 +2736,9 @@ User input: {user_input}"""
                 )
                 return str(doc_id) if doc_id else "no_id"
             except Exception as e:
-                logger.warning("Grimoire store failed: %s", e)
+                logger.error("Grimoire store failed in escalation wrapper: "
+                             "%s: %s (content_len=%d)",
+                             type(e).__name__, e, len(content))
                 return "store_error"
 
         return grimoire_store
