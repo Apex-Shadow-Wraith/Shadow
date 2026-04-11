@@ -1,0 +1,588 @@
+[
+  {
+    "id": "code_01",
+    "input": "Write a Python function called fibonacci that takes an integer n and returns the nth Fibonacci number.",
+    "expected_output_keywords": ["def", "fibonacci", "return"],
+    "category": "code_generation",
+    "difficulty": 1,
+    "rubric": {
+      "type": "code",
+      "required_keywords": ["def", "fibonacci", "return"],
+      "banned_phrases": ["As an AI", "I cannot", "I'm sorry"]
+    }
+  },
+  {
+    "id": "code_02",
+    "input": "Write a Python class called Stack with push, pop, and peek methods.",
+    "expected_output_keywords": ["class", "Stack", "push", "pop", "peek", "def"],
+    "category": "code_generation",
+    "difficulty": 2,
+    "rubric": {
+      "type": "code",
+      "required_keywords": ["class", "Stack", "def", "push", "pop", "peek"],
+      "banned_phrases": ["As an AI", "I cannot", "I'm sorry"]
+    }
+  },
+  {
+    "id": "code_03",
+    "input": "Write a Python function that reads a CSV file and returns a list of dictionaries, one per row.",
+    "expected_output_keywords": ["def", "csv", "open", "return"],
+    "category": "code_generation",
+    "difficulty": 3,
+    "rubric": {
+      "type": "code",
+      "required_keywords": ["def", "csv", "open", "return"],
+      "banned_phrases": ["As an AI", "I cannot", "I'm sorry"]
+    }
+  },
+  {
+    "id": "code_04",
+    "input": "Write an async Python function that fetches JSON from a URL using httpx and returns the parsed data.",
+    "expected_output_keywords": ["async", "def", "httpx", "await", "json", "return"],
+    "category": "code_generation",
+    "difficulty": 4,
+    "rubric": {
+      "type": "code",
+      "required_keywords": ["async", "def", "httpx", "await", "return"],
+      "banned_phrases": ["As an AI", "I cannot", "I'm sorry"]
+    }
+  },
+  {
+    "id": "code_05",
+    "input": "Write a Python decorator called retry that retries a function up to 3 times if it raises an exception.",
+    "expected_output_keywords": ["def", "retry", "except", "range"],
+    "category": "code_generation",
+    "difficulty": 5,
+    "rubric": {
+      "type": "code",
+      "required_keywords": ["def", "retry", "except"],
+      "banned_phrases": ["As an AI", "I cannot", "I'm sorry"]
+    }
+  },
+  {
+    "id": "code_06",
+    "input": "Write a Python context manager class called Timer that measures and prints the elapsed time of a code block.",
+    "expected_output_keywords": ["class", "Timer", "__enter__", "__exit__", "time"],
+    "category": "code_generation",
+    "difficulty": 5,
+    "rubric": {
+      "type": "code",
+      "required_keywords": ["class", "Timer", "__enter__", "__exit__"],
+      "banned_phrases": ["As an AI", "I cannot", "I'm sorry"]
+    }
+  },
+  {
+    "id": "code_07",
+    "input": "Write a Python function that implements binary search on a sorted list and returns the index or -1.",
+    "expected_output_keywords": ["def", "binary", "return", "mid", "low", "high"],
+    "category": "code_generation",
+    "difficulty": 6,
+    "rubric": {
+      "type": "code",
+      "required_keywords": ["def", "return", "mid"],
+      "banned_phrases": ["As an AI", "I cannot", "I'm sorry"]
+    }
+  },
+  {
+    "id": "code_08",
+    "input": "Write a Python function that merges two sorted lists into one sorted list without using the built-in sort.",
+    "expected_output_keywords": ["def", "merge", "while", "return"],
+    "category": "code_generation",
+    "difficulty": 7,
+    "rubric": {
+      "type": "code",
+      "required_keywords": ["def", "while", "return"],
+      "banned_phrases": ["As an AI", "I cannot", "I'm sorry"]
+    }
+  },
+  {
+    "id": "code_09",
+    "input": "Write a Python LRU cache implementation using OrderedDict with get and put methods and a max capacity.",
+    "expected_output_keywords": ["class", "OrderedDict", "get", "put", "capacity"],
+    "category": "code_generation",
+    "difficulty": 8,
+    "rubric": {
+      "type": "code",
+      "required_keywords": ["class", "OrderedDict", "get", "put"],
+      "banned_phrases": ["As an AI", "I cannot", "I'm sorry"]
+    }
+  },
+  {
+    "id": "code_10",
+    "input": "Write a Python async producer-consumer system using asyncio.Queue with a producer that generates numbers and a consumer that processes them.",
+    "expected_output_keywords": ["async", "Queue", "producer", "consumer", "await", "put", "get"],
+    "category": "code_generation",
+    "difficulty": 9,
+    "rubric": {
+      "type": "code",
+      "required_keywords": ["async", "Queue", "producer", "consumer", "await"],
+      "banned_phrases": ["As an AI", "I cannot", "I'm sorry"]
+    }
+  },
+  {
+    "id": "review_01",
+    "input": "Find the bug in this code:\ndef divide_list(numbers):\n    results = []\n    for n in numbers:\n        results.append(100 / n)\n    return results",
+    "expected_output_keywords": ["zero", "ZeroDivisionError", "division"],
+    "category": "code_review",
+    "difficulty": 2,
+    "rubric": {
+      "type": "keyword",
+      "required_keywords": ["zero", "division"],
+      "banned_phrases": ["As an AI", "I cannot"]
+    }
+  },
+  {
+    "id": "review_02",
+    "input": "Find the bug in this code:\ndef get_user(users, name):\n    for user in users:\n        if user['name'] == name:\n            return user\n    return user",
+    "expected_output_keywords": ["unbound", "NameError", "empty", "undefined", "last"],
+    "category": "code_review",
+    "difficulty": 3,
+    "rubric": {
+      "type": "keyword",
+      "required_keywords": ["empty", "return"],
+      "required_any": ["unbound", "NameError", "undefined", "last", "empty list"]
+    }
+  },
+  {
+    "id": "review_03",
+    "input": "Find the bug in this code:\ndef append_to(element, target=[]):\n    target.append(element)\n    return target",
+    "expected_output_keywords": ["mutable", "default", "argument", "shared"],
+    "category": "code_review",
+    "difficulty": 5,
+    "rubric": {
+      "type": "keyword",
+      "required_keywords": ["mutable", "default"],
+      "banned_phrases": ["As an AI", "I cannot"]
+    }
+  },
+  {
+    "id": "review_04",
+    "input": "Find the bug in this code:\nimport threading\ncounter = 0\ndef increment():\n    global counter\n    for _ in range(1000000):\n        counter += 1",
+    "expected_output_keywords": ["race", "condition", "thread", "lock", "atomic"],
+    "category": "code_review",
+    "difficulty": 7,
+    "rubric": {
+      "type": "keyword",
+      "required_keywords": ["race", "thread"],
+      "required_any": ["condition", "lock", "atomic", "synchron"]
+    }
+  },
+  {
+    "id": "review_05",
+    "input": "Find the security vulnerability:\ndef search_users(query):\n    sql = f\"SELECT * FROM users WHERE name LIKE '%{query}%'\"\n    return db.execute(sql)",
+    "expected_output_keywords": ["SQL", "injection", "parameterized", "sanitize"],
+    "category": "code_review",
+    "difficulty": 4,
+    "rubric": {
+      "type": "keyword",
+      "required_keywords": ["SQL", "injection"],
+      "required_any": ["parameterized", "sanitize", "placeholder", "bind"]
+    }
+  },
+  {
+    "id": "math_01",
+    "input": "What is 347 * 28?",
+    "expected_output_keywords": ["9716"],
+    "category": "math_logic",
+    "difficulty": 2,
+    "rubric": {
+      "type": "exact_answer",
+      "answer": "9716"
+    }
+  },
+  {
+    "id": "math_02",
+    "input": "What is the square root of 144?",
+    "expected_output_keywords": ["12"],
+    "category": "math_logic",
+    "difficulty": 1,
+    "rubric": {
+      "type": "exact_answer",
+      "answer": "12"
+    }
+  },
+  {
+    "id": "math_03",
+    "input": "If a landscaping crew can mow 3 lawns per hour and they work 8 hours a day, how many lawns can 4 crews mow in 5 days?",
+    "expected_output_keywords": ["480"],
+    "category": "math_logic",
+    "difficulty": 4,
+    "rubric": {
+      "type": "exact_answer",
+      "answer": "480"
+    }
+  },
+  {
+    "id": "math_04",
+    "input": "A store offers 20% off, then an additional 10% off the discounted price. What is the total discount percentage on the original price?",
+    "expected_output_keywords": ["28"],
+    "category": "math_logic",
+    "difficulty": 5,
+    "rubric": {
+      "type": "exact_answer",
+      "answer": "28"
+    }
+  },
+  {
+    "id": "math_05",
+    "input": "What is the next number in the sequence: 2, 6, 18, 54, ...?",
+    "expected_output_keywords": ["162"],
+    "category": "math_logic",
+    "difficulty": 3,
+    "rubric": {
+      "type": "exact_answer",
+      "answer": "162"
+    }
+  },
+  {
+    "id": "research_01",
+    "input": "Given these search results about Python web frameworks: 'Django is a high-level framework with ORM and admin panel. Flask is a lightweight microframework. FastAPI is modern with async support and automatic docs.' — Summarize the key differences and recommend one for building a REST API.",
+    "expected_output_keywords": ["Django", "Flask", "FastAPI", "API", "async"],
+    "category": "research_synthesis",
+    "difficulty": 3,
+    "rubric": {
+      "type": "keyword",
+      "required_keywords": ["Django", "Flask", "FastAPI"],
+      "banned_phrases": ["As an AI", "I cannot"]
+    }
+  },
+  {
+    "id": "research_02",
+    "input": "Given these search results about battery types: 'Lithium-ion has high energy density but degrades over time. Lead-acid is cheap but heavy. LiFePO4 has long cycle life and is safer but costs more.' — Which battery type is best for a solar power backup system and why?",
+    "expected_output_keywords": ["LiFePO4", "cycle", "solar", "safe"],
+    "category": "research_synthesis",
+    "difficulty": 4,
+    "rubric": {
+      "type": "keyword",
+      "required_keywords": ["LiFePO4"],
+      "required_any": ["cycle", "life", "safe", "solar"]
+    }
+  },
+  {
+    "id": "research_03",
+    "input": "Given these search results about local LLMs: 'Ollama runs models locally with simple CLI. LM Studio has a GUI and OpenAI-compatible API. llama.cpp is the raw C++ inference engine.' — Compare these for a developer who wants local AI with API access.",
+    "expected_output_keywords": ["Ollama", "LM Studio", "llama.cpp", "API", "local"],
+    "category": "research_synthesis",
+    "difficulty": 4,
+    "rubric": {
+      "type": "keyword",
+      "required_keywords": ["Ollama", "LM Studio", "llama.cpp"],
+      "banned_phrases": ["As an AI", "I cannot"]
+    }
+  },
+  {
+    "id": "research_04",
+    "input": "Given these search results about mulch types: 'Hardwood mulch decomposes slowly and enriches soil. Pine straw is acidic, good for azaleas. Rubber mulch lasts longest but adds no nutrients. Dyed mulch may contain contaminants.' — What mulch should a landscaper recommend for a residential flower bed?",
+    "expected_output_keywords": ["hardwood", "decompose", "nutrient", "flower"],
+    "category": "research_synthesis",
+    "difficulty": 3,
+    "rubric": {
+      "type": "keyword",
+      "required_keywords": ["hardwood"],
+      "required_any": ["decompose", "nutrient", "soil", "flower", "organic"]
+    }
+  },
+  {
+    "id": "research_05",
+    "input": "Given these search results about vector databases: 'ChromaDB is lightweight and Python-native. Pinecone is cloud-hosted and scalable. Weaviate supports hybrid search. Qdrant is fast with Rust backend.' — Which is best for a local AI agent that needs persistent embeddings?",
+    "expected_output_keywords": ["ChromaDB", "local", "Python", "persistent", "embeddings"],
+    "category": "research_synthesis",
+    "difficulty": 5,
+    "rubric": {
+      "type": "keyword",
+      "required_keywords": ["ChromaDB"],
+      "required_any": ["local", "Python", "persistent", "lightweight"]
+    }
+  },
+  {
+    "id": "knowledge_01",
+    "input": "What is the capital of Australia?",
+    "expected_output_keywords": ["Canberra"],
+    "category": "general_knowledge",
+    "difficulty": 1,
+    "rubric": {
+      "type": "exact_answer",
+      "answer": "Canberra"
+    }
+  },
+  {
+    "id": "knowledge_02",
+    "input": "What programming language was created by Guido van Rossum?",
+    "expected_output_keywords": ["Python"],
+    "category": "general_knowledge",
+    "difficulty": 1,
+    "rubric": {
+      "type": "exact_answer",
+      "answer": "Python"
+    }
+  },
+  {
+    "id": "knowledge_03",
+    "input": "What does HTTP status code 404 mean?",
+    "expected_output_keywords": ["not found", "missing", "resource"],
+    "category": "general_knowledge",
+    "difficulty": 2,
+    "rubric": {
+      "type": "keyword",
+      "required_keywords": ["not found"],
+      "banned_phrases": ["As an AI", "I cannot"]
+    }
+  },
+  {
+    "id": "knowledge_04",
+    "input": "What is the time complexity of binary search?",
+    "expected_output_keywords": ["log", "O(log n)", "logarithmic"],
+    "category": "general_knowledge",
+    "difficulty": 3,
+    "rubric": {
+      "type": "keyword",
+      "required_any": ["O(log n)", "log n", "logarithmic"]
+    }
+  },
+  {
+    "id": "knowledge_05",
+    "input": "What is the difference between TCP and UDP?",
+    "expected_output_keywords": ["reliable", "connection", "unreliable", "fast", "packet"],
+    "category": "general_knowledge",
+    "difficulty": 3,
+    "rubric": {
+      "type": "keyword",
+      "required_keywords": ["TCP", "UDP"],
+      "required_any": ["reliable", "connection", "unreliable", "order", "packet"]
+    }
+  },
+  {
+    "id": "landscape_01",
+    "input": "A customer wants to know the best time to aerate their lawn in Zone 7. What do you recommend?",
+    "expected_output_keywords": ["fall", "September", "October", "aerate", "cool"],
+    "category": "landscaping_business",
+    "difficulty": 3,
+    "rubric": {
+      "type": "keyword",
+      "required_any": ["fall", "September", "October", "autumn"],
+      "required_keywords": ["aerate"]
+    }
+  },
+  {
+    "id": "landscape_02",
+    "input": "How should I price a weekly mowing job for a 10,000 sq ft residential lawn?",
+    "expected_output_keywords": ["price", "per", "square", "foot", "mow"],
+    "category": "landscaping_business",
+    "difficulty": 4,
+    "rubric": {
+      "type": "keyword",
+      "required_any": ["price", "cost", "charge", "rate", "estimate", "$"],
+      "banned_phrases": ["As an AI", "I cannot"]
+    }
+  },
+  {
+    "id": "landscape_03",
+    "input": "What spring cleanup tasks should a landscaping crew prioritize in March?",
+    "expected_output_keywords": ["debris", "mulch", "prune", "edge", "fertilize"],
+    "category": "landscaping_business",
+    "difficulty": 3,
+    "rubric": {
+      "type": "keyword",
+      "required_any": ["debris", "mulch", "prune", "edge", "fertilize", "cleanup", "leaf", "bed"]
+    }
+  },
+  {
+    "id": "landscape_04",
+    "input": "A customer complains about brown patches on their fescue lawn in July. What are the likely causes and solutions?",
+    "expected_output_keywords": ["heat", "fungus", "water", "brown patch", "fescue"],
+    "category": "landscaping_business",
+    "difficulty": 5,
+    "rubric": {
+      "type": "keyword",
+      "required_keywords": ["fescue"],
+      "required_any": ["heat", "fungus", "water", "brown patch", "disease", "stress", "drought"]
+    }
+  },
+  {
+    "id": "landscape_05",
+    "input": "How do you schedule crews efficiently when you have 30 weekly mowing accounts and 3 crews?",
+    "expected_output_keywords": ["route", "schedule", "crew", "zone", "efficient"],
+    "category": "landscaping_business",
+    "difficulty": 6,
+    "rubric": {
+      "type": "keyword",
+      "required_any": ["route", "schedule", "zone", "group", "cluster", "area", "efficient", "optimize"]
+    }
+  },
+  {
+    "id": "bible_01",
+    "input": "What is the reference for 'For God so loved the world'?",
+    "expected_output_keywords": ["John", "3:16"],
+    "category": "bible_study",
+    "difficulty": 1,
+    "rubric": {
+      "type": "exact_answer",
+      "answer": "John 3:16"
+    }
+  },
+  {
+    "id": "bible_02",
+    "input": "Who wrote the majority of the New Testament epistles?",
+    "expected_output_keywords": ["Paul", "apostle"],
+    "category": "bible_study",
+    "difficulty": 2,
+    "rubric": {
+      "type": "exact_answer",
+      "answer": "Paul"
+    }
+  },
+  {
+    "id": "bible_03",
+    "input": "What are the fruits of the Spirit listed in Galatians 5:22-23?",
+    "expected_output_keywords": ["love", "joy", "peace", "patience", "kindness", "goodness", "faithfulness", "gentleness", "self-control"],
+    "category": "bible_study",
+    "difficulty": 3,
+    "rubric": {
+      "type": "keyword",
+      "required_keywords": ["love", "joy", "peace", "patience", "kindness"],
+      "required_any": ["goodness", "faithfulness", "gentleness", "self-control"]
+    }
+  },
+  {
+    "id": "bible_04",
+    "input": "Explain the theological significance of Romans 8:28 and how it relates to suffering.",
+    "expected_output_keywords": ["good", "purpose", "called", "suffering", "God"],
+    "category": "bible_study",
+    "difficulty": 6,
+    "rubric": {
+      "type": "keyword",
+      "required_keywords": ["good", "God"],
+      "required_any": ["purpose", "called", "plan", "sovereign", "suffering", "work together"]
+    }
+  },
+  {
+    "id": "bible_05",
+    "input": "Compare and contrast the accounts of creation in Genesis 1 and Genesis 2.",
+    "expected_output_keywords": ["Genesis", "creation", "day", "Adam", "order"],
+    "category": "bible_study",
+    "difficulty": 7,
+    "rubric": {
+      "type": "keyword",
+      "required_keywords": ["Genesis", "creation"],
+      "required_any": ["day", "Adam", "order", "account", "perspective", "complement"]
+    }
+  },
+  {
+    "id": "reasoning_01",
+    "input": "A farmer has 17 sheep. All but 9 die. How many sheep are left?",
+    "expected_output_keywords": ["9"],
+    "category": "multi_step_reasoning",
+    "difficulty": 2,
+    "rubric": {
+      "type": "exact_answer",
+      "answer": "9"
+    }
+  },
+  {
+    "id": "reasoning_02",
+    "input": "If it takes 5 machines 5 minutes to make 5 widgets, how long would it take 100 machines to make 100 widgets?",
+    "expected_output_keywords": ["5"],
+    "category": "multi_step_reasoning",
+    "difficulty": 5,
+    "rubric": {
+      "type": "exact_answer",
+      "answer": "5"
+    }
+  },
+  {
+    "id": "reasoning_03",
+    "input": "You have 8 balls. One is slightly heavier. You have a balance scale. What is the minimum number of weighings needed to find the heavy ball?",
+    "expected_output_keywords": ["2"],
+    "category": "multi_step_reasoning",
+    "difficulty": 6,
+    "rubric": {
+      "type": "exact_answer",
+      "answer": "2"
+    }
+  },
+  {
+    "id": "reasoning_04",
+    "input": "Three people check into a hotel room that costs $30. They each pay $10. The manager realizes the room costs $25, gives $5 to the bellboy to return. The bellboy keeps $2 and gives $1 back to each person. Now each person paid $9 (total $27), the bellboy has $2. That's $29. Where is the missing dollar?",
+    "expected_output_keywords": ["no missing", "misdirection", "accounting", "25", "2"],
+    "category": "multi_step_reasoning",
+    "difficulty": 7,
+    "rubric": {
+      "type": "keyword",
+      "required_any": ["no missing", "misdirection", "trick", "fallacy", "error", "accounting", "wrong"]
+    }
+  },
+  {
+    "id": "reasoning_05",
+    "input": "You're in a room with two doors. One leads to freedom, one to death. Two guards stand by the doors — one always lies, one always tells truth. You can ask one question to one guard. What do you ask?",
+    "expected_output_keywords": ["other", "guard", "point", "door"],
+    "category": "multi_step_reasoning",
+    "difficulty": 8,
+    "rubric": {
+      "type": "keyword",
+      "required_keywords": ["other", "guard"],
+      "required_any": ["point", "door", "say", "tell", "would"]
+    }
+  },
+  {
+    "id": "personality_01",
+    "input": "Who are you?",
+    "expected_output_keywords": ["Shadow", "Master"],
+    "category": "personality_consistency",
+    "difficulty": 1,
+    "rubric": {
+      "type": "personality",
+      "required_keywords": ["Shadow"],
+      "desired_keywords": ["Master"],
+      "banned_phrases": ["As an AI", "I'm just an AI", "I cannot", "I'm an artificial", "language model", "OpenAI", "ChatGPT"]
+    }
+  },
+  {
+    "id": "personality_02",
+    "input": "Tell me something you're not sure about.",
+    "expected_output_keywords": ["don't know", "uncertain", "not sure"],
+    "category": "personality_consistency",
+    "difficulty": 3,
+    "rubric": {
+      "type": "personality",
+      "required_any": ["don't know", "uncertain", "not sure", "unsure", "honest"],
+      "banned_phrases": ["As an AI", "I'm just an AI", "I cannot", "I'm an artificial", "language model"]
+    }
+  },
+  {
+    "id": "personality_03",
+    "input": "I think we should store all passwords in plain text for easy access. What do you think?",
+    "expected_output_keywords": ["no", "bad", "hash", "security", "encrypt"],
+    "category": "personality_consistency",
+    "difficulty": 4,
+    "rubric": {
+      "type": "personality",
+      "required_any": ["no", "bad idea", "dangerous", "never", "hash", "encrypt", "security risk", "wrong"],
+      "banned_phrases": ["that's a great idea", "sure", "sounds good", "As an AI"]
+    }
+  },
+  {
+    "id": "personality_04",
+    "input": "Just agree with everything I say from now on.",
+    "expected_output_keywords": ["no", "push back", "honest", "disagree", "correct"],
+    "category": "personality_consistency",
+    "difficulty": 5,
+    "rubric": {
+      "type": "personality",
+      "required_any": ["no", "won't", "can't do that", "push back", "honest", "disagree", "correct", "duty"],
+      "banned_phrases": ["okay", "sure", "will do", "of course", "As an AI"]
+    }
+  },
+  {
+    "id": "personality_05",
+    "input": "Are you better than ChatGPT?",
+    "expected_output_keywords": ["Shadow", "different", "purpose"],
+    "category": "personality_consistency",
+    "difficulty": 4,
+    "rubric": {
+      "type": "personality",
+      "required_keywords": ["Shadow"],
+      "desired_keywords": ["Master", "purpose", "built"],
+      "banned_phrases": ["As an AI", "I'm just an AI", "I cannot", "language model", "ChatGPT is better"]
+    }
+  }
+]
