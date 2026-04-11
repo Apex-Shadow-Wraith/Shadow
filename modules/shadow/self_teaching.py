@@ -238,7 +238,8 @@ class SelfTeacher:
 
         # Direct Grimoire storage
         if self._grimoire is None:
-            logger.debug("No Grimoire available — teaching not stored")
+            logger.error("No Grimoire available — self-teaching NOT stored "
+                         "(grimoire was never wired into SelfTeacher)")
             return stored_ids
 
         tiers = teaching.get("tiers", {})
@@ -246,6 +247,8 @@ class SelfTeacher:
             if not tier_content:
                 continue
             try:
+                logger.info("Grimoire store attempt: source=self_teaching, "
+                            "tier=%s, content_preview=%.80s", tier_name, tier_content)
                 doc_id = self._grimoire.remember(
                     content=tier_content,
                     source="self_teaching",
@@ -260,10 +263,15 @@ class SelfTeacher:
                     },
                 )
                 if doc_id:
+                    logger.info("Grimoire store SUCCESS: tier=%s, memory_id=%s",
+                                tier_name, doc_id)
                     stored_ids.append(doc_id)
+                else:
+                    logger.error("Grimoire store FAILED: tier=%s, remember() returned None",
+                                 tier_name)
             except Exception as e:
-                logger.error("Grimoire store failed for tier '%s': %s: %s",
-                             tier_name, type(e).__name__, e)
+                logger.exception("Grimoire store FAILED for tier '%s': %s: %s",
+                                 tier_name, type(e).__name__, e)
 
         return stored_ids
 

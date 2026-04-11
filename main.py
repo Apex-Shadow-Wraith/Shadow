@@ -270,6 +270,35 @@ async def main() -> None:
     # Start everything
     orchestrator = await startup(config, logger)
 
+    # Grimoire storage self-test — verify the full store path works
+    if "grimoire" in orchestrator.registry:
+        grimoire_mod = orchestrator.registry.get_module("grimoire")
+        try:
+            grim = getattr(grimoire_mod, "_grimoire", None)
+            if grim is None:
+                logger.error("Grimoire self-test FAILED: _grimoire attribute is None")
+            else:
+                test_id = grim.remember(
+                    content="Shadow startup self-test",
+                    category="system",
+                    source="self_test",
+                    source_module="shadow",
+                    trust_level=0.1,
+                )
+                if test_id:
+                    logger.info("Grimoire self-test PASSED: stored memory %s", test_id)
+                    # Clean up test memory
+                    try:
+                        grim.forget(test_id)
+                    except Exception:
+                        pass  # cleanup is best-effort
+                else:
+                    logger.error("Grimoire self-test FAILED: remember() returned None")
+        except Exception as e:
+            logger.error("Grimoire self-test FAILED: %s", e, exc_info=True)
+    else:
+        logger.warning("Grimoire not in registry — self-test skipped")
+
     online_count = len(orchestrator.registry.online_modules)
     print(f"\nShadow online. {online_count} modules active.")
     print("Type a message to begin. '/help' for commands. 'quit' to exit.\n")
