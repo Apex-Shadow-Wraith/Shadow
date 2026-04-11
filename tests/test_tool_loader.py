@@ -218,3 +218,110 @@ class TestToolSchemaFormat:
         loader.refresh()
         assert len(loader._index) == 1
         assert loader.get_tools_for_module("single")[0]["name"] == "only_tool"
+
+
+# ---------------------------------------------------------------------------
+# Index lifecycle: empty before refresh, populated after
+# ---------------------------------------------------------------------------
+
+class _DeferredRegistry:
+    """Registry that starts empty, then gains modules via add_module()."""
+
+    def __init__(self) -> None:
+        self._tools_by_module: dict[str, list[dict]] = {}
+
+    def add_module(self, mod_name: str, tools: list[dict]) -> None:
+        self._tools_by_module[mod_name] = tools
+
+    def list_tools(self) -> list[dict]:
+        result = []
+        for mod_name, tools in self._tools_by_module.items():
+            for tool in tools:
+                t = dict(tool)
+                t["module"] = mod_name
+                t["status"] = "online"
+                result.append(t)
+        return result
+
+    def list_modules(self) -> list[dict]:
+        return [{"name": n} for n in self._tools_by_module]
+
+
+class TestIndexLifecycle:
+    """Verify: index empty at init with empty registry, populated after refresh."""
+
+    def test_index_empty_before_modules_registered(self):
+        reg = _DeferredRegistry()
+        loader = DynamicToolLoader(module_registry=reg)
+        assert loader._index == {}
+        assert loader.get_tools_for_module("omen") == []
+
+    def test_index_populated_after_refresh(self):
+        reg = _DeferredRegistry()
+        loader = DynamicToolLoader(module_registry=reg)
+        # Register modules AFTER loader creation (mirrors main.py)
+        reg.add_module("omen", [_make_tool("run_code"), _make_tool("lint_file")])
+        reg.add_module("sentinel", [_make_tool("network_scan")])
+        reg.add_module("void", [_make_tool("system_health")])
+
+        loader.refresh()
+
+        assert len(loader._index) == 3
+        assert set(loader._index.keys()) == {"omen", "sentinel", "void"}
+        assert len(loader.get_tools_for_module("omen")) == 2
+        assert len(loader.get_tools_for_module("sentinel")) == 1
+        assert len(loader.get_tools_for_module("void")) == 1
+
+    def test_lookup_by_module_name_matches_routing_names(self):
+        """Module names in the index must match the names used by the router."""
+        reg = _DeferredRegistry()
+        loader = DynamicToolLoader(module_registry=reg)
+
+        # All 13 module codenames used by the routing system
+        all_modules = {
+            "shadow": [_make_tool("task_status")],
+            "wraith": [_make_tool("set_reminder")],
+            "cerberus": [_make_tool("safety_check")],
+            "apex": [_make_tool("api_query")],
+            "grimoire": [_make_tool("grimoire_search")],
+            "sentinel": [_make_tool("network_scan")],
+            "harbinger": [_make_tool("send_notification")],
+            "reaper": [_make_tool("web_search")],
+            "cipher": [_make_tool("calculate")],
+            "omen": [_make_tool("run_code")],
+            "nova": [_make_tool("generate_document")],
+            "void": [_make_tool("system_health")],
+            "morpheus": [_make_tool("run_experiment")],
+        }
+        for mod_name, tools in all_modules.items():
+            reg.add_module(mod_name, tools)
+
+        loader.refresh()
+
+        assert len(loader._index) == 13
+        for mod_name in all_modules:
+            tools = loader.get_tools_for_module(mod_name)
+            assert len(tools) >= 1, f"Module '{mod_name}' should return tools after refresh"
+
+    def test_auto_refresh_on_empty_index(self):
+        """If index is empty but registry has modules, auto-rebuild on lookup."""
+        reg = _DeferredRegistry()
+        loader = DynamicToolLoader(module_registry=reg)
+        # Register modules without calling refresh()
+        reg.add_module("omen", [_make_tool("run_code")])
+
+        # Lookup should auto-refresh
+        tools = loader.get_tools_for_module("omen")
+        assert len(tools) == 1
+        assert tools[0]["name"] == "run_code"
+
+    def test_report_accurate_after_refresh(self):
+        """get_loading_report() must reflect actual index state after refresh."""
+        reg = _DeferredRegistry()
+        loader = DynamicToolLoader(module_registry=reg)
+        reg.add_module("omen", [_make_tool("run_code"), _make_tool("lint_file")])
+        reg.add_module("wraith", [_make_tool("set_reminder")])
+
+        loader.refresh()
+        report = loader.get_loading_report()
+        assert report["tools_available"] == 3

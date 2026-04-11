@@ -56,6 +56,25 @@ class DynamicToolLoader:
             for tool in all_tools:
                 mod_name = tool.get("module", "unknown")
                 self._index.setdefault(mod_name, []).append(tool)
+
+            total_tools = sum(len(t) for t in self._index.values())
+            logger.info(
+                "Tool index built: %d modules, %d tools. Modules: %s",
+                len(self._index),
+                total_tools,
+                ", ".join(
+                    f"{m}({len(t)})" for m, t in sorted(self._index.items())
+                ) if self._index else "(empty)",
+            )
+
+            # Keep _last_report in sync so get_loading_report() is accurate
+            self._last_report = {
+                "tools_loaded": 0,
+                "tools_available": total_tools,
+                "tokens_saved": 0,
+                "tokens_loaded": 0,
+                "module_loaded": None,
+            }
         except Exception as e:
             logger.warning("Failed to build tool index: %s", e)
             self._index = {}
@@ -63,7 +82,15 @@ class DynamicToolLoader:
     def refresh(self) -> None:
         """Rebuild the index (call after modules go online/offline)."""
         if self._registry is not None:
+            old_count = len(self._index)
             self._build_index()
+            new_count = len(self._index)
+            if new_count == 0 and old_count == 0:
+                logger.warning(
+                    "Tool index still empty after refresh — are modules ONLINE?"
+                )
+        else:
+            logger.warning("refresh() called but no registry is set")
 
     # ------------------------------------------------------------------
     # Public API
@@ -73,12 +100,28 @@ class DynamicToolLoader:
         """Return only the tool schemas belonging to the specified module.
 
         Returns an empty list (with a warning) if the module is not found.
+        Auto-refreshes the index if it's empty but the registry has modules.
         """
         try:
+            # Auto-refresh: index empty but registry has registered modules
+            if not self._index and self._registry is not None:
+                try:
+                    registered = self._registry.list_modules()
+                    if registered:
+                        logger.info(
+                            "Tool index empty but registry has %d modules — auto-refreshing",
+                            len(registered),
+                        )
+                        self._build_index()
+                except Exception:
+                    pass  # list_modules may not exist on mock registries
+
             if module_name not in self._index:
+                available = sorted(self._index.keys()) if self._index else []
                 logger.warning(
-                    "Module '%s' not found in tool index — returning empty list",
+                    "Module '%s' not found in tool index (available: %s)",
                     module_name,
+                    ", ".join(available) if available else "none — index is empty",
                 )
                 return []
             return list(self._index[module_name])
