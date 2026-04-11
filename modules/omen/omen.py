@@ -2886,6 +2886,9 @@ class Omen(BaseModule):
 
             # Check if the model returned proper tool calls
             msg = result.get("message", {})
+            logger.debug("Ollama response keys: %s", list(msg.keys()))
+            logger.debug("Content present: %s", bool(msg.get("content")))
+            logger.debug("Tool calls present: %s", bool(msg.get("tool_calls")))
             # Gemma 4 bug: may return "tool_calls": null → .get default
             # is skipped when key exists with None value.
             tool_calls = msg.get("tool_calls") or []
@@ -2896,6 +2899,7 @@ class Omen(BaseModule):
                         args = fn.get("arguments", {})
                         code = args.get("code", "")
                         if code:
+                            logger.info("Omen response source: tool_calls")
                             return ToolResult(
                                 success=True,
                                 content={
@@ -2915,6 +2919,9 @@ class Omen(BaseModule):
             if raw_content:
                 tool_response = raw_content
                 method_used = "content_direct"
+                logger.info("Omen response source: content_direct")
+            else:
+                logger.info("Omen response source: no content or tool_calls")
 
         except Exception as e:
             logger.info(

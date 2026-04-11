@@ -578,6 +578,108 @@ class TestCodeGenerate:
         assert "def empty_tc():" in r.content["code"]
         assert r.content["method"] == "content_direct"
 
+    @pytest.mark.asyncio
+    async def test_content_direct_no_tool_calls_key(self, online_omen: Omen, monkeypatch):
+        """When Ollama returns content with NO tool_calls key at all, uses content_direct."""
+        import urllib.request
+
+        def mock_urlopen(req, timeout=None):
+            class FakeResp:
+                def read(self_inner):
+                    return json.dumps({
+                        "message": {
+                            "content": "def foo():\n    pass",
+                            "role": "assistant",
+                        }
+                    }).encode()
+                def __enter__(self_inner): return self_inner
+                def __exit__(self_inner, *a): pass
+            return FakeResp()
+
+        import json
+        monkeypatch.setattr(urllib.request, "urlopen", mock_urlopen)
+        r = await online_omen.execute("code_generate", {
+            "prompt": "write a foo function",
+        })
+        assert r.success is True
+        assert "def foo():" in r.content["code"]
+        assert r.content["method"] == "content_direct"
+
+    @pytest.mark.asyncio
+    async def test_empty_message_fails(self, online_omen: Omen, monkeypatch):
+        """When Ollama returns {"message": {}} with no content or tool_calls, fails gracefully."""
+        import urllib.request
+
+        call_count = {"n": 0}
+
+        def mock_urlopen(req, timeout=None):
+            call_count["n"] += 1
+            class FakeResp:
+                def read(self_inner):
+                    return json.dumps({"message": {}}).encode()
+                def __enter__(self_inner): return self_inner
+                def __exit__(self_inner, *a): pass
+            return FakeResp()
+
+        import json
+        monkeypatch.setattr(urllib.request, "urlopen", mock_urlopen)
+        r = await online_omen.execute("code_generate", {
+            "prompt": "write something",
+        })
+        # Both calls return empty message → raw_response with empty string
+        assert r.success is True
+        assert r.content["method"] == "raw_response"
+
+    @pytest.mark.asyncio
+    async def test_metadata_indicates_source_tool_calls(self, online_omen: Omen, monkeypatch):
+        """Verify method field indicates 'tool_call' when tool_calls used."""
+        import urllib.request
+
+        def mock_urlopen(req, timeout=None):
+            class FakeResp:
+                def read(self_inner):
+                    return json.dumps({
+                        "message": {
+                            "tool_calls": [{
+                                "function": {
+                                    "name": "write_code",
+                                    "arguments": {"code": "x = 1"},
+                                }
+                            }],
+                        }
+                    }).encode()
+                def __enter__(self_inner): return self_inner
+                def __exit__(self_inner, *a): pass
+            return FakeResp()
+
+        import json
+        monkeypatch.setattr(urllib.request, "urlopen", mock_urlopen)
+        r = await online_omen.execute("code_generate", {"prompt": "assign x"})
+        assert r.content["method"] == "tool_call"
+
+    @pytest.mark.asyncio
+    async def test_metadata_indicates_source_content_direct(self, online_omen: Omen, monkeypatch):
+        """Verify method field indicates 'content_direct' when content used without tool_calls."""
+        import urllib.request
+
+        def mock_urlopen(req, timeout=None):
+            class FakeResp:
+                def read(self_inner):
+                    return json.dumps({
+                        "message": {
+                            "content": "```python\nx = 1\n```",
+                            "tool_calls": None,
+                        }
+                    }).encode()
+                def __enter__(self_inner): return self_inner
+                def __exit__(self_inner, *a): pass
+            return FakeResp()
+
+        import json
+        monkeypatch.setattr(urllib.request, "urlopen", mock_urlopen)
+        r = await online_omen.execute("code_generate", {"prompt": "assign x"})
+        assert r.content["method"] == "content_direct"
+
 
 # --- Unknown tool ---
 

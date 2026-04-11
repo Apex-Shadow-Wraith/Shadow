@@ -1640,6 +1640,69 @@ class TestOmenPlainPromptFallback:
         assert response
 
 
+# ── Test: Omen plan routes to code_generate not code_execute ──────────
+
+class TestOmenPlanRouting:
+    """The orchestrator should plan code_generate (not code_execute) for
+    natural-language code requests routed to Omen."""
+
+    @pytest.mark.asyncio
+    async def test_creation_task_plans_code_generate(self, config: dict):
+        """CREATION tasks targeting Omen should use code_generate, not code_execute."""
+        orch = Orchestrator(config)
+        classification = TaskClassification(
+            task_type=TaskType.CREATION,
+            complexity="simple",
+            target_module="omen",
+            brain=BrainType.SMART,
+            safety_flag=False,
+            priority=1,
+        )
+        plan = await orch._step4_plan(
+            "write a function that sorts a list", classification, []
+        )
+        tool_names = [s.get("tool") for s in plan.steps if s.get("tool")]
+        assert "code_generate" in tool_names
+        assert "code_execute" not in tool_names
+
+    @pytest.mark.asyncio
+    async def test_action_with_code_plans_code_execute(self, config: dict):
+        """ACTION tasks with actual runnable code should use code_execute."""
+        orch = Orchestrator(config)
+        classification = TaskClassification(
+            task_type=TaskType.ACTION,
+            complexity="simple",
+            target_module="omen",
+            brain=BrainType.SMART,
+            safety_flag=False,
+            priority=1,
+        )
+        plan = await orch._step4_plan(
+            "run this: print('hello world')", classification, []
+        )
+        tool_names = [s.get("tool") for s in plan.steps if s.get("tool")]
+        assert "code_execute" in tool_names
+
+    @pytest.mark.asyncio
+    async def test_analysis_task_plans_code_generate(self, config: dict):
+        """ANALYSIS tasks targeting Omen should use code_generate, not code_execute."""
+        orch = Orchestrator(config)
+        classification = TaskClassification(
+            task_type=TaskType.ANALYSIS,
+            complexity="simple",
+            target_module="omen",
+            brain=BrainType.SMART,
+            safety_flag=False,
+            priority=1,
+        )
+        plan = await orch._step4_plan(
+            "write a script that analyzes CSV data", classification, []
+        )
+        tool_names = [s.get("tool") for s in plan.steps if s.get("tool")]
+        assert "code_generate" in tool_names
+        assert "code_execute" not in tool_names
+
+
 # ── Test: Grimoire store wrapper unwraps GrimoireModule ───────────────
 
 class TestGrimoireStoreWrapper:
