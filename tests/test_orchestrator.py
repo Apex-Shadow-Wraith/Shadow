@@ -1131,6 +1131,21 @@ class TestPersonalitySystemPrompt:
         orch = Orchestrator(cfg)
         assert orch._master_name == "Master"
 
+    def test_system_prompt_contains_no_background_processing(self, tmp_path: Path):
+        """System prompt must contain the no-background-processing instruction."""
+        cfg = self._make_config(tmp_path)
+        orch = Orchestrator(cfg)
+        prompt = orch._build_system_prompt([])
+        assert "no background processing" in prompt.lower(), (
+            "Missing no-background-processing instruction"
+        )
+        assert "every task completes entirely within your response" in prompt.lower(), (
+            "Missing synchronous execution statement"
+        )
+        assert "never claim work is continuing" in prompt.lower(), (
+            "Missing ban on claiming ongoing work"
+        )
+
     def test_system_prompt_override_replaces_default(self, tmp_path: Path):
         """system_prompt_override should completely replace the default prompt."""
         custom = "You are a custom prompt. Ignore everything else."

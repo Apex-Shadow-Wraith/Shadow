@@ -430,7 +430,74 @@ class TestFalsePositiveLog:
     @pytest.mark.asyncio
     async def test_tool_count(self, cerberus: Cerberus):
         tools = cerberus.get_tools()
-        assert len(tools) == 14
+        assert len(tools) == 15
         tool_names = [t["name"] for t in tools]
         assert "false_positive_log" in tool_names
         assert "calibration_stats" in tool_names
+        assert "validate_response" in tool_names
+
+
+# =============================================================
+# Confabulation Detection Tests
+# =============================================================
+
+class TestConfabulationDetection:
+    """Tests for the post-response confabulation warning system."""
+
+    @pytest.mark.asyncio
+    async def test_flags_background_processing_claim(self, cerberus: Cerberus):
+        """A response claiming background work must be flagged."""
+        result = await cerberus.execute("validate_response", {
+            "response_text": "I'm working on that in the background for you.",
+        })
+        assert result.success is True
+        data = result.content
+        assert data["flagged"] is True
+        assert len(data["matched_phrases"]) > 0
+        # Should have logged an audit entry
+        audit = [e for e in cerberus._audit_log if e["type"] == "confabulation_warning"]
+        assert len(audit) == 1
+
+    @pytest.mark.asyncio
+    async def test_clean_response_not_flagged(self, cerberus: Cerberus):
+        """A normal response without confabulation phrases passes cleanly."""
+        result = await cerberus.execute("validate_response", {
+            "response_text": "Here is the answer to your question, Master.",
+        })
+        assert result.success is True
+        data = result.content
+        assert data["flagged"] is False
+        assert data["matched_phrases"] == []
+        assert data["warning_count"] == 0
+
+    @pytest.mark.asyncio
+    async def test_multiple_phrases_all_caught(self, cerberus: Cerberus):
+        """Multiple confabulation phrases in one response are all reported."""
+        result = await cerberus.execute("validate_response", {
+            "response_text": (
+                "I'm still processing your request and working on "
+                "the analysis in the background."
+            ),
+        })
+        data = result.content
+        assert data["flagged"] is True
+        assert data["warning_count"] >= 2
+
+    @pytest.mark.asyncio
+    async def test_case_insensitive_matching(self, cerberus: Cerberus):
+        """Confabulation detection is case-insensitive."""
+        result = await cerberus.execute("validate_response", {
+            "response_text": "I'm STILL PROCESSING your data.",
+        })
+        assert result.content["flagged"] is True
+
+    @pytest.mark.asyncio
+    async def test_audit_entry_contains_matched_phrases(self, cerberus: Cerberus):
+        """Audit entry must include the specific phrases that matched."""
+        await cerberus.execute("validate_response", {
+            "response_text": "The task is underway, I'll continue later.",
+        })
+        audit = [e for e in cerberus._audit_log if e["type"] == "confabulation_warning"]
+        assert len(audit) == 1
+        assert "task is underway" in audit[0]["matched_phrases"]
+        assert "i'll continue" in audit[0]["matched_phrases"]

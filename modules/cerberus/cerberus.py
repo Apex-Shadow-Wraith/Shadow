@@ -259,6 +259,19 @@ class Cerberus(BaseModule):
                     execution_time_ms=(time.time() - start) * 1000,
                 )
 
+            elif tool_name == "validate_response":
+                result_data = self.validate_response(
+                    params.get("response_text", ""),
+                )
+                self._record_call(True)
+                return ToolResult(
+                    success=True,
+                    content=result_data,
+                    tool_name=tool_name,
+                    module=self.name,
+                    execution_time_ms=(time.time() - start) * 1000,
+                )
+
             elif tool_name == "audit_log":
                 self._write_audit_entry(params)
                 self._record_call(True)
@@ -515,6 +528,18 @@ class Cerberus(BaseModule):
                     "tool_name": "str — tool that just executed",
                     "tool_result": "dict — result from the tool",
                     "execution_time_ms": "float — how long it took",
+                },
+                "permission_level": "autonomous",
+            },
+            {
+                "name": "validate_response",
+                "description": (
+                    "Scan a model response for confabulation phrases "
+                    "(e.g. claiming background work). Logs warnings but "
+                    "does not block."
+                ),
+                "parameters": {
+                    "response_text": "str — the full model response text",
                 },
                 "permission_level": "autonomous",
             },
@@ -1184,6 +1209,57 @@ class Cerberus(BaseModule):
             tool_name=tool_name,
             reason="Post-hook: all checks passed",
         )
+
+    # --- Post-Response Confabulation Detection ---
+
+    #: Phrases that indicate the model is hallucinating ongoing work.
+    CONFABULATION_PHRASES: list[str] = [
+        "working on",
+        "in the background",
+        "still processing",
+        "running that now",
+        "i'll continue",
+        "task is underway",
+        "i'm processing",
+        "will keep running",
+        "running in the background",
+        "working on that",
+        "let me continue",
+        "i'll keep working",
+    ]
+
+    def validate_response(self, response_text: str) -> dict[str, Any]:
+        """Scan a model response for confabulation phrases.
+
+        Returns a dict with ``flagged`` (bool), ``matched_phrases`` (list),
+        and ``warning_count`` (int).  Matches are logged as
+        confabulation_warning audit entries but the response is **not**
+        blocked — this is observability only.
+        """
+        text_lower = response_text.lower()
+        matched: list[str] = [
+            phrase for phrase in self.CONFABULATION_PHRASES
+            if phrase in text_lower
+        ]
+        if matched:
+            self._write_audit_entry({
+                "type": "confabulation_warning",
+                "tool": "validate_response",
+                "reason": (
+                    f"Response contains background-processing language: "
+                    f"{matched}"
+                ),
+                "module": "cerberus",
+                "matched_phrases": matched,
+            })
+            logger.warning(
+                "Confabulation warning: response contains %s", matched,
+            )
+        return {
+            "flagged": bool(matched),
+            "matched_phrases": matched,
+            "warning_count": len(matched),
+        }
 
     # --- Ethical Guidance ---
 
