@@ -103,11 +103,21 @@ class ConversationIngestor:
     # Step 1 — Scan for unprocessed transcripts
     # ------------------------------------------------------------------
 
-    def scan_transcripts(self, directory: str | None = None) -> list[str]:
-        """Find all unprocessed JSONL transcript files.
+    # File extensions per source type
+    _SOURCE_EXTENSIONS = {
+        "claude_code": "*.jsonl",
+        "claude_ai": "*.json",
+        "chatgpt": "*.json",
+    }
+
+    def scan_transcripts(
+        self, directory: str | None = None, source: str = "claude_code"
+    ) -> list[str]:
+        """Find all unprocessed transcript/export files.
 
         Args:
             directory: Override scan directory (default: self._transcript_dir).
+            source: One of "claude_code", "claude_ai", "chatgpt".
 
         Returns:
             List of absolute file paths that haven't been ingested yet.
@@ -117,14 +127,15 @@ class ConversationIngestor:
             logger.info("Transcript directory does not exist: %s", scan_dir)
             return []
 
+        glob_pattern = self._SOURCE_EXTENSIONS.get(source, "*.jsonl")
         processed = set(self._manifest.get("processed_files", []))
         found: list[str] = []
-        for path in scan_dir.rglob("*.jsonl"):
+        for path in scan_dir.rglob(glob_pattern):
             abs_path = str(path.resolve())
             if abs_path not in processed:
                 found.append(abs_path)
 
-        logger.info("Scanned %s — %d new transcript(s)", scan_dir, len(found))
+        logger.info("Scanned %s — %d new %s file(s)", scan_dir, len(found), source)
         return sorted(found)
 
     # ------------------------------------------------------------------
@@ -172,6 +183,206 @@ class ConversationIngestor:
 
         logger.info("Parsed %d exchange(s) from %s", len(exchanges), filepath)
         return exchanges
+
+    # ------------------------------------------------------------------
+    # Step 2b — Parse Claude.ai export
+    # ------------------------------------------------------------------
+
+    def parse_claude_export(self, filepath: str) -> list[dict]:
+        """Parse a Claude.ai conversation export (JSON format).
+
+        Claude.ai exports as JSON with structure:
+        {"uuid": "...", "name": "...", "created_at": "...", "updated_at": "...",
+         "chat_messages": [{"sender": "human"/"assistant", "text": "...",
+                            "created_at": "..."}]}
+
+        Args:
+            filepath: Absolute path to a .json export file.
+
+        Returns:
+            List of exchange dicts matching parse_transcript output format.
+        """
+        exchanges: list[dict] = []
+        path = Path(filepath)
+        if not path.exists():
+            logger.warning("Claude.ai export not found: %s", filepath)
+            return exchanges
+
+        try:
+            raw = json.loads(path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError) as exc:
+            logger.error("Failed to read Claude.ai export %s: %s", filepath, exc)
+            return exchanges
+
+        if not isinstance(raw, dict):
+            logger.warning("Unexpected Claude.ai export format in %s", filepath)
+            return exchanges
+
+        conversation_title = raw.get("name", "")
+        messages = raw.get("chat_messages", [])
+
+        for msg in messages:
+            if not isinstance(msg, dict):
+                continue
+            sender = msg.get("sender", "unknown")
+            # Normalize sender to role
+            role = "user" if sender == "human" else sender
+            text = msg.get("text", "")
+            timestamp = msg.get("created_at", raw.get("created_at"))
+
+            exchange = {
+                "role": role,
+                "content": text if isinstance(text, str) else str(text),
+                "timestamp": timestamp,
+                "tool_calls": [],
+                "file_changes": [],
+                "source": "claude_ai_export",
+                "conversation_title": conversation_title,
+            }
+            exchanges.append(exchange)
+
+        logger.info(
+            "Parsed %d exchange(s) from Claude.ai export %s",
+            len(exchanges), filepath,
+        )
+        return exchanges
+
+    # ------------------------------------------------------------------
+    # Step 2c — Parse ChatGPT export
+    # ------------------------------------------------------------------
+
+    def parse_chatgpt_export(self, filepath: str) -> list[dict]:
+        """Parse a ChatGPT conversation export (conversations.json).
+
+        ChatGPT exports via Settings > Data Controls > Export as:
+        [{"title": "...", "mapping": {"node_id": {"message":
+          {"role": "...", "content": {"parts": ["..."]}},
+          "create_time": float}}}]
+
+        Args:
+            filepath: Absolute path to conversations.json.
+
+        Returns:
+            List of exchange dicts matching parse_transcript output format.
+        """
+        exchanges: list[dict] = []
+        path = Path(filepath)
+        if not path.exists():
+            logger.warning("ChatGPT export not found: %s", filepath)
+            return exchanges
+
+        try:
+            raw = json.loads(path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError) as exc:
+            logger.error("Failed to read ChatGPT export %s: %s", filepath, exc)
+            return exchanges
+
+        # ChatGPT export is a list of conversations
+        conversations = raw if isinstance(raw, list) else [raw]
+
+        for convo in conversations:
+            if not isinstance(convo, dict):
+                continue
+            title = convo.get("title", "")
+            mapping = convo.get("mapping", {})
+            if not isinstance(mapping, dict):
+                continue
+
+            # Collect nodes with messages, then sort by create_time
+            nodes = []
+            for node_id, node in mapping.items():
+                if not isinstance(node, dict):
+                    continue
+                message = node.get("message")
+                if not isinstance(message, dict):
+                    continue
+                role = message.get("role", "")
+                if role not in ("user", "assistant", "system"):
+                    continue
+                # Extract text from content.parts
+                content_obj = message.get("content", {})
+                if isinstance(content_obj, dict):
+                    parts = content_obj.get("parts", [])
+                    text_parts = [
+                        p for p in parts if isinstance(p, str)
+                    ]
+                    text = "\n".join(text_parts)
+                elif isinstance(content_obj, str):
+                    text = content_obj
+                else:
+                    text = ""
+
+                create_time = message.get("create_time") or node.get("create_time")
+                timestamp = None
+                if create_time is not None:
+                    try:
+                        timestamp = datetime.fromtimestamp(
+                            float(create_time), tz=timezone.utc
+                        ).isoformat()
+                    except (ValueError, TypeError, OSError):
+                        pass
+
+                nodes.append({
+                    "role": role,
+                    "content": text,
+                    "timestamp": timestamp,
+                    "tool_calls": [],
+                    "file_changes": [],
+                    "source": "chatgpt_export",
+                    "conversation_title": title,
+                    "create_time": create_time,
+                })
+
+            # Sort by create_time to preserve conversation order
+            nodes.sort(key=lambda n: n.get("create_time") or 0)
+            for node in nodes:
+                node.pop("create_time", None)
+                exchanges.append(node)
+
+        logger.info(
+            "Parsed %d exchange(s) from ChatGPT export %s",
+            len(exchanges), filepath,
+        )
+        return exchanges
+
+    # ------------------------------------------------------------------
+    # Auto-detection
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def detect_format(filepath: str) -> str:
+        """Auto-detect export format from file content.
+
+        Returns:
+            "claude_code", "claude_ai", or "chatgpt".
+        """
+        path = Path(filepath)
+        if not path.exists():
+            return "claude_code"
+
+        # JSONL files are always Claude Code transcripts
+        if path.suffix == ".jsonl":
+            return "claude_code"
+
+        try:
+            raw = json.loads(path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            return "claude_code"
+
+        # Claude.ai: dict with "chat_messages" key
+        if isinstance(raw, dict) and "chat_messages" in raw:
+            return "claude_ai"
+
+        # ChatGPT: list of dicts with "mapping" keys
+        if isinstance(raw, list) and raw:
+            if isinstance(raw[0], dict) and "mapping" in raw[0]:
+                return "chatgpt"
+
+        # Single ChatGPT conversation wrapped as dict
+        if isinstance(raw, dict) and "mapping" in raw:
+            return "chatgpt"
+
+        return "claude_code"
 
     def _normalize_entry(self, entry: dict) -> dict | None:
         """Convert a raw JSONL entry into a normalized exchange dict."""
@@ -271,18 +482,27 @@ class ConversationIngestor:
             clean_content = self._sanitize(content)
             category = self._categorize(clean_content, ex)
 
+            metadata = {
+                "source_file": "",  # filled by caller
+                "timestamp": ex.get("timestamp"),
+                "type": category,
+                "role": ex.get("role", "unknown"),
+                "exchange_index": i,
+                "file_changes": ex.get("file_changes", []),
+                "has_tool_calls": bool(ex.get("tool_calls")),
+            }
+            # Propagate export source metadata if present
+            if ex.get("source"):
+                metadata["source"] = ex["source"]
+            if ex.get("conversation_title"):
+                metadata["conversation_title"] = ex["conversation_title"]
+            if ex.get("timestamp"):
+                metadata["original_date"] = ex["timestamp"]
+
             entry = {
                 "content": clean_content,
                 "category": category,
-                "metadata": {
-                    "source_file": "",  # filled by caller
-                    "timestamp": ex.get("timestamp"),
-                    "type": category,
-                    "role": ex.get("role", "unknown"),
-                    "exchange_index": i,
-                    "file_changes": ex.get("file_changes", []),
-                    "has_tool_calls": bool(ex.get("tool_calls")),
-                },
+                "metadata": metadata,
             }
             entries.append(entry)
 
@@ -357,14 +577,38 @@ class ConversationIngestor:
         return result
 
     # ------------------------------------------------------------------
+    # Format dispatch helpers
+    # ------------------------------------------------------------------
+
+    def _parse_by_format(self, filepath: str, fmt: str) -> list[dict]:
+        """Dispatch to the correct parser based on format."""
+        if fmt == "claude_ai":
+            return self.parse_claude_export(filepath)
+        elif fmt == "chatgpt":
+            return self.parse_chatgpt_export(filepath)
+        else:
+            return self.parse_transcript(filepath)
+
+    @staticmethod
+    def _source_tag(fmt: str) -> str:
+        """Return the Grimoire tag for a given source format."""
+        return {
+            "claude_ai": "claude_ai",
+            "chatgpt": "chatgpt",
+        }.get(fmt, "claude_code")
+
+    # ------------------------------------------------------------------
     # Step 4 — Full pipeline
     # ------------------------------------------------------------------
 
-    def ingest(self, directory: str | None = None) -> dict:
+    def ingest(
+        self, directory: str | None = None, source: str | None = None
+    ) -> dict:
         """Run the full pipeline: scan → parse → extract → store in Grimoire.
 
         Args:
             directory: Override scan directory.
+            source: "claude_code", "claude_ai", "chatgpt", or None for auto-detect.
 
         Returns:
             {files_processed: int, entries_created: int, errors: list[str]}
@@ -373,24 +617,38 @@ class ConversationIngestor:
 
         result = {"files_processed": 0, "entries_created": 0, "errors": []}
 
-        files = self.scan_transcripts(directory)
+        # Determine which source(s) to scan
+        scan_source = source or "claude_code"
+        files = self.scan_transcripts(directory, source=scan_source)
         if not files:
             logger.info("No new transcripts to ingest.")
             return result
 
         for filepath in files:
             try:
-                exchanges = self.parse_transcript(filepath)
+                # Auto-detect or use explicit source
+                file_format = source or self.detect_format(filepath)
+                exchanges = self._parse_by_format(filepath, file_format)
                 knowledge = self.extract_knowledge(exchanges)
 
-                # Tag each entry with its source file
+                # Tag each entry with its source file and export metadata
                 for entry in knowledge:
                     entry["metadata"]["source_file"] = filepath
+                    # Propagate source metadata from exchange-level tags
+                    if exchanges:
+                        sample = exchanges[0]
+                        if "source" in sample:
+                            entry["metadata"]["source"] = sample["source"]
+                        if "conversation_title" in sample:
+                            entry["metadata"]["conversation_title"] = sample[
+                                "conversation_title"
+                            ]
 
                 stored = 0
                 for entry in knowledge:
                     try:
-                        tags = ["transcript", "claude_code", entry["category"]]
+                        source_tag = self._source_tag(file_format)
+                        tags = ["transcript", source_tag, entry["category"]]
                         self._grimoire.remember(
                             content=entry["content"],
                             source=SOURCE_SYSTEM,

@@ -592,3 +592,421 @@ class TestStats:
         stats = ingestor.get_stats()
         assert stats["total_files"] == 2
         assert stats["processed_files_count"] == 2
+
+
+# ---------------------------------------------------------------------------
+# Helpers for Claude.ai and ChatGPT export tests
+# ---------------------------------------------------------------------------
+
+def _write_json(path: Path, data) -> str:
+    """Write data as JSON to the given path, return str path."""
+    path.write_text(json.dumps(data, indent=2), encoding="utf-8")
+    return str(path.resolve())
+
+
+def _sample_claude_ai_export(title="Test Conversation", messages=None):
+    """Return a sample Claude.ai export dict."""
+    if messages is None:
+        messages = [
+            {
+                "sender": "human",
+                "text": "Can you explain the bug in the authentication module that causes "
+                        "the crash when users try to log in with expired tokens? " * 2,
+                "created_at": "2026-03-15T10:00:00Z",
+            },
+            {
+                "sender": "assistant",
+                "text": "The authentication error occurs because the session handler does "
+                        "not properly validate token expiry before attempting to refresh. "
+                        "The fix involves adding a guard clause in the token validation "
+                        "pipeline that checks expiration timestamps first. " * 2,
+                "created_at": "2026-03-15T10:01:00Z",
+            },
+        ]
+    return {
+        "uuid": "abc-123-def",
+        "name": title,
+        "created_at": "2026-03-15T09:59:00Z",
+        "updated_at": "2026-03-15T10:01:00Z",
+        "chat_messages": messages,
+    }
+
+
+def _sample_chatgpt_export(title="ChatGPT Test Conv", messages=None):
+    """Return a sample ChatGPT conversations.json list."""
+    if messages is None:
+        messages = [
+            ("user", "How do I fix the error in the database connection pooling that "
+                     "causes timeouts under heavy load? The configuration seems correct. " * 2,
+             1710500000.0),
+            ("assistant", "The database connection pool timeout issue is caused by the "
+                          "pool size being too small for concurrent requests. You should "
+                          "increase max_connections in your config and add proper retry "
+                          "logic with exponential backoff for transient failures. " * 2,
+             1710500060.0),
+        ]
+    mapping = {}
+    for i, (role, text, ts) in enumerate(messages):
+        mapping[f"node-{i}"] = {
+            "message": {
+                "role": role,
+                "content": {"parts": [text]},
+                "create_time": ts,
+            }
+        }
+    return [{"title": title, "mapping": mapping}]
+
+
+# ---------------------------------------------------------------------------
+# Test: parse_claude_export
+# ---------------------------------------------------------------------------
+
+class TestParseClaudeExport:
+    def test_basic_parse(self, ingestor, tmp_dirs):
+        transcript_dir, _ = tmp_dirs
+        export = _sample_claude_ai_export()
+        path = _write_json(transcript_dir / "claude_export.json", export)
+
+        exchanges = ingestor.parse_claude_export(path)
+        assert len(exchanges) == 2
+        assert exchanges[0]["role"] == "user"  # "human" → "user"
+        assert exchanges[1]["role"] == "assistant"
+        assert "authentication error" in exchanges[1]["content"]
+
+    def test_source_metadata(self, ingestor, tmp_dirs):
+        transcript_dir, _ = tmp_dirs
+        export = _sample_claude_ai_export(title="My Conversation")
+        path = _write_json(transcript_dir / "claude_export.json", export)
+
+        exchanges = ingestor.parse_claude_export(path)
+        assert all(e["source"] == "claude_ai_export" for e in exchanges)
+        assert all(e["conversation_title"] == "My Conversation" for e in exchanges)
+
+    def test_timestamps_preserved(self, ingestor, tmp_dirs):
+        transcript_dir, _ = tmp_dirs
+        export = _sample_claude_ai_export()
+        path = _write_json(transcript_dir / "claude_export.json", export)
+
+        exchanges = ingestor.parse_claude_export(path)
+        assert exchanges[0]["timestamp"] == "2026-03-15T10:00:00Z"
+        assert exchanges[1]["timestamp"] == "2026-03-15T10:01:00Z"
+
+    def test_missing_file(self, ingestor):
+        exchanges = ingestor.parse_claude_export("/nonexistent/export.json")
+        assert exchanges == []
+
+    def test_malformed_json(self, ingestor, tmp_dirs):
+        transcript_dir, _ = tmp_dirs
+        path = transcript_dir / "bad.json"
+        path.write_text("not json at all", encoding="utf-8")
+        exchanges = ingestor.parse_claude_export(str(path.resolve()))
+        assert exchanges == []
+
+    def test_empty_messages(self, ingestor, tmp_dirs):
+        transcript_dir, _ = tmp_dirs
+        export = _sample_claude_ai_export(messages=[])
+        path = _write_json(transcript_dir / "empty.json", export)
+        exchanges = ingestor.parse_claude_export(path)
+        assert exchanges == []
+
+    def test_unexpected_format(self, ingestor, tmp_dirs):
+        """Non-dict top-level should return empty."""
+        transcript_dir, _ = tmp_dirs
+        path = _write_json(transcript_dir / "weird.json", [1, 2, 3])
+        exchanges = ingestor.parse_claude_export(path)
+        assert exchanges == []
+
+
+# ---------------------------------------------------------------------------
+# Test: parse_chatgpt_export
+# ---------------------------------------------------------------------------
+
+class TestParseChatGPTExport:
+    def test_basic_parse(self, ingestor, tmp_dirs):
+        transcript_dir, _ = tmp_dirs
+        export = _sample_chatgpt_export()
+        path = _write_json(transcript_dir / "conversations.json", export)
+
+        exchanges = ingestor.parse_chatgpt_export(path)
+        assert len(exchanges) == 2
+        assert exchanges[0]["role"] == "user"
+        assert exchanges[1]["role"] == "assistant"
+        assert "connection pool" in exchanges[1]["content"]
+
+    def test_source_metadata(self, ingestor, tmp_dirs):
+        transcript_dir, _ = tmp_dirs
+        export = _sample_chatgpt_export(title="Pool Debug")
+        path = _write_json(transcript_dir / "conversations.json", export)
+
+        exchanges = ingestor.parse_chatgpt_export(path)
+        assert all(e["source"] == "chatgpt_export" for e in exchanges)
+        assert all(e["conversation_title"] == "Pool Debug" for e in exchanges)
+
+    def test_timestamps_converted(self, ingestor, tmp_dirs):
+        transcript_dir, _ = tmp_dirs
+        export = _sample_chatgpt_export()
+        path = _write_json(transcript_dir / "conversations.json", export)
+
+        exchanges = ingestor.parse_chatgpt_export(path)
+        # Timestamps should be ISO format strings
+        assert exchanges[0]["timestamp"] is not None
+        assert "T" in exchanges[0]["timestamp"]
+
+    def test_messages_sorted_by_time(self, ingestor, tmp_dirs):
+        """Messages should come out in chronological order."""
+        transcript_dir, _ = tmp_dirs
+        # Deliberately put later message first in mapping
+        messages = [
+            ("assistant", "The answer to the error you described is to add proper "
+                          "validation and error handling in the request pipeline. " * 2,
+             1710500060.0),
+            ("user", "What causes the error in our request handling pipeline that "
+                     "drops connections under heavy concurrent load? " * 2,
+             1710500000.0),
+        ]
+        export = _sample_chatgpt_export(messages=messages)
+        path = _write_json(transcript_dir / "conversations.json", export)
+
+        exchanges = ingestor.parse_chatgpt_export(path)
+        assert exchanges[0]["role"] == "user"
+        assert exchanges[1]["role"] == "assistant"
+
+    def test_multiple_conversations(self, ingestor, tmp_dirs):
+        transcript_dir, _ = tmp_dirs
+        conv1 = _sample_chatgpt_export(title="Conv 1")[0]
+        conv2 = _sample_chatgpt_export(title="Conv 2")[0]
+        path = _write_json(transcript_dir / "conversations.json", [conv1, conv2])
+
+        exchanges = ingestor.parse_chatgpt_export(path)
+        assert len(exchanges) == 4  # 2 per conversation
+
+    def test_missing_file(self, ingestor):
+        exchanges = ingestor.parse_chatgpt_export("/nonexistent/conversations.json")
+        assert exchanges == []
+
+    def test_malformed_json(self, ingestor, tmp_dirs):
+        transcript_dir, _ = tmp_dirs
+        path = transcript_dir / "bad.json"
+        path.write_text("{not valid json", encoding="utf-8")
+        exchanges = ingestor.parse_chatgpt_export(str(path.resolve()))
+        assert exchanges == []
+
+    def test_empty_conversations(self, ingestor, tmp_dirs):
+        transcript_dir, _ = tmp_dirs
+        path = _write_json(transcript_dir / "conversations.json", [])
+        exchanges = ingestor.parse_chatgpt_export(path)
+        assert exchanges == []
+
+    def test_skips_system_role(self, ingestor, tmp_dirs):
+        """System messages should be included (role in allowed set)."""
+        transcript_dir, _ = tmp_dirs
+        messages = [
+            ("system", "You are a helpful assistant that provides detailed technical "
+                       "explanations about database optimization and configuration. " * 2,
+             1710500000.0),
+            ("user", "How do I optimize the database query performance for the "
+                     "reporting module that currently times out? " * 2,
+             1710500010.0),
+        ]
+        export = _sample_chatgpt_export(messages=messages)
+        path = _write_json(transcript_dir / "conversations.json", export)
+
+        exchanges = ingestor.parse_chatgpt_export(path)
+        roles = [e["role"] for e in exchanges]
+        assert "system" in roles
+        assert "user" in roles
+
+    def test_nodes_without_message_skipped(self, ingestor, tmp_dirs):
+        """Mapping nodes without a message key should be skipped."""
+        transcript_dir, _ = tmp_dirs
+        export = [{
+            "title": "Test",
+            "mapping": {
+                "node-0": {"message": None},  # No message
+                "node-1": {},  # No message key
+                "node-2": {
+                    "message": {
+                        "role": "user",
+                        "content": {"parts": [
+                            "This is a valid user message about fixing the error "
+                            "in the authentication module that crashes on startup. " * 2
+                        ]},
+                        "create_time": 1710500000.0,
+                    }
+                },
+            },
+        }]
+        path = _write_json(transcript_dir / "conversations.json", export)
+
+        exchanges = ingestor.parse_chatgpt_export(path)
+        assert len(exchanges) == 1
+        assert exchanges[0]["role"] == "user"
+
+
+# ---------------------------------------------------------------------------
+# Test: auto-detection between formats
+# ---------------------------------------------------------------------------
+
+class TestAutoDetection:
+    def test_detects_claude_code_jsonl(self, ingestor, tmp_dirs):
+        transcript_dir, _ = tmp_dirs
+        path = _write_jsonl(transcript_dir / "session.jsonl",
+                            [{"role": "user", "content": "hi"}])
+        assert ingestor.detect_format(path) == "claude_code"
+
+    def test_detects_claude_ai(self, ingestor, tmp_dirs):
+        transcript_dir, _ = tmp_dirs
+        export = _sample_claude_ai_export()
+        path = _write_json(transcript_dir / "export.json", export)
+        assert ingestor.detect_format(path) == "claude_ai"
+
+    def test_detects_chatgpt(self, ingestor, tmp_dirs):
+        transcript_dir, _ = tmp_dirs
+        export = _sample_chatgpt_export()
+        path = _write_json(transcript_dir / "conversations.json", export)
+        assert ingestor.detect_format(path) == "chatgpt"
+
+    def test_nonexistent_defaults_to_claude_code(self, ingestor):
+        assert ingestor.detect_format("/does/not/exist.json") == "claude_code"
+
+    def test_invalid_json_defaults_to_claude_code(self, ingestor, tmp_dirs):
+        transcript_dir, _ = tmp_dirs
+        path = transcript_dir / "bad.json"
+        path.write_text("not json", encoding="utf-8")
+        assert ingestor.detect_format(str(path.resolve())) == "claude_code"
+
+    def test_unknown_json_structure(self, ingestor, tmp_dirs):
+        transcript_dir, _ = tmp_dirs
+        path = _write_json(transcript_dir / "random.json", {"foo": "bar"})
+        assert ingestor.detect_format(path) == "claude_code"
+
+
+# ---------------------------------------------------------------------------
+# Test: knowledge extraction from export formats
+# ---------------------------------------------------------------------------
+
+class TestExportKnowledgeExtraction:
+    def test_claude_ai_knowledge_extraction(self, ingestor, tmp_dirs):
+        transcript_dir, _ = tmp_dirs
+        export = _sample_claude_ai_export()
+        path = _write_json(transcript_dir / "export.json", export)
+
+        exchanges = ingestor.parse_claude_export(path)
+        knowledge = ingestor.extract_knowledge(exchanges)
+        assert len(knowledge) > 0
+        # Should have source metadata
+        for entry in knowledge:
+            assert entry["metadata"].get("source") == "claude_ai_export"
+            assert entry["metadata"].get("conversation_title") == "Test Conversation"
+            assert entry["metadata"].get("original_date") is not None
+
+    def test_chatgpt_knowledge_extraction(self, ingestor, tmp_dirs):
+        transcript_dir, _ = tmp_dirs
+        export = _sample_chatgpt_export()
+        path = _write_json(transcript_dir / "conversations.json", export)
+
+        exchanges = ingestor.parse_chatgpt_export(path)
+        knowledge = ingestor.extract_knowledge(exchanges)
+        assert len(knowledge) > 0
+        for entry in knowledge:
+            assert entry["metadata"].get("source") == "chatgpt_export"
+            assert entry["metadata"].get("conversation_title") == "ChatGPT Test Conv"
+
+    def test_sanitization_applied_to_exports(self, ingestor, tmp_dirs):
+        transcript_dir, _ = tmp_dirs
+        export = _sample_claude_ai_export(messages=[
+            {
+                "sender": "assistant",
+                "text": "Found the issue. The key sk-ant-secret123ABC was hardcoded. "
+                        "The ANTHROPIC_API_KEY = sk-leaked-key should be rotated. "
+                        "This is a serious security vulnerability in the config. " * 2,
+                "created_at": "2026-03-15T10:00:00Z",
+            },
+        ])
+        path = _write_json(transcript_dir / "export.json", export)
+
+        exchanges = ingestor.parse_claude_export(path)
+        knowledge = ingestor.extract_knowledge(exchanges)
+        assert len(knowledge) > 0
+        assert "sk-ant-secret123ABC" not in knowledge[0]["content"]
+        assert "[REDACTED]" in knowledge[0]["content"]
+
+
+# ---------------------------------------------------------------------------
+# Test: source tagging in Grimoire metadata via ingest()
+# ---------------------------------------------------------------------------
+
+class TestSourceTagging:
+    def test_claude_ai_ingest_tags(self, ingestor, mock_grimoire, tmp_dirs):
+        transcript_dir, _ = tmp_dirs
+        export = _sample_claude_ai_export()
+        _write_json(transcript_dir / "export.json", export)
+
+        result = ingestor.ingest(source="claude_ai")
+        assert result["files_processed"] == 1
+        assert result["entries_created"] > 0
+
+        call_kwargs = mock_grimoire.remember.call_args
+        _, kwargs = call_kwargs
+        assert "claude_ai" in kwargs["tags"]
+        assert "transcript" in kwargs["tags"]
+        assert kwargs["metadata"].get("source") == "claude_ai_export"
+
+    def test_chatgpt_ingest_tags(self, ingestor, mock_grimoire, tmp_dirs):
+        transcript_dir, _ = tmp_dirs
+        export = _sample_chatgpt_export()
+        _write_json(transcript_dir / "conversations.json", export)
+
+        result = ingestor.ingest(source="chatgpt")
+        assert result["files_processed"] == 1
+        assert result["entries_created"] > 0
+
+        call_kwargs = mock_grimoire.remember.call_args
+        _, kwargs = call_kwargs
+        assert "chatgpt" in kwargs["tags"]
+        assert "transcript" in kwargs["tags"]
+        assert kwargs["metadata"].get("source") == "chatgpt_export"
+
+    def test_auto_detect_ingest(self, ingestor, mock_grimoire, tmp_dirs):
+        """When source is not specified, detect_format is used for .json files."""
+        transcript_dir, _ = tmp_dirs
+        export = _sample_claude_ai_export()
+        _write_json(transcript_dir / "export.json", export)
+
+        # Use claude_ai source to scan for .json files
+        result = ingestor.ingest(source="claude_ai")
+        assert result["files_processed"] == 1
+
+
+# ---------------------------------------------------------------------------
+# Test: scan_transcripts with source parameter
+# ---------------------------------------------------------------------------
+
+class TestScanWithSource:
+    def test_scan_claude_code(self, ingestor, tmp_dirs):
+        transcript_dir, _ = tmp_dirs
+        _write_jsonl(transcript_dir / "session.jsonl",
+                     [{"role": "user", "content": "hi"}])
+        (transcript_dir / "export.json").write_text("{}", encoding="utf-8")
+
+        found = ingestor.scan_transcripts(source="claude_code")
+        assert len(found) == 1
+        assert found[0].endswith(".jsonl")
+
+    def test_scan_claude_ai(self, ingestor, tmp_dirs):
+        transcript_dir, _ = tmp_dirs
+        _write_jsonl(transcript_dir / "session.jsonl",
+                     [{"role": "user", "content": "hi"}])
+        _write_json(transcript_dir / "export.json", _sample_claude_ai_export())
+
+        found = ingestor.scan_transcripts(source="claude_ai")
+        assert len(found) == 1
+        assert found[0].endswith(".json")
+
+    def test_scan_chatgpt(self, ingestor, tmp_dirs):
+        transcript_dir, _ = tmp_dirs
+        _write_json(transcript_dir / "conversations.json", _sample_chatgpt_export())
+
+        found = ingestor.scan_transcripts(source="chatgpt")
+        assert len(found) == 1
+        assert found[0].endswith(".json")
