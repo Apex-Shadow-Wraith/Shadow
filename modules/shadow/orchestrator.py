@@ -2358,15 +2358,13 @@ User input: {user_input}"""
                     f"{k}: {v}" for k, v in sorted(stats["by_source"].items())
                 )
                 lines.append(f"By source: {srcs}")
-            return "
-".join(lines)
+            return "\n".join(lines)
 
         if lower.startswith("/synthetic generate"):
             # Parse: /synthetic generate <category> [count]
             if len(parts) < 3:
                 return (
-                    "Usage: /synthetic generate <category> [count]
-"
+                    "Usage: /synthetic generate <category> [count]\n"
                     f"Categories: {', '.join(CATEGORIES)}"
                 )
             category = parts[2].lower()
@@ -2382,8 +2380,7 @@ User input: {user_input}"""
                 if examples:
                     filepath = generator.save_batch(examples, category)
                     return (
-                        f"Generated {len(examples)} synthetic examples for '{category}'.
-"
+                        f"Generated {len(examples)} synthetic examples for '{category}'.\n"
                         f"Saved to: {filepath}"
                     )
                 return f"No examples generated for '{category}'. Check API key and logs."
@@ -2405,8 +2402,7 @@ User input: {user_input}"""
                 if examples:
                     filepath = generator.save_batch(examples, "anti_sycophancy")
                     return (
-                        f"Generated {len(examples)} anti-sycophancy examples.
-"
+                        f"Generated {len(examples)} anti-sycophancy examples.\n"
                         f"Saved to: {filepath}"
                     )
                 return "No anti-sycophancy examples generated. Check API key and logs."
@@ -2426,8 +2422,7 @@ User input: {user_input}"""
                 if examples:
                     filepath = generator.save_batch(examples, "personality")
                     return (
-                        f"Generated {len(examples)} personality examples.
-"
+                        f"Generated {len(examples)} personality examples.\n"
                         f"Saved to: {filepath}"
                     )
                 return "No personality examples generated. Check API key and logs."
@@ -2435,18 +2430,12 @@ User input: {user_input}"""
                 return f"Generation failed: {e}"
 
         return (
-            "Unknown /synthetic command. Available:
-"
-            "  /synthetic generate <category> [count] - generate training examples
-"
-            "  /synthetic anti-sycophancy [count]      - generate pushback examples
-"
-            "  /synthetic personality [count]           - generate personality examples
-"
-            "  /synthetic stats                        - show generation statistics
-"
-            f"
-Categories: {', '.join(CATEGORIES)}"
+            "Unknown /synthetic command. Available:\n"
+            "  /synthetic generate <category> [count] - generate training examples\n"
+            "  /synthetic anti-sycophancy [count]      - generate pushback examples\n"
+            "  /synthetic personality [count]           - generate personality examples\n"
+            "  /synthetic stats                        - show generation statistics\n"
+            f"\nCategories: {', '.join(CATEGORIES)}"
         )
 
     # --- Benchmark Handler ---
