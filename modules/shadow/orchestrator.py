@@ -1018,6 +1018,34 @@ class Orchestrator:
                     response = "\n".join(reminder_lines) + "\n\n" + response
                 return response
 
+            # Handle /training commands directly (no LLM needed)
+            if classification.target_module == "training_pipeline":
+                response = await self._handle_training_command(user_input)
+                await self._step7_log(user_input, classification, response, loop_start)
+                self._save_state()
+                return response
+
+            # Handle /synthetic commands directly (no LLM needed)
+            if classification.target_module == "synthetic_generator":
+                response = await self._handle_synthetic_command(user_input)
+                await self._step7_log(user_input, classification, response, loop_start)
+                self._save_state()
+                return response
+
+            # Handle /benchmark commands directly (no LLM needed)
+            if classification.target_module == "benchmark":
+                response = await self._handle_benchmark_command(user_input)
+                await self._step7_log(user_input, classification, response, loop_start)
+                self._save_state()
+                return response
+
+            # Handle /eval commands directly (no LLM needed)
+            if classification.target_module == "embedding_eval":
+                response = await self._handle_eval_command(user_input)
+                await self._step7_log(user_input, classification, response, loop_start)
+                self._save_state()
+                return response
+
             # Fast response: skip LLM for trivial inputs
             fast_response = self._fast_response(user_input, classification)
             if fast_response is not None:
@@ -1711,6 +1739,50 @@ User input: {user_input}"""
         stripped = user_input.strip()
         lower = stripped.lower()
 
+        # --- Training pipeline commands ---
+        if lower.startswith("/training"):
+            return TaskClassification(
+                task_type=TaskType.SYSTEM,
+                complexity="simple",
+                target_module="training_pipeline",
+                brain=BrainType.ROUTER,
+                safety_flag=False,
+                priority=1,
+            )
+
+        # --- Embedding evaluation commands ---
+        if lower.startswith("/eval"):
+            return TaskClassification(
+                task_type=TaskType.SYSTEM,
+                complexity="simple",
+                target_module="embedding_eval",
+                brain=BrainType.ROUTER,
+                safety_flag=False,
+                priority=1,
+            )
+
+        # --- Synthetic data generation commands ---
+        if lower.startswith("/synthetic"):
+            return TaskClassification(
+                task_type=TaskType.SYSTEM,
+                complexity="simple",
+                target_module="synthetic_generator",
+                brain=BrainType.ROUTER,
+                safety_flag=False,
+                priority=1,
+            )
+
+        # --- Benchmark commands ---
+        if lower.startswith("/benchmark"):
+            return TaskClassification(
+                task_type=TaskType.SYSTEM,
+                complexity="simple",
+                target_module="benchmark",
+                brain=BrainType.ROUTER,
+                safety_flag=False,
+                priority=1,
+            )
+
         # --- System commands (slash commands) ---
         if stripped.startswith("/"):
             return TaskClassification(
@@ -2190,6 +2262,342 @@ User input: {user_input}"""
             return "Focus mode enabled. All background initiatives paused. I'm fully focused on you."
 
         return "Unrecognized proactive command."
+
+    # --- Training Pipeline Handler ---
+
+    async def _handle_training_command(self, user_input: str) -> str:
+        """Handle /training commands for the training data pipeline.
+
+        Supported:
+            /training stats  — show pipeline statistics
+            /training export — export merged LoRA-ready dataset
+        """
+        lower = user_input.strip().lower()
+
+        # Get Apex module
+        apex_mod = self.registry.get_module("apex") if "apex" in self.registry else None
+        if apex_mod is None:
+            return "Apex module is not available. Training pipeline requires Apex."
+
+        if lower.startswith("/training stats"):
+            result = await apex_mod.execute("training_stats", {})
+            if not result.success:
+                return f"Training stats error: {result.error}"
+            stats = result.content
+            lines = ["**Training Data Pipeline Stats**"]
+            lines.append(f"Total examples: {stats['total_examples']}")
+            lines.append(f"Examples today: {stats['examples_today']}")
+            if stats["by_category"]:
+                cats = ", ".join(
+                    f"{k}: {v}" for k, v in sorted(stats["by_category"].items())
+                )
+                lines.append(f"By category: {cats}")
+            if stats["by_module"]:
+                mods = ", ".join(
+                    f"{k}: {v}" for k, v in sorted(stats["by_module"].items())
+                )
+                lines.append(f"By module: {mods}")
+            return "\n".join(lines)
+
+        if lower.startswith("/training export"):
+            result = await apex_mod.execute(
+                "training_export",
+                {"output_path": "training_data/lora_ready.jsonl"},
+            )
+            if not result.success:
+                return f"Training export error: {result.error}"
+            return (
+                f"Exported {result.content['exported']} examples to "
+                f"{result.content['output_path']}"
+            )
+
+        return (
+            "Unknown /training command. Available:\n"
+            "  /training stats  — show pipeline statistics\n"
+            "  /training export — export merged LoRA-ready dataset"
+        )
+
+
+    # --- Synthetic Data Generator Handler ---
+
+    async def _handle_synthetic_command(self, user_input: str) -> str:
+        """Handle /synthetic commands for synthetic training data generation.
+
+        Supported:
+            /synthetic generate <category> [count]  - generate synthetic examples
+            /synthetic anti-sycophancy [count]       - generate pushback examples
+            /synthetic personality [count]            - generate personality examples
+            /synthetic stats                         - show generation statistics
+        """
+        from modules.apex.synthetic_data_generator import (
+            SyntheticDataGenerator,
+            CATEGORIES,
+        )
+
+        lower = user_input.strip().lower()
+        parts = user_input.strip().split()
+
+        # Initialize generator
+        try:
+            generator = SyntheticDataGenerator()
+        except Exception as e:
+            return f"Failed to initialize synthetic generator: {e}"
+
+        if lower.startswith("/synthetic stats"):
+            stats = generator.get_stats()
+            lines = ["**Synthetic Training Data Stats**"]
+            lines.append(f"Total examples: {stats['total_examples']}")
+            lines.append(f"Files: {stats['file_count']}")
+            if stats["by_category"]:
+                cats = ", ".join(
+                    f"{k}: {v}" for k, v in sorted(stats["by_category"].items())
+                )
+                lines.append(f"By category: {cats}")
+            if stats["by_source"]:
+                srcs = ", ".join(
+                    f"{k}: {v}" for k, v in sorted(stats["by_source"].items())
+                )
+                lines.append(f"By source: {srcs}")
+            return "
+".join(lines)
+
+        if lower.startswith("/synthetic generate"):
+            # Parse: /synthetic generate <category> [count]
+            if len(parts) < 3:
+                return (
+                    "Usage: /synthetic generate <category> [count]
+"
+                    f"Categories: {', '.join(CATEGORIES)}"
+                )
+            category = parts[2].lower()
+            count = 10
+            if len(parts) >= 4:
+                try:
+                    count = int(parts[3])
+                except ValueError:
+                    return f"Invalid count: {parts[3]}. Must be an integer."
+
+            try:
+                examples = generator.generate_batch(category, count=count)
+                if examples:
+                    filepath = generator.save_batch(examples, category)
+                    return (
+                        f"Generated {len(examples)} synthetic examples for '{category}'.
+"
+                        f"Saved to: {filepath}"
+                    )
+                return f"No examples generated for '{category}'. Check API key and logs."
+            except ValueError as e:
+                return str(e)
+            except Exception as e:
+                return f"Generation failed: {e}"
+
+        if lower.startswith("/synthetic anti-sycophancy") or lower.startswith("/synthetic anti_sycophancy"):
+            count = 10
+            if len(parts) >= 3:
+                try:
+                    count = int(parts[2])
+                except ValueError:
+                    return f"Invalid count: {parts[2]}. Must be an integer."
+
+            try:
+                examples = generator.generate_anti_sycophancy(count=count)
+                if examples:
+                    filepath = generator.save_batch(examples, "anti_sycophancy")
+                    return (
+                        f"Generated {len(examples)} anti-sycophancy examples.
+"
+                        f"Saved to: {filepath}"
+                    )
+                return "No anti-sycophancy examples generated. Check API key and logs."
+            except Exception as e:
+                return f"Generation failed: {e}"
+
+        if lower.startswith("/synthetic personality"):
+            count = 10
+            if len(parts) >= 3:
+                try:
+                    count = int(parts[2])
+                except ValueError:
+                    return f"Invalid count: {parts[2]}. Must be an integer."
+
+            try:
+                examples = generator.generate_personality_examples(count=count)
+                if examples:
+                    filepath = generator.save_batch(examples, "personality")
+                    return (
+                        f"Generated {len(examples)} personality examples.
+"
+                        f"Saved to: {filepath}"
+                    )
+                return "No personality examples generated. Check API key and logs."
+            except Exception as e:
+                return f"Generation failed: {e}"
+
+        return (
+            "Unknown /synthetic command. Available:
+"
+            "  /synthetic generate <category> [count] - generate training examples
+"
+            "  /synthetic anti-sycophancy [count]      - generate pushback examples
+"
+            "  /synthetic personality [count]           - generate personality examples
+"
+            "  /synthetic stats                        - show generation statistics
+"
+            f"
+Categories: {', '.join(CATEGORIES)}"
+        )
+
+    # --- Benchmark Handler ---
+
+    async def _handle_benchmark_command(self, user_input: str) -> str:
+        """Handle /benchmark commands for the monthly benchmark suite.
+
+        Supported:
+            /benchmark run      — execute full benchmark suite
+            /benchmark history  — show score trends over time
+            /benchmark compare YYYY-MM-DD YYYY-MM-DD — compare two runs
+        """
+        try:
+            from modules.shadow.benchmark_suite import BenchmarkSuite
+        except ImportError:
+            return "BenchmarkSuite module not available."
+
+        lower = user_input.strip().lower()
+        config = {"model_name": getattr(self, "_model_name", "unknown")}
+        suite = BenchmarkSuite(self, config)
+
+        if lower.startswith("/benchmark run"):
+            try:
+                results = await suite.run_benchmark()
+                filepath = suite.save_results(results)
+                lines = [
+                    f"**Benchmark Complete** — {results['total_tasks']} tasks "
+                    f"in {results['run_duration_seconds']:.1f}s",
+                    f"Overall score: {results['overall_score']:.2%}",
+                    "",
+                    "**Category Scores:**",
+                ]
+                for cat, score in sorted(results["category_scores"].items()):
+                    lines.append(f"  {cat}: {score:.2%}")
+                lines.append(f"\nResults saved to {filepath}")
+                return "\n".join(lines)
+            except Exception as e:
+                logger.error("Benchmark run failed: %s", e)
+                return f"Benchmark run failed: {e}"
+
+        if lower.startswith("/benchmark history"):
+            return suite.trend_report()
+
+        if lower.startswith("/benchmark compare"):
+            # Parse dates from command
+            parts = user_input.strip().split()
+            if len(parts) < 4:
+                return (
+                    "Usage: /benchmark compare YYYY-MM-DD YYYY-MM-DD\n"
+                    "Example: /benchmark compare 2026-01-15 2026-02-15"
+                )
+            date_a, date_b = parts[2], parts[3]
+            history = suite.load_history()
+            run_a = None
+            run_b = None
+            for run in history:
+                ts = run.get("timestamp", "")[:10]
+                if ts == date_a and run_a is None:
+                    run_a = run
+                if ts == date_b and run_b is None:
+                    run_b = run
+            if run_a is None:
+                return f"No benchmark run found for date {date_a}"
+            if run_b is None:
+                return f"No benchmark run found for date {date_b}"
+            comparison = suite.compare_runs(run_a, run_b)
+            lines = [comparison["summary"], ""]
+            if comparison["improved"]:
+                lines.append("**Improved:**")
+                for t in comparison["improved"]:
+                    lines.append(
+                        f"  {t['task_id']}: {t['from']:.2%} → {t['to']:.2%}"
+                    )
+            if comparison["regressed"]:
+                lines.append("**Regressed:**")
+                for t in comparison["regressed"]:
+                    lines.append(
+                        f"  {t['task_id']}: {t['from']:.2%} → {t['to']:.2%}"
+                    )
+            return "\n".join(lines)
+
+        return (
+            "Unknown /benchmark command. Available:\n"
+            "  /benchmark run      — execute full benchmark suite\n"
+            "  /benchmark history  — show score trends over time\n"
+            "  /benchmark compare YYYY-MM-DD YYYY-MM-DD — compare two runs"
+        )
+
+    # --- Embedding Evaluation Handler ---
+
+    async def _handle_eval_command(self, user_input: str) -> str:
+        """Handle /eval commands for embedding retrieval evaluation.
+
+        Supported:
+            /eval embeddings          — run eval and report metrics
+            /eval compare <a> <b>     — compare two embedding models
+        """
+        from modules.grimoire.embedding_evaluator import EmbeddingEvaluator
+
+        lower = user_input.strip().lower()
+
+        # Get Grimoire instance
+        grimoire_mod = (
+            self.registry.get_module("grimoire")
+            if "grimoire" in self.registry
+            else None
+        )
+        if grimoire_mod is None:
+            return "Grimoire module is not available. Eval requires Grimoire."
+
+        grimoire = getattr(grimoire_mod, "grimoire", None)
+        if grimoire is None:
+            return "Cannot access Grimoire storage instance."
+
+        evaluator = EmbeddingEvaluator(grimoire)
+
+        if lower.startswith("/eval compare"):
+            parts = user_input.strip().split()
+            if len(parts) < 4:
+                return (
+                    "Usage: /eval compare <model_a> <model_b>\n"
+                    "Example: /eval compare nomic-embed-text mxbai-embed-large"
+                )
+            model_a, model_b = parts[2], parts[3]
+            try:
+                eval_set = evaluator.build_eval_set()
+                if not eval_set:
+                    return "No memories found to build eval set."
+                comparison = evaluator.compare_models(model_a, model_b,
+                                                      eval_set)
+                return evaluator.format_comparison(comparison)
+            except Exception as e:
+                logger.error("Eval compare failed: %s", e)
+                return f"Eval compare failed: {e}"
+
+        if lower.startswith("/eval embeddings") or lower == "/eval":
+            try:
+                results = evaluator.run_eval()
+                if results["total"] == 0:
+                    return "No memories found to evaluate."
+                evaluator.store_benchmark(results)
+                return evaluator.format_report(results)
+            except Exception as e:
+                logger.error("Eval embeddings failed: %s", e)
+                return f"Eval embeddings failed: {e}"
+
+        return (
+            "Unknown /eval command. Available:\n"
+            "  /eval embeddings          — run embedding retrieval eval\n"
+            "  /eval compare <a> <b>     — compare two embedding models"
+        )
 
     # --- Step 3: Load Context ---
 

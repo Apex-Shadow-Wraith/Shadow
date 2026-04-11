@@ -434,9 +434,9 @@ class TestFullCycle:
 
 class TestToolCount:
     def test_tools_include_learning_tools(self, apex: Apex):
-        """Apex now has 7 tools (4 original + 3 learning)."""
+        """Apex now has 9 tools (4 original + 3 learning + 2 training)."""
         tools = apex.get_tools()
-        assert len(tools) == 7
+        assert len(tools) == 9
         names = [t["name"] for t in tools]
         assert "escalation_stats" in names
         assert "escalation_frequent" in names

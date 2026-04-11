@@ -283,6 +283,7 @@ class EscalationLog:
 # Re-export here for backward compatibility.
 from modules.apex.teaching_extractor import TeachingExtractor  # noqa: E402
 from modules.apex.teaching_extractor import THREE_TIER_TEACHING_TEMPLATE  # noqa: E402
+from modules.apex.training_data_pipeline import TrainingDataPipeline  # noqa: E402
 
 
 class Apex(BaseModule):
@@ -333,6 +334,7 @@ class Apex(BaseModule):
         self._escalation_log: EscalationLog | None = None
         self._teaching_extractor: TeachingExtractor | None = None
         self._grimoire: Any = None  # Injected via set_grimoire()
+        self._training_pipeline: TrainingDataPipeline | None = None
 
     async def initialize(self) -> None:
         """Start Apex. Load API keys from environment and config/.env."""
@@ -366,6 +368,12 @@ class Apex(BaseModule):
             )
             self._escalation_log = EscalationLog(escalation_db)
             self._teaching_extractor = TeachingExtractor()
+
+            # Training data pipeline for LoRA dataset generation
+            training_dir = self._config.get(
+                "training_data_dir", "training_data/apex_sessions"
+            )
+            self._training_pipeline = TrainingDataPipeline(training_dir)
             logger.info("Escalation-learning cycle initialized.")
 
             self.status = ModuleStatus.ONLINE
@@ -404,6 +412,8 @@ class Apex(BaseModule):
                 "escalation_stats": self._escalation_stats,
                 "escalation_frequent": self._escalation_frequent,
                 "teaching_review": self._teaching_review,
+                "training_stats": self._training_stats,
+                "training_export": self._training_export,
             }
 
             handler = handlers.get(tool_name)
@@ -481,6 +491,18 @@ class Apex(BaseModule):
                 "name": "teaching_review",
                 "description": "Get recent teaching signals for review",
                 "parameters": {"limit": "int"},
+                "permission_level": "autonomous",
+            },
+            {
+                "name": "training_stats",
+                "description": "Get training data pipeline statistics",
+                "parameters": {},
+                "permission_level": "autonomous",
+            },
+            {
+                "name": "training_export",
+                "description": "Export all training data as merged LoRA-ready JSONL",
+                "parameters": {"output_path": "str"},
                 "permission_level": "autonomous",
             },
         ]
@@ -786,6 +808,48 @@ class Apex(BaseModule):
             tool_name="teaching_review", module=self.name,
         )
 
+    # --- Training data tools ---
+
+    def _training_stats(self, params: dict[str, Any]) -> ToolResult:
+        """Get training data pipeline statistics.
+
+        Args:
+            params: No required parameters.
+        """
+        if self._training_pipeline is None:
+            return ToolResult(
+                success=False, content=None, tool_name="training_stats",
+                module=self.name, error="Training pipeline not initialized",
+            )
+        stats = self._training_pipeline.get_stats()
+        return ToolResult(
+            success=True, content=stats,
+            tool_name="training_stats", module=self.name,
+        )
+
+    def _training_export(self, params: dict[str, Any]) -> ToolResult:
+        """Export all training data as merged LoRA-ready JSONL.
+
+        Args:
+            params: Optional 'output_path' (str, default training_data/lora_ready.jsonl).
+        """
+        if self._training_pipeline is None:
+            return ToolResult(
+                success=False, content=None, tool_name="training_export",
+                module=self.name, error="Training pipeline not initialized",
+            )
+        output_path = params.get("output_path", "training_data/lora_ready.jsonl")
+        count = self._training_pipeline.export_for_lora(output_path)
+        return ToolResult(
+            success=True,
+            content={
+                "exported": count,
+                "output_path": output_path,
+            },
+            tool_name="training_export",
+            module=self.name,
+        )
+
     # --- Escalation-learning internals ---
 
     def set_grimoire(self, grimoire: Any) -> None:
@@ -899,6 +963,27 @@ class Apex(BaseModule):
                 self._escalation_log.update_teaching_signal(
                     log_id, signal_json, grimoire_id
                 )
+
+            # Step 5: Capture as LoRA training data
+            if self._training_pipeline is not None and api_response:
+                try:
+                    entry = self._training_pipeline.capture(
+                        user_input=task_summary,
+                        shadow_failed_response="",
+                        apex_response=api_response,
+                        module=task_type,
+                        category=task_type,
+                        metadata={
+                            "model_that_answered": api_model,
+                            "model_that_failed": "",
+                            "api_provider": api_provider,
+                        },
+                    )
+                    self._training_pipeline.save(entry)
+                except Exception as te:
+                    logger.warning(
+                        "Failed to capture training data: %s", te
+                    )
 
         except Exception as e:
             logger.error("Failed to record escalation: %s", e)
