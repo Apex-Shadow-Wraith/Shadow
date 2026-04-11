@@ -2222,6 +2222,13 @@ User input: {user_input}"""
             "function", "class", "script", "program",
             "coding", "syntax", "snippet", "algorithm", "compile",
         }
+        omen_analysis_keywords = {
+            "analyze", "review", "explain", "inspect", "audit",
+        }
+        omen_analysis_phrases = [
+            "what's wrong with", "what is wrong with",
+            "find bugs", "find issues", "check this code",
+        ]
         omen_context_words = {"write", "generate", "create", "build", "execute"}
         omen_code_context = {
             "function", "class", "script", "program", "code",
@@ -2229,7 +2236,23 @@ User input: {user_input}"""
             "parser", "handler", "decorator", "lambda",
         }
         has_omen_context = bool(words & omen_context_words) and bool(words & omen_code_context)
+        has_analysis_intent = (
+            bool(words & omen_analysis_keywords)
+            or any(p in lower for p in omen_analysis_phrases)
+        )
         if (words & omen_keywords) or has_omen_context:
+            # Determine if this is analysis or creation
+            if has_analysis_intent:
+                logger.info("Fast-path keyword → omen ANALYSIS (matched: %s)", words & omen_analysis_keywords)
+                return TaskClassification(
+                    task_type=TaskType.ANALYSIS,
+                    complexity="moderate",
+                    target_module="omen",
+                    brain=BrainType.FAST,
+                    safety_flag=False,
+                    priority=1,
+                    confidence=0.85,
+                )
             logger.info("Fast-path keyword → omen (matched: %s)", words & omen_keywords)
             return TaskClassification(
                 task_type=TaskType.CREATION,
@@ -3789,7 +3812,7 @@ User input: {user_input}"""
 
         elif classification.target_module == "omen":
             # Code tasks — route to the right Omen tool by task type.
-            # ANALYSIS  → code_review  (read-only, no approval needed)
+            # ANALYSIS  → code_analyze  (read-only, no approval needed)
             # CREATION  → code_generate (LLM writes new code)
             # ACTION    → code_execute  (run code in sandbox) if input has code
             # QUESTION  → code_generate (explain/discuss code via LLM)
@@ -3803,16 +3826,16 @@ User input: {user_input}"""
                 steps = [
                     {
                         "step": 1,
-                        "description": "Review/analyze code via Omen",
-                        "tool": "code_review",
+                        "description": "Analyze code via Omen",
+                        "tool": "code_analyze",
                         "params": {
                             "code": user_input,
-                            "file_path": "",
+                            "language": "python",
                         },
                     },
                     {
                         "step": 2,
-                        "description": "Generate response from review results",
+                        "description": "Generate response from analysis results",
                         "tool": None,
                         "params": {},
                     },

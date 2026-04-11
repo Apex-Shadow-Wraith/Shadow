@@ -589,6 +589,7 @@ class Omen(BaseModule):
                 "scaffold_test": self._scaffold_test,
                 "code_score": self._code_score,
                 "seed_patterns": self._seed_patterns,
+                "code_analyze": self._code_analyze,
                 "code_analyze_file": self._code_analyze_file,
                 "code_analyze_dir": self._code_analyze_dir,
                 "code_analyze_url": self._code_analyze_url,
@@ -795,6 +796,12 @@ class Omen(BaseModule):
                 "permission_level": "autonomous",
             },
             # --- Code Analyzer tools (Phase 3) ---
+            {
+                "name": "code_analyze",
+                "description": "Analyze inline code for structure, patterns, quality, and vulnerabilities without generating new code",
+                "parameters": {"code": "str", "language": "str"},
+                "permission_level": "autonomous",
+            },
             {
                 "name": "code_analyze_file",
                 "description": "Analyze a Python file for structure, patterns, and quality",
@@ -2275,6 +2282,54 @@ class Omen(BaseModule):
         )
 
     # --- Code Analyzer tool implementations ---
+
+    def _code_analyze(self, params: dict[str, Any]) -> ToolResult:
+        """Analyze inline code for structure, patterns, quality, and vulnerabilities.
+
+        Uses CodeAnalyzer.analyze_source() to provide read-only analysis
+        without generating new code.
+
+        Args:
+            params: 'code' (str) required, 'language' (str) optional.
+        """
+        code = params.get("code", "")
+        if not code:
+            return ToolResult(
+                success=False, content=None, tool_name="code_analyze",
+                module=self.name, error="code is required",
+            )
+
+        language = params.get("language", "python")
+        if language != "python":
+            # For non-Python, fall back to basic structural analysis
+            lines = code.split("\n")
+            analysis = {
+                "language": language,
+                "line_count": len(lines),
+                "has_comments": any(
+                    l.strip().startswith(("#", "//", "/*", "*"))
+                    for l in lines
+                ),
+                "blank_lines": sum(1 for l in lines if not l.strip()),
+                "note": f"Deep analysis only available for Python; {language} gets structural overview.",
+            }
+            return ToolResult(
+                success=True, content=analysis,
+                tool_name="code_analyze", module=self.name,
+            )
+
+        analysis = self._analyzer.analyze_source(code, filename="<inline>")
+        if analysis.get("error"):
+            return ToolResult(
+                success=False, content=analysis,
+                tool_name="code_analyze",
+                module=self.name, error=analysis["error"],
+            )
+
+        return ToolResult(
+            success=True, content=analysis,
+            tool_name="code_analyze", module=self.name,
+        )
 
     def _code_analyze_file(self, params: dict[str, Any]) -> ToolResult:
         """Analyze a Python file for structure, patterns, and quality.
