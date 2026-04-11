@@ -94,6 +94,17 @@ class Morpheus(BaseModule):
         except ImportError:
             self._rd_lab = None
 
+        # Prompt evolution engine
+        try:
+            from modules.morpheus.prompt_evolution import PromptEvolutionEngine
+            from modules.morpheus.prompt_templates import PromptTemplateRegistry
+            self._templates = PromptTemplateRegistry()
+            self._evolution: PromptEvolutionEngine | None = None  # needs DB, set in initialize()
+        except Exception:
+            self._templates = None
+            self._evolution = None
+            logger.debug("Prompt evolution not available")
+
     async def initialize(self) -> None:
         """Start Morpheus. Create DB and tables."""
         self.status = ModuleStatus.STARTING
@@ -104,6 +115,22 @@ class Morpheus(BaseModule):
             self._conn.execute("PRAGMA busy_timeout=5000")
             self._conn.row_factory = sqlite3.Row
             self._create_tables()
+
+            # Initialize prompt evolution engine after tables exist
+            if self._templates is not None:
+                try:
+                    from modules.morpheus.prompt_evolution import PromptEvolutionEngine
+                    self._evolution = PromptEvolutionEngine(
+                        db_path=self._db_path,
+                        registry=self._templates,
+                    )
+                    # Reload persisted evolved templates into registry
+                    for t in self._evolution.load_evolved_templates():
+                        self._templates.add_template(t)
+                except Exception as e:
+                    self._evolution = None
+                    logger.debug("Prompt evolution init failed: %s", e)
+
             self.status = ModuleStatus.ONLINE
             self._initialized_at = datetime.now()
             logger.info("Morpheus online. Experiment DB at %s", self._db_path)
@@ -148,6 +175,13 @@ class Morpheus(BaseModule):
             CREATE INDEX IF NOT EXISTS idx_morpheus_parent
             ON morpheus_experiments(parent_experiment_id)
         """)
+        # Migration: add template_id column if missing (nullable for backward compat)
+        try:
+            self._conn.execute(
+                "ALTER TABLE morpheus_experiments ADD COLUMN template_id TEXT"
+            )
+        except sqlite3.OperationalError:
+            pass  # Column already exists
         self._conn.commit()
 
     async def execute(self, tool_name: str, params: dict[str, Any]) -> ToolResult:
@@ -162,6 +196,8 @@ class Morpheus(BaseModule):
                 "experiment_list": self._experiment_list,
                 "experiment_queue": self._experiment_queue,
                 "morpheus_report": self._morpheus_report,
+                "prompt_evolve": self._prompt_evolve,
+                "prompt_stats": self._prompt_stats,
             }
 
             handler = handlers.get(tool_name)
@@ -188,6 +224,12 @@ class Morpheus(BaseModule):
 
     async def shutdown(self) -> None:
         """Shut down Morpheus. Close DB connection."""
+        if self._evolution is not None:
+            try:
+                self._evolution.close()
+            except Exception:
+                pass
+            self._evolution = None
         if self._conn:
             self._conn.close()
             self._conn = None
@@ -262,6 +304,22 @@ class Morpheus(BaseModule):
                 "parameters": {},
                 "permission_level": "autonomous",
             },
+            {
+                "name": "prompt_evolve",
+                "description": "Run an evolution cycle on prompt templates based on performance data",
+                "parameters": {
+                    "min_experiments": "int — minimum experiments since last evolution (default 10)",
+                },
+                "permission_level": "autonomous",
+            },
+            {
+                "name": "prompt_stats",
+                "description": "Show template performance stats — which templates produce the best ideas",
+                "parameters": {
+                    "template_id": "str — specific template ID for single-template stats (optional)",
+                },
+                "permission_level": "autonomous",
+            },
         ]
 
     # --- Tool implementations ---
@@ -279,6 +337,7 @@ class Morpheus(BaseModule):
         priority = params.get("priority", 3)
         input_data = params.get("input_data")
         parent_id = params.get("parent_experiment_id")
+        template_id = params.get("template_id")
 
         # Validation
         if not title:
@@ -311,6 +370,14 @@ class Morpheus(BaseModule):
                 error=f"Parent experiment {parent_id} not found",
             )
 
+        # Auto-select template if not specified and evolution engine is available
+        if template_id is None and self._evolution is not None:
+            try:
+                selected = self._evolution.select_template(category=category)
+                template_id = selected["id"]
+            except Exception:
+                template_id = None
+
         experiment_id = str(uuid.uuid4())
         now = datetime.now().isoformat()
 
@@ -327,10 +394,10 @@ class Morpheus(BaseModule):
         self._conn.execute(
             """INSERT INTO morpheus_experiments
                (experiment_id, title, hypothesis, category, status, priority,
-                proposed_at, input_data, parent_experiment_id)
-               VALUES (?, ?, ?, ?, 'proposed', ?, ?, ?, ?)""",
+                proposed_at, input_data, parent_experiment_id, template_id)
+               VALUES (?, ?, ?, ?, 'proposed', ?, ?, ?, ?, ?)""",
             (experiment_id, title, hypothesis, category, priority,
-             now, input_json, parent_id),
+             now, input_json, parent_id, template_id),
         )
         self._conn.commit()
 
@@ -511,6 +578,19 @@ class Morpheus(BaseModule):
             experiment_id[:8], tier, tier_label, score,
         )
 
+        # Record outcome for prompt evolution if template was used
+        exp_template_id = experiment.get("template_id") if experiment else None
+        if exp_template_id and self._evolution is not None:
+            try:
+                self._evolution.record_outcome(
+                    template_id=exp_template_id,
+                    experiment_id=experiment_id,
+                    tier=tier,
+                    score=float(score),
+                )
+            except Exception as e:
+                logger.debug("Failed to record evolution outcome: %s", e)
+
         return ToolResult(
             success=True, content=experiment,
             tool_name="experiment_evaluate", module=self.name,
@@ -661,6 +741,70 @@ class Morpheus(BaseModule):
         return ToolResult(
             success=True, content=report,
             tool_name="morpheus_report", module=self.name,
+        )
+
+    def _prompt_evolve(self, params: dict[str, Any]) -> ToolResult:
+        """Trigger an evolution cycle. Returns summary of new/retired templates.
+
+        Args:
+            params: Optional 'min_experiments' to override default threshold.
+        """
+        if self._evolution is None:
+            return ToolResult(
+                success=False, content=None, tool_name="prompt_evolve",
+                module=self.name, error="Prompt evolution engine not available",
+            )
+
+        min_experiments = params.get("min_experiments", 10)
+        if not isinstance(min_experiments, int) or min_experiments < 1:
+            min_experiments = 10
+
+        summary = self._evolution.evolve_cycle(min_experiments=min_experiments)
+        return ToolResult(
+            success=True, content=summary,
+            tool_name="prompt_evolve", module=self.name,
+        )
+
+    def _prompt_stats(self, params: dict[str, Any]) -> ToolResult:
+        """Show template performance stats.
+
+        Args:
+            params: Optional 'template_id' for single-template stats.
+        """
+        if self._evolution is None:
+            return ToolResult(
+                success=False, content=None, tool_name="prompt_stats",
+                module=self.name, error="Prompt evolution engine not available",
+            )
+
+        template_id = params.get("template_id")
+        all_stats = self._evolution.get_template_stats()
+
+        if template_id:
+            filtered = [s for s in all_stats if s["template_id"] == template_id]
+            if not filtered:
+                return ToolResult(
+                    success=True,
+                    content={"template_id": template_id, "stats": None, "message": "No performance data"},
+                    tool_name="prompt_stats", module=self.name,
+                )
+            return ToolResult(
+                success=True, content=filtered[0],
+                tool_name="prompt_stats", module=self.name,
+            )
+
+        top = self._evolution.get_top_performers()
+        under = self._evolution.get_underperformers()
+
+        return ToolResult(
+            success=True,
+            content={
+                "all_stats": all_stats,
+                "top_performers": top,
+                "underperformers": under,
+                "total_templates": len(self._templates.get_all()) if self._templates else 0,
+            },
+            tool_name="prompt_stats", module=self.name,
         )
 
     # --- Internal helpers ---
