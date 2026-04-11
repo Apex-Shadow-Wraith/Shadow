@@ -1046,6 +1046,13 @@ class Orchestrator:
                 self._save_state()
                 return response
 
+            # Handle /export commands directly (no LLM needed)
+            if classification.target_module == "snapshot_exporter":
+                response = await self._handle_export_command(user_input)
+                await self._step7_log(user_input, classification, response, loop_start)
+                self._save_state()
+                return response
+
             # Fast response: skip LLM for trivial inputs
             fast_response = self._fast_response(user_input, classification)
             if fast_response is not None:
@@ -1767,6 +1774,17 @@ User input: {user_input}"""
                 task_type=TaskType.SYSTEM,
                 complexity="simple",
                 target_module="synthetic_generator",
+                brain=BrainType.ROUTER,
+                safety_flag=False,
+                priority=1,
+            )
+
+        # --- Export commands ---
+        if lower.startswith("/export"):
+            return TaskClassification(
+                task_type=TaskType.SYSTEM,
+                complexity="simple",
+                target_module="snapshot_exporter",
                 brain=BrainType.ROUTER,
                 safety_flag=False,
                 priority=1,
@@ -2586,6 +2604,53 @@ User input: {user_input}"""
             "Unknown /eval command. Available:\n"
             "  /eval embeddings          — run embedding retrieval eval\n"
             "  /eval compare <a> <b>     — compare two embedding models"
+        )
+
+    async def _handle_export_command(self, user_input: str) -> str:
+        """Handle /export commands for Grimoire snapshot export.
+
+        Supported:
+            /export snapshot  — export all memories to data/snapshots/
+        """
+        lower = user_input.strip().lower()
+
+        if lower.startswith("/export snapshot") or lower == "/export":
+            try:
+                from modules.grimoire.snapshot_exporter import SnapshotExporter
+            except ImportError:
+                return "SnapshotExporter module not available."
+
+            # Get the Grimoire instance from the registry
+            grimoire_module = self.registry.get_module("grimoire")
+            if grimoire_module is None or grimoire_module.status != ModuleStatus.ONLINE:
+                return "Grimoire module is not online. Cannot export."
+
+            grimoire = grimoire_module._grimoire
+            if grimoire is None:
+                return "Grimoire instance not initialized. Cannot export."
+
+            exporter = SnapshotExporter(grimoire)
+            output_dir = str(Path("data/snapshots"))
+            try:
+                result = exporter.export_for_project_knowledge(output_dir)
+                lines = [
+                    f"**Snapshot Export Complete**",
+                    f"  Files created: {len(result['files_created'])}",
+                    f"  Total entries: {result['total_entries']}",
+                    f"  Total size: {result['total_size_bytes']:,} bytes",
+                    "",
+                    "**Files:**",
+                ]
+                for f in result["files_created"]:
+                    lines.append(f"  - {f}")
+                return "\n".join(lines)
+            except Exception as e:
+                logger.error("Export failed: %s", e)
+                return f"Export failed: {e}"
+
+        return (
+            "Unknown /export command. Available:\n"
+            "  /export snapshot  — export Grimoire memories to data/snapshots/"
         )
 
     # --- Step 3: Load Context ---
