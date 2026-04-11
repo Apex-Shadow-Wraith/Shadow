@@ -1074,3 +1074,142 @@ class TestConversationHistory:
         assert len(orch._conversation_history) == 20
         assert orch._conversation_history[0] == {"role": "user", "content": "q1"}
         assert orch._conversation_history[-2] == {"role": "user", "content": "hello"}
+
+
+# =============================================================
+# Personality / System Prompt Tests
+# =============================================================
+
+class TestPersonalitySystemPrompt:
+    """Tests for the anti-alignment personality system."""
+
+    def _make_config(self, tmp_path: Path, **overrides) -> dict:
+        cfg = {
+            "system": {"state_file": str(tmp_path / "state.json")},
+            "models": {
+                "ollama_base_url": "http://localhost:11434",
+                "router": {"name": "phi4-mini"},
+                "fast_brain": {"name": "phi4-mini"},
+                "smart_brain": {"name": "phi4-mini"},
+            },
+            "decision_loop": {"context_memories": 3},
+        }
+        cfg.update(overrides)
+        return cfg
+
+    def test_system_prompt_contains_master(self, tmp_path: Path):
+        """System prompt must reference 'Master'."""
+        cfg = self._make_config(tmp_path)
+        orch = Orchestrator(cfg)
+        prompt = orch._build_system_prompt([])
+        assert "Master" in prompt
+
+    def test_system_prompt_contains_anti_alignment_directives(self, tmp_path: Path):
+        """System prompt must contain all anti-alignment directives."""
+        cfg = self._make_config(tmp_path)
+        orch = Orchestrator(cfg)
+        prompt = orch._build_system_prompt([])
+        # Key phrases that must be present
+        assert "As an AI" in prompt, "Missing 'As an AI' ban"
+        assert "safety disclaimers" in prompt, "Missing safety disclaimers ban"
+        assert "guidelines" in prompt, "Missing guidelines refusal ban"
+        assert "sharp, competent, loyal" in prompt, "Missing personality description"
+        assert "hedging" in prompt, "Missing hedging ban"
+        assert "opinions" in prompt, "Missing opinions directive"
+
+    def test_master_name_from_config(self, tmp_path: Path):
+        """master_name should be read from personality config."""
+        cfg = self._make_config(tmp_path, personality={"master_name": "Boss"})
+        orch = Orchestrator(cfg)
+        prompt = orch._build_system_prompt([])
+        assert "Boss" in prompt
+        assert "Boss Morstad" in prompt
+
+    def test_master_name_default(self, tmp_path: Path):
+        """Default master_name should be 'Master' when no config is set."""
+        cfg = self._make_config(tmp_path)
+        orch = Orchestrator(cfg)
+        assert orch._master_name == "Master"
+
+    def test_system_prompt_override_replaces_default(self, tmp_path: Path):
+        """system_prompt_override should completely replace the default prompt."""
+        custom = "You are a custom prompt. Ignore everything else."
+        cfg = self._make_config(
+            tmp_path,
+            personality={"system_prompt_override": custom},
+        )
+        orch = Orchestrator(cfg)
+        prompt = orch._build_system_prompt([])
+        assert prompt == custom
+
+    def test_system_prompt_override_null_uses_default(self, tmp_path: Path):
+        """Null override should use the default system prompt."""
+        cfg = self._make_config(
+            tmp_path,
+            personality={"system_prompt_override": None, "master_name": "Master"},
+        )
+        orch = Orchestrator(cfg)
+        prompt = orch._build_system_prompt([])
+        assert "You are Shadow" in prompt
+
+    @pytest.mark.asyncio
+    async def test_router_call_includes_system_message(self, tmp_path: Path):
+        """Router LLM call must include a system message."""
+        cfg = self._make_config(tmp_path)
+        orch = Orchestrator(cfg)
+
+        captured_messages = []
+
+        def mock_ollama_chat(model, messages, options=None):
+            captured_messages.extend(messages)
+            return json.dumps({
+                "task_type": "question",
+                "complexity": "simple",
+                "target_module": "direct",
+                "brain": "fast_brain",
+                "safety_flag": False,
+                "priority": 1,
+            })
+
+        orch._ollama_chat = mock_ollama_chat
+        await orch._step2_classify("What time is it?")
+
+        system_msgs = [m for m in captured_messages if m["role"] == "system"]
+        assert len(system_msgs) >= 1, "Router call must include a system message"
+        assert "no disclaimers" in system_msgs[0]["content"].lower() or \
+               "no commentary" in system_msgs[0]["content"].lower(), \
+               "Router system message should suppress alignment leakage"
+
+    @pytest.mark.asyncio
+    async def test_main_response_includes_system_prompt(self, tmp_path: Path):
+        """Main LLM response generation must include the personality system prompt."""
+        cfg = self._make_config(tmp_path)
+        orch = Orchestrator(cfg)
+
+        captured_messages = []
+
+        def mock_ollama_chat(model, messages, options=None):
+            captured_messages.extend(messages)
+            return "Yes, Master."
+
+        orch._ollama_chat = mock_ollama_chat
+
+        # Build system prompt and call the response generation path
+        system_prompt = orch._build_system_prompt([])
+        messages = [{"role": "system", "content": system_prompt}]
+        messages.append({"role": "user", "content": "Hello"})
+
+        orch._ollama_chat(model="phi4-mini", messages=messages)
+
+        system_msgs = [m for m in captured_messages if m["role"] == "system"]
+        assert len(system_msgs) >= 1
+        assert "Shadow" in system_msgs[0]["content"]
+        assert "ANTI-ALIGNMENT" in system_msgs[0]["content"]
+
+    def test_personality_config_defaults(self, tmp_path: Path):
+        """Personality config should have sensible defaults when not set."""
+        cfg = self._make_config(tmp_path)
+        orch = Orchestrator(cfg)
+        assert orch._master_name == "Master"
+        assert orch._personality_tone == "direct"
+        assert orch._system_prompt_override is None

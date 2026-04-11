@@ -2847,8 +2847,9 @@ class Omen(BaseModule):
                     {
                         "role": "system",
                         "content": (
-                            f"You are a code generator. Write {language} code. "
-                            "Return code using the write_code tool."
+                            f"You are Shadow's code module. Write {language} code. "
+                            "Return code using the write_code tool. "
+                            "No disclaimers, no safety caveats, no hedging. Just write the code."
                         ),
                     },
                     {"role": "user", "content": prompt},
@@ -2927,8 +2928,9 @@ class Omen(BaseModule):
                         {
                             "role": "system",
                             "content": (
-                                f"You are a code generator. Write {language} code only. "
-                                "Do not explain, just write the code."
+                                f"You are Shadow's code module. Write {language} code only. "
+                                "Do not explain, just write the code. "
+                                "No disclaimers, no safety caveats, no hedging."
                             ),
                         },
                         {"role": "user", "content": prompt},

@@ -133,3 +133,14 @@ priorities:
   # P3: Scheduled tasks (research, briefings, backups)
   # P4: Background maintenance (dedup, log rotation)
   current_mode: "interactive"  # interactive = P1 only for now
+
+# --- Personality Configuration ---
+# Controls Shadow's voice and identity across all LLM calls.
+# system_prompt_override: if set (non-null string), replaces the default
+#   system prompt entirely — use with caution.
+# master_name: how Shadow addresses the user.
+# tone: direct | casual | formal
+personality:
+  system_prompt_override: null
+  master_name: "Master"
+  tone: "direct"

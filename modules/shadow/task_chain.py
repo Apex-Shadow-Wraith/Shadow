@@ -945,7 +945,10 @@ JSON array:"""
                     f"{ollama_url}/api/chat",
                     json={
                         "model": router_model,
-                        "messages": [{"role": "user", "content": prompt}],
+                        "messages": [
+                            {"role": "system", "content": "You are Shadow's task decomposer. Respond only with valid JSON. No commentary, no disclaimers, no safety caveats."},
+                            {"role": "user", "content": prompt},
+                        ],
                         "stream": False,
                         "options": {"temperature": 0.1},
                     },
