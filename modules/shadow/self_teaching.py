@@ -229,7 +229,8 @@ class SelfTeacher:
                     if ids:
                         return list(ids)
             except Exception as e:
-                logger.debug("TeachingExtractor store failed, falling back to Grimoire: %s", e)
+                logger.warning("TeachingExtractor store failed, falling back to Grimoire: %s: %s",
+                           type(e).__name__, e)
 
         # Direct Grimoire storage
         if self._grimoire is None:
@@ -257,7 +258,8 @@ class SelfTeacher:
                 if doc_id:
                     stored_ids.append(doc_id)
             except Exception as e:
-                logger.debug("Grimoire store failed for tier '%s': %s", tier_name, e)
+                logger.error("Grimoire store failed for tier '%s': %s: %s",
+                             tier_name, type(e).__name__, e)
 
         return stored_ids
 
@@ -283,13 +285,13 @@ class SelfTeacher:
         try:
             teaching = self.generate_teaching(task, solution, reasoning_steps)
         except Exception as e:
-            logger.debug("Self-teaching generation failed (non-critical): %s", e)
+            logger.warning("Self-teaching generation failed: %s: %s", type(e).__name__, e)
             return None
 
         try:
             teaching["stored_ids"] = self.store_teaching(teaching)
         except Exception as e:
-            logger.debug("Self-teaching storage failed (non-critical): %s", e)
+            logger.warning("Self-teaching storage failed: %s: %s", type(e).__name__, e)
             teaching["stored_ids"] = []
 
         return teaching

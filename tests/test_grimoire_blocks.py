@@ -367,3 +367,71 @@ class TestEdgeCases:
         for block_type in all_types:
             results = grimoire.memory_block_search(block_type)
             assert len(results) >= 1, f"Block type '{block_type}' not found in search"
+
+
+# ---------------------------------------------------------------------------
+# Test: remember() actually increases DB count (Session 34 bug fix)
+# ---------------------------------------------------------------------------
+
+class TestRememberDBCount:
+    def test_remember_increases_chromadb_count(self, grimoire):
+        """remember() must increase ChromaDB collection count by 1."""
+        with patch.object(grimoire, '_get_embedding', side_effect=_fake_embedding):
+            before = grimoire.collection.count()
+            grimoire.remember(
+                content="Test memory for DB count verification",
+                source=SOURCE_CONVERSATION,
+                category="testing",
+                check_duplicates=False,
+            )
+            after = grimoire.collection.count()
+
+        assert after == before + 1, (
+            f"ChromaDB count did not increase: before={before}, after={after}"
+        )
+
+    def test_remember_increases_sqlite_count(self, grimoire):
+        """remember() must insert exactly one row into SQLite memories table."""
+        with patch.object(grimoire, '_get_embedding', side_effect=_fake_embedding):
+            cursor = grimoire.conn.cursor()
+            cursor.execute("SELECT COUNT(*) as cnt FROM memories")
+            before = cursor.fetchone()["cnt"]
+
+            grimoire.remember(
+                content="Test memory for SQLite count verification",
+                source=SOURCE_CONVERSATION,
+                category="testing",
+                check_duplicates=False,
+            )
+
+            cursor.execute("SELECT COUNT(*) as cnt FROM memories")
+            after = cursor.fetchone()["cnt"]
+
+        assert after == before + 1, (
+            f"SQLite count did not increase: before={before}, after={after}"
+        )
+
+    def test_remember_returns_valid_uuid(self, grimoire):
+        """remember() must return a valid UUID string."""
+        import uuid as uuid_mod
+        with patch.object(grimoire, '_get_embedding', side_effect=_fake_embedding):
+            memory_id = grimoire.remember(
+                content="Test memory for UUID validation",
+                source=SOURCE_CONVERSATION,
+                check_duplicates=False,
+            )
+
+        # Should not raise ValueError
+        parsed = uuid_mod.UUID(memory_id)
+        assert str(parsed) == memory_id
+
+    def test_remember_embedding_failure_raises(self, grimoire):
+        """remember() must propagate embedding errors, not swallow them."""
+        with patch.object(grimoire, '_get_embedding',
+                          side_effect=RuntimeError("Ollama not running")):
+            with pytest.raises(RuntimeError, match="Ollama not running"):
+                grimoire.remember(
+                    content="This should fail",
+                    source=SOURCE_CONVERSATION,
+                    check_duplicates=False,
+                )

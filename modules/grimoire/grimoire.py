@@ -36,6 +36,7 @@ Module: Grimoire (Module #4 in Shadow's architecture)
 
 from __future__ import annotations
 
+import logging
 import sqlite3                  # Built-in Python database — no install needed
 import json                     # For converting Python dicts to/from JSON strings
 import uuid                     # Generates unique IDs for each memory
@@ -43,6 +44,8 @@ from datetime import datetime   # Timestamps for everything
 from pathlib import Path        # Cross-platform file paths (Windows + Linux)
 import requests                 # HTTP calls to Ollama API (pip install requests)
 import chromadb                 # Vector database for semantic search (pip install chromadb)
+
+logger = logging.getLogger("grimoire")
 
 
 # =============================================================================
@@ -392,6 +395,9 @@ class Grimoire:
         # Truncate to ~2000 chars — embeddings don't need full content
         truncated = text[:2000]
 
+        logger.debug("Embedding request: model=%s, input_len=%d, truncated_len=%d",
+                      self.embed_model, len(text), len(truncated))
+
         max_retries = 3
         for attempt in range(max_retries):
             try:
@@ -404,20 +410,36 @@ class Grimoire:
                     timeout=30
                 )
                 response.raise_for_status()
-                return response.json()["embedding"]
+                result = response.json()
+                if "embedding" not in result:
+                    raise RuntimeError(
+                        f"[Grimoire] Ollama returned no 'embedding' key. "
+                        f"Response keys: {list(result.keys())}"
+                    )
+                return result["embedding"]
 
             except requests.ConnectionError:
+                logger.error("Embedding FAILED: cannot connect to Ollama at %s "
+                             "(model=%s, input_len=%d)",
+                             self.ollama_url, self.embed_model, len(truncated))
                 raise ConnectionError(
                     "[Grimoire] Cannot connect to Ollama at "
                     f"{self.ollama_url}. Is Ollama running? "
                     "Start it with: ollama serve"
                 )
             except requests.HTTPError as e:
+                logger.warning("Embedding HTTP error (attempt %d/%d): %s "
+                               "(model=%s, input_len=%d)",
+                               attempt + 1, max_retries, e,
+                               self.embed_model, len(truncated))
                 if attempt < max_retries - 1:
                     wait = 2 * (attempt + 1)
                     print(f"[Grimoire] Embedding retry {attempt + 1}/{max_retries} in {wait}s...")
                     time.sleep(wait)
                 else:
+                    logger.error("Embedding FAILED after %d attempts: %s "
+                                 "(model=%s, input_len=%d)",
+                                 max_retries, e, self.embed_model, len(truncated))
                     raise RuntimeError(
                         f"[Grimoire] Embedding failed after {max_retries} attempts: {e}. "
                         f"Is '{self.embed_model}' pulled? "
@@ -481,10 +503,29 @@ class Grimoire:
                 tags=["gpu", "rtx-5090", "vram", "hardware-build"]
             )
         """
+        try:
+            return self._remember_impl(
+                content=content, source=source, source_module=source_module,
+                category=category, trust_level=trust_level, confidence=confidence,
+                tags=tags, metadata=metadata, parent_id=parent_id,
+                model_used=model_used, tools_called=tools_called,
+                safety_class=safety_class, user_feedback=user_feedback,
+                check_duplicates=check_duplicates, content_blocks=content_blocks,
+            )
+        except Exception as e:
+            logger.error("Grimoire storage FAILED: %s: %s", type(e).__name__, e)
+            logger.error("Input was: %s", str(content)[:200])
+            raise
+
+    def _remember_impl(self, content, source, source_module, category,
+                       trust_level, confidence, tags, metadata, parent_id,
+                       model_used, tools_called, safety_class, user_feedback,
+                       check_duplicates, content_blocks):
+        """Internal implementation of remember() — separated for error logging."""
         # Generate a unique ID for this memory
         # UUID4 = random, virtually impossible to collide
         memory_id = str(uuid.uuid4())
-        
+
         # Timestamp in ISO 8601 format (works everywhere, sorts correctly)
         now = datetime.now().isoformat()
 

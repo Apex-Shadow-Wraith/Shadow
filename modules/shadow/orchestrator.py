@@ -954,6 +954,36 @@ class Orchestrator:
                     # User declined or moved on
                     self._pending_escalation = None
 
+            # Step 1.96 — Fatigue reset command
+            _lower_input = user_input.strip().lower()
+            if _lower_input in ("/reset fatigue", "/clear fatigue"):
+                if self._retry_engine is not None:
+                    self._retry_engine.reset_fatigue()
+                if self._operational_state is not None:
+                    try:
+                        current = self._operational_state.get_current_state()
+                        from modules.shadow.operational_state import (
+                            StateSnapshot, _compute_health,
+                        )
+                        snapshot = StateSnapshot(
+                            timestamp=time.time(),
+                            frustration=current.frustration,
+                            confidence_momentum=current.confidence_momentum,
+                            curiosity=current.curiosity,
+                            fatigue=0.0,
+                            overall_health=_compute_health(
+                                current.frustration, 0.0,
+                                current.confidence_momentum, current.curiosity,
+                            ),
+                        )
+                        self._operational_state._save_snapshot(
+                            snapshot, event_type="fatigue_reset"
+                        )
+                    except Exception as e:
+                        logger.debug("Fatigue reset state update failed: %s", e)
+                self._save_state()
+                return "Fatigue counter reset."
+
             # Step 2 — Classify & Route
             classification = await self._step2_classify(user_input)
 
@@ -2557,6 +2587,24 @@ User input: {user_input}"""
         """
         async def execute_fn(task: str, strategy_context: dict) -> dict:
             """Execute one attempt using the plan + evaluate pipeline."""
+            # Check tool_loader before executing — empty means infrastructure failure
+            tool_loader_empty = False
+            if hasattr(self, '_tool_loader') and self._tool_loader is not None:
+                tools = self._tool_loader.get_tools_for_task(
+                    module_name=getattr(classification, "target_module", None),
+                )
+                if not tools:
+                    tool_loader_empty = True
+                    logger.warning(
+                        "Tool loader empty — infrastructure issue, not model failure"
+                    )
+                    return {
+                        "response": "",
+                        "results": [],
+                        "tool_loader_empty": True,
+                        "infrastructure_error": True,
+                    }
+
             results = await self._step5_execute(plan, classification)
             response = await self._step6_evaluate(
                 task, classification, results, context
@@ -2576,6 +2624,14 @@ User input: {user_input}"""
             Confidence scoring (Step 6.5) handles quality refinement after
             the retry engine returns a successful result.
             """
+            # Infrastructure failure — signal immediately, don't penalize model
+            if result.get("tool_loader_empty"):
+                return {
+                    "success": False,
+                    "confidence": 0.0,
+                    "reason": "Tool loader empty — infrastructure issue",
+                }
+
             response = result.get("response", "")
             tool_results = result.get("results", [])
 
