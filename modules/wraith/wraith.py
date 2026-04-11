@@ -20,9 +20,10 @@ import logging
 import sqlite3
 import time
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from modules.base import BaseModule, ModuleStatus, ToolResult
 
@@ -352,6 +353,17 @@ class Wraith(BaseModule):
             self._config.get("temporal_db", "data/wraith_temporal.db")
         )
         self._neglect_detector = NeglectDetector()
+        # Timezone for user-facing time displays
+        tz_name = self._config.get("timezone", "America/Chicago")
+        try:
+            self._tz = ZoneInfo(tz_name)
+        except (KeyError, Exception):
+            logger.warning("Invalid timezone '%s', falling back to America/Chicago", tz_name)
+            self._tz = ZoneInfo("America/Chicago")
+
+    def _now(self) -> datetime:
+        """Return current time in the configured timezone."""
+        return datetime.now(tz=self._tz)
 
     async def initialize(self) -> None:
         """Start Wraith. Load persisted reminders."""
@@ -589,7 +601,7 @@ class Wraith(BaseModule):
             )
 
         # Determine due_time from delay_minutes or explicit due_time
-        now = datetime.now()
+        now = self._now()
         delay_minutes = params.get("delay_minutes")
         due_time_str = params.get("due_time")
 
@@ -722,7 +734,7 @@ class Wraith(BaseModule):
         # Escalating re-surface schedule
         dismiss_count = reminder["dismiss_count"]
         days = self.DISMISS_SCHEDULE.get(dismiss_count, self.DEFAULT_RESURFACE_DAYS)
-        next_surface = datetime.now() + timedelta(days=days)
+        next_surface = self._now() + timedelta(days=days)
 
         reminder["dismiss_count"] = dismiss_count + 1
         reminder["next_surface"] = next_surface.isoformat()
@@ -842,7 +854,7 @@ class Wraith(BaseModule):
         Args:
             params: No required parameters.
         """
-        now = datetime.now()
+        now = self._now()
         due_reminders = []
 
         for reminder in self._active_reminders:
@@ -903,7 +915,7 @@ class Wraith(BaseModule):
             "type": "user_question",
             "question": question,
             "options": options,
-            "created_at": datetime.now().isoformat(),
+            "created_at": self._now().isoformat(),
         }
 
         return ToolResult(
@@ -954,7 +966,7 @@ class Wraith(BaseModule):
             content={
                 "patterns": patterns,
                 "count": len(patterns),
-                "checked_at": datetime.now().isoformat(),
+                "checked_at": self._now().isoformat(),
             },
             tool_name="temporal_patterns",
             module=self.name,
@@ -981,7 +993,7 @@ class Wraith(BaseModule):
                 "neglected_items": items,
                 "count": len(items),
                 "report": report,
-                "checked_at": datetime.now().isoformat(),
+                "checked_at": self._now().isoformat(),
             },
             tool_name="neglect_check",
             module=self.name,
@@ -997,7 +1009,7 @@ class Wraith(BaseModule):
             params: Optional 'task_tracker' and 'decision_queue'.
         """
         suggestions: list[dict[str, Any]] = []
-        now = datetime.now()
+        now = self._now()
 
         # Pattern-based suggestions
         patterns = self._temporal_tracker.get_patterns()
@@ -1086,7 +1098,7 @@ class Wraith(BaseModule):
         Returns:
             List of newly fired reminder dicts.
         """
-        now = datetime.now()
+        now = self._now()
         fired: list[dict[str, Any]] = []
 
         for reminder in self._reminders:
@@ -1151,7 +1163,7 @@ class Wraith(BaseModule):
         data = {
             "reminders": self._reminders,
             "next_id": self._next_reminder_id,
-            "saved_at": datetime.now().isoformat(),
+            "saved_at": self._now().isoformat(),
         }
         try:
             with open(self._reminder_file, "w", encoding="utf-8") as f:

@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import time
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -302,6 +303,8 @@ class Orchestrator:
         self._state_file = Path(config["system"].get("state_file", "data/shadow_state.json"))
         self._conversation_history: list[dict[str, str]] = []
         self._max_history = 10  # Keep last 10 turns (user+assistant pairs) in working memory
+        # Pending Apex escalation — stores context when user is asked to confirm
+        self._pending_escalation: dict[str, Any] | None = None
         self._max_response_tokens = config.get("decision_loop", {}).get("max_response_tokens", 2048)
 
         # Task tracker — persistent task management
@@ -572,6 +575,15 @@ class Orchestrator:
             "Shadow online. Modules: %s",
             ", ".join(self.registry.online_modules),
         )
+
+        # Rebuild tool loader index now that modules are ONLINE
+        if self._tool_loader is not None:
+            self._tool_loader.refresh()
+            report = self._tool_loader.get_loading_report()
+            logger.info(
+                "Tool loader index rebuilt: %d tools available",
+                report.get("tools_available", 0),
+            )
 
         # Generate today's growth goals (best-effort)
         if self._growth_engine is not None:
@@ -905,6 +917,42 @@ class Orchestrator:
                             )
                 except Exception as e:
                     logger.warning("Step 1.9 — Proactive check failed: %s", e)
+
+            # Step 1.95 — Check for pending Apex escalation confirmation
+            if self._pending_escalation is not None:
+                affirmatives = {"yes", "yeah", "yep", "y", "sure", "ok", "okay",
+                                "do it", "go ahead", "please", "escalate", "approve"}
+                if user_input.strip().lower() in affirmatives:
+                    logger.info("User confirmed Apex escalation")
+                    escalation_ctx = self._pending_escalation
+                    self._pending_escalation = None
+                    try:
+                        escalation = await self._retry_engine.escalate_to_apex(
+                            session=escalation_ctx["session"],
+                            apex_query_fn=self._apex_query_wrapper(),
+                            apex_teach_fn=self._apex_teach_wrapper(),
+                            grimoire_store_fn=self._grimoire_store_wrapper(),
+                            execute_fn=escalation_ctx["execute_fn"],
+                        )
+                        if escalation.get("success"):
+                            response = escalation.get("answer", "Escalation completed but no answer returned.")
+                        else:
+                            response = f"Escalation failed: {escalation.get('error', 'unknown')}"
+                        await self._step7_log(
+                            escalation_ctx["original_input"],
+                            escalation_ctx["classification"],
+                            response,
+                            loop_start,
+                        )
+                        self._save_state()
+                        return response
+                    except Exception as e:
+                        logger.error("Apex escalation failed: %s", e)
+                        self._pending_escalation = None
+                        return f"Apex escalation failed: {e}"
+                else:
+                    # User declined or moved on
+                    self._pending_escalation = None
 
             # Step 2 — Classify & Route
             classification = await self._step2_classify(user_input)
@@ -1708,11 +1756,21 @@ User input: {user_input}"""
 
         # Cipher — math / financial calculations
         cipher_keywords = {
-            "calculate", "math", "price", "quote", "cost",
-            "estimate", "total", "sum", "multiply", "divide", "percentage",
+            "calculate", "compute", "solve", "math", "equation",
+            "multiply", "divide", "add", "subtract",
+            "sum", "product", "difference", "quotient",
+            "price", "quote", "cost", "estimate", "total", "percentage",
         }
-        if words & cipher_keywords:
-            logger.info("Fast-path keyword → cipher (matched: %s)", words & cipher_keywords)
+        # Detect math symbols: ×, ÷, ², ³, ±, √ and ASCII operators in numeric context
+        _MATH_SYMBOLS = {"×", "÷", "±", "√", "²", "³"}
+        has_math_symbol = bool(set(lower) & _MATH_SYMBOLS)
+        # Detect numeric expressions: digits operator digits (e.g. "347 * 892", "5+3")
+        has_numeric_expr = bool(re.search(
+            r'\d+\s*[+\-*/×÷xX^%]\s*\d+', lower
+        ))
+        if (words & cipher_keywords) or has_math_symbol or has_numeric_expr:
+            logger.info("Fast-path keyword → cipher (keywords=%s, math_symbol=%s, numeric_expr=%s)",
+                        words & cipher_keywords, has_math_symbol, has_numeric_expr)
             return TaskClassification(
                 task_type=TaskType.ANALYSIS,
                 complexity="moderate",
@@ -2383,7 +2441,7 @@ User input: {user_input}"""
         # Exhausted — try decomposition before escalating to Apex
         if retry_result.get("exhausted") and hasattr(self, '_decomposer') and self._decomposer:
             try:
-                decomp_result = self._decomposer.solve_with_decomposition(task, context or "")
+                decomp_result = self._decomposer.solve_with_decomposition(user_input, context or "")
                 if decomp_result.overall_confidence >= 0.6:
                     logger.info(
                         "Decomposition succeeded (confidence=%.3f) — skipping Apex escalation",
@@ -2412,6 +2470,13 @@ User input: {user_input}"""
                 return f"Escalation failed: {escalation.get('error', 'unknown')}"
 
             # Live conversation — offer escalation to user
+            # Store context so we can actually call Apex when user confirms
+            self._pending_escalation = {
+                "session": retry_result,
+                "execute_fn": execute_fn,
+                "original_input": user_input,
+                "classification": classification,
+            }
             attempt_count = len(retry_result.get("attempts", []))
             return (
                 f"I tried {attempt_count} different approaches but couldn't solve this. "
@@ -2811,10 +2876,21 @@ User input: {user_input}"""
                             f"- {d}" for d in docs[:5]
                         )
 
+        # Inject current time in configured timezone
+        try:
+            from zoneinfo import ZoneInfo
+            tz_name = self._config.get("system", {}).get("timezone", "America/Chicago")
+            tz = ZoneInfo(tz_name)
+            current_time = datetime.now(tz=tz).strftime("%I:%M %p %Z on %A, %B %d, %Y")
+        except Exception:
+            current_time = datetime.now().strftime("%I:%M %p on %A, %B %d, %Y")
+
         prompt = f"""You are Shadow. You are an AI agent.
 The person talking to you is Master Morstad (Patrick Morstad). He created you.
 When you say "Master" or "Master Morstad" you are addressing HIM — the human you are talking to.
 You are Shadow. He is Master Morstad. Never confuse these two identities.
+
+Current time: {current_time}
 
 RESPONSE RULES:
 - Be direct and concise. Match your response length to the input length.

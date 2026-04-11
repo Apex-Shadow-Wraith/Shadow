@@ -19,7 +19,7 @@ from modules.apex.apex import Apex
 @pytest.fixture
 def apex(tmp_path: Path) -> Apex:
     """Create an Apex instance with a temp log file."""
-    config = {"log_file": str(tmp_path / "apex_log.json")}
+    config = {"log_file": str(tmp_path / "apex_log.json"), "env_file": ""}
     return Apex(config)
 
 

@@ -13,6 +13,7 @@ system:
   platform: "auto"  # Resolved at runtime via platform.system()
   log_level: "INFO"
   state_file: "data/shadow_state.json"
+  timezone: "America/Chicago"  # Central Time — used for all user-facing time displays
 
 # --- Model Configuration ---
 # Gemma 4 26B for all brains on Windows dev

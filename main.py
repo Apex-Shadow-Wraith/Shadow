@@ -92,7 +92,9 @@ async def startup(config: dict, logger: logging.Logger) -> Orchestrator:
     cerberus = Cerberus(module_configs.get("cerberus", {}))
 
     # --- Operations ---
-    wraith = Wraith(module_configs.get("wraith", {}))
+    wraith_config = dict(module_configs.get("wraith", {}))
+    wraith_config.setdefault("timezone", config.get("system", {}).get("timezone", "America/Chicago"))
+    wraith = Wraith(wraith_config)
     reaper = ReaperModule(module_configs.get("reaper", {}))
     harbinger = Harbinger(module_configs.get("harbinger", {}))
 
