@@ -253,6 +253,31 @@ class Grimoire:
         print(f"[Grimoire] Existing memories: {self.collection.count()}")
         print(f"[Grimoire] Auto-link: {self._auto_link}")
 
+        # ── Initialize Graph Layer (relationship-aware retrieval) ──
+        # GraphLayer is an index layer on top of ChromaDB — never required.
+        # If it fails to load, Grimoire falls back to vector-only mode.
+        try:
+            from modules.grimoire.graph_layer import GraphLayer
+            from modules.grimoire.entity_extractor import EntityExtractor
+            graph_db_path = "data/grimoire_graph.db"
+            try:
+                config_path = Path("config/shadow_config.yaml")
+                if config_path.exists():
+                    with open(config_path, "r") as f:
+                        cfg = yaml.safe_load(f) or {}
+                    graph_db_path = cfg.get("modules", {}).get(
+                        "grimoire", {}
+                    ).get("graph_db_path", graph_db_path)
+            except Exception:
+                pass
+            self._graph = GraphLayer(graph_db_path)
+            self._extractor = EntityExtractor()
+            print(f"[Grimoire] Graph layer: {graph_db_path}")
+        except Exception:
+            self._graph = None
+            self._extractor = None
+            logger.debug("Graph layer not available — vector-only mode")
+
     # =========================================================================
     # DATABASE SCHEMA
     # =========================================================================
@@ -884,6 +909,39 @@ class Grimoire:
             except Exception as e:
                 # Cross-linking failure should never block memory storage
                 logger.warning("Cross-link failed for %s: %s", memory_id[:8], e)
+
+        # ── Step 6: Graph layer extraction ──
+        # Extract entities and relationships from the content and store
+        # them in the graph. Failure here must NEVER break the remember path.
+        if self._graph is not None and self._extractor is not None:
+            try:
+                g_entities, g_rels = self._extractor.extract_from_memory(
+                    content, memory_id, category
+                )
+                for ent in g_entities:
+                    self._graph.add_entity(
+                        name=ent["name"],
+                        entity_type=ent["entity_type"],
+                        source_memory_id=memory_id,
+                        metadata={},
+                    )
+                for rel in g_rels:
+                    self._graph.add_relationship(
+                        source=rel["source"],
+                        target=rel["target"],
+                        relation_type=rel["relation_type"],
+                        confidence=rel["confidence"],
+                        source_memory_id=memory_id,
+                    )
+                if g_entities:
+                    logger.debug(
+                        "Graph: %d entities, %d relationships for %s",
+                        len(g_entities), len(g_rels), memory_id[:8],
+                    )
+            except Exception as e:
+                logger.warning(
+                    "Graph extraction failed for %s: %s", memory_id[:8], e
+                )
 
         return memory_id
 
@@ -1841,6 +1899,145 @@ class Grimoire:
             "entries_expiring_soon": expiring_soon,
         }
 
+    # =========================================================================
+    # GRAPH-ENRICHED RETRIEVAL
+    # =========================================================================
+
+    def recall_graph(self, entity_name, max_depth=2):
+        """Query the knowledge graph for an entity's neighborhood.
+
+        For each connected entity that has a source_memory_id, fetches
+        the full memory content from SQLite.
+
+        Args:
+            entity_name: The entity to start traversal from.
+            max_depth: Maximum hops (default 2).
+
+        Returns:
+            Dict with keys:
+                - graph_path: list of neighbor dicts from GraphLayer
+                - related_memories: list of full memory records
+            Returns empty result if graph layer is not available.
+        """
+        empty = {"graph_path": [], "related_memories": []}
+        if self._graph is None:
+            return empty
+
+        try:
+            neighbors = self._graph.query_neighbors(entity_name, max_depth)
+            if not neighbors:
+                return empty
+
+            # Collect unique memory IDs from graph neighbors
+            memory_ids = set()
+            for n in neighbors:
+                mid = n.get("source_memory_id")
+                if mid:
+                    memory_ids.add(mid)
+
+            # Fetch full memory records from SQLite
+            related = []
+            cursor = self.conn.cursor()
+            for mid in memory_ids:
+                cursor.execute(
+                    "SELECT * FROM memories WHERE id = ? AND is_active = 1",
+                    (mid,)
+                )
+                row = cursor.fetchone()
+                if row:
+                    related.append(dict(row))
+
+            return {
+                "graph_path": neighbors,
+                "related_memories": related,
+            }
+        except Exception as e:
+            logger.warning("recall_graph failed: %s", e)
+            return empty
+
+    def recall_enriched(self, query, n_results=5):
+        """Enriched recall: vector similarity + graph connectivity.
+
+        1. Normal ChromaDB recall for semantic matches
+        2. Extract entities from query text
+        3. For each entity, query graph neighbors (depth=1)
+        4. Merge vector + graph results, deduplicate by memory_id
+
+        Args:
+            query: Natural language query.
+            n_results: Max results for the vector search portion.
+
+        Returns:
+            Dict with keys:
+                - vector_results: list from standard recall()
+                - graph_results: list of graph-connected memories
+                - merged: deduplicated union of both, vector results first
+            Falls back to plain recall if graph is not available.
+        """
+        # Step 1: Standard vector recall
+        vector_results = self.recall(query, n_results=n_results)
+
+        # If no graph layer, just return vector results
+        if self._graph is None or self._extractor is None:
+            return {
+                "vector_results": vector_results,
+                "graph_results": [],
+                "merged": vector_results,
+            }
+
+        # Step 2: Extract entities from the query
+        try:
+            entities = self._extractor.extract_entities(query, "query")
+        except Exception:
+            entities = []
+
+        # Step 3: For each entity, get graph neighbors at depth 1
+        graph_memory_ids = set()
+        graph_neighbors = []
+        for ent in entities:
+            try:
+                neighbors = self._graph.query_neighbors(
+                    ent["name"], max_depth=1
+                )
+                for n in neighbors:
+                    graph_neighbors.append(n)
+                    mid = n.get("source_memory_id")
+                    if mid:
+                        graph_memory_ids.add(mid)
+            except Exception:
+                continue
+
+        # Step 4: Fetch graph-connected memories not already in vector results
+        vector_ids = {r["id"] for r in vector_results}
+        graph_results = []
+        cursor = self.conn.cursor()
+        for mid in graph_memory_ids:
+            if mid in vector_ids:
+                continue
+            cursor.execute(
+                "SELECT * FROM memories WHERE id = ? AND is_active = 1",
+                (mid,)
+            )
+            row = cursor.fetchone()
+            if row:
+                record = dict(row)
+                record["relevance"] = 0.0  # No vector score — graph-connected
+                record["graph_connected"] = True
+                graph_results.append(record)
+
+        # Step 5: Merge — vector results first, then graph additions
+        merged = list(vector_results) + graph_results
+
+        return {
+            "vector_results": vector_results,
+            "graph_results": graph_results,
+            "merged": merged,
+        }
+
+    # =========================================================================
+    # LIFECYCLE
+    # =========================================================================
+
     def close(self):
         """
         Clean shutdown. Always call this when you're done.
@@ -1848,6 +2045,11 @@ class Grimoire:
         SQLite connections should be closed properly to ensure all data
         is flushed to disk. ChromaDB's PersistentClient handles its own cleanup.
         """
+        if self._graph is not None:
+            try:
+                self._graph.close()
+            except Exception:
+                pass
         self.conn.close()
         print("[Grimoire] Shut down cleanly.")
 
