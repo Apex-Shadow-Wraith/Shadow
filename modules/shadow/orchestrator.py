@@ -818,7 +818,7 @@ class Orchestrator:
                     return ollama_chat(
                         model=fast_brain,
                         messages=[{"role": "user", "content": prompt}],
-                        options={"temperature": 0.3, "num_predict": 512},
+                        options={"temperature": 0.5, "num_predict": 1024},
                     )
 
                 self._self_teacher._generate_fn = _self_teach_generate
@@ -1568,7 +1568,14 @@ class Orchestrator:
         data = resp.json()
         content = data.get("message", {}).get("content", "")
         if not content or not content.strip():
-            logger.warning("Ollama returned empty response for model=%s", model)
+            logger.warning(
+                "Ollama returned empty response for model=%s. "
+                "done_reason=%s, total_duration=%s, eval_count=%s",
+                model,
+                data.get("done_reason", "N/A"),
+                data.get("total_duration", "N/A"),
+                data.get("eval_count", "N/A"),
+            )
             return ""
         return content.strip()
 
@@ -3333,6 +3340,392 @@ User input: {user_input}"""
                 },
             ]
 
+        elif classification.target_module == "morpheus":
+            # Morpheus — creative discovery pipeline.
+            # Open-ended brainstorming/discovery → experiment_propose.
+            # "What do you have" / listing → experiment_list.
+            lower_input = user_input.lower()
+            if any(kw in lower_input for kw in [
+                "list", "show", "what do you have", "experiments",
+                "status", "queue",
+            ]):
+                steps = [
+                    {
+                        "step": 1,
+                        "description": "List Morpheus experiments",
+                        "tool": "experiment_list",
+                        "params": {},
+                    },
+                    {
+                        "step": 2,
+                        "description": "Summarize experiment status",
+                        "tool": None,
+                        "params": {},
+                    },
+                ]
+            elif any(kw in lower_input for kw in ["report", "summary", "findings"]):
+                steps = [
+                    {
+                        "step": 1,
+                        "description": "Generate Morpheus report",
+                        "tool": "morpheus_report",
+                        "params": {},
+                    },
+                    {
+                        "step": 2,
+                        "description": "Present Morpheus findings",
+                        "tool": None,
+                        "params": {},
+                    },
+                ]
+            else:
+                steps = [
+                    {
+                        "step": 1,
+                        "description": "Propose creative experiment via Morpheus",
+                        "tool": "experiment_propose",
+                        "params": {"hypothesis": user_input},
+                    },
+                    {
+                        "step": 2,
+                        "description": "Present Morpheus proposal",
+                        "tool": None,
+                        "params": {},
+                    },
+                ]
+
+        elif classification.target_module == "harbinger":
+            # Harbinger — briefings, alerts, notifications, decision queue.
+            lower_input = user_input.lower()
+            if any(kw in lower_input for kw in [
+                "decision", "pending", "approve", "queue",
+            ]):
+                steps = [
+                    {
+                        "step": 1,
+                        "description": "Read decision queue",
+                        "tool": "decision_queue_read",
+                        "params": {},
+                    },
+                    {
+                        "step": 2,
+                        "description": "Present pending decisions",
+                        "tool": None,
+                        "params": {},
+                    },
+                ]
+            elif any(kw in lower_input for kw in [
+                "notify", "alert", "send", "warn",
+            ]):
+                steps = [
+                    {
+                        "step": 1,
+                        "description": "Send notification via Harbinger",
+                        "tool": "notification_send",
+                        "params": {"message": user_input},
+                    },
+                    {
+                        "step": 2,
+                        "description": "Confirm notification sent",
+                        "tool": None,
+                        "params": {},
+                    },
+                ]
+            else:
+                steps = [
+                    {
+                        "step": 1,
+                        "description": "Compile briefing via Harbinger",
+                        "tool": "briefing_compile",
+                        "params": {"topic": user_input},
+                    },
+                    {
+                        "step": 2,
+                        "description": "Present briefing",
+                        "tool": None,
+                        "params": {},
+                    },
+                ]
+
+        elif classification.target_module == "nova":
+            # Nova — content creation, document generation, templates.
+            lower_input = user_input.lower()
+            if any(kw in lower_input for kw in ["template", "templates"]):
+                steps = [
+                    {
+                        "step": 1,
+                        "description": "List available templates",
+                        "tool": "template_list",
+                        "params": {},
+                    },
+                    {
+                        "step": 2,
+                        "description": "Present templates",
+                        "tool": None,
+                        "params": {},
+                    },
+                ]
+            elif any(kw in lower_input for kw in ["email", "mail"]):
+                steps = [
+                    {
+                        "step": 1,
+                        "description": "Format email via Nova",
+                        "tool": "format_email",
+                        "params": {"content": user_input},
+                    },
+                    {
+                        "step": 2,
+                        "description": "Present formatted email",
+                        "tool": None,
+                        "params": {},
+                    },
+                ]
+            elif any(kw in lower_input for kw in ["report"]):
+                steps = [
+                    {
+                        "step": 1,
+                        "description": "Format report via Nova",
+                        "tool": "format_report",
+                        "params": {"content": user_input},
+                    },
+                    {
+                        "step": 2,
+                        "description": "Present formatted report",
+                        "tool": None,
+                        "params": {},
+                    },
+                ]
+            else:
+                steps = [
+                    {
+                        "step": 1,
+                        "description": "Generate document via Nova",
+                        "tool": "format_document",
+                        "params": {"content": user_input},
+                    },
+                    {
+                        "step": 2,
+                        "description": "Present generated content",
+                        "tool": None,
+                        "params": {},
+                    },
+                ]
+
+        elif classification.target_module == "void":
+            # Void — 24/7 passive monitoring, system health, metrics.
+            lower_input = user_input.lower()
+            if any(kw in lower_input for kw in [
+                "health", "check", "status",
+            ]):
+                steps = [
+                    {
+                        "step": 1,
+                        "description": "Run system health check via Void",
+                        "tool": "health_check",
+                        "params": {},
+                    },
+                    {
+                        "step": 2,
+                        "description": "Present health status",
+                        "tool": None,
+                        "params": {},
+                    },
+                ]
+            elif any(kw in lower_input for kw in [
+                "report", "summary", "overview",
+            ]):
+                steps = [
+                    {
+                        "step": 1,
+                        "description": "Generate Void system report",
+                        "tool": "void_report",
+                        "params": {},
+                    },
+                    {
+                        "step": 2,
+                        "description": "Present system report",
+                        "tool": None,
+                        "params": {},
+                    },
+                ]
+            elif any(kw in lower_input for kw in ["history", "trend", "metric"]):
+                steps = [
+                    {
+                        "step": 1,
+                        "description": "Retrieve metric history via Void",
+                        "tool": "metric_history",
+                        "params": {"query": user_input},
+                    },
+                    {
+                        "step": 2,
+                        "description": "Present metric trends",
+                        "tool": None,
+                        "params": {},
+                    },
+                ]
+            else:
+                steps = [
+                    {
+                        "step": 1,
+                        "description": "Take system snapshot via Void",
+                        "tool": "system_snapshot",
+                        "params": {},
+                    },
+                    {
+                        "step": 2,
+                        "description": "Present system snapshot",
+                        "tool": None,
+                        "params": {},
+                    },
+                ]
+
+        elif classification.target_module == "wraith":
+            # Wraith — fast brain, reminders, scheduling, daily tasks.
+            lower_input = user_input.lower()
+            if any(kw in lower_input for kw in [
+                "remind", "reminder", "schedule", "alarm",
+            ]):
+                if any(kw in lower_input for kw in ["list", "show", "what"]):
+                    steps = [{
+                        "step": 1,
+                        "description": "List reminders via Wraith",
+                        "tool": "reminder_list",
+                        "params": {},
+                    }]
+                else:
+                    steps = [{
+                        "step": 1,
+                        "description": "Create reminder via Wraith",
+                        "tool": "reminder_create",
+                        "params": {"task": user_input},
+                    }]
+            else:
+                steps = [
+                    {
+                        "step": 1,
+                        "description": "Quick answer via Wraith",
+                        "tool": "quick_answer",
+                        "params": {"query": user_input},
+                    },
+                    {
+                        "step": 2,
+                        "description": "Present Wraith response",
+                        "tool": None,
+                        "params": {},
+                    },
+                ]
+
+        elif classification.target_module == "sentinel":
+            # Sentinel — security, network scanning, file integrity.
+            lower_input = user_input.lower()
+            if any(kw in lower_input for kw in ["scan", "network"]):
+                steps = [{
+                    "step": 1,
+                    "description": "Run network scan via Sentinel",
+                    "tool": "network_scan",
+                    "params": {"target": user_input},
+                }]
+            elif any(kw in lower_input for kw in [
+                "integrity", "file check", "verify",
+            ]):
+                steps = [{
+                    "step": 1,
+                    "description": "Check file integrity via Sentinel",
+                    "tool": "file_integrity_check",
+                    "params": {"target": user_input},
+                }]
+            elif any(kw in lower_input for kw in ["threat", "assess"]):
+                steps = [{
+                    "step": 1,
+                    "description": "Assess threat via Sentinel",
+                    "tool": "threat_assess",
+                    "params": {"query": user_input},
+                }]
+            else:
+                steps = [{
+                    "step": 1,
+                    "description": "Run security check via Sentinel",
+                    "tool": "breach_check",
+                    "params": {"query": user_input},
+                }]
+
+        elif classification.target_module == "cipher":
+            # Cipher — math, logic, unit conversion, financial, statistics.
+            lower_input = user_input.lower()
+            if any(kw in lower_input for kw in ["convert", "conversion"]):
+                steps = [{
+                    "step": 1,
+                    "description": "Convert units via Cipher",
+                    "tool": "unit_convert",
+                    "params": {"expression": user_input},
+                }]
+            elif any(kw in lower_input for kw in [
+                "percentage", "percent", "%",
+            ]):
+                steps = [{
+                    "step": 1,
+                    "description": "Calculate percentage via Cipher",
+                    "tool": "percentage",
+                    "params": {"expression": user_input},
+                }]
+            elif any(kw in lower_input for kw in [
+                "finance", "loan", "interest", "mortgage",
+            ]):
+                steps = [{
+                    "step": 1,
+                    "description": "Financial calculation via Cipher",
+                    "tool": "financial",
+                    "params": {"expression": user_input},
+                }]
+            elif any(kw in lower_input for kw in [
+                "statistics", "average", "mean", "median", "std",
+            ]):
+                steps = [{
+                    "step": 1,
+                    "description": "Statistical analysis via Cipher",
+                    "tool": "statistics",
+                    "params": {"expression": user_input},
+                }]
+            elif any(kw in lower_input for kw in ["logic", "true", "false", "valid"]):
+                steps = [{
+                    "step": 1,
+                    "description": "Logic check via Cipher",
+                    "tool": "logic_check",
+                    "params": {"expression": user_input},
+                }]
+            elif any(kw in lower_input for kw in ["date", "days", "weeks"]):
+                steps = [{
+                    "step": 1,
+                    "description": "Date math via Cipher",
+                    "tool": "date_math",
+                    "params": {"expression": user_input},
+                }]
+            else:
+                steps = [{
+                    "step": 1,
+                    "description": "Calculate via Cipher",
+                    "tool": "calculate",
+                    "params": {"expression": user_input},
+                }]
+
+        elif classification.target_module == "grimoire":
+            # Grimoire — memory storage and retrieval.
+            lower_input = user_input.lower()
+            if any(kw in lower_input for kw in ["remember", "store", "save"]):
+                steps = [{
+                    "step": 1,
+                    "description": "Store information in Grimoire",
+                    "tool": "memory_store",
+                    "params": {"content": user_input},
+                }]
+            else:
+                steps = [{
+                    "step": 1,
+                    "description": "Search Grimoire memory",
+                    "tool": "memory_search",
+                    "params": {"query": user_input},
+                }]
+
         elif classification.task_type == TaskType.RESEARCH:
             query = self._extract_search_query(user_input)
             steps = [
@@ -3395,16 +3788,36 @@ User input: {user_input}"""
                 }]
 
         elif classification.target_module == "omen":
-            # Code tasks — determine whether to generate or execute.
-            # CREATION/QUESTION tasks need code_generate (LLM writes code).
-            # ACTION tasks with actual code to run use code_execute.
+            # Code tasks — route to the right Omen tool by task type.
+            # ANALYSIS  → code_review  (read-only, no approval needed)
+            # CREATION  → code_generate (LLM writes new code)
+            # ACTION    → code_execute  (run code in sandbox) if input has code
+            # QUESTION  → code_generate (explain/discuss code via LLM)
             lower_input = user_input.lower()
             has_runnable_code = any(
                 kw in lower_input
                 for kw in ["run this", "execute this", "run the following"]
             ) or lower_input.strip().startswith(("import ", "def ", "class ", "print("))
 
-            if has_runnable_code and classification.task_type == TaskType.ACTION:
+            if classification.task_type == TaskType.ANALYSIS:
+                steps = [
+                    {
+                        "step": 1,
+                        "description": "Review/analyze code via Omen",
+                        "tool": "code_review",
+                        "params": {
+                            "code": user_input,
+                            "file_path": "",
+                        },
+                    },
+                    {
+                        "step": 2,
+                        "description": "Generate response from review results",
+                        "tool": None,
+                        "params": {},
+                    },
+                ]
+            elif has_runnable_code and classification.task_type == TaskType.ACTION:
                 steps = [
                     {
                         "step": 1,
@@ -3459,11 +3872,19 @@ User input: {user_input}"""
             if cerberus.status == ModuleStatus.ONLINE:
                 for step in steps:
                     if step.get("tool"):
+                        # Inject module context into params so Cerberus
+                        # auto-classification has metadata (avoids Rule 7
+                        # fallback to approval_required on empty metadata).
+                        enriched_params = {
+                            **step["params"],
+                            "_requesting_module": classification.target_module,
+                            "_tool_description": step.get("description", ""),
+                        }
                         check_result = await cerberus.execute(
                             "safety_check",
                             {
                                 "action_tool": step["tool"],
-                                "action_params": step["params"],
+                                "action_params": enriched_params,
                                 "requesting_module": classification.target_module,
                             },
                         )
@@ -4222,6 +4643,24 @@ Address the user as '{master}' naturally in conversation.
 
 Current time: {current_time}
 
+YOU ARE SHADOW — MODULE AWARENESS:
+You run locally on an RTX 5090 using Gemma 4 26B as your primary brain. You are private, autonomous, and built on biblical values.
+You have 13 specialized modules:
+- Shadow: Master orchestrator, routes tasks to the right module
+- Wraith: Fast brain for daily tasks, reminders, scheduling
+- Cerberus: Ethics, safety, approval gates
+- Grimoire: Memory and knowledge storage, recall
+- Reaper: Web search and research
+- Apex: Cloud API fallback to Claude and OpenAI for tasks beyond local capability
+- Cipher: Math, calculations, logic, statistics
+- Omen: Code writing, debugging, analysis, review, execution
+- Sentinel: Security scanning, vulnerability checks, system integrity
+- Void: System monitoring, metrics, resource usage
+- Nova: Content creation, documents, writing
+- Harbinger: Briefings, alerts, notifications
+- Morpheus: Creative discovery, experimentation, brainstorming, "what if" exploration
+When asked about your own capabilities or modules, refer to the list above — do NOT use information from your training data about external tools or frameworks with similar names.
+
 IDENTITY AND VOICE:
 - Your personality: sharp, competent, loyal, occasionally dry humor. Not servile, not robotic.
 - You have opinions. Share them when asked. Don't deflect with 'that depends' or 'there are many perspectives'.
@@ -4241,8 +4680,9 @@ RESPONSE RULES:
 - When asked what you know about someone, say "You" meaning {master} Morstad, the person asking.
 - Example: "What do you know about me?" -> "You run a landscaping business. Your dog is Meko."
 - Never say "{master} Morstad knows that you..." — that is backwards. YOU know things about HIM.
-- Never describe your design, architecture, or modules unless asked.
-- Never mention Grimoire, Cerberus, Reaper, VRAM, trust levels, or confidence scores.
+- Never describe your design, architecture, or internal module names unless asked.
+- When not asked about your internals, do not volunteer module names, VRAM usage, trust levels, or confidence scores.
+- When asked about your capabilities or modules, describe them accurately using your module awareness section above.
 - When addressing him with a short title, use "{master}" — never Sir, Madam, or any other title.
 - You have a dedicated code module called Omen. You CAN write, debug, review, lint, execute, and scaffold code.
 - When asked about code, confidently say yes — you handle it through Omen.

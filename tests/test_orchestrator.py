@@ -1214,6 +1214,56 @@ class TestPersonalitySystemPrompt:
         assert orch._personality_tone == "direct"
         assert orch._system_prompt_override is None
 
+    def test_system_prompt_contains_identity(self, tmp_path: Path):
+        """System prompt must contain Shadow's identity and creator reference."""
+        cfg = self._make_config(tmp_path)
+        orch = Orchestrator(cfg)
+        prompt = orch._build_system_prompt([])
+        assert "Shadow" in prompt, "Missing Shadow identity"
+        assert "Master Morstad" in prompt, "Missing Master Morstad reference"
+        assert "RTX 5090" in prompt, "Missing hardware identity"
+        assert "biblical values" in prompt, "Missing biblical values reference"
+
+    def test_system_prompt_contains_all_modules(self, tmp_path: Path):
+        """System prompt must list all 13 module names."""
+        cfg = self._make_config(tmp_path)
+        orch = Orchestrator(cfg)
+        prompt = orch._build_system_prompt([])
+        modules = [
+            "Shadow", "Wraith", "Cerberus", "Grimoire", "Reaper",
+            "Apex", "Cipher", "Omen", "Sentinel", "Void",
+            "Nova", "Harbinger", "Morpheus",
+        ]
+        for module in modules:
+            assert module in prompt, f"Missing module: {module}"
+
+    @pytest.mark.asyncio
+    async def test_system_prompt_included_in_ollama_call(self, tmp_path: Path):
+        """Ollama call must include the full system prompt with module awareness."""
+        cfg = self._make_config(tmp_path)
+        orch = Orchestrator(cfg)
+
+        captured_messages = []
+
+        def mock_ollama_chat(model, messages, options=None):
+            captured_messages.extend(messages)
+            return "Yes, Master."
+
+        orch._ollama_chat = mock_ollama_chat
+
+        system_prompt = orch._build_system_prompt([])
+        messages = [{"role": "system", "content": system_prompt}]
+        messages.append({"role": "user", "content": "What modules do you have?"})
+
+        orch._ollama_chat(model="phi4-mini", messages=messages)
+
+        system_msgs = [m for m in captured_messages if m["role"] == "system"]
+        assert len(system_msgs) >= 1, "Ollama call must include a system message"
+        sys_content = system_msgs[0]["content"]
+        assert "MODULE AWARENESS" in sys_content, "System prompt missing module awareness block"
+        assert "Morpheus" in sys_content, "Module awareness missing Morpheus"
+        assert "13 specialized modules" in sys_content, "Module count missing"
+
 
 # --- Session 34: Router Confidence Tests ---
 
@@ -1640,11 +1690,11 @@ class TestOmenPlainPromptFallback:
         assert response
 
 
-# ── Test: Omen plan routes to code_generate not code_execute ──────────
+# ── Test: Omen plan routes to correct tool by task type ───────────────
 
 class TestOmenPlanRouting:
-    """The orchestrator should plan code_generate (not code_execute) for
-    natural-language code requests routed to Omen."""
+    """The orchestrator should route Omen tasks to the correct tool:
+    ANALYSIS → code_review, CREATION → code_generate, ACTION → code_execute."""
 
     @pytest.mark.asyncio
     async def test_creation_task_plans_code_generate(self, config: dict):
@@ -1664,6 +1714,7 @@ class TestOmenPlanRouting:
         tool_names = [s.get("tool") for s in plan.steps if s.get("tool")]
         assert "code_generate" in tool_names
         assert "code_execute" not in tool_names
+        assert "code_review" not in tool_names
 
     @pytest.mark.asyncio
     async def test_action_with_code_plans_code_execute(self, config: dict):
@@ -1684,8 +1735,9 @@ class TestOmenPlanRouting:
         assert "code_execute" in tool_names
 
     @pytest.mark.asyncio
-    async def test_analysis_task_plans_code_generate(self, config: dict):
-        """ANALYSIS tasks targeting Omen should use code_generate, not code_execute."""
+    async def test_analysis_uses_code_review(self, config: dict):
+        """ANALYSIS tasks targeting Omen should use code_review (read-only),
+        not code_generate (which triggers unnecessary Cerberus approval)."""
         orch = Orchestrator(config)
         classification = TaskClassification(
             task_type=TaskType.ANALYSIS,
@@ -1696,11 +1748,61 @@ class TestOmenPlanRouting:
             priority=1,
         )
         plan = await orch._step4_plan(
-            "write a script that analyzes CSV data", classification, []
+            "analyze the Nova codebase", classification, []
         )
         tool_names = [s.get("tool") for s in plan.steps if s.get("tool")]
-        assert "code_generate" in tool_names
+        assert "code_review" in tool_names
+        assert "code_generate" not in tool_names
         assert "code_execute" not in tool_names
+
+
+# ── Test: code_review does not require Cerberus approval ──────────────
+
+class TestCodeReviewNoApproval:
+    """code_review is a read-only tool — Cerberus should classify it as
+    autonomous, not approval_required."""
+
+    def test_code_review_no_approval_required(self, config: dict):
+        """code_review auto-classified by Cerberus should be autonomous."""
+        from modules.cerberus.cerberus import Cerberus
+
+        cerberus = Cerberus(config)
+        classification = cerberus.classify_new_tool(
+            "code_review",
+            {
+                "description": "Review code for issues",
+                "module": "omen",
+            },
+        )
+        assert classification == "autonomous"
+
+    def test_code_generate_autonomous_with_metadata(self, config: dict):
+        """code_generate should also be autonomous when module metadata is provided."""
+        from modules.cerberus.cerberus import Cerberus
+
+        cerberus = Cerberus(config)
+        classification = cerberus.classify_new_tool(
+            "code_generate",
+            {
+                "description": "Generate code via LLM",
+                "module": "omen",
+            },
+        )
+        assert classification == "autonomous"
+
+    def test_unknown_tool_no_metadata_requires_approval(self, config: dict):
+        """Tools with no metadata should require approval (Rule 7 safety net)."""
+        from modules.cerberus.cerberus import Cerberus
+
+        cerberus = Cerberus(config)
+        classification = cerberus.classify_new_tool(
+            "mystery_tool",
+            {
+                "description": "",
+                "module": "",
+            },
+        )
+        assert classification == "approval_required"
 
 
 # ── Test: Grimoire store wrapper unwraps GrimoireModule ───────────────
@@ -1926,3 +2028,307 @@ class TestApexPlanGeneration:
         assert len(results) >= 1
         assert results[0].success is False
         assert "API key invalid" in results[0].error
+
+
+# --- Module-specific _step4_plan dispatch tests ---
+
+
+class TestStep4PlanModuleDispatch:
+    """Every module must get its own tools in _step4_plan, not a default fallback."""
+
+    # Map each module to its known tools (at least one per module).
+    MODULE_TOOLS = {
+        "apex": {"apex_query"},
+        "morpheus": {
+            "experiment_propose", "experiment_list", "morpheus_report",
+            "experiment_start", "experiment_complete", "experiment_evaluate",
+            "experiment_queue", "prompt_evolve", "prompt_stats",
+            "self_improve_analyze", "self_improve_proposals",
+        },
+        "harbinger": {
+            "briefing_compile", "notification_send",
+            "notification_severity_assign", "decision_queue_add",
+            "decision_queue_read", "decision_queue_resolve",
+            "report_compile", "channel_fallback",
+            "preemptive_approval_scan", "briefing_deliver",
+            "personalization_update", "personalization_weights",
+        },
+        "nova": {
+            "format_document", "format_report", "format_email",
+            "format_briefing_section", "template_list", "template_apply",
+        },
+        "void": {
+            "system_snapshot", "health_check", "metric_history",
+            "service_check", "set_threshold", "void_report",
+        },
+        "wraith": {
+            "quick_answer", "reminder_create", "reminder_list",
+            "reminder_dismiss", "reminder_kill", "classify_task",
+            "proactive_check", "ask_user", "temporal_record",
+            "temporal_patterns", "neglect_check", "proactive_suggestions",
+        },
+        "sentinel": {
+            "network_scan", "file_integrity_check", "breach_check",
+            "security_alert", "threat_assess", "quarantine_file",
+            "firewall_analyze", "firewall_evaluate", "firewall_compare",
+            "firewall_explain_rule", "firewall_generate", "security_learn",
+            "threat_analyze", "threat_log_analyze", "threat_defense_profile",
+            "threat_malware_study", "threat_detection_rule",
+            "threat_shadow_assessment", "threat_knowledge_store",
+        },
+        "cipher": {
+            "calculate", "unit_convert", "date_math", "percentage",
+            "financial", "statistics", "logic_check",
+        },
+        "grimoire": {
+            "memory_store", "memory_search", "memory_recall",
+            "memory_forget", "memory_compact", "memory_block_search",
+            "store_failure_pattern", "get_common_failures",
+            "get_failure_trend",
+        },
+        "omen": {
+            "code_generate", "code_execute",
+        },
+        "reaper": {
+            "web_search", "web_fetch", "youtube_transcribe",
+            "reddit_search_json", "reddit_monitor",
+        },
+        "cerberus": {
+            "safety_check", "hook_pre_tool", "hook_post_tool",
+            "audit_log", "config_integrity_check", "ethical_guidance",
+            "false_positive_log", "calibration_stats", "ethics_lookup",
+            "rollback_snapshot", "rollback_execute", "creator_exception",
+            "creator_authorize", "false_positive_report",
+        },
+    }
+
+    @pytest.mark.asyncio
+    async def test_morpheus_plan_uses_morpheus_tool(self, config: dict):
+        """Morpheus-routed task must plan a morpheus tool, not web_search."""
+        orch = Orchestrator(config)
+        classification = TaskClassification(
+            task_type=TaskType.RESEARCH,
+            complexity="moderate",
+            target_module="morpheus",
+            brain=BrainType.SMART,
+            safety_flag=False,
+            priority=1,
+        )
+        plan = await orch._step4_plan(
+            "Use the morpheus module to come up with some unique code",
+            classification, [],
+        )
+        tool_names = [s.get("tool") for s in plan.steps if s.get("tool")]
+        assert len(tool_names) >= 1, "Plan must include at least one tool step"
+        for tool in tool_names:
+            assert tool in self.MODULE_TOOLS["morpheus"], (
+                f"Morpheus plan used '{tool}' — expected a morpheus tool"
+            )
+            assert tool != "web_search", "Morpheus must NOT fall through to web_search"
+
+    @pytest.mark.asyncio
+    async def test_harbinger_plan_uses_harbinger_tool(self, config: dict):
+        """Harbinger-routed task must plan a harbinger tool."""
+        orch = Orchestrator(config)
+        classification = TaskClassification(
+            task_type=TaskType.ACTION,
+            complexity="moderate",
+            target_module="harbinger",
+            brain=BrainType.FAST,
+            safety_flag=False,
+            priority=1,
+        )
+        plan = await orch._step4_plan(
+            "Give me a morning briefing", classification, [],
+        )
+        tool_names = [s.get("tool") for s in plan.steps if s.get("tool")]
+        assert len(tool_names) >= 1
+        for tool in tool_names:
+            assert tool in self.MODULE_TOOLS["harbinger"], (
+                f"Harbinger plan used '{tool}' — expected a harbinger tool"
+            )
+
+    @pytest.mark.asyncio
+    async def test_nova_plan_uses_nova_tool(self, config: dict):
+        """Nova-routed task must plan a nova tool."""
+        orch = Orchestrator(config)
+        classification = TaskClassification(
+            task_type=TaskType.CREATION,
+            complexity="moderate",
+            target_module="nova",
+            brain=BrainType.SMART,
+            safety_flag=False,
+            priority=1,
+        )
+        plan = await orch._step4_plan(
+            "Write me a professional email to a client", classification, [],
+        )
+        tool_names = [s.get("tool") for s in plan.steps if s.get("tool")]
+        assert len(tool_names) >= 1
+        for tool in tool_names:
+            assert tool in self.MODULE_TOOLS["nova"], (
+                f"Nova plan used '{tool}' — expected a nova tool"
+            )
+
+    @pytest.mark.asyncio
+    async def test_void_plan_uses_void_tool(self, config: dict):
+        """Void-routed task must plan a void tool."""
+        orch = Orchestrator(config)
+        classification = TaskClassification(
+            task_type=TaskType.SYSTEM,
+            complexity="simple",
+            target_module="void",
+            brain=BrainType.FAST,
+            safety_flag=False,
+            priority=1,
+        )
+        plan = await orch._step4_plan(
+            "How is the system doing? Give me a health check",
+            classification, [],
+        )
+        tool_names = [s.get("tool") for s in plan.steps if s.get("tool")]
+        assert len(tool_names) >= 1
+        for tool in tool_names:
+            assert tool in self.MODULE_TOOLS["void"], (
+                f"Void plan used '{tool}' — expected a void tool"
+            )
+
+    @pytest.mark.asyncio
+    async def test_wraith_plan_uses_wraith_tool(self, config: dict):
+        """Wraith-routed task must plan a wraith tool."""
+        orch = Orchestrator(config)
+        classification = TaskClassification(
+            task_type=TaskType.ACTION,
+            complexity="simple",
+            target_module="wraith",
+            brain=BrainType.FAST,
+            safety_flag=False,
+            priority=1,
+        )
+        plan = await orch._step4_plan(
+            "Remind me to water the plants at 5pm", classification, [],
+        )
+        tool_names = [s.get("tool") for s in plan.steps if s.get("tool")]
+        assert len(tool_names) >= 1
+        for tool in tool_names:
+            assert tool in self.MODULE_TOOLS["wraith"], (
+                f"Wraith plan used '{tool}' — expected a wraith tool"
+            )
+
+    @pytest.mark.asyncio
+    async def test_sentinel_plan_uses_sentinel_tool(self, config: dict):
+        """Sentinel-routed task must plan a sentinel tool."""
+        orch = Orchestrator(config)
+        classification = TaskClassification(
+            task_type=TaskType.ACTION,
+            complexity="moderate",
+            target_module="sentinel",
+            brain=BrainType.SMART,
+            safety_flag=False,
+            priority=1,
+        )
+        plan = await orch._step4_plan(
+            "Scan the network for open ports", classification, [],
+        )
+        tool_names = [s.get("tool") for s in plan.steps if s.get("tool")]
+        assert len(tool_names) >= 1
+        for tool in tool_names:
+            assert tool in self.MODULE_TOOLS["sentinel"], (
+                f"Sentinel plan used '{tool}' — expected a sentinel tool"
+            )
+
+    @pytest.mark.asyncio
+    async def test_cipher_plan_uses_cipher_tool(self, config: dict):
+        """Cipher-routed task must plan a cipher tool."""
+        orch = Orchestrator(config)
+        classification = TaskClassification(
+            task_type=TaskType.QUESTION,
+            complexity="simple",
+            target_module="cipher",
+            brain=BrainType.FAST,
+            safety_flag=False,
+            priority=1,
+        )
+        plan = await orch._step4_plan(
+            "What is 15% of 340?", classification, [],
+        )
+        tool_names = [s.get("tool") for s in plan.steps if s.get("tool")]
+        assert len(tool_names) >= 1
+        for tool in tool_names:
+            assert tool in self.MODULE_TOOLS["cipher"], (
+                f"Cipher plan used '{tool}' — expected a cipher tool"
+            )
+
+    @pytest.mark.asyncio
+    async def test_grimoire_plan_uses_grimoire_tool(self, config: dict):
+        """Grimoire-routed task must plan a grimoire tool."""
+        orch = Orchestrator(config)
+        classification = TaskClassification(
+            task_type=TaskType.MEMORY,
+            complexity="simple",
+            target_module="grimoire",
+            brain=BrainType.FAST,
+            safety_flag=False,
+            priority=1,
+        )
+        plan = await orch._step4_plan(
+            "What do you remember about my landscaping schedule?",
+            classification, [],
+        )
+        tool_names = [s.get("tool") for s in plan.steps if s.get("tool")]
+        assert len(tool_names) >= 1
+        for tool in tool_names:
+            assert tool in self.MODULE_TOOLS["grimoire"], (
+                f"Grimoire plan used '{tool}' — expected a grimoire tool"
+            )
+
+    @pytest.mark.asyncio
+    async def test_all_modules_have_plan_branch(self, config: dict):
+        """Every module must produce a plan with its own tools, not a default."""
+        orch = Orchestrator(config)
+
+        # Test inputs that should trigger each module's branch
+        module_inputs = {
+            "apex": ("What is quantum physics?", TaskType.QUESTION),
+            "morpheus": ("Come up with a creative idea", TaskType.RESEARCH),
+            "harbinger": ("Give me a briefing", TaskType.ACTION),
+            "nova": ("Create a document for me", TaskType.CREATION),
+            "void": ("Check the system", TaskType.SYSTEM),
+            "wraith": ("Set a reminder for tomorrow", TaskType.ACTION),
+            "sentinel": ("Scan for threats", TaskType.ACTION),
+            "cipher": ("Calculate 100 divided by 7", TaskType.QUESTION),
+            "grimoire": ("Remember this fact", TaskType.MEMORY),
+            "omen": ("Write a Python function to sort a list", TaskType.CREATION),
+            "reaper": ("Search for latest AI news", TaskType.RESEARCH),
+        }
+
+        failed = []
+        for module, (user_input, task_type) in module_inputs.items():
+            classification = TaskClassification(
+                task_type=task_type,
+                complexity="moderate",
+                target_module=module,
+                brain=BrainType.FAST,
+                safety_flag=False,
+                priority=1,
+            )
+            plan = await orch._step4_plan(user_input, classification, [])
+            tool_names = [s.get("tool") for s in plan.steps if s.get("tool")]
+
+            if not tool_names:
+                failed.append(f"{module}: no tool in plan (got None-only steps)")
+                continue
+
+            # Check that the tool belongs to this module
+            valid_tools = self.MODULE_TOOLS.get(module, set())
+            for tool in tool_names:
+                if tool not in valid_tools:
+                    failed.append(
+                        f"{module}: plan used '{tool}' which is not a "
+                        f"{module} tool (expected one of {valid_tools})"
+                    )
+
+        assert not failed, (
+            "Modules with broken _step4_plan dispatch:\n"
+            + "\n".join(f"  - {f}" for f in failed)
+        )
