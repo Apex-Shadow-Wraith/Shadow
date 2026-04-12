@@ -330,6 +330,10 @@ class Apex(BaseModule):
             "max_response_tokens", 2048
         )
 
+        # Conversation history for multi-turn API interactions
+        self._conversation_history: list[dict[str, str]] = []
+        self._max_turns: int = self._config.get("max_turns", 10)
+
         # Escalation-learning infrastructure
         self._escalation_log: EscalationLog | None = None
         self._teaching_extractor: TeachingExtractor | None = None
@@ -409,6 +413,7 @@ class Apex(BaseModule):
                 "apex_teach": self._apex_teach,
                 "apex_log": self._apex_log,
                 "apex_cost_report": self._apex_cost_report,
+                "apex_clear_history": self._apex_clear_history,
                 "escalation_stats": self._escalation_stats,
                 "escalation_frequent": self._escalation_frequent,
                 "teaching_review": self._teaching_review,
@@ -439,7 +444,8 @@ class Apex(BaseModule):
             )
 
     async def shutdown(self) -> None:
-        """Shut down Apex. Persist call log."""
+        """Shut down Apex. Persist call log and clear conversation history."""
+        self.clear_history()
         self._save_log()
         self.status = ModuleStatus.OFFLINE
         logger.info("Apex offline. Total cost: $%.4f", self._total_cost)
@@ -472,6 +478,12 @@ class Apex(BaseModule):
             {
                 "name": "apex_cost_report",
                 "description": "Generate spending report for Harbinger",
+                "parameters": {},
+                "permission_level": "autonomous",
+            },
+            {
+                "name": "apex_clear_history",
+                "description": "Clear conversation history for multi-turn sessions",
                 "parameters": {},
                 "permission_level": "autonomous",
             },
@@ -583,9 +595,13 @@ class Apex(BaseModule):
 
         # Live API dispatch — must either succeed or return explicit failure.
         # NEVER generate a local response pretending to be API results.
+        # Append the user message to conversation history before calling
+        self._conversation_history.append({"role": "user", "content": task})
         try:
             response_text, input_tokens, output_tokens, model_used = self._call_api(api, task)
         except Exception as api_err:
+            # Roll back the user message on failure
+            self._conversation_history.pop()
             logger.warning(
                 "Apex API call FAILED: %s. No frontier model validation occurred.",
                 api_err,
@@ -632,9 +648,23 @@ class Apex(BaseModule):
         self._call_log.append(entry)
         self._save_log()
 
+        # Append assistant response to conversation history and trim
+        self._conversation_history.append({"role": "assistant", "content": response_text})
+        self._trim_history()
+
         logger.info(
             "Apex API call successful: %s, %s, tokens_used=%d",
             api, model_used, input_tokens + output_tokens,
+        )
+
+        # Store transaction in Grimoire for audit trail
+        self._store_transaction_in_grimoire(
+            model_used=model_used,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            cost=cost,
+            task_summary=task[:200],
+            response_summary=response_text[:200],
         )
 
         # Escalation-learning cycle: log, extract, store
@@ -782,6 +812,92 @@ class Apex(BaseModule):
             tool_name="apex_cost_report",
             module=self.name,
         )
+
+    # --- Conversation history management ---
+
+    def clear_history(self) -> None:
+        """Clear the conversation history.
+
+        Call on session end or when the user explicitly requests a fresh context.
+        """
+        cleared = len(self._conversation_history)
+        self._conversation_history.clear()
+        logger.info("Apex conversation history cleared (%d turns removed).", cleared)
+
+    def _apex_clear_history(self, params: dict[str, Any]) -> ToolResult:
+        """Tool handler: clear conversation history.
+
+        Args:
+            params: No required parameters.
+        """
+        turns_before = len(self._conversation_history)
+        self.clear_history()
+        return ToolResult(
+            success=True,
+            content={"cleared": True, "turns_removed": turns_before},
+            tool_name="apex_clear_history",
+            module=self.name,
+        )
+
+    def _trim_history(self) -> None:
+        """Trim conversation history to max_turns (pairs of user+assistant).
+
+        Each turn is a user message + assistant response (2 entries).
+        When we exceed max_turns, drop the oldest turn (2 entries).
+        """
+        max_messages = self._max_turns * 2
+        while len(self._conversation_history) > max_messages:
+            # Remove oldest pair
+            self._conversation_history.pop(0)
+            self._conversation_history.pop(0)
+
+    def _store_transaction_in_grimoire(
+        self,
+        model_used: str,
+        input_tokens: int,
+        output_tokens: int,
+        cost: float,
+        task_summary: str,
+        response_summary: str,
+    ) -> None:
+        """Store an Apex transaction record in Grimoire for audit trail.
+
+        Args:
+            model_used: The model that handled the request.
+            input_tokens: Tokens sent to the API.
+            output_tokens: Tokens received from the API.
+            cost: Cost in USD.
+            task_summary: Brief summary of the prompt.
+            response_summary: Brief summary of the response.
+        """
+        if self._grimoire is None:
+            return
+
+        try:
+            self._grimoire.remember(
+                content=(
+                    f"Apex transaction: model={model_used}, "
+                    f"tokens_in={input_tokens}, tokens_out={output_tokens}, "
+                    f"cost=${cost:.6f}. "
+                    f"Prompt: {task_summary[:200]}. "
+                    f"Response: {response_summary[:200]}"
+                ),
+                source="apex_transaction",
+                source_module="apex",
+                category="apex_log",
+                trust_level=1.0,
+                confidence=1.0,
+                tags=["apex_transaction", model_used],
+                metadata={
+                    "timestamp": datetime.now().isoformat(),
+                    "model": model_used,
+                    "input_tokens": input_tokens,
+                    "output_tokens": output_tokens,
+                    "cost_usd": cost,
+                },
+            )
+        except Exception as e:
+            logger.warning("Failed to store Apex transaction in Grimoire: %s", e)
 
     # --- Escalation-learning tools ---
 
@@ -1070,6 +1186,9 @@ class Apex(BaseModule):
     def _call_api(self, api: str, task: str) -> tuple[str, int, int, str]:
         """Dispatch a task to the selected API provider.
 
+        Sends the full conversation history (including the current user
+        message) to enable multi-turn conversations.
+
         Args:
             api: "claude" or "openai".
             task: The task/prompt to send.
@@ -1088,7 +1207,9 @@ class Apex(BaseModule):
             raise RuntimeError(f"Unknown API provider: {api}")
 
     def _call_claude(self, task: str) -> tuple[str, int, int, str]:
-        """Call the Anthropic Claude API.
+        """Call the Anthropic Claude API with conversation history.
+
+        Sends the full conversation history to enable multi-turn context.
 
         Returns:
             Tuple of (response_text, input_tokens, output_tokens, model_used).
@@ -1101,7 +1222,7 @@ class Apex(BaseModule):
         response = client.messages.create(
             model=model,
             max_tokens=self._max_response_tokens,
-            messages=[{"role": "user", "content": task}],
+            messages=list(self._conversation_history),
         )
 
         response_text = response.content[0].text if response.content else ""
@@ -1111,7 +1232,9 @@ class Apex(BaseModule):
         return response_text, input_tokens, output_tokens, model
 
     def _call_openai(self, task: str) -> tuple[str, int, int, str]:
-        """Call the OpenAI API.
+        """Call the OpenAI API with conversation history.
+
+        Sends the full conversation history to enable multi-turn context.
 
         Returns:
             Tuple of (response_text, input_tokens, output_tokens, model_used).
@@ -1124,7 +1247,7 @@ class Apex(BaseModule):
         response = client.chat.completions.create(
             model=model,
             max_tokens=self._max_response_tokens,
-            messages=[{"role": "user", "content": task}],
+            messages=list(self._conversation_history),
         )
 
         choice = response.choices[0] if response.choices else None
