@@ -242,11 +242,51 @@ async def handle_command(command: str, orchestrator: Orchestrator) -> bool:
             print("Cerberus not loaded.")
         return True
 
+    elif cmd == "/tasks":
+        atq = orchestrator.async_task_queue
+        if atq is None:
+            print("Async task queue not available.")
+        else:
+            active = atq.list_active_tasks()
+            if not active:
+                print("\nNo active background tasks.\n")
+            else:
+                print(f"\n--- Active Tasks ({len(active)}) ---")
+                for t in active:
+                    tid = t.get("task_id", "?")[:8]
+                    status = t.get("status", "?")
+                    pri = t.get("priority", "?")
+                    desc = t.get("description", "")[:50]
+                    print(f"  {tid}  {status:10s}  pri={pri}  {desc}")
+                print()
+        return True
+
+    elif cmd.startswith("/task "):
+        task_id_prefix = cmd.split(maxsplit=1)[1].strip()
+        atq = orchestrator.async_task_queue
+        if atq is None:
+            print("Async task queue not available.")
+        else:
+            status = atq.get_status(task_id_prefix)
+            if status is None:
+                print(f"Task '{task_id_prefix}' not found.")
+            else:
+                print(f"\n--- Task {task_id_prefix[:8]} ---")
+                print(f"  Status:  {status}")
+                if status in ("completed", "failed"):
+                    result = atq.get_result(task_id_prefix)
+                    if result:
+                        print(f"  Result:  {result}")
+                print()
+        return True
+
     elif cmd == "/help":
         print("\n--- Shadow Commands ---")
         print("  /status    Module health overview")
         print("  /tools     List all available tools")
         print("  /stats     Cerberus safety statistics")
+        print("  /tasks     List active background tasks")
+        print("  /task <id> Check background task status")
         print("  /help      Show this help")
         print("  quit       Shut down Shadow")
         print()
@@ -328,7 +368,8 @@ async def main() -> None:
     try:
         while True:
             try:
-                user_input = input("You > ").strip()
+                loop = asyncio.get_event_loop()
+                user_input = (await loop.run_in_executor(None, input, "You > ")).strip()
             except EOFError:
                 break
 

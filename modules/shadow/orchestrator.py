@@ -81,6 +81,14 @@ except ImportError:
     logger.warning("PriorityTaskQueue not available — queue processing disabled")
     _TASK_QUEUE_AVAILABLE = False
 
+# Graceful import — orchestrator still starts if async_tasks is missing
+try:
+    from modules.shadow.async_tasks import AsyncTaskQueue
+    _ASYNC_TASKS_AVAILABLE = True
+except ImportError:
+    logger.warning("AsyncTaskQueue not available — background task execution disabled")
+    _ASYNC_TASKS_AVAILABLE = False
+
 # Graceful import — orchestrator still starts if proactive_engine is missing
 try:
     from modules.shadow.proactive_engine import ProactiveEngine
@@ -373,6 +381,9 @@ class Orchestrator:
         else:
             self._task_queue = None
 
+        # Async Task Queue — background worker loop for non-blocking execution
+        self._async_task_queue: AsyncTaskQueue | None = None
+
         # Proactive Initiative Engine — autonomous trigger system (P2)
         if _PROACTIVE_ENGINE_AVAILABLE:
             self._proactive_engine = ProactiveEngine(
@@ -570,6 +581,23 @@ class Orchestrator:
                 logger.warning("PriorityTaskQueue failed to initialize: %s", e)
                 self._task_queue = None
 
+        # Initialize Async Task Queue (requires task_queue + task_tracker + registry)
+        if (
+            _ASYNC_TASKS_AVAILABLE
+            and self._task_queue is not None
+        ):
+            try:
+                self._async_task_queue = AsyncTaskQueue(
+                    task_queue=self._task_queue,
+                    task_tracker=self._task_tracker,
+                    registry=self.registry,
+                )
+                await self._async_task_queue.start()
+                logger.info("AsyncTaskQueue initialized and worker started")
+            except Exception as e:
+                logger.warning("AsyncTaskQueue failed to initialize: %s", e)
+                self._async_task_queue = None
+
         # Initialize all modules
         for module_info in self.registry.list_modules():
             module = self.registry.get_module(module_info["name"])
@@ -661,6 +689,8 @@ class Orchestrator:
             self._growth_engine.close()
         if self._task_chain_engine is not None:
             self._task_chain_engine.close()
+        if self._async_task_queue is not None:
+            await self._async_task_queue.stop()
         if self._task_queue is not None:
             self._task_queue.close()
         if self._proactive_engine is not None:
@@ -712,6 +742,45 @@ class Orchestrator:
     def confidence_scorer(self):
         """Access the Confidence Scorer (may be None if unavailable)."""
         return self._confidence_scorer
+
+    @property
+    def async_task_queue(self):
+        """Access the Async Task Queue (may be None if unavailable)."""
+        return self._async_task_queue
+
+    # Known long-running tools that should default to async execution
+    _LONG_RUNNING_TOOLS = frozenset({
+        "web_search", "web_scrape", "security_scan", "full_audit",
+        "youtube_transcribe", "benchmark_run",
+    })
+
+    def _should_run_async(
+        self, tool_name: str, params: dict[str, Any], classification: Any
+    ) -> bool:
+        """Decide whether a tool call should run in the background.
+
+        Returns True if:
+        1. AsyncTaskQueue is available, AND
+        2. User explicitly requested background execution, OR
+        3. Tool is known to be long-running, OR
+        4. Classification priority >= 4 (background).
+        """
+        if self._async_task_queue is None:
+            return False
+
+        # User explicitly requested background execution
+        if params.get("_background", False):
+            return True
+
+        # Known long-running tools
+        if tool_name in self._LONG_RUNNING_TOOLS:
+            return True
+
+        # Background priority classification
+        if hasattr(classification, "priority") and classification.priority >= 4:
+            return True
+
+        return False
 
     def clear_history(self) -> None:
         """Reset conversation history. Useful for starting a fresh topic."""
@@ -3933,6 +4002,18 @@ User input: {user_input}"""
                                     # Phase 2+: Telegram approval workflow
 
         plan.cerberus_approved = True
+
+        # Detect background intent — inject _background flag into step params
+        _BACKGROUND_PHRASES = (
+            "in the background", "when you get a chance",
+            "low priority", "no rush", "whenever you can",
+        )
+        if any(phrase in user_input.lower() for phrase in _BACKGROUND_PHRASES):
+            for step in plan.steps:
+                if step.get("tool") is not None:
+                    step.setdefault("params", {})["_background"] = True
+            logger.info("Background intent detected — steps flagged for async execution")
+
         return plan
 
     # --- Step 5: Execute with Retry Engine ---
@@ -4360,6 +4441,29 @@ User input: {user_input}"""
                         continue
                     elif pre_hook.content.verdict == SafetyVerdict.MODIFY:
                         params = pre_hook.content.modified_params or params
+
+            # --- Async background check ---
+            if self._should_run_async(tool_name, params, classification):
+                try:
+                    target_module = self.registry.get_module_for_tool(tool_name)
+                    task_id = self._async_task_queue.submit_task(
+                        module_name=target_module.name,
+                        tool_name=tool_name,
+                        params={k: v for k, v in params.items() if not k.startswith("_")},
+                        description=step.get("description", f"Background: {tool_name}"),
+                        priority=4,
+                    )
+                    results.append(ToolResult(
+                        success=True,
+                        content=f"Task submitted to background queue. Task ID: {task_id}",
+                        tool_name=tool_name,
+                        module=target_module.name,
+                        metadata={"async_task_id": task_id, "background": True},
+                    ))
+                    logger.info("Task %s sent to async queue: %s", task_id[:8], tool_name)
+                    continue
+                except Exception as e:
+                    logger.warning("Async submit failed, falling back to sync: %s", e)
 
             # --- Execute tool ---
             start_time = time.time()
