@@ -315,6 +315,8 @@ class Orchestrator:
         self._max_history = 10  # Keep last 10 turns (user+assistant pairs) in working memory
         # Pending Apex escalation — stores context when user is asked to confirm
         self._pending_escalation: dict[str, Any] | None = None
+        # Last routing decision — used by fast-path to handle contextual references
+        self._last_route: TaskClassification | None = None
         self._max_response_tokens = config.get("decision_loop", {}).get("max_response_tokens", 2048)
 
         # Personality settings
@@ -1096,6 +1098,9 @@ class Orchestrator:
             # Apply injection warning flag to classification
             if injection_result is not None and injection_result.action == "warn":
                 classification.safety_flag = True
+
+            # Store routing decision for contextual reference resolution
+            self._last_route = classification
 
             logger.info(
                 "Step 2 — Route: type=%s, module=%s, brain=%s",
@@ -1912,6 +1917,32 @@ User input: {user_input}"""
         """
         stripped = user_input.strip()
         lower = stripped.lower()
+
+        # --- Contextual reference detection ---
+        # If the user says "do that", "yes proceed", etc., they're referring to the
+        # previous message's task. Re-route to the same module instead of keyword-matching.
+        _CONTEXTUAL_PREFIXES = (
+            "do that", "do it", "go ahead", "yes", "proceed", "continue",
+            "ok do it", "yeah", "yep", "sure", "please do", "go for it",
+            "make it so", "run it", "execute that", "ok go ahead",
+        )
+        if self._last_route is not None:
+            # Check if the input starts with a contextual reference
+            for prefix in _CONTEXTUAL_PREFIXES:
+                if lower == prefix or lower.startswith(prefix + " ") or lower.startswith(prefix + ",") or lower.startswith(prefix + "."):
+                    logger.info(
+                        "Contextual reference '%s' detected — re-routing to previous module: %s",
+                        prefix, self._last_route.target_module,
+                    )
+                    return TaskClassification(
+                        task_type=self._last_route.task_type,
+                        complexity=self._last_route.complexity,
+                        target_module=self._last_route.target_module,
+                        brain=self._last_route.brain,
+                        safety_flag=self._last_route.safety_flag,
+                        priority=self._last_route.priority,
+                        confidence=0.90,
+                    )
 
         # --- Training pipeline commands ---
         if lower.startswith("/training"):
