@@ -108,18 +108,21 @@ These names are Shadow's identity. All 13 modules are implemented and tested.
 - **ESV Bible:** Processor tested (2,392 pericopes, 16,218 study notes extracted), ingestion ready to run
 
 ## Testing
-Run the full test suite:
-```
+
+### Commands
+Full test suite (ONLY on explicit request):
 python -m pytest tests/ -v
-```
-Run a single module's tests:
-```
+Single module:
 python -m pytest tests/test_cerberus.py -v
-```
-Integration tests (full 7-step decision loop pipeline):
-```
+Integration tests (full 7-step decision loop):
 python -m pytest tests/test_decision_loop.py -v
+
 ```
+### Testing Rule
+After completing a task, ONLY run the specific test files that were created or modified for that task. Do NOT run the full test suite unless Master Morstad explicitly requests it. Full suite runs waste tokens and time. If a task touches orchestrator.py, run test_orchestrator.py and test_decision_loop.py — not everything else.
+
+### Fix Quality Rule
+If a test fails, fix the root cause. Never skip, delete, or mark a test as expected failure to make the suite pass. If Claude Code tries to skip a test rather than fix it, that is wrong — write a targeted fix prompt instead.
 
 ## Coding Conventions
 - Use descriptive variable names
