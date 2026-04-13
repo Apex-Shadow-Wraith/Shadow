@@ -183,6 +183,34 @@ async def startup(config: dict, logger: logging.Logger) -> Orchestrator:
     # Step 6: Load orchestrator state
     orchestrator._load_state()
 
+    # Step 6b: Initialize task subsystem (tracker → queue → async worker)
+    orchestrator._task_tracker.initialize()
+    if orchestrator._task_queue is not None:
+        try:
+            orchestrator._task_queue.initialize()
+        except Exception as e:
+            logger.warning("PriorityTaskQueue failed to initialize: %s", e)
+            orchestrator._task_queue = None
+
+    try:
+        from modules.shadow.async_tasks import AsyncTaskQueue as _AsyncTaskQueue
+    except ImportError:
+        _AsyncTaskQueue = None
+        logger.warning("AsyncTaskQueue not available — background tasks disabled")
+
+    if _AsyncTaskQueue is not None and orchestrator._task_queue is not None:
+        try:
+            orchestrator._async_task_queue = _AsyncTaskQueue(
+                task_queue=orchestrator._task_queue,
+                task_tracker=orchestrator._task_tracker,
+                registry=orchestrator.registry,
+            )
+            await orchestrator._async_task_queue.start()
+            logger.info("AsyncTaskQueue initialized and worker started")
+        except Exception as e:
+            logger.warning("AsyncTaskQueue failed to initialize: %s", e)
+            orchestrator._async_task_queue = None
+
     # Step 7: Initialize inter-module communication
     try:
         await orchestrator._initialize_communication()
