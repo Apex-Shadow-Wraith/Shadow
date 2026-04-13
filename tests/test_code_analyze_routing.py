@@ -238,6 +238,76 @@ class TestCodeAnalyzeRouting:
         assert result is not None
         assert result.target_module == "omen"
 
+    # ── Inflection / stem-matching tests ──
+
+    def test_analyzed_past_tense_routes_to_analysis(self):
+        """'Analyzed this code' — past tense must still match analysis."""
+        orch = self._make_orchestrator()
+        result = orch._fast_path_classify("Analyzed this code")
+        assert result is not None
+        assert result.target_module == "omen"
+        assert result.task_type == TaskType.ANALYSIS
+
+    def test_analyzing_gerund_routes_to_analysis(self):
+        """'analyzing my function' — gerund must still match analysis."""
+        orch = self._make_orchestrator()
+        result = orch._fast_path_classify("analyzing my function")
+        assert result is not None
+        assert result.target_module == "omen"
+        assert result.task_type == TaskType.ANALYSIS
+
+    def test_reviewing_routes_to_analysis(self):
+        """'reviewing my function' — gerund must match analysis."""
+        orch = self._make_orchestrator()
+        result = orch._fast_path_classify("reviewing my function")
+        assert result is not None
+        assert result.target_module == "omen"
+        assert result.task_type == TaskType.ANALYSIS
+
+    def test_reviewed_routes_to_analysis(self):
+        orch = self._make_orchestrator()
+        result = orch._fast_path_classify("reviewed this code base")
+        assert result is not None
+        assert result.target_module == "omen"
+        assert result.task_type == TaskType.ANALYSIS
+
+    def test_debugging_routes_to_analysis(self):
+        """'I was debugging earlier' — must route to omen analysis."""
+        orch = self._make_orchestrator()
+        result = orch._fast_path_classify("I was debugging this script earlier")
+        assert result is not None
+        assert result.target_module == "omen"
+        assert result.task_type == TaskType.ANALYSIS
+
+    def test_explained_routes_to_analysis(self):
+        orch = self._make_orchestrator()
+        result = orch._fast_path_classify("explained this function to me")
+        assert result is not None
+        assert result.target_module == "omen"
+        assert result.task_type == TaskType.ANALYSIS
+
+    def test_inspecting_routes_to_analysis(self):
+        orch = self._make_orchestrator()
+        result = orch._fast_path_classify("inspecting the class hierarchy")
+        assert result is not None
+        assert result.target_module == "omen"
+        assert result.task_type == TaskType.ANALYSIS
+
+    def test_audited_routes_to_analysis(self):
+        orch = self._make_orchestrator()
+        result = orch._fast_path_classify("audited the code for security issues")
+        assert result is not None
+        assert result.target_module == "omen"
+        assert result.task_type == TaskType.ANALYSIS
+
+    def test_analyzed_your_code_base_routes_to_analysis(self):
+        """The original bug report: 'Analyzed your code base' was misclassified."""
+        orch = self._make_orchestrator()
+        result = orch._fast_path_classify("Analyzed your code base")
+        assert result is not None
+        assert result.target_module == "omen"
+        assert result.task_type == TaskType.ANALYSIS
+
     @pytest.mark.asyncio
     async def test_step4_analysis_plans_code_analyze(self):
         """ANALYSIS task type for omen must plan code_analyze, not code_generate."""

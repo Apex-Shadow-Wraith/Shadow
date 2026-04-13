@@ -2168,35 +2168,35 @@ User input: {user_input}"""
         # Strong keywords that should still fast-path even in short inputs.
         # This is the union of all keyword sets from the priority checks
         # below so that short messages with clear intent still route fast.
-        _STRONG_KEYWORDS = {
+        _STRONG_STEMS = {
             # Omen (code)
             "code", "debug", "lint", "refactor", "function", "class",
             "script", "program", "coding", "syntax", "snippet", "algorithm",
-            "compile", "review",
+            "compil", "review", "analyz", "explain", "inspect",
             # Wraith (scheduling)
-            "remind", "reminder", "timer", "schedule", "alarm",
-            "appointment", "deadline", "calendar", "todo",
+            "remind", "timer", "schedul", "alarm",
+            "appoint", "deadlin", "calendar", "todo",
             # Sentinel (security)
-            "security", "vulnerability", "threat", "intrusion", "firewall",
+            "secur", "vulnerab", "threat", "intrus", "firewall",
             "breach", "audit",
             # Cipher (math)
-            "calculate", "compute", "solve", "math", "equation", "multiply",
-            "divide", "subtract", "factorial", "logarithm", "derivative",
-            "integral", "price", "quote", "cost", "estimate", "total",
-            "percentage",
+            "calculat", "compute", "solv", "math", "equation", "multipl",
+            "divid", "subtract", "factorial", "logarithm", "derivativ",
+            "integral", "price", "cost", "estimat", "total",
+            "percentag",
             # Nova (content)
-            "draft", "compose", "blog", "article", "essay", "paragraph",
-            "story", "creative", "content", "post", "copywriting",
+            "draft", "compos", "blog", "articl", "essay", "paragraph",
+            "story", "creativ", "content", "post", "copywrit",
             "newsletter",
             # Morpheus (discovery)
-            "discover", "explore", "experiment", "brainstorm", "imagine",
-            "speculate", "serendipity", "unconventional",
+            "discover", "explor", "experiment", "brainstorm", "imagin",
+            "speculat", "serendip", "unconventional",
             # Void (monitoring)
-            "metrics", "monitoring", "uptime", "diagnostics",
+            "metric", "monitor", "uptim", "diagnostic",
             # Harbinger (briefings)
-            "briefing", "alert", "notification",
+            "briefing", "alert", "notif",
             # Cerberus (ethics)
-            "ethics", "moral", "bible", "scripture",
+            "ethic", "moral", "bibl", "scriptur",
             # Grimoire (memory — as whole words)
             "remember", "forget", "recall",
         }
@@ -2211,9 +2211,13 @@ User input: {user_input}"""
         ]
         word_list = lower.split()
         has_strong_phrase = any(p in lower for p in _STRONG_PHRASES)
+        has_strong_stem = any(
+            w.startswith(s) for w in word_list if len(w) >= 4
+            for s in _STRONG_STEMS
+        )
         if (len(word_list) <= 5
                 and not (set(word_list) & _MODULE_NAMES)
-                and not (set(word_list) & _STRONG_KEYWORDS)
+                and not has_strong_stem
                 and not has_strong_phrase
                 and not re.search(r'\d+\s*[+\-*/×÷xX^%]\s*\d+', lower)):
             logger.info(
@@ -2225,6 +2229,21 @@ User input: {user_input}"""
         # --- Keyword fast-path: module routing by keyword presence ---
         # Split once for whole-word matching
         words = set(word_list)
+
+        # Stem-matching helper: returns the set of stems that matched any
+        # input word.  E.g. stems={"analyz", "review"} matches "analyzed",
+        # "reviewing", etc.  Min-length guard prevents short stems from
+        # false-matching (e.g. "sum" matching "summer").
+        def _stem_matches(stems: set[str], min_len: int = 4) -> set[str]:
+            """Return stems that are a prefix of at least one input word."""
+            matched = set()
+            for w in words:
+                if len(w) < min_len:
+                    continue
+                for s in stems:
+                    if w.startswith(s):
+                        matched.add(s)
+            return matched
 
         # ── Priority 0: Explicit module mentions override all keywords ──
         # "ask apex to write code" → apex, NOT omen.  The user's explicit
@@ -2317,13 +2336,16 @@ User input: {user_input}"""
             )
 
         # ── Priority 2: Omen — code tasks ──
-        omen_keywords = {
+        # Stems for broad omen routing (any code-related task)
+        _omen_stems = {
             "code", "debug", "review", "lint", "refactor",
             "function", "class", "script", "program",
-            "coding", "syntax", "snippet", "algorithm", "compile",
+            "coding", "syntax", "snippet", "algorithm", "compil",
         }
-        omen_analysis_keywords = {
-            "analyze", "review", "explain", "inspect", "audit",
+        # Stems that indicate ANALYSIS intent (not creation)
+        _omen_analysis_stems = {
+            "analyz", "review", "explain", "inspect", "audit",
+            "debug",
         }
         omen_analysis_phrases = [
             "what's wrong with", "what is wrong with",
@@ -2335,15 +2357,17 @@ User input: {user_input}"""
             "python", "module", "api", "endpoint", "bot",
             "parser", "handler", "decorator", "lambda",
         }
+        omen_stem_hits = _stem_matches(_omen_stems)
+        analysis_stem_hits = _stem_matches(_omen_analysis_stems)
         has_omen_context = bool(words & omen_context_words) and bool(words & omen_code_context)
         has_analysis_intent = (
-            bool(words & omen_analysis_keywords)
+            bool(analysis_stem_hits)
             or any(p in lower for p in omen_analysis_phrases)
         )
-        if (words & omen_keywords) or has_omen_context:
+        if omen_stem_hits or has_omen_context:
             # Determine if this is analysis or creation
             if has_analysis_intent:
-                logger.info("Fast-path keyword → omen ANALYSIS (matched: %s)", words & omen_analysis_keywords)
+                logger.info("Fast-path keyword → omen ANALYSIS (stem matched: %s)", analysis_stem_hits)
                 return TaskClassification(
                     task_type=TaskType.ANALYSIS,
                     complexity="moderate",
@@ -2353,7 +2377,7 @@ User input: {user_input}"""
                     priority=1,
                     confidence=0.85,
                 )
-            logger.info("Fast-path keyword → omen (matched: %s)", words & omen_keywords)
+            logger.info("Fast-path keyword → omen (stem matched: %s)", omen_stem_hits)
             return TaskClassification(
                 task_type=TaskType.CREATION,
                 complexity="moderate",
@@ -2365,12 +2389,16 @@ User input: {user_input}"""
             )
 
         # ── Priority 3: Wraith — reminders / scheduling ──
-        wraith_keywords = {
-            "remind", "reminder", "timer", "schedule", "alarm",
-            "appointment", "deadline", "calendar", "todo",
+        # Morpheus phrases ("what if") checked early so hypothetical
+        # sentences containing scheduling words don't hijack to wraith.
+        _morpheus_phrases_early = ["what if", "cross-pollinate", "creative connection"]
+        _has_morpheus_phrase = any(p in lower for p in _morpheus_phrases_early)
+        _wraith_stems = {
+            "remind", "timer", "schedul", "alarm",
+            "appoint", "deadlin", "calendar", "todo",
         }
-        if words & wraith_keywords:
-            logger.info("Fast-path keyword → wraith (matched: %s)", words & wraith_keywords)
+        if _stem_matches(_wraith_stems) and not _has_morpheus_phrase:
+            logger.info("Fast-path keyword → wraith (stem matched: %s)", _stem_matches(_wraith_stems))
             return TaskClassification(
                 task_type=TaskType.ACTION,
                 complexity="simple",
@@ -2382,15 +2410,15 @@ User input: {user_input}"""
             )
 
         # ── Priority 4: Sentinel — security ──
-        sentinel_keywords = {
-            "security", "vulnerability", "threat", "intrusion",
+        _sentinel_stems = {
+            "secur", "vulnerab", "threat", "intrus",
             "firewall", "breach", "audit",
         }
         sentinel_phrases = [
             "security check", "security scan", "threat assessment",
             "vulnerability scan", "intrusion detection",
         ]
-        if (words & sentinel_keywords) or any(p in lower for p in sentinel_phrases):
+        if _stem_matches(_sentinel_stems) or any(p in lower for p in sentinel_phrases):
             logger.info("Fast-path keyword → sentinel")
             return TaskClassification(
                 task_type=TaskType.ACTION,
@@ -2403,15 +2431,18 @@ User input: {user_input}"""
             )
 
         # ── Priority 5: Cipher — math / financial WORDS ──
-        cipher_keywords = {
-            "calculate", "compute", "solve", "math", "equation",
-            "multiply", "divide", "subtract",
-            "sum", "product", "difference", "quotient",
-            "price", "quote", "cost", "estimate", "total", "percentage",
-            "factorial", "logarithm", "derivative", "integral",
+        _cipher_stems = {
+            "calculat", "solv", "math", "equation",
+            "multipl", "divid", "subtract",
+            "differenc", "quotient",
+            "price", "cost", "estimat", "total", "percentag",
+            "factorial", "logarithm", "derivativ", "integral",
         }
-        if words & cipher_keywords:
-            logger.info("Fast-path keyword → cipher (matched: %s)", words & cipher_keywords)
+        # Short/ambiguous words kept as exact matches to avoid false positives
+        _cipher_exact = {"sum", "product", "quote", "compute"}
+        cipher_hit = _stem_matches(_cipher_stems) or bool(words & _cipher_exact)
+        if cipher_hit:
+            logger.info("Fast-path keyword → cipher (stem matched: %s)", _stem_matches(_cipher_stems))
             return TaskClassification(
                 task_type=TaskType.ANALYSIS,
                 complexity="moderate",
@@ -2423,14 +2454,14 @@ User input: {user_input}"""
             )
 
         # ── Priority 6: Nova — content creation (only if NO code indicators) ──
-        nova_keywords = {
-            "draft", "compose", "blog", "article", "essay",
-            "paragraph", "story", "creative", "content", "post",
-            "copywriting", "newsletter",
+        _nova_stems = {
+            "draft", "compos", "blog", "articl", "essay",
+            "paragraph", "story", "creativ", "content", "post",
+            "copywrit", "newsletter",
         }
         nova_context_words = {"write", "generate", "create"}
         has_nova_context = bool(words & nova_context_words) and not bool(words & code_indicators)
-        if (words & nova_keywords) or has_nova_context:
+        if _stem_matches(_nova_stems) or has_nova_context:
             logger.info("Fast-path keyword → nova")
             return TaskClassification(
                 task_type=TaskType.CREATION,
@@ -2443,14 +2474,14 @@ User input: {user_input}"""
             )
 
         # ── Priority 7: Morpheus — discovery / exploration ──
-        morpheus_keywords = {
-            "discover", "explore", "experiment", "brainstorm",
-            "imagine", "speculate", "serendipity", "unconventional",
+        _morpheus_stems = {
+            "discover", "explor", "experiment", "brainstorm",
+            "imagin", "speculat", "serendip", "unconventional",
         }
         morpheus_phrases = [
             "what if", "cross-pollinate", "creative connection",
         ]
-        if (words & morpheus_keywords) or any(p in lower for p in morpheus_phrases):
+        if _stem_matches(_morpheus_stems) or any(p in lower for p in morpheus_phrases):
             logger.info("Fast-path keyword → morpheus")
             return TaskClassification(
                 task_type=TaskType.RESEARCH,
@@ -2463,9 +2494,9 @@ User input: {user_input}"""
             )
 
         # ── Priority 8: Reaper — research / web search ──
-        reaper_keywords = {"research", "search"}
+        _reaper_stems = {"research", "search"}
         reaper_phrases = ["look up", "what is", "who is"]
-        if (words & reaper_keywords) or any(p in lower for p in reaper_phrases):
+        if _stem_matches(_reaper_stems) or any(p in lower for p in reaper_phrases):
             logger.info("Fast-path keyword → reaper")
             return TaskClassification(
                 task_type=TaskType.RESEARCH,
@@ -2478,13 +2509,13 @@ User input: {user_input}"""
             )
 
         # ── Priority 9: Void — metrics / monitoring ──
-        void_keywords = {"metrics", "monitoring", "uptime", "diagnostics"}
+        _void_stems = {"metric", "monitor", "uptim", "diagnostic"}
         void_phrases = [
             "system status", "system health", "health check",
             "resource usage", "cpu usage", "memory usage",
             "gpu usage", "disk usage", "system metrics",
         ]
-        if (words & void_keywords) or any(p in lower for p in void_phrases):
+        if _stem_matches(_void_stems) or any(p in lower for p in void_phrases):
             logger.info("Fast-path keyword → void")
             return TaskClassification(
                 task_type=TaskType.ANALYSIS,
@@ -2497,12 +2528,12 @@ User input: {user_input}"""
             )
 
         # ── Priority 10: Harbinger — briefings / alerts ──
-        harbinger_keywords = {"briefing", "alert", "notification"}
+        _harbinger_stems = {"briefing", "alert", "notif"}
         harbinger_phrases = [
             "daily briefing", "morning briefing", "status report",
             "safety report",
         ]
-        if (words & harbinger_keywords) or any(p in lower for p in harbinger_phrases):
+        if _stem_matches(_harbinger_stems) or any(p in lower for p in harbinger_phrases):
             logger.info("Fast-path keyword → harbinger")
             return TaskClassification(
                 task_type=TaskType.ACTION,
@@ -2515,8 +2546,8 @@ User input: {user_input}"""
             )
 
         # ── Priority 11: Grimoire — memory keywords ──
-        grimoire_keywords = {"remember", "forget", "recall"}
-        if words & grimoire_keywords:
+        _grimoire_stems = {"remember", "forget", "recall"}
+        if _stem_matches(_grimoire_stems):
             logger.info("Fast-path keyword → grimoire")
             return TaskClassification(
                 task_type=TaskType.MEMORY,
@@ -2529,9 +2560,9 @@ User input: {user_input}"""
             )
 
         # ── Priority 12: Cerberus — ethics / moral questions ──
-        cerberus_keywords = {"ethics", "moral", "bible", "scripture"}
+        _cerberus_stems = {"ethic", "moral", "bibl", "scriptur"}
         cerberus_phrases = ["right or wrong", "should i", "is it ethical", "is it right", "is it wrong"]
-        if (words & cerberus_keywords) or any(p in lower for p in cerberus_phrases):
+        if _stem_matches(_cerberus_stems) or any(p in lower for p in cerberus_phrases):
             logger.info("Fast-path keyword → cerberus")
             return TaskClassification(
                 task_type=TaskType.QUESTION,
