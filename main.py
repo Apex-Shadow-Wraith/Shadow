@@ -256,10 +256,16 @@ def sanitize_input(raw: str) -> str:
     if not text:
         return text
 
-    # If there is a '/' somewhere, extract from the first '/' onward
-    slash_idx = text.find("/")
-    if slash_idx > 0:
-        text = text[slash_idx:]
+    # Look for a '/' followed by an alphabetic character — that's a command.
+    # This skips date-like slashes in GIN output (e.g. "2024/12/01").
+    cmd_match = re.search(r'/([A-Za-z])', text)
+    if cmd_match:
+        text = text[cmd_match.start():]
+    elif text.startswith("/") or (text.find("/") >= 0 and text[0] != "/"):
+        # Fallback: extract from first '/' if no alpha follows any slash
+        slash_idx = text.find("/")
+        if slash_idx > 0:
+            text = text[slash_idx:]
 
     # Collapse multiple leading slashes: "///tasks" -> "/tasks"
     if text.startswith("/"):
@@ -282,6 +288,68 @@ def fuzzy_match_command(cmd_body: str) -> str | None:
         return cmd_body  # exact match, no correction needed
     matches = get_close_matches(cmd_body, KNOWN_COMMANDS, n=1, cutoff=0.6)
     return matches[0] if matches else None
+
+
+def _lookup_task_in_grimoire(orchestrator: Orchestrator, task_id_prefix: str) -> str | None:
+    """Search Grimoire for a persisted async task result by task ID prefix.
+
+    Returns the stored result content string, or None if not found.
+    """
+    if "grimoire" not in orchestrator.registry:
+        return None
+    grimoire_mod = orchestrator.registry.get_module("grimoire")
+    grim = getattr(grimoire_mod, "_grimoire", None)
+    if grim is None:
+        return None
+
+    import json as _json
+    try:
+        results = grim.recall_recent(limit=50, source="async_task_result")
+        prefix = task_id_prefix.lower()
+        for entry in results:
+            meta = entry.get("metadata_json", "{}")
+            if isinstance(meta, str):
+                meta = _json.loads(meta)
+            stored_id = meta.get("task_id", "")
+            if stored_id.lower().startswith(prefix) or stored_id.lower() == prefix:
+                return entry.get("content", "")
+    except Exception:
+        pass
+    return None
+
+
+# Phrases indicating the user is asking about past task results — NOT new work.
+_TASK_RESULT_PHRASES = (
+    "what were the results",
+    "what are the results",
+    "show me the results",
+    "what did you find",
+    "what did it find",
+    "what came back",
+    "results of task",
+    "result of task",
+    "task result",
+    "show task result",
+    "what happened with task",
+    "what happened with the task",
+    "status of task",
+)
+
+
+def is_task_result_query(user_input: str) -> str | None:
+    """Detect if user is asking about a previous task's results.
+
+    Returns the task ID prefix if found, or None.
+    """
+    lower = user_input.lower()
+    if not any(phrase in lower for phrase in _TASK_RESULT_PHRASES):
+        return None
+
+    # Try to extract a hex task-ID prefix (8+ hex chars or UUID fragment)
+    match = re.search(r'\b([0-9a-f]{8,}(?:-[0-9a-f]+)*)\b', lower)
+    if match:
+        return match.group(1)
+    return None
 
 
 async def handle_command(command: str, orchestrator: Orchestrator) -> bool:
@@ -507,20 +575,42 @@ async def main() -> None:
         while True:
             try:
                 loop = asyncio.get_event_loop()
-                user_input = (await loop.run_in_executor(None, input, "You > ")).strip()
+                raw_input = (await loop.run_in_executor(None, input, "You > "))
             except EOFError:
                 break
 
+            user_input = sanitize_input(raw_input)
             if not user_input:
                 continue
 
-            if user_input.lower() in ("quit", "exit", "q"):
+            # Catch quit/exit BEFORE orchestrator — including /quit and /exit
+            lower = user_input.lower().strip()
+            if lower in ("quit", "exit", "q", "/quit", "/exit"):
                 break
 
-            # Handle slash commands
+            # Handle slash commands (with fuzzy matching)
             if user_input.startswith("/"):
+                # Extract the command word (e.g. "/taks 5" -> "taks")
+                parts = user_input[1:].split(maxsplit=1)
+                cmd_word = parts[0].lower() if parts else ""
+                corrected = fuzzy_match_command(cmd_word)
+
+                if corrected and corrected != cmd_word:
+                    # Rebuild the command with the corrected word
+                    suffix = f" {parts[1]}" if len(parts) > 1 else ""
+                    user_input = f"/{corrected}{suffix}"
+                    print(f"  (corrected from /{cmd_word} → /{corrected})")
+
                 handled = await handle_command(user_input, orchestrator)
                 if handled:
+                    continue
+
+            # Check if user is asking about a previous task's results
+            task_id_match = is_task_result_query(user_input)
+            if task_id_match:
+                grimoire_result = _lookup_task_in_grimoire(orchestrator, task_id_match)
+                if grimoire_result is not None:
+                    print(f"\nShadow > Here are the results for task {task_id_match[:8]}:\n{grimoire_result}\n")
                     continue
 
             # Process through the decision loop
