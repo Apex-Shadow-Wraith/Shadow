@@ -3574,7 +3574,7 @@ User input: {user_input}"""
             # skips execution, leaving results empty.  This check must be
             # BEFORE task_type checks since Apex can be any task type.
             #
-            # Enrich the prompt with prior tool results so Apex receives
+            # Enrich the task with prior tool results so Apex receives
             # the actual data (e.g. code_analyze_self output) instead of
             # just the bare user text like "analyze the codebase".
             apex_task = self._build_apex_context(user_input)
