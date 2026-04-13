@@ -2283,6 +2283,39 @@ class Omen(BaseModule):
 
     # --- Code Analyzer tool implementations ---
 
+    @staticmethod
+    def _looks_like_code(text: str) -> bool:
+        """Return True if *text* contains Python-like syntax markers.
+
+        Used to distinguish actual code from natural-language prompts so
+        that ``code_analyze`` can give a helpful "no code provided" error
+        instead of a confusing ``SyntaxError``.
+        """
+        import re as _re
+
+        # Structural keywords that start a statement
+        _KEYWORD_PAT = _re.compile(
+            r"(?m)^\s*(?:def |class |import |from |if |for |while |with "
+            r"|try:|except |return |raise |yield |async )"
+        )
+        if _KEYWORD_PAT.search(text):
+            return True
+
+        # Assignment, function calls, decorators
+        _SYNTAX_PAT = _re.compile(
+            r"(?:"
+            r"\w+\s*=[^=]"        # assignment (but not ==)
+            r"|\w+\(.*\)"         # function call
+            r"|^\s*@\w+"          # decorator
+            r"|^\s*#.*$"          # comment line
+            r")",
+            _re.MULTILINE,
+        )
+        if _SYNTAX_PAT.search(text):
+            return True
+
+        return False
+
     def _code_analyze(self, params: dict[str, Any]) -> ToolResult:
         """Analyze inline code for structure, patterns, quality, and vulnerabilities.
 
@@ -2293,10 +2326,11 @@ class Omen(BaseModule):
             params: 'code' (str) required, 'language' (str) optional.
         """
         code = params.get("code", "")
-        if not code:
+        if not code or not code.strip():
             return ToolResult(
                 success=False, content=None, tool_name="code_analyze",
-                module=self.name, error="code is required",
+                module=self.name,
+                error="No code provided. Please paste or include the code you want analyzed.",
             )
 
         language = params.get("language", "python")
@@ -2316,6 +2350,14 @@ class Omen(BaseModule):
             return ToolResult(
                 success=True, content=analysis,
                 tool_name="code_analyze", module=self.name,
+            )
+
+        # Detect natural-language prompts that aren't actual code
+        if not self._looks_like_code(code):
+            return ToolResult(
+                success=False, content=None, tool_name="code_analyze",
+                module=self.name,
+                error="No Python code detected in input. Please provide the actual code you want analyzed.",
             )
 
         analysis = self._analyzer.analyze_source(code, filename="<inline>")

@@ -92,7 +92,7 @@ class Baz:
     async def test_analyze_empty_code_fails(self, online_omen: Omen):
         r = await online_omen.execute("code_analyze", {"code": ""})
         assert r.success is False
-        assert "required" in r.error.lower()
+        assert "no code" in r.error.lower()
 
     @pytest.mark.asyncio
     async def test_analyze_no_code_param_fails(self, online_omen: Omen):
@@ -100,10 +100,41 @@ class Baz:
         assert r.success is False
 
     @pytest.mark.asyncio
+    async def test_analyze_natural_language_no_code(self, online_omen: Omen):
+        """Natural language prompt with no actual code returns helpful error."""
+        r = await online_omen.execute("code_analyze", {"code": "analyze this code"})
+        assert r.success is False
+        assert "no python code" in r.error.lower() or "no code" in r.error.lower()
+
+    @pytest.mark.asyncio
+    async def test_analyze_natural_language_variants(self, online_omen: Omen):
+        """Various natural-language prompts all return helpful 'no code' errors."""
+        prompts = [
+            "what does this do",
+            "explain the function",
+            "review my code please",
+            "can you check this",
+        ]
+        for prompt in prompts:
+            r = await online_omen.execute("code_analyze", {"code": prompt})
+            assert r.success is False, f"Should fail for: {prompt!r}"
+            assert "no python code" in r.error.lower() or "no code" in r.error.lower(), (
+                f"Expected helpful error for: {prompt!r}, got: {r.error}"
+            )
+
+    @pytest.mark.asyncio
     async def test_analyze_syntax_error(self, online_omen: Omen):
+        """Actual code with syntax errors still returns syntax error."""
         r = await online_omen.execute("code_analyze", {"code": "def broken(:"})
         assert r.success is False
         assert "syntax" in r.error.lower()
+
+    @pytest.mark.asyncio
+    async def test_analyze_whitespace_only(self, online_omen: Omen):
+        """Whitespace-only input treated as no code."""
+        r = await online_omen.execute("code_analyze", {"code": "   \n\t  "})
+        assert r.success is False
+        assert "no code" in r.error.lower()
 
     @pytest.mark.asyncio
     async def test_analyze_non_python(self, online_omen: Omen):
@@ -144,6 +175,7 @@ class TestCodeAnalyzeRouting:
         orch.registry = registry
         orch._config = {}
         orch._langfuse_enabled = False
+        orch._last_route = None
         return orch
 
     def test_analyze_this_code_routes_to_analysis(self):
