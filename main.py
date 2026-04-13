@@ -14,8 +14,11 @@ final Ubuntu architecture — nothing gets rebuilt later.
 
 import asyncio
 import logging
+import os
 import platform
+import re
 import sys
+from difflib import get_close_matches
 from pathlib import Path
 
 import yaml
@@ -231,6 +234,56 @@ async def startup(config: dict, logger: logging.Logger) -> Orchestrator:
     return orchestrator
 
 
+# All known CLI commands (without the slash) for fuzzy matching.
+# Commands that take arguments list only the base word.
+KNOWN_COMMANDS = ["status", "tools", "stats", "tasks", "task", "history", "failures", "help", "quit", "exit"]
+
+# Regex: strip everything before the first '/' that is followed by a letter.
+_LEADING_GARBAGE_RE = re.compile(r'^[^/]*(/)')
+
+
+def sanitize_input(raw: str) -> str:
+    """Strip GIN log noise and other leading garbage from user input.
+
+    Ollama's GIN debug output sometimes bleeds into the readline buffer,
+    turning '/tasks' into '//tasks' or '/[GIN] 2024/...tasks'.  This
+    function recovers the intended command by:
+      1. Stripping leading whitespace.
+      2. Collapsing multiple leading slashes to one.
+      3. Removing any non-command characters that precede the first '/'.
+    """
+    text = raw.strip()
+    if not text:
+        return text
+
+    # If there is a '/' somewhere, extract from the first '/' onward
+    slash_idx = text.find("/")
+    if slash_idx > 0:
+        text = text[slash_idx:]
+
+    # Collapse multiple leading slashes: "///tasks" -> "/tasks"
+    if text.startswith("/"):
+        stripped_slashes = text.lstrip("/")
+        if stripped_slashes:
+            text = "/" + stripped_slashes
+        else:
+            text = "/"
+
+    return text
+
+
+def fuzzy_match_command(cmd_body: str) -> str | None:
+    """Return the closest known command for *cmd_body*, or None.
+
+    *cmd_body* is the part after '/' and before any space, e.g. 'taks'.
+    Uses difflib.get_close_matches with a 0.6 cutoff.
+    """
+    if cmd_body in KNOWN_COMMANDS:
+        return cmd_body  # exact match, no correction needed
+    matches = get_close_matches(cmd_body, KNOWN_COMMANDS, n=1, cutoff=0.6)
+    return matches[0] if matches else None
+
+
 async def handle_command(command: str, orchestrator: Orchestrator) -> bool:
     """Handle slash commands. Returns True if handled, False otherwise."""
     cmd = command.strip().lower()
@@ -296,9 +349,7 @@ async def handle_command(command: str, orchestrator: Orchestrator) -> bool:
             print("Async task queue not available.")
         else:
             status = atq.get_status(task_id_prefix)
-            if status is None:
-                print(f"Task '{task_id_prefix}' not found.")
-            else:
+            if status is not None:
                 print(f"\n--- Task {task_id_prefix[:8]} ---")
                 print(f"  Status:  {status}")
                 if status in ("completed", "failed"):
@@ -306,6 +357,16 @@ async def handle_command(command: str, orchestrator: Orchestrator) -> bool:
                     if result:
                         print(f"  Result:  {result}")
                 print()
+            else:
+                # Task not in queue — check Grimoire for persisted results
+                grimoire_result = _lookup_task_in_grimoire(orchestrator, task_id_prefix)
+                if grimoire_result is not None:
+                    print(f"\n--- Task {task_id_prefix[:8]} (from history) ---")
+                    print(f"  Status:  completed")
+                    print(f"  Result:  {grimoire_result}")
+                    print()
+                else:
+                    print(f"Task '{task_id_prefix}' not found.")
         return True
 
     elif cmd.startswith("/history"):
@@ -375,6 +436,10 @@ async def main() -> None:
     print("  Phase 1 - Windows Development Build")
     print("=" * 60)
     print()
+
+    # Suppress Ollama GIN HTTP debug logs that corrupt the CLI
+    os.environ.setdefault("OLLAMA_LOG_LEVEL", "warn")
+    print("  Ollama log level set to:", os.environ["OLLAMA_LOG_LEVEL"])
 
     # Load config
     config = load_config()
