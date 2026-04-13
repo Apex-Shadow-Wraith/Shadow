@@ -1207,6 +1207,43 @@ class Grimoire:
         
         return [dict(row) for row in cursor.fetchall()]
 
+    def recall_operational(self, limit=20, failures_only=False):
+        """
+        Retrieve operational interaction logs stored by the orchestrator.
+
+        These are compact summaries of each interaction: which module handled
+        it, what tool was called, success/failure, confidence, timing.
+
+        Args:
+            limit: Maximum number of entries to return.
+            failures_only: If True, only return entries whose content
+                           contains 'failure' or 'fallback=yes'.
+
+        Returns:
+            List of memory dicts, most recent first.
+        """
+        cursor = self.conn.cursor()
+
+        if failures_only:
+            cursor.execute("""
+                SELECT * FROM memories
+                WHERE is_active = 1
+                  AND source = 'interaction_log'
+                  AND category = 'operational'
+                  AND (content LIKE '%failure%' OR content LIKE '%fallback=yes%')
+                ORDER BY created_at DESC LIMIT ?
+            """, (limit,))
+        else:
+            cursor.execute("""
+                SELECT * FROM memories
+                WHERE is_active = 1
+                  AND source = 'interaction_log'
+                  AND category = 'operational'
+                ORDER BY created_at DESC LIMIT ?
+            """, (limit,))
+
+        return [dict(row) for row in cursor.fetchall()]
+
     # =========================================================================
     # BLOCK SEARCH — Find memories by content block type
     # =========================================================================

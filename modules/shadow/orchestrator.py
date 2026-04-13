@@ -1397,7 +1397,27 @@ class Orchestrator:
                     logger.debug("Step 6.7 — Self-review failed (non-critical): %s", e)
 
             # Step 7 — Log
-            await self._step7_log(user_input, classification, response, loop_start)
+            # Extract operational metadata for Grimoire (best-effort from Step 6.5)
+            _log_confidence = (
+                confidence_result.get("confidence")
+                if confidence_result
+                else None
+            )
+            _log_fallback = response.startswith("[Fallback")
+            _log_tool = None
+            try:
+                if results:
+                    successful = [r.tool_name for r in results if r.success and r.tool_name]
+                    if successful:
+                        _log_tool = successful[0]
+            except Exception:
+                pass
+            await self._step7_log(
+                user_input, classification, response, loop_start,
+                confidence=_log_confidence,
+                used_fallback=_log_fallback,
+                tool_name=_log_tool,
+            )
 
             # Update conversation history with context-aware overflow check
             new_user_turn = {"role": "user", "content": user_input}
@@ -4822,12 +4842,19 @@ User input: {user_input}"""
         classification: TaskClassification,
         response: str,
         loop_start: float,
+        *,
+        confidence: float | None = None,
+        used_fallback: bool = False,
+        tool_name: str | None = None,
     ) -> None:
         """Log the full interaction. Every interaction, no exceptions.
 
         Architecture: 'Log everything. Every interaction, every tool call,
         every attempt, every failure, every success. This is both the
         audit trail and the training data.'
+
+        Also stores a compact operational summary in Grimoire so Shadow can
+        query its own history via /history and /failures.
         """
         total_time = (time.time() - loop_start) * 1000
 
@@ -4847,11 +4874,50 @@ User input: {user_input}"""
 
         logger.info("Step 7 — Logged interaction #%d (%.1fms)", self._state.interaction_count, total_time)
 
-        # Phase 1: Log to file only. Do NOT store interaction logs in Grimoire.
-        # Interaction logs were flooding Grimoire with noise like "User asked: hello"
-        # which polluted memory recall. Training data logging will be redesigned in Phase 2
-        # with proper filtering (skip greetings, skip short exchanges, only store
-        # substantive interactions with user corrections or new facts).
+        # Store compact operational summary in Grimoire (best-effort).
+        # This is metadata only — no full response text. Keeps Grimoire
+        # clean while giving Shadow queryable operational history.
+        try:
+            if "grimoire" in self.registry:
+                grimoire_mod = self.registry.get_module("grimoire")
+                grim = getattr(grimoire_mod, "_grimoire", None)
+                if grim is not None:
+                    is_failure = response.startswith("[Fallback") or response.startswith("[Error")
+                    outcome = "failure" if is_failure else "success"
+                    conf_str = f"{confidence:.2f}" if confidence is not None else "n/a"
+                    fb_str = "yes" if used_fallback else "no"
+                    tool_str = tool_name or "none"
+
+                    summary = (
+                        f"input={user_input[:100]} | "
+                        f"module={classification.target_module} | "
+                        f"tool={tool_str} | "
+                        f"outcome={outcome} | "
+                        f"confidence={conf_str} | "
+                        f"fallback={fb_str} | "
+                        f"time={round(total_time)}ms"
+                    )
+
+                    grim.remember(
+                        content=summary,
+                        source="interaction_log",
+                        source_module="shadow",
+                        category="operational",
+                        trust_level=1.0,
+                        confidence=confidence if confidence is not None else 0.5,
+                        check_duplicates=False,
+                        metadata={
+                            "interaction_number": self._state.interaction_count,
+                            "task_type": classification.task_type.value,
+                            "target_module": classification.target_module,
+                            "tool_name": tool_str,
+                            "outcome": outcome,
+                            "fallback": used_fallback,
+                            "response_time_ms": round(total_time, 1),
+                        },
+                    )
+        except Exception as e:
+            logger.debug("Step 7 — Grimoire operational log failed (non-critical): %s", e)
 
     # --- Support Methods ---
 

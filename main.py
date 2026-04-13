@@ -308,6 +308,49 @@ async def handle_command(command: str, orchestrator: Orchestrator) -> bool:
                 print()
         return True
 
+    elif cmd.startswith("/history"):
+        # /history or /history N
+        parts = cmd.split()
+        limit = int(parts[1]) if len(parts) > 1 and parts[1].isdigit() else 20
+        if "grimoire" in orchestrator.registry:
+            grimoire_mod = orchestrator.registry.get_module("grimoire")
+            grim = getattr(grimoire_mod, "_grimoire", None)
+            if grim is not None:
+                entries = grim.recall_operational(limit=limit, failures_only=False)
+                if not entries:
+                    print("\nNo operational history yet.\n")
+                else:
+                    print(f"\n--- Operational History (last {len(entries)}) ---")
+                    for entry in entries:
+                        print(f"  [{entry.get('created_at', '?')[:19]}] {entry['content']}")
+                    print()
+            else:
+                print("Grimoire not initialized.")
+        else:
+            print("Grimoire not loaded.")
+        return True
+
+    elif cmd.startswith("/failures"):
+        parts = cmd.split()
+        limit = int(parts[1]) if len(parts) > 1 and parts[1].isdigit() else 20
+        if "grimoire" in orchestrator.registry:
+            grimoire_mod = orchestrator.registry.get_module("grimoire")
+            grim = getattr(grimoire_mod, "_grimoire", None)
+            if grim is not None:
+                entries = grim.recall_operational(limit=limit, failures_only=True)
+                if not entries:
+                    print("\nNo failures or fallbacks recorded.\n")
+                else:
+                    print(f"\n--- Failures & Fallbacks (last {len(entries)}) ---")
+                    for entry in entries:
+                        print(f"  [{entry.get('created_at', '?')[:19]}] {entry['content']}")
+                    print()
+            else:
+                print("Grimoire not initialized.")
+        else:
+            print("Grimoire not loaded.")
+        return True
+
     elif cmd == "/help":
         print("\n--- Shadow Commands ---")
         print("  /status    Module health overview")
@@ -315,6 +358,8 @@ async def handle_command(command: str, orchestrator: Orchestrator) -> bool:
         print("  /stats     Cerberus safety statistics")
         print("  /tasks     List active background tasks")
         print("  /task <id> Check background task status")
+        print("  /history   Show recent interaction history")
+        print("  /failures  Show recent failures and fallbacks")
         print("  /help      Show this help")
         print("  quit       Shut down Shadow")
         print()
