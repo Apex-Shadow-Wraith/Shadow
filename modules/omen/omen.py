@@ -2355,9 +2355,12 @@ class Omen(BaseModule):
         # Detect natural-language prompts that aren't actual code
         if not self._looks_like_code(code):
             return ToolResult(
-                success=False, content=None, tool_name="code_analyze",
+                success=True,
+                content={
+                    "message": "No code detected in your message, Master. Paste the code you want me to analyze and I'll run it through the CodeAnalyzer."
+                },
+                tool_name="code_analyze",
                 module=self.name,
-                error="No Python code detected in input. Please provide the actual code you want analyzed.",
             )
 
         analysis = self._analyzer.analyze_source(code, filename="<inline>")

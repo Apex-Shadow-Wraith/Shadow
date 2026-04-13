@@ -101,14 +101,14 @@ class Baz:
 
     @pytest.mark.asyncio
     async def test_analyze_natural_language_no_code(self, online_omen: Omen):
-        """Natural language prompt with no actual code returns helpful error."""
+        """Natural language prompt with no actual code returns success with helpful message."""
         r = await online_omen.execute("code_analyze", {"code": "analyze this code"})
-        assert r.success is False
-        assert "no python code" in r.error.lower() or "no code" in r.error.lower()
+        assert r.success is True
+        assert "no code detected" in r.content["message"].lower()
 
     @pytest.mark.asyncio
     async def test_analyze_natural_language_variants(self, online_omen: Omen):
-        """Various natural-language prompts all return helpful 'no code' errors."""
+        """Various natural-language prompts all return success with helpful 'no code' message."""
         prompts = [
             "what does this do",
             "explain the function",
@@ -117,9 +117,9 @@ class Baz:
         ]
         for prompt in prompts:
             r = await online_omen.execute("code_analyze", {"code": prompt})
-            assert r.success is False, f"Should fail for: {prompt!r}"
-            assert "no python code" in r.error.lower() or "no code" in r.error.lower(), (
-                f"Expected helpful error for: {prompt!r}, got: {r.error}"
+            assert r.success is True, f"Should succeed for: {prompt!r}"
+            assert "no code detected" in r.content["message"].lower(), (
+                f"Expected helpful message for: {prompt!r}, got: {r.content}"
             )
 
     @pytest.mark.asyncio
