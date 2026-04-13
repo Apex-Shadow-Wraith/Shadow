@@ -313,6 +313,9 @@ class Orchestrator:
         self._state_file = Path(config["system"].get("state_file", "data/shadow_state.json"))
         self._conversation_history: list[dict[str, str]] = []
         self._max_history = 10  # Keep last 10 turns (user+assistant pairs) in working memory
+        # Last tool results — persisted across interactions so Apex escalations
+        # can reference data produced by earlier tool calls (e.g. code_analyze_self).
+        self._last_tool_results: list[dict[str, Any]] = []
         # Pending Apex escalation — stores context when user is asked to confirm
         self._pending_escalation: dict[str, Any] | None = None
         # Last routing decision — used by fast-path to handle contextual references
@@ -784,6 +787,37 @@ class Orchestrator:
 
         return False
 
+    @staticmethod
+    def _detect_background_intent(user_input: str) -> bool:
+        """Detect whether user input is requesting NEW background work.
+
+        Returns True only for imperative requests like "search for X in the
+        background". Returns False for retrieval queries about past background
+        work like "what were the results from the background task?".
+        """
+        _BACKGROUND_PHRASES = (
+            "in the background", "when you get a chance",
+            "low priority", "no rush", "whenever you can",
+        )
+        _RETRIEVAL_PATTERNS = (
+            "what are the results", "what were the results",
+            "show me what you found", "what did the background",
+            "that you ran", "the results from", "results of the background",
+            "what did you find", "background task find",
+            "background task found", "status of the background",
+            "how did the background", "what came back",
+        )
+        lower_input = user_input.lower()
+        has_background_phrase = any(
+            phrase in lower_input for phrase in _BACKGROUND_PHRASES
+        )
+        if not has_background_phrase:
+            return False
+        is_retrieval_query = any(
+            pattern in lower_input for pattern in _RETRIEVAL_PATTERNS
+        )
+        return not is_retrieval_query
+
     def clear_history(self) -> None:
         """Reset conversation history. Useful for starting a fresh topic."""
         self._conversation_history.clear()
@@ -1221,6 +1255,7 @@ class Orchestrator:
             )
 
             # Step 5 — Execute with Retry Engine (12-attempt strategy rotation)
+            results = []
             if self._retry_engine is not None:
                 response = await self._step5_with_retry(
                     user_input, plan, classification, context, source,
@@ -1231,6 +1266,21 @@ class Orchestrator:
                 response = await self._step6_evaluate(
                     user_input, classification, results, context
                 )
+
+            # Persist tool results for cross-interaction context (e.g. Apex escalation).
+            # Stored so that a follow-up "escalate to Apex" can include the data
+            # produced by the previous tool call (e.g. code_analyze_self output).
+            if results:
+                self._last_tool_results = [
+                    {
+                        "tool_name": r.tool_name,
+                        "content": r.content,
+                        "success": r.success,
+                        "error": r.error,
+                    }
+                    for r in results
+                    if r.success and r.content
+                ]
 
             # Step 6.5 — Confidence Scoring (quality gate)
             # When retry engine is active, it handles retries — Step 6.5 only
@@ -3523,12 +3573,17 @@ User input: {user_input}"""
             # step the plan falls into the "no tool" default and _step5
             # skips execution, leaving results empty.  This check must be
             # BEFORE task_type checks since Apex can be any task type.
+            #
+            # Enrich the prompt with prior tool results so Apex receives
+            # the actual data (e.g. code_analyze_self output) instead of
+            # just the bare user text like "analyze the codebase".
+            apex_task = self._build_apex_context(user_input)
             steps = [
                 {
                     "step": 1,
                     "description": "Query Apex (cloud API fallback)",
                     "tool": "apex_query",
-                    "params": {"task": user_input},
+                    "params": {"task": apex_task},
                 },
                 {
                     "step": 2,
@@ -4138,11 +4193,7 @@ User input: {user_input}"""
         plan.cerberus_approved = True
 
         # Detect background intent — inject _background flag into step params
-        _BACKGROUND_PHRASES = (
-            "in the background", "when you get a chance",
-            "low priority", "no rush", "whenever you can",
-        )
-        if any(phrase in user_input.lower() for phrase in _BACKGROUND_PHRASES):
+        if self._detect_background_intent(user_input):
             for step in plan.steps:
                 if step.get("tool") is not None:
                     step.setdefault("params", {})["_background"] = True
@@ -4434,15 +4485,77 @@ User input: {user_input}"""
         final = retry_result.get("final_result") or {}
         return final.get("response", "Unable to process this request.")
 
+    # --- Apex context assembly ---
+
+    _APEX_CONTEXT_TOKEN_LIMIT = 50_000
+    """Max tokens of prior tool output to include in an Apex prompt.
+
+    If the serialised tool results exceed this limit they are truncated
+    with a note so Apex knows data was trimmed.
+    """
+
+    def _build_apex_context(self, user_input: str) -> str:
+        """Assemble an enriched prompt for Apex that includes prior tool results.
+
+        When the user says something like "escalate to Apex and have him
+        analyze your codebase", the orchestrator must pass the actual data
+        (e.g. code_analyze_self output) — not just the bare user text.
+
+        Returns the original *user_input* augmented with serialised tool
+        results from the previous interaction, respecting token limits.
+        """
+        if not self._last_tool_results:
+            return user_input
+
+        # Serialise prior tool results into a readable block
+        parts: list[str] = []
+        for tr in self._last_tool_results:
+            tool_name = tr.get("tool_name", "unknown_tool")
+            content = tr.get("content", "")
+            if isinstance(content, dict):
+                import json as _json
+                content = _json.dumps(content, indent=2, default=str)
+            elif not isinstance(content, str):
+                content = str(content)
+            parts.append(f"--- {tool_name} output ---\n{content}")
+
+        prior_data = "\n\n".join(parts)
+
+        # Token-limit guard: estimate tokens and truncate if necessary
+        token_estimate = len(prior_data) // 4  # ~4 chars/token heuristic
+        if token_estimate > self._APEX_CONTEXT_TOKEN_LIMIT:
+            char_limit = self._APEX_CONTEXT_TOKEN_LIMIT * 4
+            prior_data = (
+                prior_data[:char_limit]
+                + "\n\n[... output truncated — exceeded "
+                f"{self._APEX_CONTEXT_TOKEN_LIMIT} token limit ...]"
+            )
+
+        enriched = (
+            f"{user_input}\n\n"
+            f"=== Prior tool results (from previous interaction) ===\n"
+            f"{prior_data}\n"
+            f"=== End prior tool results ==="
+        )
+        return enriched
+
     def _apex_query_wrapper(self):
-        """Create an async wrapper for Apex query calls."""
+        """Create an async wrapper for Apex query calls.
+
+        The wrapper enriches the task with prior tool results via
+        ``_build_apex_context`` so that Apex always receives the actual
+        data produced by previous interactions (e.g. code_analyze_self
+        output), not just the bare user text.
+        """
         registry = self.registry
+        build_ctx = self._build_apex_context
 
         async def apex_query(task: str) -> str:
             if "apex" not in registry:
                 return ""
+            enriched_task = build_ctx(task)
             apex = registry.get_module("apex")
-            result = await apex.execute("apex_query", {"task": task})
+            result = await apex.execute("apex_query", {"task": enriched_task})
             if result.success and isinstance(result.content, dict):
                 return result.content.get("message", str(result.content))
             return str(result.content) if result.content else ""

@@ -350,6 +350,85 @@ class TestTaskCompletion:
 
 
 # ===================================================================
+# (e) Background intent detection — request vs retrieval
+# ===================================================================
+
+class TestBackgroundIntentDetection:
+    """Verify _detect_background_intent distinguishes new requests from
+    retrieval queries about past background work."""
+
+    @pytest.fixture
+    def orch(self, tmp_path: Path):
+        """Minimal Orchestrator for testing static detection method."""
+        config = _minimal_config(tmp_path)
+        with patch("modules.shadow.orchestrator.httpx.Client"):
+            from modules.shadow.orchestrator import Orchestrator
+            o = Orchestrator(config)
+        yield o
+        o._task_tracker.close()
+
+    def test_imperative_request_triggers_async(self, orch):
+        """'search for X in the background' should trigger async."""
+        assert orch._detect_background_intent(
+            "search for Python tutorials in the background"
+        ) is True
+
+    def test_when_you_get_a_chance_triggers_async(self, orch):
+        """'when you get a chance' should trigger async."""
+        assert orch._detect_background_intent(
+            "look up landscaping prices when you get a chance"
+        ) is True
+
+    def test_no_rush_triggers_async(self, orch):
+        """'no rush' should trigger async."""
+        assert orch._detect_background_intent(
+            "find me some mulch suppliers, no rush"
+        ) is True
+
+    def test_results_query_does_not_trigger_async(self, orch):
+        """'what were the results from the background task?' → NOT async."""
+        assert orch._detect_background_intent(
+            "what were the results from the background task?"
+        ) is False
+
+    def test_show_me_what_you_found_does_not_trigger_async(self, orch):
+        """'show me what you found in the background' → NOT async."""
+        assert orch._detect_background_intent(
+            "show me what you found in the background"
+        ) is False
+
+    def test_what_are_the_results_does_not_trigger_async(self, orch):
+        """'what are the results of the background research?' → NOT async."""
+        assert orch._detect_background_intent(
+            "what are the results of the background research?"
+        ) is False
+
+    def test_that_you_ran_does_not_trigger_async(self, orch):
+        """'what are the research results that you ran in the background?' → NOT async."""
+        assert orch._detect_background_intent(
+            "what are the research results that you ran in the background?"
+        ) is False
+
+    def test_what_did_background_task_find_does_not_trigger_async(self, orch):
+        """'what did the background task find?' → NOT async."""
+        assert orch._detect_background_intent(
+            "what did the background task find?"
+        ) is False
+
+    def test_no_background_phrase_returns_false(self, orch):
+        """Input without any background phrase should return False."""
+        assert orch._detect_background_intent(
+            "search for Python tutorials"
+        ) is False
+
+    def test_status_of_background_does_not_trigger_async(self, orch):
+        """'status of the background task' → NOT async."""
+        assert orch._detect_background_intent(
+            "what's the status of the background task?"
+        ) is False
+
+
+# ===================================================================
 # Helper
 # ===================================================================
 
