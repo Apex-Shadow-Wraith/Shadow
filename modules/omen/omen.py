@@ -592,6 +592,7 @@ class Omen(BaseModule):
                 "code_analyze": self._code_analyze,
                 "code_analyze_file": self._code_analyze_file,
                 "code_analyze_dir": self._code_analyze_dir,
+                "code_analyze_self": self._code_analyze_self,
                 "code_analyze_url": self._code_analyze_url,
                 "code_learn": self._code_learn,
                 "code_compare": self._code_compare,
@@ -812,6 +813,12 @@ class Omen(BaseModule):
                 "name": "code_analyze_dir",
                 "description": "Analyze all Python files in a directory",
                 "parameters": {"dir_path": "str", "pattern": "str"},
+                "permission_level": "autonomous",
+            },
+            {
+                "name": "code_analyze_self",
+                "description": "Analyze Shadow's own codebase (modules/) for structure, patterns, quality, and metrics",
+                "parameters": {},
                 "permission_level": "autonomous",
             },
             {
@@ -2376,6 +2383,17 @@ class Omen(BaseModule):
             tool_name="code_analyze", module=self.name,
         )
 
+    def _is_within_project(self, target: Path) -> bool:
+        """Check if a path is within the Shadow project directory.
+
+        Security: prevents arbitrary filesystem reads outside the project root.
+        """
+        try:
+            target.resolve().relative_to(self._project_root)
+            return True
+        except ValueError:
+            return False
+
     def _code_analyze_file(self, params: dict[str, Any]) -> ToolResult:
         """Analyze a Python file for structure, patterns, and quality.
 
@@ -2387,6 +2405,14 @@ class Omen(BaseModule):
             return ToolResult(
                 success=False, content=None, tool_name="code_analyze_file",
                 module=self.name, error="file_path is required",
+            )
+
+        target = Path(file_path).resolve()
+        if not self._is_within_project(target):
+            return ToolResult(
+                success=False, content=None, tool_name="code_analyze_file",
+                module=self.name,
+                error=f"Access denied: path is outside the project directory ({self._project_root})",
             )
 
         analysis = self._analyzer.analyze_file(file_path)
@@ -2415,6 +2441,14 @@ class Omen(BaseModule):
                 module=self.name, error="dir_path is required",
             )
 
+        target = Path(dir_path).resolve()
+        if not self._is_within_project(target):
+            return ToolResult(
+                success=False, content=None, tool_name="code_analyze_dir",
+                module=self.name,
+                error=f"Access denied: path is outside the project directory ({self._project_root})",
+            )
+
         pattern = params.get("pattern", "*.py")
         analysis = self._analyzer.analyze_directory(dir_path, pattern)
         if analysis.get("error"):
@@ -2427,6 +2461,76 @@ class Omen(BaseModule):
         return ToolResult(
             success=True, content=analysis,
             tool_name="code_analyze_dir", module=self.name,
+        )
+
+    def _code_analyze_self(self, params: dict[str, Any]) -> ToolResult:
+        """Analyze Shadow's own codebase — walk modules/ and return per-file metrics.
+
+        Args:
+            params: ignored (no parameters needed).
+        """
+        modules_dir = self._project_root / "modules"
+        if not modules_dir.is_dir():
+            return ToolResult(
+                success=False, content=None, tool_name="code_analyze_self",
+                module=self.name,
+                error=f"modules/ directory not found at {modules_dir}",
+            )
+
+        analysis = self._analyzer.analyze_directory(str(modules_dir), "*.py")
+        if analysis.get("error"):
+            return ToolResult(
+                success=False, content=analysis,
+                tool_name="code_analyze_self",
+                module=self.name, error=analysis["error"],
+            )
+
+        # Build a compact aggregate overview alongside the full per-file data
+        total_loc = 0
+        total_functions = 0
+        total_classes = 0
+        total_complexity = 0
+        file_count = 0
+        module_summaries: dict[str, dict[str, Any]] = {}
+
+        for rel_path, file_data in analysis.get("per_file", {}).items():
+            if file_data.get("error"):
+                continue
+            file_count += 1
+            structure = file_data.get("structure", {})
+            complexity = file_data.get("complexity", {})
+            loc = complexity.get("loc", 0)
+            funcs = len(structure.get("functions", []))
+            classes = len(structure.get("classes", []))
+            avg_cc = complexity.get("avg_cyclomatic", 0)
+
+            total_loc += loc
+            total_functions += funcs
+            total_classes += classes
+            total_complexity += avg_cc
+
+            module_summaries[rel_path] = {
+                "loc": loc,
+                "functions": funcs,
+                "classes": classes,
+                "avg_cyclomatic_complexity": avg_cc,
+            }
+
+        analysis["self_analysis"] = {
+            "scope": "modules/",
+            "files_analyzed": file_count,
+            "total_loc": total_loc,
+            "total_functions": total_functions,
+            "total_classes": total_classes,
+            "avg_complexity": (
+                round(total_complexity / file_count, 2) if file_count else 0
+            ),
+            "per_file_summary": module_summaries,
+        }
+
+        return ToolResult(
+            success=True, content=analysis,
+            tool_name="code_analyze_self", module=self.name,
         )
 
     def _code_analyze_url(self, params: dict[str, Any]) -> ToolResult:

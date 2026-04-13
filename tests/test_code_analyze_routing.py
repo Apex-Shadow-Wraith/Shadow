@@ -343,3 +343,164 @@ class TestCodeAnalyzeRouting:
         tool_names = [s["tool"] for s in plan.steps if s.get("tool")]
         assert "code_generate" in tool_names
         assert "code_analyze" not in tool_names
+
+
+# ===================================================================
+# code_analyze_file security + code_analyze_self tests
+# ===================================================================
+
+class TestCodeAnalyzeFile:
+    """Verify code_analyze_file reads real files with security restrictions."""
+
+    @pytest.mark.asyncio
+    async def test_analyze_file_reads_real_file(self, tmp_path: Path):
+        """code_analyze_file reads a real .py file and returns analysis."""
+        test_file = tmp_path / "sample.py"
+        test_file.write_text("def greet(name):\n    return f'Hello, {name}'\n")
+        config = {"project_root": str(tmp_path), "teaching_mode": False}
+        omen = Omen(config)
+        await omen.initialize()
+        r = await omen.execute("code_analyze_file", {"file_path": str(test_file)})
+        assert r.success is True
+        assert r.tool_name == "code_analyze_file"
+        assert "structure" in r.content
+        assert "complexity" in r.content
+
+    @pytest.mark.asyncio
+    async def test_analyze_file_rejects_outside_project(self, tmp_path: Path):
+        """code_analyze_file denies access outside the project root."""
+        config = {"project_root": str(tmp_path / "project"), "teaching_mode": False}
+        (tmp_path / "project").mkdir()
+        omen = Omen(config)
+        await omen.initialize()
+        outside_file = tmp_path / "outside.py"
+        outside_file.write_text("x = 1\n")
+        r = await omen.execute("code_analyze_file", {"file_path": str(outside_file)})
+        assert r.success is False
+        assert "access denied" in r.error.lower()
+
+    @pytest.mark.asyncio
+    async def test_analyze_dir_rejects_outside_project(self, tmp_path: Path):
+        """code_analyze_dir denies access outside the project root."""
+        config = {"project_root": str(tmp_path / "project"), "teaching_mode": False}
+        (tmp_path / "project").mkdir()
+        omen = Omen(config)
+        await omen.initialize()
+        r = await omen.execute("code_analyze_dir", {"dir_path": str(tmp_path)})
+        assert r.success is False
+        assert "access denied" in r.error.lower()
+
+
+class TestCodeAnalyzeSelf:
+    """Verify code_analyze_self scans the modules/ directory."""
+
+    @pytest.mark.asyncio
+    async def test_analyze_self_scans_modules(self, tmp_path: Path):
+        """code_analyze_self walks modules/ and returns per-file metrics."""
+        modules = tmp_path / "modules" / "example"
+        modules.mkdir(parents=True)
+        (modules / "__init__.py").write_text("")
+        (modules / "core.py").write_text(
+            "def run():\n    return True\n\nclass Engine:\n    pass\n"
+        )
+        config = {"project_root": str(tmp_path), "teaching_mode": False}
+        omen = Omen(config)
+        await omen.initialize()
+        r = await omen.execute("code_analyze_self", {})
+        assert r.success is True
+        assert r.tool_name == "code_analyze_self"
+        sa = r.content["self_analysis"]
+        assert sa["scope"] == "modules/"
+        assert sa["files_analyzed"] >= 1
+        assert sa["total_functions"] >= 1
+        assert sa["total_classes"] >= 1
+        assert "per_file_summary" in sa
+
+    @pytest.mark.asyncio
+    async def test_analyze_self_missing_modules_dir(self, tmp_path: Path):
+        """code_analyze_self fails gracefully if modules/ doesn't exist."""
+        config = {"project_root": str(tmp_path), "teaching_mode": False}
+        omen = Omen(config)
+        await omen.initialize()
+        r = await omen.execute("code_analyze_self", {})
+        assert r.success is False
+        assert "modules/" in r.error
+
+    @pytest.mark.asyncio
+    async def test_analyze_self_in_tools_list(self):
+        """code_analyze_self appears in Omen's tool list."""
+        omen = Omen({"project_root": ".", "teaching_mode": False})
+        names = [t["name"] for t in omen.get_tools()]
+        assert "code_analyze_self" in names
+
+
+# ===================================================================
+# Self-analysis routing tests
+# ===================================================================
+
+class TestSelfAnalysisRouting:
+    """Verify 'analyze your codebase' routes to code_analyze_self."""
+
+    def _make_orchestrator(self):
+        orch = Orchestrator.__new__(Orchestrator)
+        orch._smart_brain = "phi4-mini"
+        orch._modules = {}
+        registry = MagicMock()
+        registry.__contains__ = lambda self, key: False
+        orch.registry = registry
+        orch._config = {}
+        orch._langfuse_enabled = False
+        orch._last_route = None
+        return orch
+
+    @pytest.mark.parametrize("prompt", [
+        "analyze your codebase",
+        "analyze your code",
+        "review your modules",
+        "inspect your source code",
+        "audit your own codebase",
+        "analyze yourself",
+    ])
+    def test_self_ref_routes_to_omen_analysis(self, prompt):
+        """Self-referential analysis phrases must route to omen ANALYSIS."""
+        orch = self._make_orchestrator()
+        result = orch._fast_path_classify(prompt)
+        assert result is not None, f"No classification for: {prompt!r}"
+        assert result.target_module == "omen", f"Wrong module for: {prompt!r}"
+        assert result.task_type == TaskType.ANALYSIS, f"Wrong task type for: {prompt!r}"
+
+    @pytest.mark.asyncio
+    async def test_step4_self_analysis_plans_code_analyze_self(self):
+        """Self-referential ANALYSIS must plan code_analyze_self, not code_analyze."""
+        orch = self._make_orchestrator()
+        classification = TaskClassification(
+            task_type=TaskType.ANALYSIS,
+            complexity="moderate",
+            target_module="omen",
+            brain=BrainType.FAST,
+            safety_flag=False,
+            priority=1,
+            confidence=0.90,
+        )
+        plan = await orch._step4_plan("analyze your codebase", classification, {})
+        tool_names = [s["tool"] for s in plan.steps if s.get("tool")]
+        assert "code_analyze_self" in tool_names
+        assert "code_analyze" not in tool_names
+
+    @pytest.mark.asyncio
+    async def test_step4_regular_analysis_still_uses_code_analyze(self):
+        """Regular analysis (no self-ref) must still plan code_analyze."""
+        orch = self._make_orchestrator()
+        classification = TaskClassification(
+            task_type=TaskType.ANALYSIS,
+            complexity="moderate",
+            target_module="omen",
+            brain=BrainType.FAST,
+            safety_flag=False,
+            priority=1,
+            confidence=0.85,
+        )
+        plan = await orch._step4_plan("analyze this code", classification, {})
+        tool_names = [s["tool"] for s in plan.steps if s.get("tool")]
+        assert "code_analyze" in tool_names
+        assert "code_analyze_self" not in tool_names

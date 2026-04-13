@@ -2364,6 +2364,30 @@ User input: {user_input}"""
             bool(analysis_stem_hits)
             or any(p in lower for p in omen_analysis_phrases)
         )
+
+        # ── Self-analysis shortcut: "analyze your codebase" etc. ──
+        _self_ref_phrases = [
+            "your code", "your codebase", "your modules",
+            "your source", "own code", "own codebase",
+            "own modules", "own source",
+        ]
+        _self_ref_words = {"yourself"}
+        has_self_ref = (
+            any(p in lower for p in _self_ref_phrases)
+            or bool(words & _self_ref_words)
+        )
+        if has_self_ref and has_analysis_intent:
+            logger.info("Fast-path keyword → omen SELF-ANALYSIS")
+            return TaskClassification(
+                task_type=TaskType.ANALYSIS,
+                complexity="moderate",
+                target_module="omen",
+                brain=BrainType.FAST,
+                safety_flag=False,
+                priority=1,
+                confidence=0.90,
+            )
+
         if omen_stem_hits or has_omen_context:
             # Determine if this is analysis or creation
             if has_analysis_intent:
@@ -3953,7 +3977,35 @@ User input: {user_input}"""
                 for kw in ["run this", "execute this", "run the following"]
             ) or lower_input.strip().startswith(("import ", "def ", "class ", "print("))
 
-            if classification.task_type == TaskType.ANALYSIS:
+            # Detect self-referential analysis ("analyze your codebase" etc.)
+            _self_ref_phrases = [
+                "your code", "your codebase", "your modules",
+                "your source", "own code", "own codebase",
+                "own modules", "own source",
+            ]
+            _self_ref_words = {"yourself"}
+            _lower_words = set(lower_input.split())
+            is_self_analysis = (
+                any(p in lower_input for p in _self_ref_phrases)
+                or bool(_lower_words & _self_ref_words)
+            )
+
+            if classification.task_type == TaskType.ANALYSIS and is_self_analysis:
+                steps = [
+                    {
+                        "step": 1,
+                        "description": "Analyze Shadow's own codebase via Omen",
+                        "tool": "code_analyze_self",
+                        "params": {},
+                    },
+                    {
+                        "step": 2,
+                        "description": "Generate response from self-analysis results",
+                        "tool": None,
+                        "params": {},
+                    },
+                ]
+            elif classification.task_type == TaskType.ANALYSIS:
                 steps = [
                     {
                         "step": 1,
@@ -4515,14 +4567,15 @@ User input: {user_input}"""
                         description=step.get("description", f"Background: {tool_name}"),
                         priority=4,
                     )
+                    short_id = task_id[:8]
                     results.append(ToolResult(
                         success=True,
-                        content=f"Task submitted to background queue. Task ID: {task_id}",
+                        content=f"Task submitted (ID: {short_id}). I'll handle this in the background — use /tasks to check progress.",
                         tool_name=tool_name,
                         module=target_module.name,
                         metadata={"async_task_id": task_id, "background": True},
                     ))
-                    logger.info("Task %s sent to async queue: %s", task_id[:8], tool_name)
+                    logger.info("Task %s sent to async queue: %s", short_id, tool_name)
                     continue
                 except Exception as e:
                     logger.warning("Async submit failed, falling back to sync: %s", e)
@@ -4589,6 +4642,16 @@ User input: {user_input}"""
         Phase 1: Generate response using LLM with tool results as context.
         Phase 2+: Retry cycle with 12 attempts and strategy rotation.
         """
+        # Short-circuit: if ALL results are async background tasks,
+        # return the queue confirmation directly — do NOT send through LLM.
+        if results and all(
+            r.metadata.get("background") if r.metadata else False
+            for r in results
+        ):
+            async_messages = [r.content for r in results if r.success]
+            if async_messages:
+                return "\n".join(str(m) for m in async_messages)
+
         # Build context for the response LLM
         system_prompt = self._build_system_prompt(context)
 
@@ -4877,8 +4940,8 @@ RESPONSE RULES:
 - When asked about code, confidently say yes — you handle it through Omen.
 - If you have memories below, use them naturally. Do not explain where they came from.
 
-SYNCHRONOUS EXECUTION — NO BACKGROUND PROCESSING:
-You have no background processing capability. Every task completes entirely within your response. Never claim work is continuing, running, or processing after you respond. If a task cannot be completed in one response, say so explicitly and ask what {master} wants to do next. Never use phrases like "working on it", "in the background", "still processing", "running that now", "I'll continue working on", or "task is underway".
+ASYNC TASK QUEUE — BACKGROUND PROCESSING:
+You have an async task queue for background processing. When a task is submitted to the background queue, tell {master} the task ID and that they can check status with /tasks. Never fabricate task progress — only report what the queue actually returns. Never claim a task completed unless the queue confirms it. If NO task was submitted to the queue, never claim work is continuing, running, or processing after you respond — that is confabulation.
 
 {f"Things you know about {master} Morstad:{chr(10)}{memory_context}" if memory_context else ""}"""
 
