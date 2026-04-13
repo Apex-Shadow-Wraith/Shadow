@@ -501,3 +501,28 @@ class TestConfabulationDetection:
         assert len(audit) == 1
         assert "task is underway" in audit[0]["matched_phrases"]
         assert "i'll continue" in audit[0]["matched_phrases"]
+
+    @pytest.mark.asyncio
+    async def test_async_task_suppresses_legitimate_phrases(self, cerberus: Cerberus):
+        """When has_async_task=True, legitimate background phrases are not flagged."""
+        result = await cerberus.execute("validate_response", {
+            "response_text": "Task submitted. I'll handle this in the background.",
+            "has_async_task": True,
+        })
+        data = result.content
+        assert data["flagged"] is False, (
+            "Legitimate async background phrase should not be flagged"
+        )
+
+    @pytest.mark.asyncio
+    async def test_async_task_still_flags_fabrication(self, cerberus: Cerberus):
+        """Even with has_async_task=True, fabrication phrases are still caught."""
+        result = await cerberus.execute("validate_response", {
+            "response_text": "I'm still processing your request and working on it.",
+            "has_async_task": True,
+        })
+        data = result.content
+        assert data["flagged"] is True, (
+            "Fabrication phrases must still be caught even with async task"
+        )
+        assert any(p in data["matched_phrases"] for p in ["still processing", "working on"])

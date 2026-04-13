@@ -1131,19 +1131,19 @@ class TestPersonalitySystemPrompt:
         orch = Orchestrator(cfg)
         assert orch._master_name == "Master"
 
-    def test_system_prompt_contains_no_background_processing(self, tmp_path: Path):
-        """System prompt must contain the no-background-processing instruction."""
+    def test_system_prompt_contains_async_task_queue_instruction(self, tmp_path: Path):
+        """System prompt must describe the async task queue for background processing."""
         cfg = self._make_config(tmp_path)
         orch = Orchestrator(cfg)
         prompt = orch._build_system_prompt([])
-        assert "no background processing" in prompt.lower(), (
-            "Missing no-background-processing instruction"
+        assert "async task queue" in prompt.lower(), (
+            "Missing async task queue instruction"
         )
-        assert "every task completes entirely within your response" in prompt.lower(), (
-            "Missing synchronous execution statement"
+        assert "never fabricate task progress" in prompt.lower(), (
+            "Missing anti-fabrication instruction"
         )
-        assert "never claim work is continuing" in prompt.lower(), (
-            "Missing ban on claiming ongoing work"
+        assert "/tasks" in prompt, (
+            "Missing /tasks command reference"
         )
 
     def test_system_prompt_override_replaces_default(self, tmp_path: Path):

@@ -262,6 +262,7 @@ class Cerberus(BaseModule):
             elif tool_name == "validate_response":
                 result_data = self.validate_response(
                     params.get("response_text", ""),
+                    has_async_task=params.get("has_async_task", False),
                 )
                 self._record_call(True)
                 return ToolResult(
@@ -540,6 +541,7 @@ class Cerberus(BaseModule):
                 ),
                 "parameters": {
                     "response_text": "str — the full model response text",
+                    "has_async_task": "bool — True if an async task was actually submitted (suppresses false positives for legitimate background phrases)",
                 },
                 "permission_level": "autonomous",
             },
@@ -1228,18 +1230,35 @@ class Cerberus(BaseModule):
         "i'll keep working",
     ]
 
-    def validate_response(self, response_text: str) -> dict[str, Any]:
+    #: Phrases that are legitimate when an async task was actually submitted.
+    ASYNC_LEGITIMATE_PHRASES: set[str] = {
+        "in the background",
+        "running in the background",
+        "task is underway",
+    }
+
+    def validate_response(
+        self,
+        response_text: str,
+        *,
+        has_async_task: bool = False,
+    ) -> dict[str, Any]:
         """Scan a model response for confabulation phrases.
 
         Returns a dict with ``flagged`` (bool), ``matched_phrases`` (list),
         and ``warning_count`` (int).  Matches are logged as
         confabulation_warning audit entries but the response is **not**
         blocked — this is observability only.
+
+        When *has_async_task* is True, phrases that legitimately describe
+        a real background task (e.g. "in the background") are excluded
+        from the match list so they don't trigger false-positive warnings.
         """
         text_lower = response_text.lower()
         matched: list[str] = [
             phrase for phrase in self.CONFABULATION_PHRASES
             if phrase in text_lower
+            and not (has_async_task and phrase in self.ASYNC_LEGITIMATE_PHRASES)
         ]
         if matched:
             self._write_audit_entry({
