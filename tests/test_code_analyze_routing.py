@@ -396,7 +396,7 @@ class TestCodeAnalyzeSelf:
 
     @pytest.mark.asyncio
     async def test_analyze_self_scans_modules(self, tmp_path: Path):
-        """code_analyze_self walks modules/ and returns per-file metrics."""
+        """code_analyze_self walks modules/ and returns a compact summary."""
         modules = tmp_path / "modules" / "example"
         modules.mkdir(parents=True)
         (modules / "__init__.py").write_text("")
@@ -414,7 +414,17 @@ class TestCodeAnalyzeSelf:
         assert sa["files_analyzed"] >= 1
         assert sa["total_functions"] >= 1
         assert sa["total_classes"] >= 1
-        assert "per_file_summary" in sa
+        # Summary returns ranked lists, not raw per-file data
+        assert "top_5_most_complex" in sa
+        assert "top_5_largest_files" in sa
+        assert "top_5_lowest_docstring_coverage" in sa
+        assert "top_5_lowest_type_hint_coverage" in sa
+        assert "total_decision_points" in sa
+        # Aggregates should have real values (not all zeros)
+        assert sa["total_loc"] > 0
+        assert sa["avg_complexity"] > 0
+        # Content should NOT contain the raw per_file data
+        assert "per_file" not in r.content
 
     @pytest.mark.asyncio
     async def test_analyze_self_missing_modules_dir(self, tmp_path: Path):

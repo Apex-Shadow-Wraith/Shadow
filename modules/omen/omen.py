@@ -2464,7 +2464,10 @@ class Omen(BaseModule):
         )
 
     def _code_analyze_self(self, params: dict[str, Any]) -> ToolResult:
-        """Analyze Shadow's own codebase — walk modules/ and return per-file metrics.
+        """Analyze Shadow's own codebase — walk modules/ and return a compact summary.
+
+        The full per-file analysis is stored in Grimoire for later retrieval.
+        Only a compact summary is returned to avoid exceeding LLM context limits.
 
         Args:
             params: ignored (no parameters needed).
@@ -2485,13 +2488,14 @@ class Omen(BaseModule):
                 module=self.name, error=analysis["error"],
             )
 
-        # Build a compact aggregate overview alongside the full per-file data
+        # Build aggregate stats from per-file data
         total_loc = 0
         total_functions = 0
         total_classes = 0
         total_complexity = 0
+        total_decision_points = 0
         file_count = 0
-        module_summaries: dict[str, dict[str, Any]] = {}
+        per_file_metrics: list[dict[str, Any]] = []
 
         for rel_path, file_data in analysis.get("per_file", {}).items():
             if file_data.get("error"):
@@ -2499,37 +2503,92 @@ class Omen(BaseModule):
             file_count += 1
             structure = file_data.get("structure", {})
             complexity = file_data.get("complexity", {})
-            loc = complexity.get("loc", 0)
+            quality = file_data.get("quality_signals", {})
+
+            loc = complexity.get("total_lines", 0)
             funcs = len(structure.get("functions", []))
             classes = len(structure.get("classes", []))
-            avg_cc = complexity.get("avg_cyclomatic", 0)
+            avg_cc = complexity.get("cyclomatic_complexity_avg", 0)
+            decision_pts = complexity.get("decision_points", 0)
+            docstring_cov = quality.get("docstring_coverage", 0)
+            type_hint_cov = quality.get("type_hint_coverage", 0)
 
             total_loc += loc
             total_functions += funcs
             total_classes += classes
             total_complexity += avg_cc
+            total_decision_points += decision_pts
 
-            module_summaries[rel_path] = {
-                "loc": loc,
+            per_file_metrics.append({
+                "file": rel_path,
+                "total_lines": loc,
                 "functions": funcs,
                 "classes": classes,
-                "avg_cyclomatic_complexity": avg_cc,
-            }
+                "cyclomatic_complexity_avg": avg_cc,
+                "decision_points": decision_pts,
+                "docstring_coverage": docstring_cov,
+                "type_hint_coverage": type_hint_cov,
+            })
 
-        analysis["self_analysis"] = {
+        # Store full raw analysis in Grimoire for later retrieval
+        grimoire = self._config.get("grimoire")
+        if grimoire:
+            import json
+            try:
+                grimoire.remember(
+                    content=json.dumps(analysis, default=str),
+                    source="self_analysis",
+                    source_module="omen",
+                    category="code_analysis",
+                    trust_level=0.9,
+                    confidence=1.0,
+                    tags=["self_analysis", "codebase_metrics", "modules"],
+                    check_duplicates=False,
+                )
+            except Exception:
+                pass  # Best-effort storage — don't fail the tool
+
+        # Rank files for top-5 lists
+        by_complexity = sorted(
+            per_file_metrics, key=lambda f: f["cyclomatic_complexity_avg"],
+            reverse=True,
+        )
+        by_size = sorted(
+            per_file_metrics, key=lambda f: f["total_lines"], reverse=True,
+        )
+        by_low_docstring = sorted(
+            per_file_metrics, key=lambda f: f["docstring_coverage"],
+        )
+        by_low_type_hints = sorted(
+            per_file_metrics, key=lambda f: f["type_hint_coverage"],
+        )
+
+        def _top5(ranked: list[dict], key: str) -> list[dict[str, Any]]:
+            return [
+                {"file": f["file"], key: f[key]}
+                for f in ranked[:5]
+            ]
+
+        avg_complexity = (
+            round(total_complexity / file_count, 2) if file_count else 0
+        )
+
+        summary = {
             "scope": "modules/",
             "files_analyzed": file_count,
             "total_loc": total_loc,
             "total_functions": total_functions,
             "total_classes": total_classes,
-            "avg_complexity": (
-                round(total_complexity / file_count, 2) if file_count else 0
-            ),
-            "per_file_summary": module_summaries,
+            "avg_complexity": avg_complexity,
+            "total_decision_points": total_decision_points,
+            "top_5_most_complex": _top5(by_complexity, "cyclomatic_complexity_avg"),
+            "top_5_largest_files": _top5(by_size, "total_lines"),
+            "top_5_lowest_docstring_coverage": _top5(by_low_docstring, "docstring_coverage"),
+            "top_5_lowest_type_hint_coverage": _top5(by_low_type_hints, "type_hint_coverage"),
         }
 
         return ToolResult(
-            success=True, content=analysis,
+            success=True, content={"self_analysis": summary},
             tool_name="code_analyze_self", module=self.name,
         )
 
