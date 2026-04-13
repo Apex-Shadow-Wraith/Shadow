@@ -17,6 +17,7 @@ Usage:
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import time
 from typing import Any
@@ -250,6 +251,9 @@ class AsyncTaskQueue:
                 except (KeyError, Exception) as e:
                     logger.debug("TaskTracker complete update skipped: %s", e)
 
+                # Persist result in Grimoire so it survives queue eviction
+                self._store_result_in_grimoire(task_id, task.description, result_dict)
+
                 logger.info(
                     "Task %s completed in %.0fms (success=%s)",
                     task_id[:8], elapsed_ms, result.success,
@@ -274,6 +278,41 @@ class AsyncTaskQueue:
                 # Loop continues — per-task exception handling
 
         logger.info("Worker loop exiting")
+
+    # ------------------------------------------------------------------
+    # Grimoire persistence
+    # ------------------------------------------------------------------
+
+    def _store_result_in_grimoire(
+        self, task_id: str, description: str, result_dict: dict[str, Any]
+    ) -> None:
+        """Persist a completed task's result in Grimoire for later retrieval.
+
+        Looks up the Grimoire module via the registry. If Grimoire is not
+        available, logs a warning and moves on — result storage is best-effort.
+        """
+        try:
+            grimoire_mod = self._registry.get_module("grimoire")
+            grim = getattr(grimoire_mod, "_grimoire", None)
+            if grim is None:
+                logger.debug("Grimoire internal object not available — skipping result store")
+                return
+
+            content = json.dumps(result_dict, default=str)
+            grim.remember(
+                content=content,
+                source="async_task_result",
+                source_module="shadow",
+                category="task_result",
+                trust_level=0.8,
+                confidence=1.0,
+                tags=["async_task", "task_result", task_id[:8]],
+                metadata={"task_id": task_id, "description": description},
+                check_duplicates=False,
+            )
+            logger.info("Task %s result stored in Grimoire", task_id[:8])
+        except Exception as e:
+            logger.warning("Failed to store task %s result in Grimoire: %s", task_id[:8], e)
 
     # ------------------------------------------------------------------
     # Internal helpers

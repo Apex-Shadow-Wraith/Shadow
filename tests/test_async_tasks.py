@@ -8,9 +8,10 @@ failure handling, list_active_tasks, and CLI commands.
 """
 
 import asyncio
+import json
 from pathlib import Path
 from typing import Any
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -467,3 +468,184 @@ class TestCLICommands:
         assert result is True
         captured = capsys.readouterr()
         assert "not available" in captured.out
+
+
+# ===================================================================
+# Test: Grimoire Result Persistence
+# ===================================================================
+
+class TestGrimoireResultPersistence:
+    """Tests that completed task results are stored in Grimoire."""
+
+    async def test_completed_task_stored_in_grimoire(
+        self, task_queue: PriorityTaskQueue, task_tracker: TaskTracker,
+        registry: ModuleRegistry,
+    ):
+        """After a task completes, its result should be stored in Grimoire."""
+        # Create a mock Grimoire module and inject it into the registry
+        mock_grim_internal = MagicMock()
+        mock_grim_internal.remember = MagicMock(return_value="mem-123")
+
+        mock_grimoire_mod = MagicMock()
+        mock_grimoire_mod._grimoire = mock_grim_internal
+
+        # Patch registry.get_module to return our mock for "grimoire"
+        original_get = registry.get_module
+
+        def patched_get(name):
+            if name == "grimoire":
+                return mock_grimoire_mod
+            return original_get(name)
+
+        aq = AsyncTaskQueue(task_queue, task_tracker, registry)
+        await aq.start()
+
+        with patch.object(registry, "get_module", side_effect=patched_get):
+            task_id = aq.submit_task("reaper", "web_search", {"query": "test grimoire"})
+
+            # Wait for completion
+            for _ in range(50):
+                await asyncio.sleep(0.05)
+                if aq.get_status(task_id) == "completed":
+                    break
+
+        await aq.stop()
+
+        assert aq.get_status(task_id) == "completed"
+        # Verify Grimoire.remember was called with correct args
+        mock_grim_internal.remember.assert_called_once()
+        call_kwargs = mock_grim_internal.remember.call_args
+        assert call_kwargs[1]["source"] == "async_task_result"
+        assert call_kwargs[1]["category"] == "task_result"
+        assert call_kwargs[1]["metadata"]["task_id"] == task_id
+
+        # Verify the content is valid JSON containing the result
+        stored_content = call_kwargs[1]["content"]
+        parsed = json.loads(stored_content)
+        assert parsed["success"] is True
+        assert parsed["tool_name"] == "web_search"
+
+    async def test_grimoire_failure_does_not_crash_worker(
+        self, task_queue: PriorityTaskQueue, task_tracker: TaskTracker,
+        registry: ModuleRegistry,
+    ):
+        """If Grimoire storage fails, the worker should continue processing."""
+        mock_grim_internal = MagicMock()
+        mock_grim_internal.remember = MagicMock(side_effect=RuntimeError("DB locked"))
+
+        mock_grimoire_mod = MagicMock()
+        mock_grimoire_mod._grimoire = mock_grim_internal
+
+        original_get = registry.get_module
+
+        def patched_get(name):
+            if name == "grimoire":
+                return mock_grimoire_mod
+            return original_get(name)
+
+        aq = AsyncTaskQueue(task_queue, task_tracker, registry)
+        await aq.start()
+
+        with patch.object(registry, "get_module", side_effect=patched_get):
+            id1 = aq.submit_task("reaper", "web_search", {"query": "first"})
+            id2 = aq.submit_task("reaper", "web_scrape", {"url": "http://test"})
+
+            for _ in range(80):
+                await asyncio.sleep(0.05)
+                s1 = aq.get_status(id1)
+                s2 = aq.get_status(id2)
+                if s1 == "completed" and s2 == "completed":
+                    break
+
+        await aq.stop()
+
+        # Both tasks should complete despite Grimoire failure
+        assert aq.get_status(id1) == "completed"
+        assert aq.get_status(id2) == "completed"
+
+
+# ===================================================================
+# Test: /task <id> Grimoire Fallback
+# ===================================================================
+
+class TestTaskCommandGrimoireFallback:
+    """Tests that /task <id> falls back to Grimoire when queue has no result."""
+
+    async def test_task_command_finds_result_in_grimoire(self, capsys):
+        """When queue returns None, /task should check Grimoire."""
+        from main import handle_command
+
+        orch = MagicMock()
+        atq = MagicMock()
+        atq.get_status.return_value = None  # Not in queue
+        orch.async_task_queue = atq
+
+        # Mock Grimoire lookup
+        with patch("main._lookup_task_in_grimoire", return_value='{"success": true, "content": "search results here"}'):
+            result = await handle_command("/task abc12345", orch)
+
+        assert result is True
+        captured = capsys.readouterr()
+        assert "from history" in captured.out
+        assert "search results here" in captured.out
+
+    async def test_task_command_not_found_anywhere(self, capsys):
+        """When neither queue nor Grimoire has the task, show not found."""
+        from main import handle_command
+
+        orch = MagicMock()
+        atq = MagicMock()
+        atq.get_status.return_value = None
+        orch.async_task_queue = atq
+
+        with patch("main._lookup_task_in_grimoire", return_value=None):
+            result = await handle_command("/task deadbeef", orch)
+
+        assert result is True
+        captured = capsys.readouterr()
+        assert "not found" in captured.out
+
+
+# ===================================================================
+# Test: Task Result Query Detection
+# ===================================================================
+
+class TestTaskResultQueryDetection:
+    """Tests that asking about past results doesn't trigger new async work."""
+
+    def test_detects_result_query_with_task_id(self):
+        from main import is_task_result_query
+
+        result = is_task_result_query("what were the results of task abc12345?")
+        assert result == "abc12345"
+
+    def test_detects_show_results_query(self):
+        from main import is_task_result_query
+
+        result = is_task_result_query("show me the results for abc12345")
+        assert result == "abc12345"
+
+    def test_detects_what_did_you_find(self):
+        from main import is_task_result_query
+
+        result = is_task_result_query("what did you find for deadbeef?")
+        assert result == "deadbeef"
+
+    def test_no_match_for_new_work_request(self):
+        from main import is_task_result_query
+
+        result = is_task_result_query("search the web for Python tutorials in the background")
+        assert result is None
+
+    def test_no_match_for_general_question(self):
+        from main import is_task_result_query
+
+        result = is_task_result_query("what is the weather today?")
+        assert result is None
+
+    def test_returns_none_when_no_task_id(self):
+        from main import is_task_result_query
+
+        # Has the phrase but no hex ID
+        result = is_task_result_query("what were the results of that search?")
+        assert result is None
