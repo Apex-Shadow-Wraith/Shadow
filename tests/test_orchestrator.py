@@ -1750,8 +1750,8 @@ class TestOmenPlanRouting:
         assert "code_execute" in tool_names
 
     @pytest.mark.asyncio
-    async def test_analysis_uses_code_review(self, config: dict):
-        """ANALYSIS tasks targeting Omen should use code_review (read-only),
+    async def test_analysis_uses_code_analyze(self, config: dict):
+        """ANALYSIS tasks targeting Omen should use code_analyze (read-only),
         not code_generate (which triggers unnecessary Cerberus approval)."""
         orch = Orchestrator(config)
         classification = TaskClassification(
@@ -1766,7 +1766,7 @@ class TestOmenPlanRouting:
             "analyze the Nova codebase", classification, []
         )
         tool_names = [s.get("tool") for s in plan.steps if s.get("tool")]
-        assert "code_review" in tool_names
+        assert "code_analyze" in tool_names
         assert "code_generate" not in tool_names
         assert "code_execute" not in tool_names
 
