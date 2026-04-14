@@ -2347,3 +2347,141 @@ class TestStep4PlanModuleDispatch:
             "Modules with broken _step4_plan dispatch:\n"
             + "\n".join(f"  - {f}" for f in failed)
         )
+
+
+# --- Confabulation Guard Tests ---
+
+class TestConfabulationGuard:
+    """Test the orchestrator's anti-confabulation guard for local model responses."""
+
+    def test_detect_failed_tools_success_false(self, config: dict):
+        """Tools with success=False are detected as failed."""
+        orch = Orchestrator(config)
+        results = [
+            ToolResult(success=False, content=None, tool_name="breach_check",
+                       module="sentinel", error="Connection refused"),
+            ToolResult(success=True, content="All good", tool_name="health_check",
+                       module="void"),
+        ]
+        failed = orch._detect_failed_tools(results)
+        assert failed == ["breach_check"]
+
+    def test_detect_failed_tools_empty_content(self, config: dict):
+        """Tools with success=True but null/empty content are detected."""
+        orch = Orchestrator(config)
+        results = [
+            ToolResult(success=True, content=None, tool_name="scan_network",
+                       module="sentinel"),
+            ToolResult(success=True, content="", tool_name="file_check",
+                       module="sentinel"),
+            ToolResult(success=True, content={}, tool_name="empty_dict",
+                       module="sentinel"),
+            ToolResult(success=True, content=[], tool_name="empty_list",
+                       module="sentinel"),
+        ]
+        failed = orch._detect_failed_tools(results)
+        assert set(failed) == {"scan_network", "file_check", "empty_dict", "empty_list"}
+
+    def test_detect_failed_tools_all_successful(self, config: dict):
+        """No failures when all tools return real data."""
+        orch = Orchestrator(config)
+        results = [
+            ToolResult(success=True, content="Data here", tool_name="web_search",
+                       module="reaper"),
+        ]
+        failed = orch._detect_failed_tools(results)
+        assert failed == []
+
+    def test_build_confabulation_warning(self, config: dict):
+        """Warning message includes failed tool names."""
+        orch = Orchestrator(config)
+        warning = orch._build_confabulation_warning(["breach_check", "scan_network"])
+        assert "breach_check" in warning
+        assert "scan_network" in warning
+        assert "Do NOT fabricate" in warning
+
+    def test_detect_confabulation_fabricated_scan(self, config: dict):
+        """Detects fabricated scan summary with percentages and findings."""
+        orch = Orchestrator(config)
+        fabricated_response = (
+            "Sentinel Scan Summary:\n"
+            "- Found 3 vulnerabilities in the network\n"
+            "- Port 22: open — Risk Score: 7.2/10\n"
+            "- 85.3% of endpoints are secure\n"
+            "- No critical CVEs detected"
+        )
+        results = [
+            ToolResult(success=False, content=None, tool_name="breach_check",
+                       module="sentinel", error="Service unavailable"),
+        ]
+        assert orch._detect_confabulation(
+            fabricated_response, results, ["breach_check"],
+        ) is True
+
+    def test_detect_confabulation_honest_response(self, config: dict):
+        """Honest failure response is NOT flagged as confabulation."""
+        orch = Orchestrator(config)
+        honest_response = (
+            "I wasn't able to run the breach check — the Sentinel module "
+            "returned an error. Please try again later."
+        )
+        results = [
+            ToolResult(success=False, content=None, tool_name="breach_check",
+                       module="sentinel", error="Service unavailable"),
+        ]
+        assert orch._detect_confabulation(
+            honest_response, results, ["breach_check"],
+        ) is False
+
+    def test_detect_confabulation_no_failed_tools(self, config: dict):
+        """No confabulation check when no tools failed."""
+        orch = Orchestrator(config)
+        assert orch._detect_confabulation(
+            "Some response with 50% stats", [], [],
+        ) is False
+
+    def test_detect_confabulation_grounded_data(self, config: dict):
+        """Data that exists in tool results is NOT flagged."""
+        orch = Orchestrator(config)
+        response = (
+            "Scan Summary:\n"
+            "- Found 2 issues in the scan\n"
+            "- Risk Score: 3.5\n"
+        )
+        results = [
+            # One tool failed, but another succeeded with matching data
+            ToolResult(success=False, content=None, tool_name="deep_scan",
+                       module="sentinel", error="Timeout"),
+            ToolResult(success=True,
+                       content="Scan Summary:\nFound 2 issues in the scan\nRisk Score: 3.5",
+                       tool_name="quick_scan", module="sentinel"),
+        ]
+        assert orch._detect_confabulation(
+            response, results, ["deep_scan"],
+        ) is False
+
+    def test_build_honest_failure_response(self, config: dict):
+        """Honest failure message includes tool names and errors."""
+        orch = Orchestrator(config)
+        results = [
+            ToolResult(success=False, content=None, tool_name="breach_check",
+                       module="sentinel", error="Connection refused"),
+            ToolResult(success=True, content="System healthy",
+                       tool_name="health_check", module="void"),
+        ]
+        response = orch._build_honest_failure_response(["breach_check"], results)
+        assert "breach_check" in response
+        assert "Connection refused" in response
+        assert "health_check" in response
+        assert "System healthy" in response
+
+    def test_build_honest_failure_no_error_message(self, config: dict):
+        """Honest failure handles missing error gracefully."""
+        orch = Orchestrator(config)
+        results = [
+            ToolResult(success=True, content=None, tool_name="empty_tool",
+                       module="sentinel"),
+        ]
+        response = orch._build_honest_failure_response(["empty_tool"], results)
+        assert "empty_tool" in response
+        assert "no data" in response.lower()

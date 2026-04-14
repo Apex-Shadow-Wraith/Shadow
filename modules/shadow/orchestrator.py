@@ -4763,6 +4763,124 @@ User input: {user_input}"""
 
     # --- Step 6: Evaluate ---
 
+    # -- Confabulation Guard helpers --
+
+    def _detect_failed_tools(self, results: list[ToolResult]) -> list[str]:
+        """Return names of tools that returned success=False or null/empty content."""
+        failed: list[str] = []
+        for r in results:
+            if not r.success:
+                failed.append(r.tool_name)
+            elif r.content is None or r.content == "" or r.content == {} or r.content == []:
+                failed.append(r.tool_name)
+        return failed
+
+    def _build_confabulation_warning(self, failed_tools: list[str]) -> str:
+        """Build an explicit anti-confabulation directive for the LLM prompt."""
+        tool_list = ", ".join(failed_tools)
+        return (
+            f"IMPORTANT: The following tool(s) returned no data (success=False "
+            f"or empty content): [{tool_list}]. Do NOT fabricate or invent results "
+            f"for these tools. Report honestly that the tool(s) failed or returned "
+            f"no data, and explain what the user should know. Never generate fake "
+            f"scan summaries, statistics, bullet-pointed findings, percentages, "
+            f"or structured data that did not come from an actual tool result."
+        )
+
+    _CONFAB_PATTERNS: list[re.Pattern[str]] = [
+        # Bullet lists with specific numbers/percentages
+        re.compile(r"[-•]\s+.*\b\d+(\.\d+)?%"),
+        # "Found N vulnerabilities/issues/results"
+        re.compile(r"(?:found|detected|identified|discovered)\s+\d+\s+\w+", re.IGNORECASE),
+        # Scan/analysis summary headers
+        re.compile(
+            r"(?:scan|analysis|assessment|audit|check)\s+(?:summary|results?|report|findings)",
+            re.IGNORECASE,
+        ),
+        # Tables with pipe separators (fabricated data tables)
+        re.compile(r"\|.*\|.*\|"),
+        # Specific scores like "Risk Score: 7.2/10"
+        re.compile(r"(?:score|rating|severity|risk)\s*[:=]\s*\d+(\.\d+)?", re.IGNORECASE),
+    ]
+
+    def _detect_confabulation(
+        self,
+        response: str,
+        results: list[ToolResult],
+        failed_tools: list[str],
+    ) -> bool:
+        """Detect if the LLM fabricated structured data not grounded in tool results.
+
+        Returns True if confabulation is likely.
+        """
+        if not failed_tools:
+            return False
+
+        # Collect all real data from successful tool results
+        successful_content = ""
+        for r in results:
+            if r.success and r.content:
+                successful_content += str(r.content) + "\n"
+
+        # Count how many suspicious patterns appear in the response
+        # but NOT in any successful tool output
+        confab_hits = 0
+        for pattern in self._CONFAB_PATTERNS:
+            response_matches = pattern.findall(response)
+            if response_matches:
+                # Check if this pattern also appears in real tool output
+                content_matches = pattern.findall(successful_content)
+                if not content_matches:
+                    confab_hits += 1
+                    logger.debug(
+                        "Confabulation guard — pattern %r matched in response "
+                        "but not in tool results",
+                        pattern.pattern,
+                    )
+
+        # 2+ ungrounded patterns = likely confabulation
+        if confab_hits >= 2:
+            logger.warning(
+                "Confabulation detected — %d ungrounded structured-data "
+                "patterns in response for failed tools: %s",
+                confab_hits,
+                ", ".join(failed_tools),
+            )
+            return True
+        return False
+
+    def _build_honest_failure_response(self, failed_tools: list[str], results: list[ToolResult]) -> str:
+        """Build an honest response when confabulation is detected."""
+        lines = []
+        for tool_name in failed_tools:
+            # Find the matching result for error details
+            for r in results:
+                if r.tool_name == tool_name:
+                    if r.error:
+                        lines.append(f"**{tool_name}** failed: {r.error}")
+                    else:
+                        lines.append(f"**{tool_name}** returned no data.")
+                    break
+            else:
+                lines.append(f"**{tool_name}** returned no data.")
+
+        # Include any successful results
+        successful = [r for r in results if r.success and r.content and r.tool_name not in failed_tools]
+        success_section = ""
+        if successful:
+            success_lines = []
+            for r in successful:
+                success_lines.append(f"**{r.tool_name}**: {r.content}")
+            success_section = "\n\nResults from other tools:\n" + "\n".join(success_lines)
+
+        return (
+            "I wasn't able to complete this request fully. "
+            "The following tool(s) did not return results:\n\n"
+            + "\n".join(f"- {line}" for line in lines)
+            + success_section
+            + "\n\nPlease try again or rephrase your request."
+        )
+
     async def _step6_evaluate(
         self,
         user_input: str,
@@ -4814,6 +4932,16 @@ User input: {user_input}"""
                 "error": result.error,
             })
 
+        # --- Confabulation Guard: Pre-LLM warning injection ---
+        _failed_tools = self._detect_failed_tools(results)
+        _confab_warning: str | None = None
+        if _failed_tools:
+            _confab_warning = self._build_confabulation_warning(_failed_tools)
+            logger.info(
+                "Confabulation guard — injecting warning for failed tools: %s",
+                ", ".join(_failed_tools),
+            )
+
         # Use ContextManager if available for smart assembly + trimming
         if self._context_manager is not None:
             # Update model limit based on which brain we're using
@@ -4859,6 +4987,10 @@ User input: {user_input}"""
             )
             if build_result["trimmed"]:
                 logger.info("Step 6 — Trimmed: %s", ", ".join(build_result["trimmed_components"]))
+
+            # Inject confabulation warning into ContextManager path
+            if _confab_warning:
+                messages.append({"role": "system", "content": _confab_warning})
         else:
             # Fallback: raw concatenation (original behavior)
             tool_context = ""
@@ -4882,6 +5014,10 @@ User input: {user_input}"""
                     else:
                         pattern_lines.append(f"- {fp}")
                 messages.append({"role": "system", "content": "\n".join(pattern_lines)})
+
+            # Inject confabulation warning into fallback path
+            if _confab_warning:
+                messages.append({"role": "system", "content": _confab_warning})
 
             messages.extend(self._conversation_history[-10:])
             logger.debug(
@@ -4931,6 +5067,17 @@ User input: {user_input}"""
                 options={"temperature": 0.7, "num_predict": self._max_response_tokens},
             )
             if response:
+                # --- Confabulation Guard: Post-LLM scan ---
+                if _failed_tools and self._detect_confabulation(
+                    response, results, _failed_tools,
+                ):
+                    logger.warning(
+                        "Confabulation guard — replacing fabricated response "
+                        "with honest failure message",
+                    )
+                    return self._build_honest_failure_response(
+                        _failed_tools, results,
+                    )
                 return response
             # Empty response — fall through to tool results
             logger.warning("LLM returned empty response, falling back to tool results")
