@@ -397,7 +397,7 @@ class Sentinel(BaseModule):
         email = params.get("email", "")
         if not email:
             return ToolResult(
-                success=False, content=None, tool_name="breach_check",
+                success=False, content="Email address is required", tool_name="breach_check",
                 module=self.name, error="Email address is required",
             )
 
