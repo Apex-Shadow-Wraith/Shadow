@@ -151,10 +151,22 @@ class TestFallbackClassifier:
         assert result.task_type == TaskType.CONVERSATION
         assert result.target_module == "direct"
 
-    def test_what_is_routes_to_research(self, config: dict):
+    def test_search_keyword_routes_to_research(self, config: dict):
+        orch = Orchestrator(config)
+        result = orch._fallback_classify("search for photosynthesis")
+        assert result.task_type == TaskType.RESEARCH
+
+    def test_bible_verse_routes_to_grimoire(self, config: dict):
+        orch = Orchestrator(config)
+        result = orch._fallback_classify(
+            "what is the reference for 'for God so loved the world'"
+        )
+        assert result.target_module == "grimoire"
+
+    def test_what_is_alone_does_not_route_to_reaper(self, config: dict):
         orch = Orchestrator(config)
         result = orch._fallback_classify("what is photosynthesis")
-        assert result.task_type == TaskType.RESEARCH
+        assert result.target_module != "reaper"
 
 
 class TestFastPathClassifier:
@@ -246,11 +258,32 @@ class TestFastPathClassifier:
         assert result.target_module == "reaper"
         assert result.task_type == TaskType.RESEARCH
 
-    def test_reaper_what_is_phrase(self, config: dict):
+    def test_reaper_look_up_phrase(self, config: dict):
         orch = Orchestrator(config)
-        result = orch._fast_path_classify("what is the best mulch for flower beds")
+        result = orch._fast_path_classify("look up the best mulch for flower beds")
         assert result is not None
         assert result.target_module == "reaper"
+
+    def test_what_is_does_not_fast_path_to_reaper(self, config: dict):
+        orch = Orchestrator(config)
+        result = orch._fast_path_classify("what is the best mulch for flower beds")
+        assert result is None or result.target_module != "reaper"
+
+    def test_bible_verse_fast_paths_to_grimoire(self, config: dict):
+        orch = Orchestrator(config)
+        result = orch._fast_path_classify(
+            "what is the reference for 'for God so loved the world'"
+        )
+        assert result is not None
+        assert result.target_module == "grimoire"
+
+    def test_logic_puzzle_fast_paths_to_cipher(self, config: dict):
+        orch = Orchestrator(config)
+        result = orch._fast_path_classify(
+            "solve this logic puzzle about 8 balls and a balance scale"
+        )
+        assert result is not None
+        assert result.target_module == "cipher"
 
     def test_cerberus_ethical_keyword(self, config: dict):
         orch = Orchestrator(config)

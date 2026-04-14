@@ -1867,8 +1867,11 @@ User input: {user_input}"""
                 safety_flag=False, priority=1, confidence=0.50,
             )
 
-        # Memory operations
-        if any(kw in lower for kw in ["remember", "forget", "recall", "what do you know"]):
+        # Memory operations & Bible verse lookups
+        if any(kw in lower for kw in ["remember", "forget", "recall", "what do you know",
+                                       "bible verse", "verse about", "reference for",
+                                       "scripture about", "where in the bible",
+                                       "what verse", "which verse"]):
             return TaskClassification(
                 task_type=TaskType.MEMORY, complexity="simple",
                 target_module="grimoire", brain=BrainType.FAST,
@@ -1892,7 +1895,7 @@ User input: {user_input}"""
             )
 
         # Research / web search
-        if any(kw in lower for kw in ["search", "look up", "research", "what is"]):
+        if any(kw in lower for kw in ["search", "look up", "research"]):
             return TaskClassification(
                 task_type=TaskType.RESEARCH, complexity="moderate",
                 target_module="reaper", brain=BrainType.FAST,
@@ -2249,11 +2252,11 @@ User input: {user_input}"""
             # Sentinel (security)
             "secur", "vulnerab", "threat", "intrus", "firewall",
             "breach", "audit",
-            # Cipher (math)
+            # Cipher (math / logic)
             "calculat", "compute", "solv", "math", "equation", "multipl",
             "divid", "subtract", "factorial", "logarithm", "derivativ",
             "integral", "price", "cost", "estimat", "total",
-            "percentag",
+            "percentag", "puzzle", "riddle", "logic",
             # Nova (content)
             "draft", "compos", "blog", "articl", "essay", "paragraph",
             "story", "creativ", "content", "post", "copywrit",
@@ -2267,8 +2270,8 @@ User input: {user_input}"""
             "briefing", "alert", "notif",
             # Cerberus (ethics)
             "ethic", "moral", "bibl", "scriptur",
-            # Grimoire (memory — as whole words)
-            "remember", "forget", "recall",
+            # Grimoire (memory & Bible lookups — as whole words)
+            "remember", "forget", "recall", "verse",
         }
         # Phrases that also indicate clear intent (checked separately)
         _STRONG_PHRASES = [
@@ -2278,6 +2281,9 @@ User input: {user_input}"""
             "morning briefing", "security check", "security scan",
             "threat assessment", "vulnerability scan",
             "intrusion detection",
+            # Grimoire — Bible verse lookups
+            "bible verse", "verse about", "reference for",
+            "scripture about", "where in the bible",
         ]
         word_list = lower.split()
         has_strong_phrase = any(p in lower for p in _STRONG_PHRASES)
@@ -2564,13 +2570,14 @@ User input: {user_input}"""
                 confidence=0.85,
             )
 
-        # ── Priority 5: Cipher — math / financial WORDS ──
+        # ── Priority 5: Cipher — math / logic / financial WORDS ──
         _cipher_stems = {
             "calculat", "solv", "math", "equation",
             "multipl", "divid", "subtract",
             "differenc", "quotient",
             "price", "estimat", "total", "percentag",
             "factorial", "logarithm", "derivativ", "integral",
+            "puzzle", "riddle", "logic",
         }
         # Short/ambiguous words kept as exact matches to avoid false positives
         _cipher_exact = {"sum", "product", "quote", "compute"}
@@ -2629,7 +2636,8 @@ User input: {user_input}"""
 
         # ── Priority 8: Reaper — research / web search ──
         _reaper_stems = {"research", "search"}
-        reaper_phrases = ["look up", "what is", "who is"]
+        reaper_phrases = ["look up", "search for", "search the web",
+                          "find out about", "look into"]
         if _stem_matches(_reaper_stems) or any(p in lower for p in reaper_phrases):
             logger.info("Fast-path keyword → reaper")
             return TaskClassification(
@@ -2680,9 +2688,15 @@ User input: {user_input}"""
                 confidence=0.85,
             )
 
-        # ── Priority 11: Grimoire — memory keywords ──
-        _grimoire_stems = {"remember", "forget", "recall"}
-        if _stem_matches(_grimoire_stems):
+        # ── Priority 11: Grimoire — memory & Bible verse lookups ──
+        _grimoire_stems = {"remember", "forget", "recall", "verse"}
+        grimoire_phrases = [
+            "bible verse", "verse about", "reference for",
+            "scripture about", "passage about", "where in the bible",
+            "what verse", "chapter and verse", "find the verse",
+            "which verse",
+        ]
+        if _stem_matches(_grimoire_stems) or any(p in lower for p in grimoire_phrases):
             logger.info("Fast-path keyword → grimoire")
             return TaskClassification(
                 task_type=TaskType.MEMORY,
