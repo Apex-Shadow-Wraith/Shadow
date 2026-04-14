@@ -9,7 +9,9 @@ from modules.reaper.reaper import (
     _simplify_query,
     _broaden_query,
     _results_relevant,
+    _extract_search_query,
     _FILLER_WORDS,
+    _MAX_QUERY_LENGTH,
 )
 
 
@@ -73,6 +75,71 @@ class TestResultsRelevant:
         results = [{"title": "AI news", "snippet": "updates"}]
         # "AI" is only 2 chars, should be skipped; returns True since no evaluable keywords
         assert _results_relevant(results, "AI") is True
+
+
+class TestExtractSearchQuery:
+    """Test pre-search keyword extraction for long queries."""
+
+    def test_short_query_unchanged(self):
+        """Queries under the length threshold pass through unchanged."""
+        q = "best mulch for landscaping"
+        assert _extract_search_query(q) == q
+
+    def test_exact_threshold_unchanged(self):
+        """Query exactly at the threshold passes through."""
+        q = "x" * _MAX_QUERY_LENGTH
+        assert _extract_search_query(q) == q
+
+    def test_long_benchmark_query_shortened(self):
+        """Benchmark-style query with embedded context gets trimmed."""
+        q = (
+            "Given these search results about mulch types: 'Hardwood mulch "
+            "decomposes slowly and is great for perennial beds' — What mulch "
+            "should a landscaper recommend?"
+        )
+        result = _extract_search_query(q)
+        assert len(result) <= _MAX_QUERY_LENGTH
+        assert "mulch" in result.lower()
+
+    def test_quoted_passage_removed(self):
+        """Long quoted passages inside the query are stripped."""
+        q = (
+            "Based on this info: 'Cedar mulch repels insects and lasts for "
+            "years in hot climates but costs more per cubic yard' — "
+            "which mulch is cheapest?"
+        )
+        result = _extract_search_query(q)
+        assert "repels insects" not in result
+        assert len(result) <= _MAX_QUERY_LENGTH
+
+    def test_given_preamble_stripped(self):
+        """'Given ... :' preamble clauses are removed."""
+        q = (
+            "Given the following research data about irrigation efficiency: "
+            "What irrigation method saves the most water for residential lawns?"
+        )
+        result = _extract_search_query(q)
+        assert len(result) < len(q)
+        assert "irrigation" in result.lower()
+
+    def test_plain_long_question_gets_keywords(self):
+        """A plain long question without context markers still gets shortened."""
+        q = (
+            "What are the very best and most popular types of ornamental "
+            "grasses that landscapers should consider planting in the "
+            "southeastern United States during the spring season?"
+        )
+        result = _extract_search_query(q)
+        assert len(result) <= _MAX_QUERY_LENGTH
+        # Should preserve substantive words
+        assert "ornamental" in result.lower() or "grasses" in result.lower()
+
+    def test_returns_string_not_none(self):
+        """Always returns a string, never None."""
+        q = "a" * 200
+        result = _extract_search_query(q)
+        assert isinstance(result, str)
+        assert len(result) > 0
 
 
 # =============================================================================
@@ -157,6 +224,34 @@ class TestSearchReformulation:
         meta = results[0]["_reformulation"]
         assert meta["original_query"] == "what are the latest landscaping trends in Alabama"
         assert meta["was_reformulated"] is True
+
+    def test_long_query_extracted_before_first_search(self):
+        """Long benchmark-style queries are shortened before the first search call."""
+        reaper = self._make_reaper()
+        good_results = [
+            {"title": "Mulch guide for landscapers", "url": "https://example.com",
+             "snippet": "mulch recommendations", "engine": "duckduckgo",
+             "source_eval": {}}
+        ]
+        queries_searched = []
+
+        def tracking_search(query, max_results=10):
+            queries_searched.append(query)
+            return good_results
+
+        long_query = (
+            "Given these search results about mulch types: 'Hardwood mulch "
+            "decomposes slowly and is great for perennial beds' — What mulch "
+            "should a landscaper recommend?"
+        )
+        with patch.object(reaper, '_search_once', side_effect=tracking_search):
+            results = reaper.search(long_query)
+
+        # The first search should NOT be the full 200+ char query
+        assert len(queries_searched[0]) <= _MAX_QUERY_LENGTH
+        assert "mulch" in queries_searched[0].lower()
+        # Original query preserved in metadata
+        assert results[0]["_reformulation"]["original_query"] == long_query
 
     def test_low_relevance_triggers_reformulation(self):
         """Results with no keyword overlap trigger reformulation."""

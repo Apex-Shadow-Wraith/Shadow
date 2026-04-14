@@ -15,7 +15,7 @@ DESIGN PRINCIPLES:
 
 ADDITIONAL PACKAGES NEEDED:
     pip install beautifulsoup4     (HTML parsing)
-    pip install duckduckgo-search  (fallback search backend)
+    pip install ddgs               (fallback search backend)
 
     Already installed from setup checklist:
     pip install praw               (Reddit API)
@@ -50,11 +50,11 @@ except ImportError:
     print("[Reaper] WARNING: beautifulsoup4 not installed → pip install beautifulsoup4")
 
 try:
-    from duckduckgo_search import DDGS
+    from ddgs import DDGS
     HAS_DDG = True
 except ImportError:
     HAS_DDG = False
-    print("[Reaper] WARNING: duckduckgo-search not installed → pip install duckduckgo-search")
+    print("[Reaper] WARNING: ddgs not installed → pip install ddgs")
 
 try:
     import praw
@@ -159,6 +159,69 @@ _FILLER_WORDS = {
 }
 
 
+# Maximum query length before pre-search keyword extraction kicks in
+_MAX_QUERY_LENGTH = 80
+
+# Words that signal embedded context rather than a real search intent
+_CONTEXT_MARKERS = {
+    "given", "based", "according", "considering", "assuming", "suppose",
+    "following", "provided", "using", "regarding",
+}
+
+
+def _extract_search_query(query: str) -> str:
+    """Extract search-worthy keywords from an overly long query.
+
+    Benchmark-style queries embed context in the question, e.g.:
+        "Given these search results about mulch types: 'Hardwood mulch
+         decomposes slowly...' — What mulch should a landscaper recommend?"
+
+    This function strips embedded context and quoted passages, then falls
+    back to filler-word removal to produce a short, keyword-rich query
+    suitable for a search engine.
+
+    Returns the original query unchanged if it's already short enough.
+    """
+    if len(query) <= _MAX_QUERY_LENGTH:
+        return query
+
+    import re as _re
+
+    working = query
+
+    # 1. Remove quoted passages (single or double quotes, including smart quotes)
+    working = _re.sub(
+        r"""['"\u2018\u2019\u201c\u201d][^'"\u2018\u2019\u201c\u201d]{10,}['"\u2018\u2019\u201c\u201d]""",
+        " ", working,
+    )
+
+    # 2. Remove "Given ... :" / "Based on ... :" preamble clauses
+    working = _re.sub(
+        r"(?i)^(?:" + "|".join(_CONTEXT_MARKERS) + r")\b[^:?]*:\s*",
+        "",
+        working,
+    )
+
+    # 3. Strip dashes/em-dashes used as separators
+    working = _re.sub(r"\s*[—–\-]{1,3}\s*", " ", working)
+
+    # 4. Remove filler words and collapse whitespace
+    words = working.split()
+    core = [w for w in words if w.lower().strip("?.!,;:") not in _FILLER_WORDS and len(w) > 1]
+    extracted = " ".join(core).strip()
+
+    # 5. If extraction produced something reasonable, use it; otherwise fall
+    #    back to simple filler-word removal on the original
+    if len(extracted) > 5 and len(extracted) <= _MAX_QUERY_LENGTH:
+        return extracted
+
+    # Fallback: filler-word removal on the full original, capped at 8 keywords
+    words = query.split()
+    core = [w for w in words if w.lower().strip("?.!,;:") not in _FILLER_WORDS and len(w) > 1]
+    fallback = " ".join(core[:8]).strip()
+    return fallback if len(fallback) > 5 else query
+
+
 def _simplify_query(query: str) -> str | None:
     """Strip filler words, reduce to core noun/verb phrases."""
     words = query.lower().split()
@@ -258,7 +321,7 @@ class Reaper:
 
         if not self.searxng_available and not self.ddg_available and not self.bing_available:
             print("[Reaper] ⚠️  NO SEARCH BACKEND AVAILABLE")
-            print("[Reaper] Start SearXNG, or: pip install duckduckgo-search beautifulsoup4")
+            print("[Reaper] Start SearXNG, or: pip install ddgs beautifulsoup4")
 
     # =========================================================================
     # SEARCH BACKENDS
@@ -317,6 +380,13 @@ class Reaper:
             Each result includes "_reformulation" metadata if reformulation occurred.
         """
         original_query = query
+
+        # Pre-search extraction: long queries (benchmark-style with embedded
+        # context) get trimmed to keywords BEFORE the first search attempt.
+        query = _extract_search_query(query)
+        if query != original_query:
+            print(f"[Reaper] Pre-search extraction: '{original_query[:60]}…' → '{query}'")
+
         results = self._search_once(query, max_results)
 
         # Reformulation loop: max 2 retries
