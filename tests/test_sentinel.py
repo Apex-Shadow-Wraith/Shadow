@@ -61,7 +61,7 @@ class TestSentinelLifecycle:
 
     def test_get_tools(self, sentinel: Sentinel):
         tools = sentinel.get_tools()
-        assert len(tools) == 19
+        assert len(tools) == 24
         names = [t["name"] for t in tools]
         assert "network_scan" in names
         assert "file_integrity_check" in names
@@ -211,6 +211,47 @@ class TestQuarantine:
     async def test_quarantine_no_path_fails(self, online_sentinel: Sentinel):
         r = await online_sentinel.execute("quarantine_file", {"file_path": ""})
         assert r.success is False
+
+
+class TestNotOperationalStubs:
+    """Tools that are registered but not yet operational must return
+    success=True with a clear 'not_operational' message — never
+    success=False with content=None (that causes LLM confabulation)."""
+
+    @pytest.mark.asyncio
+    async def test_firewall_status_stub(self, online_sentinel: Sentinel):
+        r = await online_sentinel.execute("firewall_status", {})
+        assert r.success is True
+        assert r.content["status"] == "not_operational"
+        assert "iptables" in r.content["message"] or "nftables" in r.content["message"]
+
+    @pytest.mark.asyncio
+    async def test_threat_scan_stub(self, online_sentinel: Sentinel):
+        r = await online_sentinel.execute("threat_scan", {"scan_type": "full"})
+        assert r.success is True
+        assert r.content["status"] == "not_operational"
+        assert "Suricata" in r.content["message"]
+
+    @pytest.mark.asyncio
+    async def test_network_monitor_stub(self, online_sentinel: Sentinel):
+        r = await online_sentinel.execute("network_monitor", {"duration_seconds": 30})
+        assert r.success is True
+        assert r.content["status"] == "not_operational"
+        assert "Zeek" in r.content["message"]
+
+    @pytest.mark.asyncio
+    async def test_vulnerability_scan_stub(self, online_sentinel: Sentinel):
+        r = await online_sentinel.execute("vulnerability_scan", {"target": "localhost"})
+        assert r.success is True
+        assert r.content["status"] == "not_operational"
+        assert "OpenVAS" in r.content["message"] or "GVM" in r.content["message"]
+
+    @pytest.mark.asyncio
+    async def test_log_analysis_stub(self, online_sentinel: Sentinel):
+        r = await online_sentinel.execute("log_analysis", {"log_source": "syslog"})
+        assert r.success is True
+        assert r.content["status"] == "not_operational"
+        assert "auditd" in r.content["message"]
 
 
 class TestUnknownTool:

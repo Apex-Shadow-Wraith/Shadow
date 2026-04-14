@@ -86,6 +86,11 @@ class Sentinel(BaseModule):
                 "network_scan": self._network_scan,
                 "file_integrity_check": self._file_integrity_check,
                 "breach_check": self._breach_check,
+                "firewall_status": self._firewall_status,
+                "threat_scan": self._threat_scan,
+                "network_monitor": self._network_monitor,
+                "vulnerability_scan": self._vulnerability_scan,
+                "log_analysis": self._log_analysis,
                 "security_alert": self._security_alert,
                 "threat_assess": self._threat_assess,
                 "quarantine_file": self._quarantine_file,
@@ -151,6 +156,36 @@ class Sentinel(BaseModule):
                 "name": "breach_check",
                 "description": "Check email against known breaches (stub)",
                 "parameters": {"email": "str"},
+                "permission_level": "autonomous",
+            },
+            {
+                "name": "firewall_status",
+                "description": "Check host firewall status and active rules",
+                "parameters": {},
+                "permission_level": "autonomous",
+            },
+            {
+                "name": "threat_scan",
+                "description": "Run active threat detection scan on the system",
+                "parameters": {"scan_type": "str"},
+                "permission_level": "autonomous",
+            },
+            {
+                "name": "network_monitor",
+                "description": "Monitor network traffic for anomalies in real time",
+                "parameters": {"duration_seconds": "int"},
+                "permission_level": "autonomous",
+            },
+            {
+                "name": "vulnerability_scan",
+                "description": "Scan system for known vulnerabilities",
+                "parameters": {"target": "str"},
+                "permission_level": "autonomous",
+            },
+            {
+                "name": "log_analysis",
+                "description": "Analyze system and security logs for suspicious patterns",
+                "parameters": {"log_source": "str"},
                 "permission_level": "autonomous",
             },
             {
@@ -376,6 +411,101 @@ class Sentinel(BaseModule):
                 "breaches_found": 0,
             },
             tool_name="breach_check",
+            module=self.name,
+        )
+
+    def _firewall_status(self, params: dict[str, Any]) -> ToolResult:
+        """Check host firewall status and active rules.
+
+        Not yet operational — requires Ubuntu deployment with iptables/nftables.
+
+        Args:
+            params: No required parameters.
+        """
+        return ToolResult(
+            success=True,
+            content={
+                "status": "not_operational",
+                "message": "Tool not yet operational — requires Ubuntu deployment "
+                           "with iptables/nftables for host firewall inspection.",
+            },
+            tool_name="firewall_status",
+            module=self.name,
+        )
+
+    def _threat_scan(self, params: dict[str, Any]) -> ToolResult:
+        """Run active threat detection scan.
+
+        Not yet operational — requires Ubuntu deployment with Suricata IDS.
+
+        Args:
+            params: Optional 'scan_type' (str).
+        """
+        return ToolResult(
+            success=True,
+            content={
+                "status": "not_operational",
+                "message": "Tool not yet operational — requires Ubuntu deployment "
+                           "with Suricata IDS for active threat detection.",
+            },
+            tool_name="threat_scan",
+            module=self.name,
+        )
+
+    def _network_monitor(self, params: dict[str, Any]) -> ToolResult:
+        """Monitor network traffic for anomalies.
+
+        Not yet operational — requires Ubuntu deployment with Zeek network analyzer.
+
+        Args:
+            params: Optional 'duration_seconds' (int).
+        """
+        return ToolResult(
+            success=True,
+            content={
+                "status": "not_operational",
+                "message": "Tool not yet operational — requires Ubuntu deployment "
+                           "with Zeek network analyzer for traffic monitoring.",
+            },
+            tool_name="network_monitor",
+            module=self.name,
+        )
+
+    def _vulnerability_scan(self, params: dict[str, Any]) -> ToolResult:
+        """Scan system for known vulnerabilities.
+
+        Not yet operational — requires Ubuntu deployment with OpenVAS/GVM scanner.
+
+        Args:
+            params: Optional 'target' (str).
+        """
+        return ToolResult(
+            success=True,
+            content={
+                "status": "not_operational",
+                "message": "Tool not yet operational — requires Ubuntu deployment "
+                           "with OpenVAS/GVM for vulnerability scanning.",
+            },
+            tool_name="vulnerability_scan",
+            module=self.name,
+        )
+
+    def _log_analysis(self, params: dict[str, Any]) -> ToolResult:
+        """Analyze system and security logs for suspicious patterns.
+
+        Not yet operational — requires Ubuntu deployment with auditd log framework.
+
+        Args:
+            params: Optional 'log_source' (str).
+        """
+        return ToolResult(
+            success=True,
+            content={
+                "status": "not_operational",
+                "message": "Tool not yet operational — requires Ubuntu deployment "
+                           "with auditd for system log analysis.",
+            },
+            tool_name="log_analysis",
             module=self.name,
         )
 
