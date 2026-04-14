@@ -2296,6 +2296,25 @@ User input: {user_input}"""
             )
             return None
 
+        # --- Informational intent detection ---
+        # Phrases like "tell me about X", "what is X", "explain X" indicate
+        # the user wants information, not an action.  We detect this once and
+        # use it to override task_type in keyword blocks that would otherwise
+        # return ACTION.
+        _INFORMATIONAL_PREFIXES = (
+            "tell me about", "what is", "what are", "what's",
+            "describe", "how does", "how do", "explain",
+            "what can you", "what can shadow", "what does",
+            "can you tell me about", "i want to know about",
+            "i'd like to know about", "give me an overview of",
+            "what do you know about", "talk to me about",
+            "brief me on", "summarize",
+        )
+        _is_informational = any(
+            lower.startswith(p + " ") or lower == p
+            for p in _INFORMATIONAL_PREFIXES
+        )
+
         # --- Keyword fast-path: module routing by keyword presence ---
         # Split once for whole-word matching
         words = set(word_list)
@@ -2334,9 +2353,18 @@ User input: {user_input}"""
         }
 
         def _classify_for_module(mod: str, reason: str) -> TaskClassification:
-            logger.info("Fast-path explicit module → %s (%s)", mod, reason)
+            default_type = _MODULE_TASK_TYPES.get(mod, TaskType.QUESTION)
+            # Informational phrasing overrides ACTION → QUESTION so the
+            # orchestrator answers *about* the module instead of invoking a tool.
+            task_type = (
+                TaskType.QUESTION
+                if _is_informational and default_type == TaskType.ACTION
+                else default_type
+            )
+            logger.info("Fast-path explicit module → %s (%s, type=%s)",
+                        mod, reason, task_type.value)
             return TaskClassification(
-                task_type=_MODULE_TASK_TYPES.get(mod, TaskType.QUESTION),
+                task_type=task_type,
                 complexity="moderate",
                 target_module=mod,
                 brain=BrainType.FAST,
@@ -2492,9 +2520,11 @@ User input: {user_input}"""
             "appoint", "deadlin", "calendar", "todo",
         }
         if _stem_matches(_wraith_stems) and not _has_morpheus_phrase:
-            logger.info("Fast-path keyword → wraith (stem matched: %s)", _stem_matches(_wraith_stems))
+            _wr_type = TaskType.QUESTION if _is_informational else TaskType.ACTION
+            logger.info("Fast-path keyword → wraith (stem matched: %s, type=%s)",
+                        _stem_matches(_wraith_stems), _wr_type.value)
             return TaskClassification(
-                task_type=TaskType.ACTION,
+                task_type=_wr_type,
                 complexity="simple",
                 target_module="wraith",
                 brain=BrainType.FAST,
@@ -2513,9 +2543,11 @@ User input: {user_input}"""
             "vulnerability scan", "intrusion detection",
         ]
         if _stem_matches(_sentinel_stems) or any(p in lower for p in sentinel_phrases):
-            logger.info("Fast-path keyword → sentinel")
+            _sent_type = TaskType.QUESTION if _is_informational else TaskType.ACTION
+            logger.info("Fast-path keyword → sentinel (type=%s, informational=%s)",
+                        _sent_type.value, _is_informational)
             return TaskClassification(
-                task_type=TaskType.ACTION,
+                task_type=_sent_type,
                 complexity="moderate",
                 target_module="sentinel",
                 brain=BrainType.FAST,
@@ -2628,9 +2660,10 @@ User input: {user_input}"""
             "safety report",
         ]
         if _stem_matches(_harbinger_stems) or any(p in lower for p in harbinger_phrases):
-            logger.info("Fast-path keyword → harbinger")
+            _harb_type = TaskType.QUESTION if _is_informational else TaskType.ACTION
+            logger.info("Fast-path keyword → harbinger (type=%s)", _harb_type.value)
             return TaskClassification(
-                task_type=TaskType.ACTION,
+                task_type=_harb_type,
                 complexity="moderate",
                 target_module="harbinger",
                 brain=BrainType.FAST,

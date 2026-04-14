@@ -464,6 +464,82 @@ class TestFastPathClassifier:
         assert result is not None
         assert result.target_module == "harbinger"
 
+    # --- Informational intent detection (ACTION → QUESTION override) ---
+
+    def test_informational_security_tell_me_about(self, config: dict):
+        """'Tell me about our security systems' should be QUESTION, not ACTION."""
+        orch = Orchestrator(config)
+        result = orch._fast_path_classify("tell me about our security systems")
+        assert result is not None
+        assert result.target_module == "sentinel"
+        assert result.task_type == TaskType.QUESTION
+
+    def test_informational_security_what_is(self, config: dict):
+        orch = Orchestrator(config)
+        result = orch._fast_path_classify("what is the security module")
+        assert result is not None
+        assert result.target_module == "sentinel"
+        assert result.task_type == TaskType.QUESTION
+
+    def test_informational_security_explain(self, config: dict):
+        orch = Orchestrator(config)
+        result = orch._fast_path_classify("explain the firewall capabilities")
+        assert result is not None
+        assert result.target_module == "sentinel"
+        assert result.task_type == TaskType.QUESTION
+
+    def test_informational_security_describe(self, config: dict):
+        orch = Orchestrator(config)
+        result = orch._fast_path_classify("describe our threat detection setup")
+        assert result is not None
+        assert result.target_module == "sentinel"
+        assert result.task_type == TaskType.QUESTION
+
+    def test_informational_security_how_does(self, config: dict):
+        orch = Orchestrator(config)
+        result = orch._fast_path_classify("how does the intrusion detection work")
+        assert result is not None
+        assert result.target_module == "sentinel"
+        assert result.task_type == TaskType.QUESTION
+
+    def test_action_security_still_works(self, config: dict):
+        """Action commands like 'run a security scan' should stay ACTION."""
+        orch = Orchestrator(config)
+        result = orch._fast_path_classify("run a security scan on my network")
+        assert result is not None
+        assert result.target_module == "sentinel"
+        assert result.task_type == TaskType.ACTION
+
+    def test_action_breach_check_still_works(self, config: dict):
+        orch = Orchestrator(config)
+        result = orch._fast_path_classify("check for breaches in the system")
+        assert result is not None
+        assert result.target_module == "sentinel"
+        assert result.task_type == TaskType.ACTION
+
+    def test_informational_wraith_scheduling(self, config: dict):
+        """'What are my reminders' should be QUESTION, not ACTION."""
+        orch = Orchestrator(config)
+        result = orch._fast_path_classify("tell me about the scheduling system")
+        assert result is not None
+        assert result.target_module == "wraith"
+        assert result.task_type == TaskType.QUESTION
+
+    def test_informational_harbinger_briefings(self, config: dict):
+        orch = Orchestrator(config)
+        result = orch._fast_path_classify("what are the alert capabilities")
+        assert result is not None
+        assert result.target_module == "harbinger"
+        assert result.task_type == TaskType.QUESTION
+
+    def test_informational_explicit_module_sentinel(self, config: dict):
+        """'Tell me about sentinel' should be QUESTION, not ACTION."""
+        orch = Orchestrator(config)
+        result = orch._fast_path_classify("tell me about sentinel")
+        assert result is not None
+        assert result.target_module == "sentinel"
+        assert result.task_type == TaskType.QUESTION
+
 
 class TestQueryExtraction:
     """Test search query extraction from user input."""
