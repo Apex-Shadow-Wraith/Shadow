@@ -17,6 +17,7 @@ import calendar
 import logging
 import math
 import operator
+import re
 import statistics
 import time
 from datetime import date, datetime, timedelta
@@ -89,6 +90,80 @@ _CONVERSIONS: dict[str, dict[str, float]] = {
         "m/s": 1.0, "km/h": 0.277778, "mph": 0.44704, "knot": 0.514444,
     },
 }
+
+
+def _extract_math_expression(text: str) -> str | None:
+    """Try to extract a pure math expression from natural language input.
+
+    Strips common prefixes like 'calculate', 'what is', 'solve', etc.
+    and currency symbols, then checks if the remainder is a valid expression.
+    Returns the cleaned expression string or None if no math can be extracted.
+    """
+    cleaned = text.strip()
+
+    # Strip common natural language prefixes
+    prefixes = [
+        r"^(?:please\s+)?(?:can you\s+)?(?:calculate|compute|solve|evaluate|what(?:'s| is))\s+",
+        r"^how much is\s+",
+        r"^find\s+(?:the\s+)?(?:value of\s+)?",
+    ]
+    for pat in prefixes:
+        cleaned = re.sub(pat, "", cleaned, flags=re.IGNORECASE).strip()
+
+    # Strip trailing question marks / periods
+    cleaned = cleaned.rstrip("?.! ")
+
+    # Remove currency symbols (keep the numbers)
+    cleaned = re.sub(r"[$€£¥]", "", cleaned)
+
+    # Remove commas in numbers (e.g. 1,200 -> 1200)
+    cleaned = re.sub(r"(\d),(\d{3})", r"\1\2", cleaned)
+
+    if not cleaned:
+        return None
+
+    # Quick sanity check: must contain at least one digit
+    if not re.search(r"\d", cleaned):
+        return None
+
+    # Try to parse it — if it works, it's a valid math expression
+    try:
+        ast.parse(cleaned, mode="eval")
+        return cleaned
+    except SyntaxError:
+        return None
+
+
+def _is_natural_language(text: str) -> bool:
+    """Return True if the text looks like a natural language query.
+
+    Distinguishes word problems ("17 sheep, all but 9 die") from code
+    injection attempts ("__import__('os').system(...)") and malformed
+    math ("2 ++ 3").
+
+    Heuristic: natural language contains multiple English-style words
+    and does NOT contain code-like patterns (double underscores,
+    parenthesized function calls with string args, dot-chaining).
+    """
+    # Reject code-like patterns outright
+    code_patterns = [
+        r"__\w+__",            # dunder names: __import__, __builtins__
+        r"\w+\.\w+\(",         # method calls: os.system(, obj.method(
+        r"\bexec\s*\(",        # exec(...)
+        r"\beval\s*\(",        # eval(...)
+        r"\blambda\b",         # lambda expressions
+        r"\bimport\b",         # import statements
+    ]
+    for pat in code_patterns:
+        if re.search(pat, text):
+            return False
+
+    math_names = set(_SAFE_FUNCTIONS.keys())
+    # Find word-like tokens (2+ alpha chars, no leading underscores)
+    words = re.findall(r"\b(?!__)[a-zA-Z]{2,}\b", text)
+    # Filter out recognized math function names
+    english_words = [w for w in words if w.lower() not in math_names]
+    return len(english_words) >= 2
 
 
 def _safe_eval(node: ast.AST) -> float:
@@ -399,9 +474,13 @@ class Cipher(BaseModule):
         """Evaluate a mathematical expression safely.
 
         Uses AST parsing with a whitelist of operators. No eval().
+        If the input is natural language, attempts to extract a math
+        expression first. If no math can be extracted, returns success
+        with needs_reasoning=True so the orchestrator routes to the LLM
+        instead of escalating to Apex.
 
         Args:
-            params: 'expression' (str) — the math expression to evaluate.
+            params: 'expression' (str) — math expression or natural language.
         """
         expression = params.get("expression", "")
         if not expression:
@@ -410,47 +489,104 @@ class Cipher(BaseModule):
                 module=self.name, error="Expression is required",
             )
 
+        raw = expression.strip()
+
+        # Try to evaluate the expression, with fallback extraction
+        # for natural language input.
+        return self._try_calculate(raw, expression)
+
+    def _try_calculate(
+        self, raw: str, original: str, *, allow_extraction: bool = True,
+    ) -> ToolResult:
+        """Attempt to parse and evaluate a math expression.
+
+        If the raw expression fails, tries to extract a pure math
+        expression from natural language. If nothing works, returns
+        success=True with needs_reasoning for routing to LLM.
+        """
+        # Phase 1: Try parsing as-is
         try:
-            tree = ast.parse(expression.strip(), mode="eval")
-            result = _safe_eval(tree)
+            tree = ast.parse(raw, mode="eval")
+        except SyntaxError:
+            tree = None
 
-            # Handle special float values
-            if math.isinf(result):
+        if tree is not None:
+            try:
+                result = _safe_eval(tree)
+                return self._make_success(raw, result, tree)
+            except ZeroDivisionError:
                 return ToolResult(
                     success=False, content=None, tool_name="calculate",
-                    module=self.name, error="Result is infinite",
+                    module=self.name, error="Division by zero",
                 )
-            if math.isnan(result):
-                return ToolResult(
-                    success=False, content=None, tool_name="calculate",
-                    module=self.name, error="Result is not a number",
+            except (ValueError, TypeError):
+                # AST parsed but _safe_eval rejected it — could be
+                # an injection attempt or natural language that happens
+                # to be valid Python syntax (e.g. "what is 10 * 5").
+                # Fall through to extraction below.
+                pass
+
+        # Phase 2: Try extracting a math expression from natural language
+        if allow_extraction:
+            extracted = _extract_math_expression(original)
+            if extracted is not None and extracted != raw:
+                return self._try_calculate(
+                    extracted, original, allow_extraction=False,
                 )
 
-            # Collect evaluation steps
-            steps = _collect_steps(tree)
-
+        # Phase 3: Determine if this is a reasoning problem or an error.
+        # Reasoning problems contain natural language (multiple alpha words);
+        # code injection and malformed expressions do not get the soft landing.
+        if _is_natural_language(original):
             return ToolResult(
                 success=True,
                 content={
-                    "expression": expression,
-                    "result": result,
-                    "steps": steps,
-                    "confidence": 1.0,
+                    "expression": original,
+                    "result": None,
+                    "needs_reasoning": True,
+                    "message": (
+                        "This is a reasoning problem, not a calculation. "
+                        "Route to LLM for natural language reasoning."
+                    ),
                 },
                 tool_name="calculate",
                 module=self.name,
+                metadata={"needs_reasoning": True},
             )
 
-        except ZeroDivisionError:
+        # Genuine error — injection attempt, malformed syntax, etc.
+        return ToolResult(
+            success=False, content=None, tool_name="calculate",
+            module=self.name,
+            error=f"Invalid expression: {original}",
+        )
+
+    def _make_success(
+        self, expression: str, result: float, tree: ast.AST,
+    ) -> ToolResult:
+        """Build a successful calculate ToolResult."""
+        if math.isinf(result):
             return ToolResult(
                 success=False, content=None, tool_name="calculate",
-                module=self.name, error="Division by zero",
+                module=self.name, error="Result is infinite",
             )
-        except (ValueError, SyntaxError, TypeError) as e:
+        if math.isnan(result):
             return ToolResult(
                 success=False, content=None, tool_name="calculate",
-                module=self.name, error=f"Invalid expression: {e}",
+                module=self.name, error="Result is not a number",
             )
+        steps = _collect_steps(tree)
+        return ToolResult(
+            success=True,
+            content={
+                "expression": expression,
+                "result": result,
+                "steps": steps,
+                "confidence": 1.0,
+            },
+            tool_name="calculate",
+            module=self.name,
+        )
 
     def _unit_convert(self, params: dict[str, Any]) -> ToolResult:
         """Convert a value between units.

@@ -136,9 +136,60 @@ class TestCalculate:
         assert "Division by zero" in r.error
 
     @pytest.mark.asyncio
-    async def test_invalid_expression(self, online_cipher: Cipher):
+    async def test_natural_language_returns_needs_reasoning(self, online_cipher: Cipher):
+        """Natural language input returns success with needs_reasoning flag."""
         r = await online_cipher.execute("calculate", {"expression": "not a math"})
-        assert r.success is False
+        assert r.success is True
+        assert r.content["needs_reasoning"] is True
+        assert r.content["result"] is None
+
+    @pytest.mark.asyncio
+    async def test_word_problem_returns_needs_reasoning(self, online_cipher: Cipher):
+        """Word problems route to reasoning instead of failing."""
+        r = await online_cipher.execute(
+            "calculate", {"expression": "17 sheep, all but 9 die. How many are left?"}
+        )
+        assert r.success is True
+        assert r.content["needs_reasoning"] is True
+
+    @pytest.mark.asyncio
+    async def test_natural_language_with_extractable_math(self, online_cipher: Cipher):
+        """Natural language wrapping a simple expression gets extracted."""
+        r = await online_cipher.execute(
+            "calculate", {"expression": "calculate 2 + 3"}
+        )
+        assert r.success is True
+        assert r.content["result"] == 5.0
+        assert "needs_reasoning" not in r.content
+
+    @pytest.mark.asyncio
+    async def test_natural_language_what_is(self, online_cipher: Cipher):
+        """'What is 10 * 5' should extract and compute."""
+        r = await online_cipher.execute(
+            "calculate", {"expression": "what is 10 * 5"}
+        )
+        assert r.success is True
+        assert r.content["result"] == 50.0
+
+    @pytest.mark.asyncio
+    async def test_currency_symbol_stripped(self, online_cipher: Cipher):
+        """Currency symbols get stripped before evaluation."""
+        r = await online_cipher.execute(
+            "calculate", {"expression": "what is $1200 + $800"}
+        )
+        assert r.success is True
+        assert r.content["result"] == 2000.0
+
+    @pytest.mark.asyncio
+    async def test_reasoning_metadata_flag(self, online_cipher: Cipher):
+        """Needs-reasoning results include metadata for orchestrator routing."""
+        r = await online_cipher.execute(
+            "calculate",
+            {"expression": "If I have 3 crews and each takes 2 hours, what is the total?"},
+        )
+        assert r.success is True
+        assert r.content["needs_reasoning"] is True
+        assert r.metadata.get("needs_reasoning") is True
 
     @pytest.mark.asyncio
     async def test_empty_expression(self, online_cipher: Cipher):
