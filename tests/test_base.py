@@ -81,7 +81,36 @@ class TestToolResult:
             module="mock", error="something broke"
         )
         assert result.success is False
+        assert result.content == "something broke"
         assert "FAILED" in str(result)
+
+    def test_post_init_sets_content_from_error(self):
+        """When content=None and success=False, __post_init__ copies error to content."""
+        result = ToolResult(
+            success=False, content=None, tool_name="t",
+            module="m", error="disk full"
+        )
+        assert result.content == "disk full"
+
+    def test_post_init_preserves_success_true_none_content(self):
+        """success=True with content=None should NOT be overwritten."""
+        result = ToolResult(success=True, content=None, tool_name="t", module="m")
+        assert result.content is None
+
+    def test_post_init_preserves_explicit_content(self):
+        """Explicit content on a failed result should NOT be overwritten."""
+        result = ToolResult(
+            success=False, content="custom msg", tool_name="t",
+            module="m", error="underlying error"
+        )
+        assert result.content == "custom msg"
+
+    def test_post_init_fallback_when_no_error(self):
+        """When both content and error are None, use a generic fallback."""
+        result = ToolResult(
+            success=False, content=None, tool_name="t", module="m"
+        )
+        assert result.content == "Operation failed (no details provided)"
 
     def test_metadata_defaults_to_empty(self):
         result = ToolResult(success=True, content="x", tool_name="t", module="m")

@@ -116,14 +116,14 @@ SEED_PATTERNS = [
             "        }\n"
             "        handler = handlers.get(tool_name)\n"
             "        if handler is None:\n"
-            "            return ToolResult(success=False, content=None, tool_name=tool_name,\n"
+            "            return ToolResult(success=False, content=f\"Unknown tool: {tool_name}\", tool_name=tool_name,\n"
             "                module=self.name, error=f\"Unknown tool: {tool_name}\")\n"
             "        result = handler(params)\n"
             "        result.execution_time_ms = (time.time() - start) * 1000\n"
             "        self._record_call(result.success)\n"
             "        return result\n"
             "    except Exception as e:\n"
-            "        return ToolResult(success=False, content=None, tool_name=tool_name,\n"
+            "        return ToolResult(success=False, content=str(e), tool_name=tool_name,\n"
             "            module=self.name, error=str(e))\n"
         ),
         "tags": "shadow,dispatch,execute",
@@ -150,7 +150,7 @@ SEED_PATTERNS = [
         "description": "Return a failed ToolResult with error message",
         "code_template": (
             "return ToolResult(\n"
-            "    success=False, content=None,\n"
+            "    success=False, content=\"{{error_message}}\",\n"
             "    tool_name=\"{{tool_name}}\",\n"
             "    module=self.name,\n"
             "    error=\"{{error_message}}\",\n"
@@ -168,7 +168,7 @@ SEED_PATTERNS = [
             "    {{operation}}\n"
             "except Exception as e:\n"
             "    logger.error(\"{{context}}: %s\", e)\n"
-            "    return ToolResult(success=False, content=None,\n"
+            "    return ToolResult(success=False, content=str(e),\n"
             "        tool_name=\"{{tool_name}}\", module=self.name, error=str(e))\n"
         ),
         "tags": "shadow,error,logging",
@@ -181,7 +181,7 @@ SEED_PATTERNS = [
         "code_template": (
             "{{param}} = params.get(\"{{param}}\", \"\")\n"
             "if not {{param}}:\n"
-            "    return ToolResult(success=False, content=None,\n"
+            "    return ToolResult(success=False, content=\"{{param}} is required\",\n"
             "        tool_name=\"{{tool_name}}\", module=self.name,\n"
             "        error=\"{{param}} is required\")\n"
         ),

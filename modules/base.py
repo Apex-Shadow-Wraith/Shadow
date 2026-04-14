@@ -49,6 +49,10 @@ class ToolResult:
     execution_time_ms: float = 0.0
     metadata: dict[str, Any] = field(default_factory=dict)
 
+    def __post_init__(self) -> None:
+        if not self.success and self.content is None:
+            self.content = self.error or "Operation failed (no details provided)"
+
     def __str__(self) -> str:
         if self.success:
             return f"[{self.tool_name}] OK: {self.content}"
