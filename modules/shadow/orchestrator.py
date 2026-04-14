@@ -2420,6 +2420,14 @@ User input: {user_input}"""
         has_numeric_expr = bool(re.search(
             r'\d+\s*[+\-*/×÷xX^%]\s*\d+', lower
         ))
+        # Guard: Bible verse references like "Galatians 5:22-23" contain
+        # colon-separated digits that look like math (5:22-23 matches
+        # \d+\s*[-]\s*\d+).  If the numeric match is preceded by a
+        # capitalized word and uses colon notation, it's a verse ref.
+        if has_numeric_expr and re.search(
+            r'[A-Z][a-z]+\s+\d+:\d+', stripped
+        ):
+            has_numeric_expr = False
         if has_math_symbol or has_numeric_expr:
             logger.info("Fast-path pattern → cipher (math_symbol=%s, numeric_expr=%s)",
                         has_math_symbol, has_numeric_expr)
@@ -2561,7 +2569,7 @@ User input: {user_input}"""
             "calculat", "solv", "math", "equation",
             "multipl", "divid", "subtract",
             "differenc", "quotient",
-            "price", "cost", "estimat", "total", "percentag",
+            "price", "estimat", "total", "percentag",
             "factorial", "logarithm", "derivativ", "integral",
         }
         # Short/ambiguous words kept as exact matches to avoid false positives
