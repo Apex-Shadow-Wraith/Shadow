@@ -39,6 +39,7 @@ from __future__ import annotations
 import logging
 import sqlite3                  # Built-in Python database — no install needed
 import json                     # For converting Python dicts to/from JSON strings
+import threading                # Thread-safe locking for multi-threaded access
 import uuid                     # Generates unique IDs for each memory
 from datetime import datetime   # Timestamps for everything
 from pathlib import Path        # Cross-platform file paths (Windows + Linux)
@@ -206,13 +207,17 @@ class Grimoire:
 
         # ── Initialize SQLite ──
         # sqlite3.connect creates the database file if it doesn't exist
-        self.conn = sqlite3.connect(str(self.db_path))
+        self.conn = sqlite3.connect(str(self.db_path), check_same_thread=False)
         self.conn.execute("PRAGMA journal_mode=WAL")
         self.conn.execute("PRAGMA busy_timeout=5000")
 
         # Row factory makes query results behave like dictionaries
         # Instead of row[0], row[1], you can do row["content"], row["trust_level"]
         self.conn.row_factory = sqlite3.Row
+
+        # RLock (reentrant) because correct() and supersede() call remember()
+        # internally — a plain Lock would deadlock on re-entry.
+        self._db_lock = threading.RLock()
         
         # Create all tables (safe to call multiple times — uses IF NOT EXISTS)
         self._create_tables()
@@ -725,22 +730,23 @@ class Grimoire:
                 tags=["gpu", "rtx-5090", "vram", "hardware-build"]
             )
         """
-        try:
-            return self._remember_impl(
-                content=content, source=source, source_module=source_module,
-                category=category, trust_level=trust_level, confidence=confidence,
-                tags=tags, metadata=metadata, parent_id=parent_id,
-                model_used=model_used, tools_called=tools_called,
-                safety_class=safety_class, user_feedback=user_feedback,
-                check_duplicates=check_duplicates, content_blocks=content_blocks,
-                faceted_tags=faceted_tags,
-                valid_from=valid_from, valid_until=valid_until,
-                supersedes=supersedes,
-            )
-        except Exception as e:
-            logger.error("Grimoire storage FAILED: %s: %s", type(e).__name__, e)
-            logger.error("Input was: %s", str(content)[:200])
-            raise
+        with self._db_lock:
+            try:
+                return self._remember_impl(
+                    content=content, source=source, source_module=source_module,
+                    category=category, trust_level=trust_level, confidence=confidence,
+                    tags=tags, metadata=metadata, parent_id=parent_id,
+                    model_used=model_used, tools_called=tools_called,
+                    safety_class=safety_class, user_feedback=user_feedback,
+                    check_duplicates=check_duplicates, content_blocks=content_blocks,
+                    faceted_tags=faceted_tags,
+                    valid_from=valid_from, valid_until=valid_until,
+                    supersedes=supersedes,
+                )
+            except Exception as e:
+                logger.error("Grimoire storage FAILED: %s: %s", type(e).__name__, e)
+                logger.error("Input was: %s", str(content)[:200])
+                raise
 
     def _remember_impl(self, content, source, source_module, category,
                        trust_level, confidence, tags, metadata, parent_id,
@@ -1348,62 +1354,63 @@ class Grimoire:
         Returns:
             The ID of the new corrected memory
         """
-        now = datetime.now().isoformat()
-        correction_id = str(uuid.uuid4())
+        with self._db_lock:
+            now = datetime.now().isoformat()
+            correction_id = str(uuid.uuid4())
 
-        # ── Step 1: Verify the original memory exists ──
-        cursor = self.conn.cursor()
-        cursor.execute("SELECT * FROM memories WHERE id = ?", (memory_id,))
-        original = cursor.fetchone()
-        
-        if not original:
-            raise ValueError(f"[Grimoire] Memory not found: {memory_id}")
+            # ── Step 1: Verify the original memory exists ──
+            cursor = self.conn.cursor()
+            cursor.execute("SELECT * FROM memories WHERE id = ?", (memory_id,))
+            original = cursor.fetchone()
 
-        # ── Step 2: Log the correction (audit trail) ──
-        cursor.execute("""
-            INSERT INTO corrections 
-            (id, original_memory_id, corrected_content, correction_reason, created_at)
-            VALUES (?, ?, ?, ?, ?)
-        """, (correction_id, memory_id, new_content, reason, now))
+            if not original:
+                raise ValueError(f"[Grimoire] Memory not found: {memory_id}")
 
-        # ── Step 3: Soft-delete the original ──
-        # is_active = 0 means it won't appear in searches
-        # but it's still in the database for history
-        cursor.execute("""
-            UPDATE memories SET is_active = 0, updated_at = ? WHERE id = ?
-        """, (now, memory_id))
+            # ── Step 2: Log the correction (audit trail) ──
+            cursor.execute("""
+                INSERT INTO corrections
+                (id, original_memory_id, corrected_content, correction_reason, created_at)
+                VALUES (?, ?, ?, ?, ?)
+            """, (correction_id, memory_id, new_content, reason, now))
 
-        # Remove old vector from ChromaDB
-        try:
-            self.collection.delete(ids=[memory_id])
-        except Exception:
-            pass  # May not exist in ChromaDB (that's fine)
+            # ── Step 3: Soft-delete the original ──
+            # is_active = 0 means it won't appear in searches
+            # but it's still in the database for history
+            cursor.execute("""
+                UPDATE memories SET is_active = 0, updated_at = ? WHERE id = ?
+            """, (now, memory_id))
 
-        self.conn.commit()
+            # Remove old vector from ChromaDB
+            try:
+                self.collection.delete(ids=[memory_id])
+            except Exception:
+                pass  # May not exist in ChromaDB (that's fine)
 
-        # ── Step 4: Create the corrected memory ──
-        # Inherits category from original, gets maximum trust
-        # check_duplicates=False because corrections are intentionally new
-        new_id = self.remember(
-            content=new_content,
-            source=SOURCE_USER_CORRECTION,
-            source_module="grimoire",
-            category=original["category"],
-            trust_level=TRUST_USER_CORRECTION,
-            confidence=1.0,
-            parent_id=memory_id,
-            check_duplicates=False,
-            metadata={
-                "correction_reason": reason,
-                "original_id": memory_id,
-                "original_content": original["content"]
-            }
-        )
+            self.conn.commit()
 
-        print(f"[Grimoire] Corrected memory {memory_id[:8]}... → {new_id[:8]}...")
-        print(f"[Grimoire] Reason: {reason}")
-        
-        return new_id
+            # ── Step 4: Create the corrected memory ──
+            # Inherits category from original, gets maximum trust
+            # check_duplicates=False because corrections are intentionally new
+            new_id = self.remember(
+                content=new_content,
+                source=SOURCE_USER_CORRECTION,
+                source_module="grimoire",
+                category=original["category"],
+                trust_level=TRUST_USER_CORRECTION,
+                confidence=1.0,
+                parent_id=memory_id,
+                check_duplicates=False,
+                metadata={
+                    "correction_reason": reason,
+                    "original_id": memory_id,
+                    "original_content": original["content"]
+                }
+            )
+
+            print(f"[Grimoire] Corrected memory {memory_id[:8]}... → {new_id[:8]}...")
+            print(f"[Grimoire] Reason: {reason}")
+
+            return new_id
 
     # =========================================================================
     # FORGET — When the creator says "forget this" (Design Doc Section 3)
@@ -1427,41 +1434,42 @@ class Grimoire:
         Returns:
             True if forgotten, False if memory not found
         """
-        cursor = self.conn.cursor()
-        cursor.execute("SELECT * FROM memories WHERE id = ?", (memory_id,))
-        memory = cursor.fetchone()
-        
-        if not memory:
-            print(f"[Grimoire] Memory not found: {memory_id}")
-            return False
-        
-        now = datetime.now().isoformat()
-        
-        # Mark inactive in SQLite with forget flag
-        existing_meta = json.loads(memory["metadata_json"] or "{}")
-        existing_meta["forgotten"] = True
-        existing_meta["forgotten_at"] = now
-        
-        cursor.execute("""
-            UPDATE memories 
-            SET is_active = 0, updated_at = ?, metadata_json = ?
-            WHERE id = ?
-        """, (now, json.dumps(existing_meta), memory_id))
-        
-        # Remove from ChromaDB entirely
-        try:
-            self.collection.delete(ids=[memory_id])
-        except Exception:
-            pass
-        
-        # Remove associated tags
-        cursor.execute("DELETE FROM tags WHERE memory_id = ?", (memory_id,))
-        
-        self.conn.commit()
-        
-        content_preview = memory["content"][:60]
-        print(f"[Grimoire] Forgotten: {content_preview}...")
-        return True
+        with self._db_lock:
+            cursor = self.conn.cursor()
+            cursor.execute("SELECT * FROM memories WHERE id = ?", (memory_id,))
+            memory = cursor.fetchone()
+
+            if not memory:
+                print(f"[Grimoire] Memory not found: {memory_id}")
+                return False
+
+            now = datetime.now().isoformat()
+
+            # Mark inactive in SQLite with forget flag
+            existing_meta = json.loads(memory["metadata_json"] or "{}")
+            existing_meta["forgotten"] = True
+            existing_meta["forgotten_at"] = now
+
+            cursor.execute("""
+                UPDATE memories
+                SET is_active = 0, updated_at = ?, metadata_json = ?
+                WHERE id = ?
+            """, (now, json.dumps(existing_meta), memory_id))
+
+            # Remove from ChromaDB entirely
+            try:
+                self.collection.delete(ids=[memory_id])
+            except Exception:
+                pass
+
+            # Remove associated tags
+            cursor.execute("DELETE FROM tags WHERE memory_id = ?", (memory_id,))
+
+            self.conn.commit()
+
+            content_preview = memory["content"][:60]
+            print(f"[Grimoire] Forgotten: {content_preview}...")
+            return True
 
     # =========================================================================
     # COMPACTION — Archive old, low-access memories
@@ -1486,51 +1494,52 @@ class Grimoire:
         Returns:
             Dict with archived_count and archived_ids
         """
-        from datetime import timedelta
+        with self._db_lock:
+            from datetime import timedelta
 
-        threshold = (datetime.now() - timedelta(days=older_than_days)).isoformat()
-        now = datetime.now().isoformat()
+            threshold = (datetime.now() - timedelta(days=older_than_days)).isoformat()
+            now = datetime.now().isoformat()
 
-        cursor = self.conn.cursor()
+            cursor = self.conn.cursor()
 
-        # Find candidates: old, low-access, low-trust, still active
-        cursor.execute("""
-            SELECT id FROM memories
-            WHERE is_active = 1
-              AND access_count < ?
-              AND trust_level < 0.8
-              AND COALESCE(accessed_at, created_at) < ?
-        """, (min_access_count, threshold))
-
-        candidates = [row["id"] for row in cursor.fetchall()]
-
-        if not candidates:
-            return {"archived_count": 0, "archived_ids": []}
-
-        # Soft-archive in SQLite
-        for memory_id in candidates:
+            # Find candidates: old, low-access, low-trust, still active
             cursor.execute("""
-                UPDATE memories
-                SET is_active = 0, updated_at = ?,
-                    metadata_json = json_set(
-                        COALESCE(metadata_json, '{}'),
-                        '$.compacted', 1,
-                        '$.compacted_at', ?
-                    )
-                WHERE id = ?
-            """, (now, now, memory_id))
+                SELECT id FROM memories
+                WHERE is_active = 1
+                  AND access_count < ?
+                  AND trust_level < 0.8
+                  AND COALESCE(accessed_at, created_at) < ?
+            """, (min_access_count, threshold))
 
-        self.conn.commit()
+            candidates = [row["id"] for row in cursor.fetchall()]
 
-        # Remove from ChromaDB to keep vector search clean
-        try:
-            self.collection.delete(ids=candidates)
-        except Exception:
-            # ChromaDB may not have all IDs — that's fine
-            pass
+            if not candidates:
+                return {"archived_count": 0, "archived_ids": []}
 
-        print(f"[Grimoire] Compacted {len(candidates)} old memories")
-        return {"archived_count": len(candidates), "archived_ids": candidates}
+            # Soft-archive in SQLite
+            for memory_id in candidates:
+                cursor.execute("""
+                    UPDATE memories
+                    SET is_active = 0, updated_at = ?,
+                        metadata_json = json_set(
+                            COALESCE(metadata_json, '{}'),
+                            '$.compacted', 1,
+                            '$.compacted_at', ?
+                        )
+                    WHERE id = ?
+                """, (now, now, memory_id))
+
+            self.conn.commit()
+
+            # Remove from ChromaDB to keep vector search clean
+            try:
+                self.collection.delete(ids=candidates)
+            except Exception:
+                # ChromaDB may not have all IDs — that's fine
+                pass
+
+            print(f"[Grimoire] Compacted {len(candidates)} old memories")
+            return {"archived_count": len(candidates), "archived_ids": candidates}
 
     # =========================================================================
     # CONFLICT DETECTION (Design Doc Section 7)
@@ -1756,50 +1765,51 @@ class Grimoire:
     def stats(self):
         """
         Return database statistics. Useful for monitoring and debugging.
-        
+
         Returns:
             Dict with counts of active memories, corrections, tags, etc.
         """
-        cursor = self.conn.cursor()
-        
-        cursor.execute("SELECT COUNT(*) FROM memories WHERE is_active = 1")
-        active = cursor.fetchone()[0]
-        
-        cursor.execute("SELECT COUNT(*) FROM memories WHERE is_active = 0")
-        inactive = cursor.fetchone()[0]
-        
-        cursor.execute("SELECT COUNT(*) FROM corrections")
-        corrections = cursor.fetchone()[0]
-        
-        cursor.execute("SELECT COUNT(DISTINCT tag) FROM tags")
-        unique_tags = cursor.fetchone()[0]
-        
-        cursor.execute("""
-            SELECT category, COUNT(*) as count 
-            FROM memories WHERE is_active = 1 
-            GROUP BY category
-        """)
-        by_category = {row["category"]: row["count"] for row in cursor.fetchall()}
-        
-        cursor.execute("""
-            SELECT source, COUNT(*) as count 
-            FROM memories WHERE is_active = 1 
-            GROUP BY source
-        """)
-        by_source = {row["source"]: row["count"] for row in cursor.fetchall()}
-        
-        return {
-            "active_memories": active,
-            "inactive_memories": inactive,
-            "total_stored": active + inactive,
-            "corrections": corrections,
-            "unique_tags": unique_tags,
-            "vector_count": self.collection.count(),
-            "by_category": by_category,
-            "by_source": by_source,
-            "db_path": str(self.db_path),
-            "vector_path": str(self.vector_path)
-        }
+        with self._db_lock:
+            cursor = self.conn.cursor()
+
+            cursor.execute("SELECT COUNT(*) FROM memories WHERE is_active = 1")
+            active = cursor.fetchone()[0]
+
+            cursor.execute("SELECT COUNT(*) FROM memories WHERE is_active = 0")
+            inactive = cursor.fetchone()[0]
+
+            cursor.execute("SELECT COUNT(*) FROM corrections")
+            corrections = cursor.fetchone()[0]
+
+            cursor.execute("SELECT COUNT(DISTINCT tag) FROM tags")
+            unique_tags = cursor.fetchone()[0]
+
+            cursor.execute("""
+                SELECT category, COUNT(*) as count
+                FROM memories WHERE is_active = 1
+                GROUP BY category
+            """)
+            by_category = {row["category"]: row["count"] for row in cursor.fetchall()}
+
+            cursor.execute("""
+                SELECT source, COUNT(*) as count
+                FROM memories WHERE is_active = 1
+                GROUP BY source
+            """)
+            by_source = {row["source"]: row["count"] for row in cursor.fetchall()}
+
+            return {
+                "active_memories": active,
+                "inactive_memories": inactive,
+                "total_stored": active + inactive,
+                "corrections": corrections,
+                "unique_tags": unique_tags,
+                "vector_count": self.collection.count(),
+                "by_category": by_category,
+                "by_source": by_source,
+                "db_path": str(self.db_path),
+                "vector_path": str(self.vector_path)
+            }
 
     def search_corrections(self, limit=20):
         """
@@ -1842,27 +1852,28 @@ class Grimoire:
         Raises:
             ValueError: If old_id doesn't exist.
         """
-        # Verify old entry exists
-        cursor = self.conn.cursor()
-        cursor.execute("SELECT * FROM memories WHERE id = ?", (old_id,))
-        old_row = cursor.fetchone()
-        if not old_row:
-            raise ValueError(f"[Grimoire] Memory not found: {old_id}")
+        with self._db_lock:
+            # Verify old entry exists
+            cursor = self.conn.cursor()
+            cursor.execute("SELECT * FROM memories WHERE id = ?", (old_id,))
+            old_row = cursor.fetchone()
+            if not old_row:
+                raise ValueError(f"[Grimoire] Memory not found: {old_id}")
 
-        # Inherit category from old entry unless caller overrides
-        if "category" not in kwargs:
-            kwargs["category"] = old_row["category"]
+            # Inherit category from old entry unless caller overrides
+            if "category" not in kwargs:
+                kwargs["category"] = old_row["category"]
 
-        # Create the new memory, linking back via supersedes
-        new_id = self.remember(
-            content=new_content,
-            supersedes=old_id,
-            check_duplicates=False,
-            **kwargs,
-        )
+            # Create the new memory, linking back via supersedes
+            new_id = self.remember(
+                content=new_content,
+                supersedes=old_id,
+                check_duplicates=False,
+                **kwargs,
+            )
 
-        print(f"[Grimoire] Superseded {old_id[:8]}... → {new_id[:8]}...")
-        return new_id
+            print(f"[Grimoire] Superseded {old_id[:8]}... → {new_id[:8]}...")
+            return new_id
 
     def get_temporal_stats(self):
         """

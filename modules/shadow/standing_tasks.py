@@ -7,8 +7,10 @@ Provides time-based scheduling for Shadow's autonomous operations:
   - Grimoire stats (daily at 5:00 AM)
 
 Uses BackgroundScheduler so the CLI input loop is never blocked.
-All module calls are marshaled back to the main asyncio event loop
-to respect SQLite's check_same_thread constraint.
+Async module calls (e.g. module.execute()) are marshaled to the main
+asyncio event loop. Synchronous Grimoire calls (remember, stats) run
+directly in the APScheduler thread — Grimoire is thread-safe via
+check_same_thread=False and an RLock.
 """
 
 import asyncio
@@ -146,9 +148,10 @@ class StandingTaskScheduler:
         return "\n".join(lines)
 
     # ── Task implementations ────────────────────────────────────
-    # Each runs in APScheduler's thread pool. All module/Grimoire
-    # calls are dispatched to the main event loop to avoid SQLite
-    # check_same_thread errors.
+    # Each runs in APScheduler's thread pool. Async module.execute()
+    # calls are marshaled to the main event loop. Sync Grimoire
+    # calls (remember, stats) run directly in-thread — Grimoire
+    # handles its own thread safety via RLock.
 
     def _marshal(self, coro: Any, timeout: float = 300) -> Any:
         """Run a coroutine on the main event loop from a background thread."""
@@ -162,34 +165,37 @@ class StandingTaskScheduler:
         task_name = "self_analysis"
         self._logger.info("Standing task starting: %s", task_name)
         try:
-            async def _do() -> dict:
+            # Async part — marshal only the module.execute call to the event loop
+            async def _async_part():
                 omen = self._registry.get_module("omen")
                 if omen is None:
                     raise RuntimeError("Omen module not available")
                 result = await omen.execute("code_analyze_self", {})
                 if not result.success:
                     raise RuntimeError(f"code_analyze_self failed: {result.error}")
-
-                grimoire_mod = self._registry.get_module("grimoire")
-                if grimoire_mod is not None:
-                    grim = getattr(grimoire_mod, "_grimoire", None)
-                    if grim is not None:
-                        grim.remember(
-                            content=json.dumps(result.content, default=str),
-                            source="standing_task",
-                            source_module="omen",
-                            category="self_analysis",
-                            trust_level=0.9,
-                            tags=["standing_task", "self_analysis", "automated"],
-                            metadata={
-                                "task": task_name,
-                                "timestamp": datetime.now().isoformat(),
-                            },
-                            check_duplicates=False,
-                        )
                 return result.content
 
-            self._marshal(_do())
+            content = self._marshal(_async_part())
+
+            # Sync part — runs directly in APScheduler thread (Grimoire is thread-safe)
+            grimoire_mod = self._registry.get_module("grimoire")
+            if grimoire_mod is not None:
+                grim = getattr(grimoire_mod, "_grimoire", None)
+                if grim is not None:
+                    grim.remember(
+                        content=json.dumps(content, default=str),
+                        source="standing_task",
+                        source_module="omen",
+                        category="self_analysis",
+                        trust_level=0.9,
+                        tags=["standing_task", "self_analysis", "automated"],
+                        metadata={
+                            "task": task_name,
+                            "timestamp": datetime.now().isoformat(),
+                        },
+                        check_duplicates=False,
+                    )
+
             self._last_run[task_name] = datetime.now()
             self._last_status[task_name] = "success"
             self._logger.info("Standing task completed: %s", task_name)
@@ -207,7 +213,8 @@ class StandingTaskScheduler:
         self._topic_index += 1
         self._logger.info("Standing task starting: %s (topic: %s)", task_name, topic)
         try:
-            async def _do() -> list:
+            # Async part — marshal only the module.execute call to the event loop
+            async def _async_part():
                 reaper = self._registry.get_module("reaper")
                 if reaper is None:
                     raise RuntimeError("Reaper module not available")
@@ -216,29 +223,31 @@ class StandingTaskScheduler:
                 )
                 if not result.success:
                     raise RuntimeError(f"web_search failed: {result.error}")
-
-                grimoire_mod = self._registry.get_module("grimoire")
-                if grimoire_mod is not None:
-                    grim = getattr(grimoire_mod, "_grimoire", None)
-                    if grim is not None:
-                        summary = json.dumps(result.content, default=str)
-                        grim.remember(
-                            content=f"Standing research: {topic}\n\n{summary}",
-                            source="standing_task",
-                            source_module="reaper",
-                            category="standing_research",
-                            trust_level=0.3,
-                            tags=["standing_task", "research", topic.replace(" ", "_")],
-                            metadata={
-                                "task": task_name,
-                                "topic": topic,
-                                "timestamp": datetime.now().isoformat(),
-                            },
-                            check_duplicates=False,
-                        )
                 return result.content
 
-            self._marshal(_do())
+            search_results = self._marshal(_async_part())
+
+            # Sync part — runs directly in APScheduler thread (Grimoire is thread-safe)
+            grimoire_mod = self._registry.get_module("grimoire")
+            if grimoire_mod is not None:
+                grim = getattr(grimoire_mod, "_grimoire", None)
+                if grim is not None:
+                    summary = json.dumps(search_results, default=str)
+                    grim.remember(
+                        content=f"Standing research: {topic}\n\n{summary}",
+                        source="standing_task",
+                        source_module="reaper",
+                        category="standing_research",
+                        trust_level=0.3,
+                        tags=["standing_task", "research", topic.replace(" ", "_")],
+                        metadata={
+                            "task": task_name,
+                            "topic": topic,
+                            "timestamp": datetime.now().isoformat(),
+                        },
+                        check_duplicates=False,
+                    )
+
             self._last_run[task_name] = datetime.now()
             self._last_status[task_name] = f"success (topic: {topic})"
             self._logger.info("Standing task completed: %s", task_name)
@@ -250,49 +259,50 @@ class StandingTaskScheduler:
             )
 
     def _run_grimoire_stats(self) -> None:
-        """Collect Grimoire database stats and store a health summary."""
+        """Collect Grimoire database stats and store a health summary.
+
+        Entirely synchronous — no event loop marshaling needed.
+        Grimoire's RLock handles thread safety.
+        """
         task_name = "grimoire_stats"
         self._logger.info("Standing task starting: %s", task_name)
         try:
-            async def _do() -> dict:
-                grimoire_mod = self._registry.get_module("grimoire")
-                if grimoire_mod is None:
-                    raise RuntimeError("Grimoire module not available")
-                grim = getattr(grimoire_mod, "_grimoire", None)
-                if grim is None:
-                    raise RuntimeError("Grimoire internal instance not available")
+            grimoire_mod = self._registry.get_module("grimoire")
+            if grimoire_mod is None:
+                raise RuntimeError("Grimoire module not available")
+            grim = getattr(grimoire_mod, "_grimoire", None)
+            if grim is None:
+                raise RuntimeError("Grimoire internal instance not available")
 
-                stats = grim.stats()
+            stats = grim.stats()
 
-                summary = (
-                    f"Grimoire Health Report — {datetime.now().strftime('%Y-%m-%d %H:%M')}\n"
-                    f"  Active memories: {stats.get('active_memories', 0)}\n"
-                    f"  Inactive memories: {stats.get('inactive_memories', 0)}\n"
-                    f"  Total stored: {stats.get('total_stored', 0)}\n"
-                    f"  Vector count: {stats.get('vector_count', 0)}\n"
-                    f"  Unique tags: {stats.get('unique_tags', 0)}\n"
-                    f"  Corrections: {stats.get('corrections', 0)}\n"
-                    f"  By category: {json.dumps(stats.get('by_category', {}))}\n"
-                    f"  By source: {json.dumps(stats.get('by_source', {}))}"
-                )
+            summary = (
+                f"Grimoire Health Report — {datetime.now().strftime('%Y-%m-%d %H:%M')}\n"
+                f"  Active memories: {stats.get('active_memories', 0)}\n"
+                f"  Inactive memories: {stats.get('inactive_memories', 0)}\n"
+                f"  Total stored: {stats.get('total_stored', 0)}\n"
+                f"  Vector count: {stats.get('vector_count', 0)}\n"
+                f"  Unique tags: {stats.get('unique_tags', 0)}\n"
+                f"  Corrections: {stats.get('corrections', 0)}\n"
+                f"  By category: {json.dumps(stats.get('by_category', {}))}\n"
+                f"  By source: {json.dumps(stats.get('by_source', {}))}"
+            )
 
-                grim.remember(
-                    content=summary,
-                    source="standing_task",
-                    source_module="grimoire",
-                    category="system_health",
-                    trust_level=0.9,
-                    tags=["standing_task", "grimoire_stats", "system_health"],
-                    metadata={
-                        "task": task_name,
-                        "timestamp": datetime.now().isoformat(),
-                        "raw_stats": stats,
-                    },
-                    check_duplicates=False,
-                )
-                return stats
+            grim.remember(
+                content=summary,
+                source="standing_task",
+                source_module="grimoire",
+                category="system_health",
+                trust_level=0.9,
+                tags=["standing_task", "grimoire_stats", "system_health"],
+                metadata={
+                    "task": task_name,
+                    "timestamp": datetime.now().isoformat(),
+                    "raw_stats": stats,
+                },
+                check_duplicates=False,
+            )
 
-            self._marshal(_do())
             self._last_run[task_name] = datetime.now()
             self._last_status[task_name] = "success"
             self._logger.info("Standing task completed: %s", task_name)

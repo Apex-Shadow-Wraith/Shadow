@@ -296,3 +296,33 @@ class TestGetScheduleInfo:
         today = datetime.now().strftime("%Y-%m-%d")
         assert today in info
         assert "success" in info
+
+
+# ── Thread-safety Tests ────────────────────────────────────────
+
+
+class TestGrimoireStatsNoEventLoop:
+    """Verify grimoire_stats runs without an event loop (pure sync path)."""
+
+    def test_works_without_event_loop(self, mock_registry: ModuleRegistry):
+        """grimoire_stats succeeds even when no event loop is set."""
+        sched = StandingTaskScheduler(mock_registry)
+        # _loop is None — no event loop available
+        assert sched._loop is None
+
+        sched._run_grimoire_stats()
+
+        grimoire = mock_registry._modules["grimoire"]
+        grimoire._grimoire.stats.assert_called_once()
+        grimoire._grimoire.remember.assert_called_once()
+        assert sched._last_status["grimoire_stats"] == "success"
+
+    def test_no_marshaling_needed(self, mock_registry: ModuleRegistry):
+        """grimoire_stats never calls _marshal (no async dependency)."""
+        sched = StandingTaskScheduler(mock_registry)
+        sched._marshal = MagicMock(side_effect=RuntimeError("Should not be called"))
+
+        sched._run_grimoire_stats()
+
+        sched._marshal.assert_not_called()
+        assert sched._last_status["grimoire_stats"] == "success"
