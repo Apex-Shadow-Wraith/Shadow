@@ -21,6 +21,9 @@ playwright          # Stealth browser automation
 yt-dlp              # YouTube subtitle download
 praw                # Reddit API
 
+# --- Scheduling ---
+apscheduler         # Background task scheduler (standing tasks)
+
 # --- Monitoring ---
 psutil              # System metrics (CPU, RAM, disk, process)
 watchdog            # File system monitoring

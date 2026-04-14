@@ -27,6 +27,7 @@ from modules.base import ModuleRegistry, ModuleStatus
 from modules.shadow.ollama_supervisor import OllamaSupervisor
 from modules.shadow.orchestrator import Orchestrator
 from modules.shadow.shadow_module import ShadowModule
+from modules.shadow.standing_tasks import StandingTaskScheduler
 
 # Module imports — graceful degradation if any module fails to import.
 # Logger not yet configured at import time, so collect failures for later.
@@ -236,7 +237,7 @@ async def startup(config: dict, logger: logging.Logger) -> Orchestrator:
 
 # All known CLI commands (without the slash) for fuzzy matching.
 # Commands that take arguments list only the base word.
-KNOWN_COMMANDS = ["status", "tools", "stats", "tasks", "task", "history", "failures", "help", "quit", "exit"]
+KNOWN_COMMANDS = ["status", "tools", "stats", "tasks", "task", "schedule", "history", "failures", "help", "quit", "exit"]
 
 # Regex: strip everything before the first '/' that is followed by a letter.
 _LEADING_GARBAGE_RE = re.compile(r'^[^/]*(/)')
@@ -352,7 +353,11 @@ def is_task_result_query(user_input: str) -> str | None:
     return None
 
 
-async def handle_command(command: str, orchestrator: Orchestrator) -> bool:
+async def handle_command(
+    command: str,
+    orchestrator: Orchestrator,
+    standing_scheduler: StandingTaskScheduler | None = None,
+) -> bool:
     """Handle slash commands. Returns True if handled, False otherwise."""
     cmd = command.strip().lower()
 
@@ -480,17 +485,33 @@ async def handle_command(command: str, orchestrator: Orchestrator) -> bool:
             print("Grimoire not loaded.")
         return True
 
+    elif cmd.startswith("/schedule"):
+        if standing_scheduler is None:
+            print("Standing task scheduler not available.")
+            return True
+        parts = command.strip().split()
+        if len(parts) >= 3 and parts[1].lower() == "run":
+            task_name = parts[2].lower()
+            print(f"  Running standing task: {task_name}...")
+            result = standing_scheduler.run_task(task_name)
+            print(f"  {result}")
+        else:
+            print(standing_scheduler.get_schedule_info())
+        return True
+
     elif cmd == "/help":
         print("\n--- Shadow Commands ---")
-        print("  /status    Module health overview")
-        print("  /tools     List all available tools")
-        print("  /stats     Cerberus safety statistics")
-        print("  /tasks     List active background tasks")
-        print("  /task <id> Check background task status")
-        print("  /history   Show recent interaction history")
-        print("  /failures  Show recent failures and fallbacks")
-        print("  /help      Show this help")
-        print("  quit       Shut down Shadow")
+        print("  /status           Module health overview")
+        print("  /tools            List all available tools")
+        print("  /stats            Cerberus safety statistics")
+        print("  /schedule         Show standing task schedule")
+        print("  /schedule run <t> Manually trigger a standing task")
+        print("  /tasks            List active background tasks")
+        print("  /task <id>        Check background task status")
+        print("  /history          Show recent interaction history")
+        print("  /failures         Show recent failures and fallbacks")
+        print("  /help             Show this help")
+        print("  quit              Shut down Shadow")
         print()
         return True
 
@@ -566,6 +587,10 @@ async def main() -> None:
 
     await ollama_supervisor.start()
 
+    # Start standing task scheduler — recurring background work
+    standing_scheduler = StandingTaskScheduler(orchestrator.registry, logger)
+    standing_scheduler.start(loop=asyncio.get_running_loop())
+
     online_count = len(orchestrator.registry.online_modules)
     print(f"\nShadow online. {online_count} modules active.")
     print("Type a message to begin. '/help' for commands. 'quit' to exit.\n")
@@ -601,7 +626,7 @@ async def main() -> None:
                     user_input = f"/{corrected}{suffix}"
                     print(f"  (corrected from /{cmd_word} → /{corrected})")
 
-                handled = await handle_command(user_input, orchestrator)
+                handled = await handle_command(user_input, orchestrator, standing_scheduler)
                 if handled:
                     continue
 
@@ -626,6 +651,7 @@ async def main() -> None:
 
     # Shutdown
     print("\nShutting down...")
+    standing_scheduler.stop()
     await ollama_supervisor.stop()
     await orchestrator.shutdown()
     print("Shadow offline. State saved.")
