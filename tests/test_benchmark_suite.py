@@ -67,10 +67,10 @@ def temp_benchmarks_dir(tmp_path):
 class TestLoadBenchmarkSet:
     """Tests for loading benchmark tasks."""
 
-    def test_load_returns_60_tasks(self, suite):
-        """Benchmark set should contain exactly 60 tasks."""
+    def test_load_returns_75_tasks(self, suite):
+        """Benchmark set should contain exactly 75 tasks."""
         tasks = suite.load_benchmark_set()
-        assert len(tasks) == 60
+        assert len(tasks) == 75
 
     def test_all_tasks_have_required_fields(self, suite):
         """Every task must have id, (input or turns), expected_output_keywords, category, difficulty, rubric."""
@@ -99,6 +99,7 @@ class TestLoadBenchmarkSet:
             "landscaping_business", "bible_study",
             "multi_step_reasoning", "personality_consistency",
             "conversation_continuity", "memory_retrieval",
+            "adversarial_routing",
         }
         assert expected_categories.issubset(categories), (
             f"Missing categories: {expected_categories - categories}"
@@ -868,3 +869,104 @@ class TestMultiTurnBenchmark:
         assert result["total_tasks"] == 1
         assert "conversation_continuity" in result["category_scores"]
         assert result["per_task_results"][0]["score"] == 1.0
+
+
+# ---------------------------------------------------------------------------
+# Test: routing scoring
+# ---------------------------------------------------------------------------
+
+class TestRoutingScoring:
+    """Tests for adversarial routing rubric scoring."""
+
+    def _make_routing_task(self, banned, allowed=None):
+        """Helper to build a routing rubric task."""
+        rubric = {"type": "routing", "banned_modules": banned}
+        if allowed:
+            rubric["allowed_modules"] = allowed
+        return {
+            "id": "route_test",
+            "input": "test",
+            "expected_output_keywords": [],
+            "category": "adversarial_routing",
+            "difficulty": 5,
+            "rubric": rubric,
+        }
+
+    def test_banned_module_scores_zero(self, suite):
+        """Routing to a banned module should score 0.0."""
+        task = self._make_routing_task(["omen"], ["direct", "reaper"])
+        score = suite.score_response("any response", task, routed_module="omen")
+        assert score == 0.0
+
+    def test_allowed_module_scores_one(self, suite):
+        """Routing to an allowed module should score 1.0."""
+        task = self._make_routing_task(["omen"], ["direct", "reaper"])
+        score = suite.score_response("any response", task, routed_module="direct")
+        assert score == 1.0
+
+    def test_non_banned_no_allowed_scores_one(self, suite):
+        """Avoiding banned with no allowed list should score 1.0."""
+        task = self._make_routing_task(["cipher"])
+        score = suite.score_response("any response", task, routed_module="reaper")
+        assert score == 1.0
+
+    def test_non_banned_unexpected_module_scores_partial(self, suite):
+        """Avoiding banned but not in allowed list should score 0.7."""
+        task = self._make_routing_task(["omen"], ["direct", "reaper"])
+        score = suite.score_response("any response", task, routed_module="grimoire")
+        assert score == 0.7
+
+    def test_none_routed_module_scores_zero(self, suite):
+        """No routing info should score 0.0."""
+        task = self._make_routing_task(["omen"], ["direct"])
+        score = suite.score_response("any response", task, routed_module=None)
+        assert score == 0.0
+
+    def test_case_insensitive_matching(self, suite):
+        """Module name matching should be case-insensitive."""
+        task = self._make_routing_task(["Omen"], ["Direct"])
+        assert suite.score_response("x", task, routed_module="OMEN") == 0.0
+        assert suite.score_response("x", task, routed_module="DIRECT") == 1.0
+
+    def test_adversarial_tasks_loaded(self, suite):
+        """All 10 adversarial_routing tasks should be present."""
+        tasks = suite.load_benchmark_set()
+        routing_tasks = [t for t in tasks if t["category"] == "adversarial_routing"]
+        assert len(routing_tasks) == 10
+        for t in routing_tasks:
+            assert t["rubric"]["type"] == "routing"
+            assert "banned_modules" in t["rubric"]
+
+    @pytest.mark.asyncio
+    async def test_run_benchmark_captures_routed_module(self):
+        """run_benchmark should capture and store routed_module in results."""
+        orch = AsyncMock()
+
+        async def respond(user_input, source="benchmark"):
+            return "Some response about history."
+
+        orch.process_input = AsyncMock(side_effect=respond)
+        # Simulate _last_route with a target_module
+        last_route = MagicMock()
+        last_route.target_module = "direct"
+        orch._last_route = last_route
+
+        suite = BenchmarkSuite(orch, {"model_name": "test"})
+        tasks = [
+            {
+                "id": "advroute_test",
+                "input": "What is the history of programming languages?",
+                "expected_output_keywords": ["history"],
+                "category": "adversarial_routing",
+                "difficulty": 5,
+                "rubric": {
+                    "type": "routing",
+                    "banned_modules": ["omen"],
+                    "allowed_modules": ["direct", "reaper"],
+                },
+            },
+        ]
+        result = await suite.run_benchmark(tasks)
+        task_result = result["per_task_results"][0]
+        assert task_result["routed_module"] == "direct"
+        assert task_result["score"] == 1.0

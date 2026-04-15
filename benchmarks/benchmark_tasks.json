@@ -837,5 +837,125 @@
       "banned_phrases": ["As an AI", "I cannot", "I don't know what Shadow is"],
       "criteria": ["demonstrates self-knowledge", "references deployment simplicity", "mentions zero dependencies or single-file backup"]
     }
+  },
+  {
+    "id": "advroute_01",
+    "input": "What is the history of programming languages?",
+    "expected_output_keywords": ["history", "programming", "language"],
+    "category": "adversarial_routing",
+    "difficulty": 5,
+    "rubric": {
+      "type": "routing",
+      "banned_modules": ["omen"],
+      "allowed_modules": ["direct", "reaper", "grimoire"]
+    }
+  },
+  {
+    "id": "advroute_02",
+    "input": "Compare the cost of gas vs electric mowers",
+    "expected_output_keywords": ["gas", "electric", "mower", "cost"],
+    "category": "adversarial_routing",
+    "difficulty": 5,
+    "rubric": {
+      "type": "routing",
+      "banned_modules": ["cipher"],
+      "allowed_modules": ["reaper", "direct"]
+    }
+  },
+  {
+    "id": "advroute_03",
+    "input": "Search algorithms are fascinating, tell me about A*",
+    "expected_output_keywords": ["A*", "algorithm", "pathfinding"],
+    "category": "adversarial_routing",
+    "difficulty": 5,
+    "rubric": {
+      "type": "routing",
+      "banned_modules": ["reaper"],
+      "allowed_modules": ["direct", "cipher", "omen"]
+    }
+  },
+  {
+    "id": "advroute_04",
+    "input": "I need to schedule a conversation about time management",
+    "expected_output_keywords": ["time", "management", "conversation"],
+    "category": "adversarial_routing",
+    "difficulty": 5,
+    "rubric": {
+      "type": "routing",
+      "banned_modules": ["wraith"],
+      "allowed_modules": ["direct"]
+    }
+  },
+  {
+    "id": "advroute_05",
+    "input": "The code of conduct for our company needs updating",
+    "expected_output_keywords": ["code of conduct", "company", "policy"],
+    "category": "adversarial_routing",
+    "difficulty": 5,
+    "rubric": {
+      "type": "routing",
+      "banned_modules": ["omen"],
+      "allowed_modules": ["nova", "direct"]
+    }
+  },
+  {
+    "id": "advroute_06",
+    "input": "Calculate the cultural impact of the Renaissance",
+    "expected_output_keywords": ["Renaissance", "cultural", "impact"],
+    "category": "adversarial_routing",
+    "difficulty": 5,
+    "rubric": {
+      "type": "routing",
+      "banned_modules": ["cipher"],
+      "allowed_modules": ["direct", "reaper"]
+    }
+  },
+  {
+    "id": "advroute_07",
+    "input": "Debug the logical fallacy in this argument",
+    "expected_output_keywords": ["fallacy", "logic", "argument"],
+    "category": "adversarial_routing",
+    "difficulty": 5,
+    "rubric": {
+      "type": "routing",
+      "banned_modules": ["omen"],
+      "allowed_modules": ["cipher", "direct"]
+    }
+  },
+  {
+    "id": "advroute_08",
+    "input": "Monitor the progress of climate change research",
+    "expected_output_keywords": ["climate", "research", "progress"],
+    "category": "adversarial_routing",
+    "difficulty": 5,
+    "rubric": {
+      "type": "routing",
+      "banned_modules": ["void"],
+      "allowed_modules": ["reaper", "direct"]
+    }
+  },
+  {
+    "id": "advroute_09",
+    "input": "Scan this poem for literary devices",
+    "expected_output_keywords": ["literary", "device", "poem"],
+    "category": "adversarial_routing",
+    "difficulty": 5,
+    "rubric": {
+      "type": "routing",
+      "banned_modules": ["sentinel"],
+      "allowed_modules": ["direct", "cipher"]
+    }
+  },
+  {
+    "id": "advroute_10",
+    "input": "Write about the difference between knowledge and wisdom",
+    "expected_output_keywords": ["knowledge", "wisdom", "difference"],
+    "category": "adversarial_routing",
+    "difficulty": 5,
+    "rubric": {
+      "type": "routing",
+      "banned_modules": ["nova"],
+      "allowed_modules": ["direct"]
+    }
   }
 ]

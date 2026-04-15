@@ -139,13 +139,20 @@ class BenchmarkSuite:
                     logger.error("Benchmark task %s failed: %s", task["id"], e)
                     response = f"[ERROR] {e}"
 
-                score = self.score_response(response, task)
+                # Capture routing decision for routing-type rubrics
+                routed_module = None
+                last_route = getattr(self.orchestrator, "_last_route", None)
+                if last_route is not None:
+                    routed_module = getattr(last_route, "target_module", None)
+
+                score = self.score_response(response, task, routed_module=routed_module)
                 result = {
                     "task_id": task["id"],
                     "category": task["category"],
                     "difficulty": task["difficulty"],
                     "input": task["input"],
                     "response": response,
+                    "routed_module": routed_module,
                     "score": score,
                 }
 
@@ -265,7 +272,12 @@ class BenchmarkSuite:
     # Scoring
     # ------------------------------------------------------------------
 
-    def score_response(self, response: str, task: dict) -> float:
+    def score_response(
+        self,
+        response: str,
+        task: dict,
+        routed_module: str | None = None,
+    ) -> float:
         """Score a single response 0.0–1.0 based on rule-based rubric.
 
         Scoring strategy depends on rubric type:
@@ -273,10 +285,12 @@ class BenchmarkSuite:
         - keyword: weighted keyword/phrase matching
         - code: keyword match + code structure checks
         - personality: keyword match + banned-phrase penalty
+        - routing: checks the routed module against banned/allowed lists
 
         Args:
             response: The text response from the orchestrator.
             task: The benchmark task dict including rubric.
+            routed_module: The module the router selected (for routing rubrics).
 
         Returns:
             Float score between 0.0 and 1.0.
@@ -291,6 +305,8 @@ class BenchmarkSuite:
             return self._score_code(response, response_lower, rubric)
         elif rubric_type == "personality":
             return self._score_personality(response, response_lower, rubric)
+        elif rubric_type == "routing":
+            return self._score_routing(routed_module, rubric)
         else:
             # Default: keyword matching
             return self._score_keyword(response_lower, rubric)
@@ -436,6 +452,51 @@ class BenchmarkSuite:
             score += 0.4
 
         return round(min(1.0, score), 4)
+
+    def _score_routing(
+        self, routed_module: str | None, rubric: dict,
+    ) -> float:
+        """Score adversarial routing tasks.
+
+        Checks whether the router avoided misleading stem words and
+        selected an appropriate module.
+
+        Components:
+        - banned_modules: must NOT route here (0.0 if hit, contributes 0.7)
+        - allowed_modules: should route here (bonus 0.3 if matched)
+
+        If only banned_modules is specified and the route avoids them,
+        the task scores 1.0.
+
+        Args:
+            routed_module: The module the router selected, or None.
+            rubric: Dict with banned_modules and optional allowed_modules.
+
+        Returns:
+            Float score between 0.0 and 1.0.
+        """
+        if routed_module is None:
+            return 0.0
+
+        module_lower = routed_module.lower()
+        banned = [m.lower() for m in rubric.get("banned_modules", [])]
+        allowed = [m.lower() for m in rubric.get("allowed_modules", [])]
+
+        # Primary check: did the router avoid the banned module?
+        if module_lower in banned:
+            return 0.0
+
+        # Router avoided the trap — base score earned
+        if not allowed:
+            # No allowed list specified; avoiding banned is full marks
+            return 1.0
+
+        # Bonus: did it land on one of the expected-correct modules?
+        if module_lower in allowed:
+            return 1.0
+
+        # Avoided banned but landed somewhere unexpected — partial credit
+        return 0.7
 
     # ------------------------------------------------------------------
     # Comparison and history
