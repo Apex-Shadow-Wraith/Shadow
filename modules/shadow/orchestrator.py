@@ -4288,21 +4288,19 @@ User input: {user_input}"""
 
         async def execute_fn(task: str, strategy_context: dict) -> dict:
             """Execute one attempt using the plan + evaluate pipeline."""
-            # Check tool_loader before executing — empty means infrastructure failure.
-            # Skip for non-module targets like "direct" / "conversation" that
-            # don't need tools — they just call the LLM directly.
+            # Check tool_loader before executing — truly empty index means
+            # infrastructure failure (no modules online at all).
+            # A specific module missing from the index is a routing mismatch,
+            # NOT infrastructure failure — let the attempt proceed so the
+            # retry engine can try alternative strategies.
             NON_MODULE_TARGETS = {"direct", "conversation"}
             target = getattr(classification, "target_module", None)
-            tool_loader_empty = False
             if target not in NON_MODULE_TARGETS:
                 if hasattr(self, '_tool_loader') and self._tool_loader is not None:
-                    tools = self._tool_loader.get_tools_for_task(
-                        module_name=target,
-                    )
-                    if not tools:
-                        tool_loader_empty = True
+                    if not self._tool_loader.is_populated:
                         logger.warning(
-                            "Tool loader empty — infrastructure issue, not model failure"
+                            "Tool loader index completely empty — "
+                            "no modules have tools loaded (infrastructure issue)"
                         )
                         return {
                             "response": "",

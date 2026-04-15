@@ -49,14 +49,32 @@ class DynamicToolLoader:
     # ------------------------------------------------------------------
 
     def _build_index(self) -> None:
-        """Build the internal module→tools mapping from the registry."""
+        """Build the internal module→tools mapping from the registry.
+
+        Preserves the previous index if the rebuild returns zero tools,
+        preventing a transient list_tools() failure from wiping a valid cache.
+        """
         try:
             all_tools = self._registry.list_tools()
-            self._index.clear()
+
+            # Guard: if list_tools() returns nothing but we already have a
+            # populated index, keep the old one — a transient failure
+            # (e.g. one module's get_tools raising) shouldn't clear
+            # everything.
+            if not all_tools and self._index:
+                logger.warning(
+                    "list_tools() returned 0 tools but index already has "
+                    "%d modules — keeping existing index",
+                    len(self._index),
+                )
+                return
+
+            new_index: dict[str, list[dict[str, Any]]] = {}
             for tool in all_tools:
                 mod_name = tool.get("module", "unknown")
-                self._index.setdefault(mod_name, []).append(tool)
+                new_index.setdefault(mod_name, []).append(tool)
 
+            self._index = new_index
             total_tools = sum(len(t) for t in self._index.values())
             logger.info(
                 "Tool index built: %d modules, %d tools. Modules: %s",
@@ -77,7 +95,7 @@ class DynamicToolLoader:
             }
         except Exception as e:
             logger.warning("Failed to build tool index: %s", e)
-            self._index = {}
+            # Don't wipe self._index — keep whatever was cached
 
     def refresh(self) -> None:
         """Rebuild the index (call after modules go online/offline)."""
@@ -95,6 +113,16 @@ class DynamicToolLoader:
     # ------------------------------------------------------------------
     # Public API
     # ------------------------------------------------------------------
+
+    @property
+    def is_populated(self) -> bool:
+        """True if the index has at least one module with tools.
+
+        Use this to distinguish 'entire index empty' (infrastructure
+        failure — no modules online) from 'specific module not found'
+        (routing mismatch — retry with a different strategy).
+        """
+        return bool(self._index)
 
     def get_tools_for_module(self, module_name: str) -> list[dict[str, Any]]:
         """Return only the tool schemas belonging to the specified module.

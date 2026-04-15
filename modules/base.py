@@ -429,11 +429,23 @@ class ModuleRegistry:
         return self._modules[module_name]
 
     def list_tools(self) -> list[dict[str, Any]]:
-        """All available tools across all modules. Fed to the LLM prompt."""
+        """All available tools across all modules. Fed to the LLM prompt.
+
+        Isolates per-module failures so one broken get_tools() doesn't
+        prevent other modules' tools from loading.
+        """
         tools = []
         for module in self._modules.values():
             if module.status == ModuleStatus.ONLINE:
-                for tool in module.get_tools():
+                try:
+                    module_tools = module.get_tools()
+                except Exception as e:
+                    logger.warning(
+                        "Module '%s' get_tools() failed — skipping: %s",
+                        module.name, e,
+                    )
+                    continue
+                for tool in module_tools:
                     tool["module"] = module.name
                     tool["status"] = module.status.value
                     tools.append(tool)
