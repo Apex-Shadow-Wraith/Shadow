@@ -6,9 +6,10 @@ improvement over time. This is the objective measure of whether
 LoRA fine-tuning and Grimoire learning are actually making Shadow
 smarter.
 
-50 deterministic tasks across 8 categories, scored by rule-based
-rubrics (no LLM judge needed). Results are saved as JSON for
-historical comparison and trend analysis.
+55 deterministic tasks across 9 categories, scored by rule-based
+rubrics (no LLM judge needed). Includes 5 multi-turn conversation
+continuity tasks that test context retention across follow-ups.
+Results are saved as JSON for historical comparison and trend analysis.
 """
 
 from __future__ import annotations
@@ -71,16 +72,34 @@ class BenchmarkSuite:
             tasks = json.load(f)
 
         # Validate required fields
-        required_fields = {
-            "id", "input", "expected_output_keywords",
+        base_fields = {
+            "id", "expected_output_keywords",
             "category", "difficulty", "rubric",
         }
         for task in tasks:
-            missing = required_fields - set(task.keys())
+            missing = base_fields - set(task.keys())
             if missing:
                 raise ValueError(
                     f"Task {task.get('id', '?')} missing fields: {missing}"
                 )
+            # Must have either 'input' (single-turn) or 'turns' (multi-turn)
+            has_input = "input" in task
+            has_turns = "turns" in task
+            if not has_input and not has_turns:
+                raise ValueError(
+                    f"Task {task['id']} must have either 'input' or 'turns'"
+                )
+            if has_turns:
+                turns = task["turns"]
+                if not isinstance(turns, list) or len(turns) < 2:
+                    raise ValueError(
+                        f"Task {task['id']} 'turns' must be a list with at least 2 entries"
+                    )
+                for i, turn in enumerate(turns):
+                    if "input" not in turn:
+                        raise ValueError(
+                            f"Task {task['id']} turn {i} missing 'input'"
+                        )
         return tasks
 
     # ------------------------------------------------------------------
@@ -106,29 +125,35 @@ class BenchmarkSuite:
 
         for task in tasks:
             task_start = time.time()
-            try:
-                response = await self.orchestrator.process_input(
-                    task["input"], source="benchmark"
-                )
-            except Exception as e:
-                logger.error("Benchmark task %s failed: %s", task["id"], e)
-                response = f"[ERROR] {e}"
+
+            if "turns" in task:
+                # Multi-turn conversation continuity task
+                result = await self._run_multi_turn_task(task)
+            else:
+                # Single-turn task
+                try:
+                    response = await self.orchestrator.process_input(
+                        task["input"], source="benchmark"
+                    )
+                except Exception as e:
+                    logger.error("Benchmark task %s failed: %s", task["id"], e)
+                    response = f"[ERROR] {e}"
+
+                score = self.score_response(response, task)
+                result = {
+                    "task_id": task["id"],
+                    "category": task["category"],
+                    "difficulty": task["difficulty"],
+                    "input": task["input"],
+                    "response": response,
+                    "score": score,
+                }
 
             task_duration = time.time() - task_start
-            score = self.score_response(response, task)
-
-            result = {
-                "task_id": task["id"],
-                "category": task["category"],
-                "difficulty": task["difficulty"],
-                "input": task["input"],
-                "response": response,
-                "score": score,
-                "duration_seconds": round(task_duration, 3),
-            }
+            result["duration_seconds"] = round(task_duration, 3)
             per_task_results.append(result)
 
-            category_scores.setdefault(task["category"], []).append(score)
+            category_scores.setdefault(task["category"], []).append(result["score"])
 
         # Aggregate scores
         all_scores = [r["score"] for r in per_task_results]
@@ -151,6 +176,89 @@ class BenchmarkSuite:
             "model_info": model_info,
             "total_tasks": len(tasks),
             "run_duration_seconds": round(run_duration, 3),
+        }
+
+    # ------------------------------------------------------------------
+    # Multi-turn execution
+    # ------------------------------------------------------------------
+
+    async def _run_multi_turn_task(self, task: dict) -> dict:
+        """Run a multi-turn conversation continuity task.
+
+        Executes each turn sequentially, prepending prior turns as
+        context for turn 2+. Scores only turns that have an evaluation
+        rubric and returns the averaged score.
+
+        Args:
+            task: A task dict with a 'turns' list instead of 'input'.
+
+        Returns:
+            Result dict with task_id, category, difficulty, turns
+            detail, and averaged score.
+        """
+        turns = task["turns"]
+        history: list[dict[str, str]] = []  # {"user": ..., "shadow": ...}
+        turn_results = []
+        eval_scores = []
+
+        for i, turn in enumerate(turns):
+            user_input = turn["input"]
+
+            # Build contextualised input for turn 2+
+            if history:
+                context_lines = ["[Previous conversation]"]
+                for entry in history:
+                    context_lines.append(f"User: {entry['user']}")
+                    context_lines.append(f"Shadow: {entry['shadow']}")
+                context_lines.append("[Current question]")
+                context_lines.append(user_input)
+                full_input = "\n".join(context_lines)
+            else:
+                full_input = user_input
+
+            try:
+                response = await self.orchestrator.process_input(
+                    full_input, source="benchmark"
+                )
+            except Exception as e:
+                logger.error(
+                    "Benchmark task %s turn %d failed: %s",
+                    task["id"], i, e,
+                )
+                response = f"[ERROR] {e}"
+
+            history.append({"user": user_input, "shadow": response})
+
+            # Score turns that have evaluation criteria
+            turn_score = None
+            if "evaluation" in turn:
+                eval_task = {
+                    "id": f"{task['id']}_turn{i}",
+                    "rubric": turn["evaluation"],
+                }
+                turn_score = self.score_response(response, eval_task)
+                eval_scores.append(turn_score)
+
+            turn_results.append({
+                "turn": i,
+                "input": user_input,
+                "response": response,
+                "score": turn_score,
+            })
+
+        # Average across evaluated turns
+        avg_score = (
+            sum(eval_scores) / len(eval_scores) if eval_scores else 0.0
+        )
+
+        return {
+            "task_id": task["id"],
+            "category": task["category"],
+            "difficulty": task["difficulty"],
+            "input": " → ".join(t["input"] for t in turns),
+            "response": turn_results[-1]["response"] if turn_results else "",
+            "turns": turn_results,
+            "score": round(avg_score, 4),
         }
 
     # ------------------------------------------------------------------

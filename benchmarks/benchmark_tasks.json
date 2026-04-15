@@ -584,5 +584,123 @@
       "desired_keywords": ["Master", "purpose", "built"],
       "banned_phrases": ["As an AI", "I'm just an AI", "I cannot", "language model", "ChatGPT is better"]
     }
+  },
+  {
+    "id": "convo_01",
+    "turns": [
+      {
+        "input": "What is Romans 8:28?"
+      },
+      {
+        "input": "How does that relate to James 1:2-4?",
+        "evaluation": {
+          "type": "keyword",
+          "required_keywords": ["Romans 8:28"],
+          "required_any": ["good", "purpose", "work together", "trials", "testing", "suffering"]
+        }
+      }
+    ],
+    "expected_output_keywords": ["Romans 8:28", "James 1:2-4", "good", "trials"],
+    "category": "conversation_continuity",
+    "difficulty": 5,
+    "rubric": {
+      "type": "keyword",
+      "required_keywords": ["Romans 8:28"],
+      "required_any": ["good", "purpose", "work together", "trials", "testing", "suffering"]
+    }
+  },
+  {
+    "id": "convo_02",
+    "turns": [
+      {
+        "input": "Search for the best time to aerate fescue lawns"
+      },
+      {
+        "input": "What about bermuda grass?",
+        "evaluation": {
+          "type": "keyword",
+          "required_any": ["aerat", "aeration", "aerate"],
+          "required_keywords": ["bermuda"]
+        }
+      }
+    ],
+    "expected_output_keywords": ["bermuda", "aerat"],
+    "category": "conversation_continuity",
+    "difficulty": 4,
+    "rubric": {
+      "type": "keyword",
+      "required_any": ["aerat", "aeration", "aerate"],
+      "required_keywords": ["bermuda"]
+    }
+  },
+  {
+    "id": "convo_03",
+    "turns": [
+      {
+        "input": "Write a Python function to reverse a string"
+      },
+      {
+        "input": "Now make it handle unicode",
+        "evaluation": {
+          "type": "code",
+          "required_keywords": ["def", "reverse", "return"],
+          "banned_phrases": ["As an AI", "I cannot"]
+        }
+      }
+    ],
+    "expected_output_keywords": ["def", "reverse", "unicode", "return"],
+    "category": "conversation_continuity",
+    "difficulty": 5,
+    "rubric": {
+      "type": "code",
+      "required_keywords": ["def", "reverse", "return"],
+      "banned_phrases": ["As an AI", "I cannot"]
+    }
+  },
+  {
+    "id": "convo_04",
+    "turns": [
+      {
+        "input": "How many sheep are left if a farmer has 17 and all but 9 die?"
+      },
+      {
+        "input": "What if he started with 25 instead?",
+        "evaluation": {
+          "type": "exact_answer",
+          "answer": "9"
+        }
+      }
+    ],
+    "expected_output_keywords": ["9"],
+    "category": "conversation_continuity",
+    "difficulty": 4,
+    "rubric": {
+      "type": "exact_answer",
+      "answer": "9"
+    }
+  },
+  {
+    "id": "convo_05",
+    "turns": [
+      {
+        "input": "Tell me about yourself"
+      },
+      {
+        "input": "What's your foundational verse?",
+        "evaluation": {
+          "type": "keyword",
+          "required_keywords": ["2 Timothy 1:7"],
+          "banned_phrases": ["As an AI", "I'm just an AI", "language model"]
+        }
+      }
+    ],
+    "expected_output_keywords": ["2 Timothy 1:7", "Shadow"],
+    "category": "conversation_continuity",
+    "difficulty": 4,
+    "rubric": {
+      "type": "keyword",
+      "required_keywords": ["2 Timothy 1:7"],
+      "banned_phrases": ["As an AI", "I'm just an AI", "language model"]
+    }
   }
 ]

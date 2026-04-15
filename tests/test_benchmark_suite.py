@@ -67,18 +67,21 @@ def temp_benchmarks_dir(tmp_path):
 class TestLoadBenchmarkSet:
     """Tests for loading benchmark tasks."""
 
-    def test_load_returns_50_tasks(self, suite):
-        """Benchmark set should contain exactly 50 tasks."""
+    def test_load_returns_55_tasks(self, suite):
+        """Benchmark set should contain exactly 55 tasks."""
         tasks = suite.load_benchmark_set()
-        assert len(tasks) == 50
+        assert len(tasks) == 55
 
     def test_all_tasks_have_required_fields(self, suite):
-        """Every task must have id, input, expected_output_keywords, category, difficulty, rubric."""
+        """Every task must have id, (input or turns), expected_output_keywords, category, difficulty, rubric."""
         tasks = suite.load_benchmark_set()
-        required = {"id", "input", "expected_output_keywords", "category", "difficulty", "rubric"}
+        base_required = {"id", "expected_output_keywords", "category", "difficulty", "rubric"}
         for task in tasks:
-            missing = required - set(task.keys())
+            missing = base_required - set(task.keys())
             assert not missing, f"Task {task.get('id', '?')} missing: {missing}"
+            assert "input" in task or "turns" in task, (
+                f"Task {task.get('id', '?')} needs 'input' or 'turns'"
+            )
 
     def test_tasks_have_unique_ids(self, suite):
         """All task IDs must be unique."""
@@ -87,7 +90,7 @@ class TestLoadBenchmarkSet:
         assert len(ids) == len(set(ids)), "Duplicate task IDs found"
 
     def test_tasks_cover_all_categories(self, suite):
-        """Tasks should cover all 8 required categories."""
+        """Tasks should cover all 9 required categories."""
         tasks = suite.load_benchmark_set()
         categories = {t["category"] for t in tasks}
         expected_categories = {
@@ -95,6 +98,7 @@ class TestLoadBenchmarkSet:
             "research_synthesis", "general_knowledge",
             "landscaping_business", "bible_study",
             "multi_step_reasoning", "personality_consistency",
+            "conversation_continuity",
         }
         assert expected_categories.issubset(categories), (
             f"Missing categories: {expected_categories - categories}"
@@ -712,3 +716,155 @@ class TestTrendReport:
         report = suite.trend_report()
         assert "Trend" in report
         assert "↑" in report  # Should show improvement arrow
+
+
+# ---------------------------------------------------------------------------
+# Test: multi-turn conversation continuity
+# ---------------------------------------------------------------------------
+
+class TestMultiTurnBenchmark:
+    """Tests for multi-turn conversation continuity tasks."""
+
+    def test_multi_turn_tasks_load(self, suite):
+        """Multi-turn tasks should load alongside single-turn tasks."""
+        tasks = suite.load_benchmark_set()
+        multi = [t for t in tasks if "turns" in t]
+        assert len(multi) == 5
+        assert all(t["category"] == "conversation_continuity" for t in multi)
+
+    def test_multi_turn_tasks_have_valid_turns(self, suite):
+        """Each multi-turn task must have at least 2 turns with inputs."""
+        tasks = suite.load_benchmark_set()
+        for task in tasks:
+            if "turns" not in task:
+                continue
+            assert len(task["turns"]) >= 2
+            for turn in task["turns"]:
+                assert "input" in turn
+
+    def test_multi_turn_evaluated_turns_have_rubrics(self, suite):
+        """At least one turn per multi-turn task must have evaluation criteria."""
+        tasks = suite.load_benchmark_set()
+        for task in tasks:
+            if "turns" not in task:
+                continue
+            evaluated = [t for t in task["turns"] if "evaluation" in t]
+            assert len(evaluated) >= 1, (
+                f"Task {task['id']} has no evaluated turns"
+            )
+
+    @pytest.mark.asyncio
+    async def test_run_multi_turn_task(self):
+        """Multi-turn runner should call process_input for each turn."""
+        orch = AsyncMock()
+        call_count = 0
+
+        async def track_calls(user_input, source="benchmark"):
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                return "Romans 8:28 says all things work together for good."
+            return "James 1:2-4 connects to Romans 8:28 by showing trials produce good."
+
+        orch.process_input = AsyncMock(side_effect=track_calls)
+        suite = BenchmarkSuite(orch, {"model_name": "test"})
+
+        task = {
+            "id": "convo_test",
+            "turns": [
+                {"input": "What is Romans 8:28?"},
+                {
+                    "input": "How does that relate to James 1:2-4?",
+                    "evaluation": {
+                        "type": "keyword",
+                        "required_keywords": ["Romans 8:28"],
+                        "required_any": ["good", "trials"],
+                    },
+                },
+            ],
+            "expected_output_keywords": ["Romans 8:28"],
+            "category": "conversation_continuity",
+            "difficulty": 5,
+            "rubric": {
+                "type": "keyword",
+                "required_keywords": ["Romans 8:28"],
+                "required_any": ["good", "trials"],
+            },
+        }
+        result = await suite._run_multi_turn_task(task)
+
+        assert orch.process_input.call_count == 2
+        assert result["score"] > 0.0
+        assert len(result["turns"]) == 2
+        assert result["turns"][0]["score"] is None  # First turn not evaluated
+        assert result["turns"][1]["score"] is not None
+
+    @pytest.mark.asyncio
+    async def test_multi_turn_context_injection(self):
+        """Turn 2+ input should contain prior conversation context."""
+        orch = AsyncMock()
+        captured_inputs = []
+
+        async def capture(user_input, source="benchmark"):
+            captured_inputs.append(user_input)
+            return "Response to turn."
+
+        orch.process_input = AsyncMock(side_effect=capture)
+        suite = BenchmarkSuite(orch, {"model_name": "test"})
+
+        task = {
+            "id": "ctx_test",
+            "turns": [
+                {"input": "First question"},
+                {"input": "Follow-up", "evaluation": {
+                    "type": "keyword", "required_keywords": ["response"],
+                }},
+            ],
+            "expected_output_keywords": ["response"],
+            "category": "conversation_continuity",
+            "difficulty": 4,
+            "rubric": {"type": "keyword", "required_keywords": ["response"]},
+        }
+        await suite._run_multi_turn_task(task)
+
+        # Turn 1 should be plain input
+        assert captured_inputs[0] == "First question"
+        # Turn 2 should have context prefix
+        assert "[Previous conversation]" in captured_inputs[1]
+        assert "First question" in captured_inputs[1]
+        assert "[Current question]" in captured_inputs[1]
+        assert "Follow-up" in captured_inputs[1]
+
+    @pytest.mark.asyncio
+    async def test_multi_turn_in_full_run(self):
+        """Multi-turn tasks should work within run_benchmark."""
+        orch = AsyncMock()
+
+        async def respond(user_input, source="benchmark"):
+            if "sheep" in user_input.lower():
+                return "9 sheep are left."
+            return "The answer is still 9."
+
+        orch.process_input = AsyncMock(side_effect=respond)
+        suite = BenchmarkSuite(orch, {"model_name": "test"})
+
+        tasks = [
+            {
+                "id": "convo_sheep",
+                "turns": [
+                    {"input": "How many sheep are left if a farmer has 17 and all but 9 die?"},
+                    {"input": "What if he started with 25 instead?", "evaluation": {
+                        "type": "exact_answer", "answer": "9",
+                    }},
+                ],
+                "expected_output_keywords": ["9"],
+                "category": "conversation_continuity",
+                "difficulty": 4,
+                "rubric": {"type": "exact_answer", "answer": "9"},
+            },
+        ]
+        result = await suite.run_benchmark(tasks)
+
+        assert result["total_tasks"] == 1
+        assert "conversation_continuity" in result["category_scores"]
+        assert result["per_task_results"][0]["score"] == 1.0
