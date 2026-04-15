@@ -311,7 +311,12 @@ class ConfidenceScorer:
         return max(0.2, word_count / 20.0)
 
     def _score_relevance(self, task: str, response: str) -> float:
-        """Score how relevant the response is to the task."""
+        """Score how relevant the response is to the task.
+
+        Uses stemmed term matching with prefix fallback and a generous
+        scoring curve. A response that addresses the topic but uses
+        different word forms should still score high.
+        """
         if not response or not task:
             return 0.0
 
@@ -320,12 +325,47 @@ class ConfidenceScorer:
             # Can't evaluate relevance without task terms — assume OK
             return 0.7
 
-        response_lower = response.lower()
-        matches = sum(1 for term in task_terms if term in response_lower)
-        overlap = matches / len(task_terms)
+        response_terms = self._extract_key_terms(response)
+        if not response_terms:
+            return 0.0
 
-        # Scale: 0% overlap = 0.0, 50% = 0.5, 100% = 1.0
-        return min(1.0, overlap)
+        # Stem both sides for fuzzy matching (aerate ↔ aeration, pray ↔ prayer)
+        task_stems = {self._stem(t) for t in task_terms}
+        response_stems = {self._stem(t) for t in response_terms}
+
+        # Forward overlap: what fraction of task stems appear in response?
+        # Uses exact stem match + prefix fallback for near-misses
+        matched = self._count_stem_matches(task_stems, response_stems)
+        forward = matched / len(task_stems)
+
+        # Apply sqrt curve: 0.50 → 0.71, 0.75 → 0.87, 1.0 → 1.0
+        return min(1.0, forward ** 0.5)
+
+    @staticmethod
+    def _count_stem_matches(needles: set[str], haystack: set[str]) -> int:
+        """Count how many stems from needles match stems in haystack.
+
+        Matching rules (in order):
+        1. Exact stem equality
+        2. Prefix match — both stems ≥ 5 chars and share a 5-char prefix.
+           Catches derivational variants the stemmer misses
+           (e.g. "theolog" from theological vs "theology").
+        """
+        count = 0
+        for needle in needles:
+            if needle in haystack:
+                count += 1
+                continue
+            # Prefix fallback for stems ≥ 5 chars
+            if len(needle) >= 5:
+                prefix = needle[:5]
+                if any(
+                    h.startswith(prefix) or needle.startswith(h[:5])
+                    for h in haystack
+                    if len(h) >= 5
+                ):
+                    count += 1
+        return count
 
     def _score_coherence(self, response: str) -> float:
         """Score structural quality of the response."""
@@ -761,6 +801,62 @@ class ConfidenceScorer:
         words = re.findall(r"[a-zA-Z]+", text.lower())
         # Filter stop words and short words
         return [w for w in words if w not in _STOP_WORDS and len(w) > 2]
+
+    @staticmethod
+    def _stem(word: str) -> str:
+        """Lightweight suffix-stripping stemmer for relevance matching.
+
+        Not a full Porter stemmer — just handles the most common English
+        suffixes that cause false negatives in term overlap. Good enough
+        for relevance scoring without adding a dependency. The prefix-
+        matching fallback in _count_stem_matches catches whatever this misses.
+        """
+        # Order matters: check longest suffixes first
+        if word.endswith("ation"):
+            return word[:-5] if len(word) > 7 else word[:-3]
+        if word.endswith("tion") or word.endswith("sion"):
+            return word[:-4] if len(word) > 6 else word[:-3]
+        if word.endswith("ment"):
+            return word[:-4] if len(word) > 6 else word
+        if word.endswith("ness"):
+            return word[:-4] if len(word) > 6 else word
+        if word.endswith("ical"):
+            return word[:-4] if len(word) > 6 else word
+        if word.endswith("able") or word.endswith("ible"):
+            return word[:-4] if len(word) > 6 else word
+        if word.endswith("ance") or word.endswith("ence"):
+            return word[:-4] if len(word) > 6 else word
+        if word.endswith("ful"):
+            return word[:-3] if len(word) > 5 else word
+        if word.endswith("ing"):
+            base = word[:-3]
+            if len(base) > 2:
+                if base[-1] == base[-2] and base[-1] not in "aeiou":
+                    return base[:-1]
+                return base
+            return word
+        if word.endswith("ies"):
+            return word[:-3] + "y" if len(word) > 4 else word
+        if word.endswith("ate"):
+            return word[:-3] if len(word) > 5 else word
+        if word.endswith("ity"):
+            return word[:-3] if len(word) > 5 else word
+        if word.endswith("es"):
+            return word[:-2] if len(word) > 4 else word
+        if word.endswith("ed"):
+            base = word[:-2]
+            if len(base) > 2:
+                if base[-1] == base[-2] and base[-1] not in "aeiou":
+                    return base[:-1]
+                return base
+            return word[:-1] if len(word) > 3 else word
+        if word.endswith("ly"):
+            return word[:-2] if len(word) > 4 else word
+        if word.endswith("er"):
+            return word[:-2] if len(word) > 4 else word
+        if word.endswith("s") and not word.endswith("ss"):
+            return word[:-1] if len(word) > 3 else word
+        return word
 
     def _record_score(
         self,

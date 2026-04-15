@@ -552,3 +552,141 @@ class TestConfabulationDetection:
             metadata={},
         )
         assert result2["factors"]["factual_grounding"] == 1.0
+
+
+# ================================================================
+# RELEVANCE SCORING
+# ================================================================
+
+
+class TestRelevance:
+    """Relevance scoring: on-topic responses score high, off-topic low."""
+
+    def test_bible_verse_query_relevant_answer(self, scorer):
+        """A correct Bible verse answer should score relevance >0.7."""
+        task = "What does John 3:16 say?"
+        response = (
+            "John 3:16 says: 'For God so loved the world, that he gave "
+            "his only begotten Son, that whosoever believeth in him should "
+            "not perish, but have everlasting life.'"
+        )
+        result = scorer.score_response(task, response, "question")
+        assert result["factors"]["relevance"] > 0.7
+
+    def test_landscaping_query_relevant_answer(self, scorer):
+        """A landscaping answer should score relevance >0.7."""
+        task = "How much does it cost to aerate a lawn?"
+        response = (
+            "Lawn aeration typically costs between $75 and $200 for a "
+            "standard residential lawn. The cost depends on lawn size, "
+            "soil condition, and whether you rent an aerator ($40-$75/day) "
+            "or hire a professional service."
+        )
+        result = scorer.score_response(task, response, "question")
+        assert result["factors"]["relevance"] > 0.7
+
+    def test_math_puzzle_relevant_answer(self, scorer):
+        """A correct math answer should score relevance >0.7."""
+        task = "What is 15 times 23?"
+        response = "15 times 23 equals 345."
+        result = scorer.score_response(task, response, "math")
+        assert result["factors"]["relevance"] > 0.7
+
+    def test_theological_analysis_relevant_answer(self, scorer):
+        """A theological analysis should score relevance >0.7."""
+        task = "Explain the theological significance of the resurrection"
+        response = (
+            "The resurrection of Jesus Christ is the cornerstone of "
+            "Christian theology. It validates Christ's claims of divinity, "
+            "fulfills Old Testament prophecy, and demonstrates God's power "
+            "over death. Paul writes in 1 Corinthians 15:17 that without "
+            "the resurrection, faith is in vain. The theological "
+            "significance extends to soteriology — Christ's resurrection "
+            "is the firstfruits, guaranteeing the future resurrection of "
+            "believers and the ultimate defeat of sin and death."
+        )
+        result = scorer.score_response(task, response, "analysis")
+        assert result["factors"]["relevance"] > 0.7
+
+    def test_synonym_heavy_response_limited_matching(self, scorer):
+        """Pure synonyms (fix→repair, faucet→tap) can't be caught without embeddings.
+
+        This test documents the known limitation: term-based relevance
+        scoring cannot match true synonyms. Scores will be low here.
+        The fix for this would require vector similarity (Grimoire embeddings),
+        which is outside the scope of the rule-based confidence scorer.
+        """
+        task = "How do I fix a leaking faucet?"
+        response = (
+            "To repair a dripping tap, first turn off the water supply. "
+            "Remove the handle and replace the worn washer or O-ring. "
+            "Reassemble and test for drips."
+        )
+        result = scorer.score_response(task, response, "question")
+        # Pure synonyms won't match — this is expected behavior
+        # Relevance will be low but shouldn't crash
+        assert 0.0 <= result["factors"]["relevance"] <= 1.0
+
+    def test_completely_off_topic_scores_low(self, scorer):
+        """A completely unrelated response should score relevance <0.3."""
+        task = "How do I configure PostgreSQL replication?"
+        response = (
+            "Chocolate cake is a classic dessert. Mix cocoa powder with "
+            "flour, sugar, and eggs. Bake at 350 degrees for 30 minutes."
+        )
+        result = scorer.score_response(task, response, "question")
+        assert result["factors"]["relevance"] < 0.3
+
+    def test_perfect_echo_scores_high(self, scorer):
+        """Response that echoes task terms should score high."""
+        task = "Explain Python decorators and generators"
+        response = (
+            "Python decorators are functions that modify other functions. "
+            "They use the @decorator syntax. Generators are functions that "
+            "use yield to produce a sequence of values lazily, making them "
+            "memory-efficient for large datasets."
+        )
+        result = scorer.score_response(task, response, "question")
+        # 3 of 4 task terms present (explain missing) → forward=0.75, sqrt→0.87
+        assert result["factors"]["relevance"] > 0.8
+
+    def test_empty_task_returns_zero(self, scorer):
+        """Empty task string triggers early return 0.0 from _score_relevance."""
+        result = scorer.score_response("", "Some response text here.", "question")
+        # Empty task → _score_relevance returns 0.0 (no task = no relevance)
+        assert result["factors"]["relevance"] == 0.0
+
+
+class TestStemmer:
+    """Unit tests for the lightweight stemmer."""
+
+    def test_ing_suffix(self):
+        assert ConfidenceScorer._stem("running") == "run"
+        assert ConfidenceScorer._stem("leaking") == "leak"
+        assert ConfidenceScorer._stem("computing") == "comput"
+
+    def test_ation_and_ate_share_stem(self):
+        # Both "aeration" (strip -ation) and "aerate" (strip -ate) → "aer"
+        assert ConfidenceScorer._stem("aeration") == ConfidenceScorer._stem("aerate")
+        # Longer words: "calculation" → "calcul", "calculate" → "calcul"
+        assert ConfidenceScorer._stem("calculation") == ConfidenceScorer._stem("calculate")
+
+    def test_ed_suffix(self):
+        assert ConfidenceScorer._stem("configured") == "configur"
+        assert ConfidenceScorer._stem("stopped") == "stop"
+
+    def test_s_suffix(self):
+        assert ConfidenceScorer._stem("decorators") == "decorator"
+        assert ConfidenceScorer._stem("generators") == "generator"
+
+    def test_ies_suffix(self):
+        assert ConfidenceScorer._stem("queries") == "query"
+
+    def test_short_words_unchanged(self):
+        # Short words should not be over-stemmed
+        assert ConfidenceScorer._stem("say") == "say"
+        assert ConfidenceScorer._stem("the") == "the"
+
+    def test_no_suffix_unchanged(self):
+        assert ConfidenceScorer._stem("python") == "python"
+        assert ConfidenceScorer._stem("john") == "john"
