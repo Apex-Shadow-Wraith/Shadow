@@ -759,18 +759,31 @@ class Orchestrator:
         "youtube_transcribe", "benchmark_run",
     })
 
+    # Sources that require synchronous execution — the caller blocks on the
+    # response and cannot poll /tasks later (e.g. benchmark scoring).
+    _SYNCHRONOUS_SOURCES = frozenset({"benchmark"})
+
     def _should_run_async(
-        self, tool_name: str, params: dict[str, Any], classification: Any
+        self,
+        tool_name: str,
+        params: dict[str, Any],
+        classification: Any,
+        source: str = "user",
     ) -> bool:
         """Decide whether a tool call should run in the background.
 
         Returns True if:
         1. AsyncTaskQueue is available, AND
-        2. User explicitly requested background execution, OR
-        3. Tool is known to be long-running, OR
-        4. Classification priority >= 4 (background).
+        2. Source is NOT a synchronous-only caller (e.g. benchmark), AND
+        3. User explicitly requested background execution, OR
+        4. Tool is known to be long-running, OR
+        5. Classification priority >= 4 (background).
         """
         if self._async_task_queue is None:
+            return False
+
+        # Synchronous sources must wait for results — never queue async.
+        if source in self._SYNCHRONOUS_SOURCES:
             return False
 
         # User explicitly requested background execution
@@ -1262,7 +1275,7 @@ class Orchestrator:
                 )
             else:
                 # Fallback: single-attempt execution (original behavior)
-                results = await self._step5_execute(plan, classification)
+                results = await self._step5_execute(plan, classification, source)
                 response = await self._step6_evaluate(
                     user_input, classification, results, context
                 )
@@ -4309,7 +4322,7 @@ User input: {user_input}"""
                             "infrastructure_error": True,
                         }
 
-            results = await self._step5_execute(plan, classification)
+            results = await self._step5_execute(plan, classification, source)
 
             # Apex protection: if target is "apex" and execution failed or
             # produced no results, do NOT fall back to local model — pass
@@ -4673,7 +4686,10 @@ User input: {user_input}"""
     # --- Step 5: Execute (single attempt) ---
 
     async def _step5_execute(
-        self, plan: ExecutionPlan, classification: TaskClassification
+        self,
+        plan: ExecutionPlan,
+        classification: TaskClassification,
+        source: str = "user",
     ) -> list[ToolResult]:
         """Execute the plan step by step.
 
@@ -4743,7 +4759,7 @@ User input: {user_input}"""
                         params = pre_hook.content.modified_params or params
 
             # --- Async background check ---
-            if self._should_run_async(tool_name, params, classification):
+            if self._should_run_async(tool_name, params, classification, source):
                 try:
                     target_module = self.registry.get_module_for_tool(tool_name)
                     task_id = self._async_task_queue.submit_task(

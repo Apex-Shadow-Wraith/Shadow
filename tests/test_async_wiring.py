@@ -429,6 +429,175 @@ class TestBackgroundIntentDetection:
 
 
 # ===================================================================
+# (f) Benchmark source forces synchronous execution
+# ===================================================================
+
+class TestBenchmarkForcesSync:
+    """Verify that source='benchmark' bypasses async queuing so the
+    orchestrator waits for tool results before scoring the response."""
+
+    async def test_should_run_async_false_for_benchmark_source(self, tmp_path: Path):
+        """_should_run_async returns False for source='benchmark' even when
+        the tool is in _LONG_RUNNING_TOOLS."""
+        config = _minimal_config(tmp_path)
+
+        with patch("modules.shadow.orchestrator.httpx.Client"):
+            from modules.shadow.orchestrator import Orchestrator
+
+            orch = Orchestrator(config)
+
+        # ATQ must exist (normally it would trigger async)
+        orch._task_tracker.initialize()
+        if orch._task_queue is not None:
+            orch._task_queue.initialize()
+
+        mock = _MockModule("reaper", ["web_search"])
+        await mock.initialize()
+        orch.registry.register(mock)
+
+        orch._async_task_queue = AsyncTaskQueue(
+            task_queue=orch._task_queue,
+            task_tracker=orch._task_tracker,
+            registry=orch.registry,
+        )
+        await orch._async_task_queue.start()
+
+        try:
+            classification = MagicMock()
+            classification.priority = 2
+
+            # web_search + source="benchmark" → must be synchronous
+            result = orch._should_run_async(
+                "web_search", {}, classification, source="benchmark"
+            )
+            assert result is False
+
+            # Same tool + source="user" → still async (control)
+            result = orch._should_run_async(
+                "web_search", {}, classification, source="user"
+            )
+            assert result is True
+        finally:
+            await orch._async_task_queue.stop()
+            orch._task_tracker.close()
+
+    async def test_should_run_async_false_for_benchmark_even_with_background_flag(
+        self, tmp_path: Path
+    ):
+        """Even an explicit _background=True is overridden by benchmark source."""
+        config = _minimal_config(tmp_path)
+
+        with patch("modules.shadow.orchestrator.httpx.Client"):
+            from modules.shadow.orchestrator import Orchestrator
+
+            orch = Orchestrator(config)
+
+        orch._task_tracker.initialize()
+        if orch._task_queue is not None:
+            orch._task_queue.initialize()
+
+        mock = _MockModule("reaper", ["web_search"])
+        await mock.initialize()
+        orch.registry.register(mock)
+
+        orch._async_task_queue = AsyncTaskQueue(
+            task_queue=orch._task_queue,
+            task_tracker=orch._task_tracker,
+            registry=orch.registry,
+        )
+        await orch._async_task_queue.start()
+
+        try:
+            classification = MagicMock()
+            classification.priority = 4  # background priority
+
+            # benchmark overrides both _background flag and priority >= 4
+            result = orch._should_run_async(
+                "web_search", {"_background": True}, classification,
+                source="benchmark",
+            )
+            assert result is False
+        finally:
+            await orch._async_task_queue.stop()
+            orch._task_tracker.close()
+
+    async def test_synchronous_sources_set_contains_benchmark(self):
+        """Sanity check: 'benchmark' is in _SYNCHRONOUS_SOURCES."""
+        from modules.shadow.orchestrator import Orchestrator
+
+        assert "benchmark" in Orchestrator._SYNCHRONOUS_SOURCES
+
+    async def test_step5_execute_runs_sync_for_benchmark(self, tmp_path: Path):
+        """When source='benchmark', _step5_execute runs tools inline
+        instead of submitting to the async queue."""
+        config = _minimal_config(tmp_path)
+
+        with patch("modules.shadow.orchestrator.httpx.Client"):
+            from modules.shadow.orchestrator import Orchestrator
+
+            orch = Orchestrator(config)
+
+        orch._task_tracker.initialize()
+        if orch._task_queue is not None:
+            orch._task_queue.initialize()
+
+        mock = _MockModule("reaper", ["web_search"])
+        await mock.initialize()
+        orch.registry.register(mock)
+
+        orch._async_task_queue = AsyncTaskQueue(
+            task_queue=orch._task_queue,
+            task_tracker=orch._task_tracker,
+            registry=orch.registry,
+        )
+        await orch._async_task_queue.start()
+
+        try:
+            from modules.shadow.orchestrator import (
+                ExecutionPlan,
+                TaskClassification,
+                TaskType,
+                BrainType,
+            )
+
+            classification = TaskClassification(
+                task_type=TaskType.RESEARCH,
+                complexity="moderate",
+                target_module="reaper",
+                brain=BrainType.SMART,
+                safety_flag=False,
+                priority=3,
+                confidence=0.85,
+            )
+
+            plan = ExecutionPlan(
+                steps=[
+                    {
+                        "step": 1,
+                        "description": "Search for information",
+                        "tool": "web_search",
+                        "params": {"query": "benchmark sync test"},
+                    }
+                ],
+                cerberus_approved=True,
+            )
+
+            results = await orch._step5_execute(
+                plan, classification, source="benchmark"
+            )
+
+            # Results should contain actual tool output, NOT a task-submitted message
+            assert len(results) >= 1
+            assert results[0].success is True
+            # The content should be the mock module's echo, not a task ID message
+            assert "Task submitted" not in str(results[0].content)
+            assert mock.calls, "Mock module should have been called inline"
+        finally:
+            await orch._async_task_queue.stop()
+            orch._task_tracker.close()
+
+
+# ===================================================================
 # Helper
 # ===================================================================
 
