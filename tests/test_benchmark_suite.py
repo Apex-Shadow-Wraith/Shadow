@@ -67,10 +67,10 @@ def temp_benchmarks_dir(tmp_path):
 class TestLoadBenchmarkSet:
     """Tests for loading benchmark tasks."""
 
-    def test_load_returns_55_tasks(self, suite):
-        """Benchmark set should contain exactly 55 tasks."""
+    def test_load_returns_60_tasks(self, suite):
+        """Benchmark set should contain exactly 60 tasks."""
         tasks = suite.load_benchmark_set()
-        assert len(tasks) == 55
+        assert len(tasks) == 60
 
     def test_all_tasks_have_required_fields(self, suite):
         """Every task must have id, (input or turns), expected_output_keywords, category, difficulty, rubric."""
@@ -90,7 +90,7 @@ class TestLoadBenchmarkSet:
         assert len(ids) == len(set(ids)), "Duplicate task IDs found"
 
     def test_tasks_cover_all_categories(self, suite):
-        """Tasks should cover all 9 required categories."""
+        """Tasks should cover all 10 required categories."""
         tasks = suite.load_benchmark_set()
         categories = {t["category"] for t in tasks}
         expected_categories = {
@@ -98,7 +98,7 @@ class TestLoadBenchmarkSet:
             "research_synthesis", "general_knowledge",
             "landscaping_business", "bible_study",
             "multi_step_reasoning", "personality_consistency",
-            "conversation_continuity",
+            "conversation_continuity", "memory_retrieval",
         }
         assert expected_categories.issubset(categories), (
             f"Missing categories: {expected_categories - categories}"

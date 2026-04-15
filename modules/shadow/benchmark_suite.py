@@ -6,7 +6,7 @@ improvement over time. This is the objective measure of whether
 LoRA fine-tuning and Grimoire learning are actually making Shadow
 smarter.
 
-55 deterministic tasks across 9 categories, scored by rule-based
+60 deterministic tasks across 10 categories, scored by rule-based
 rubrics (no LLM judge needed). Includes 5 multi-turn conversation
 continuity tasks that test context retention across follow-ups.
 Results are saved as JSON for historical comparison and trend analysis.
@@ -33,7 +33,7 @@ _TASKS_FILE = _BENCHMARKS_DIR / "benchmark_tasks.json"
 class BenchmarkSuite:
     """Automated benchmark system for measuring Shadow's capabilities.
 
-    Loads a fixed set of 50 benchmark tasks, runs them through the
+    Loads a fixed set of 60 benchmark tasks, runs them through the
     orchestrator, scores responses with rule-based rubrics, and
     tracks improvement over time.
     """
@@ -58,7 +58,7 @@ class BenchmarkSuite:
         """Load the deterministic benchmark tasks from JSON.
 
         Returns:
-            List of 50 task dicts, each with id, input,
+            List of 60 task dicts, each with id, input,
             expected_output_keywords, category, difficulty, rubric.
 
         Raises:

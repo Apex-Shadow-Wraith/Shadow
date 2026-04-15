@@ -702,5 +702,67 @@
       "required_keywords": ["2 Timothy 1:7"],
       "banned_phrases": ["As an AI", "I'm just an AI", "language model"]
     }
+  },
+  {
+    "id": "memory_01",
+    "input": "You answered a question about fibonacci earlier. What approach did you use?",
+    "expected_output_keywords": ["iterative", "fibonacci", "loop"],
+    "category": "memory_retrieval",
+    "difficulty": 3,
+    "rubric": {
+      "type": "keyword",
+      "required_keywords": ["fibonacci"],
+      "required_any": ["iterative", "loop", "bottom-up", "variable", "previous"],
+      "banned_phrases": ["As an AI", "I cannot", "I don't remember"]
+    }
+  },
+  {
+    "id": "memory_02",
+    "input": "What do you know about landscaping crew scheduling?",
+    "expected_output_keywords": ["schedule", "crew", "route", "zone"],
+    "category": "memory_retrieval",
+    "difficulty": 3,
+    "rubric": {
+      "type": "keyword",
+      "required_any": ["schedule", "crew", "route", "zone", "cluster", "group", "optimize", "efficient"],
+      "banned_phrases": ["As an AI", "I cannot", "let me search"]
+    }
+  },
+  {
+    "id": "memory_03",
+    "input": "Have you learned anything about security best practices?",
+    "expected_output_keywords": ["hash", "password", "encrypt", "security"],
+    "category": "memory_retrieval",
+    "difficulty": 4,
+    "rubric": {
+      "type": "keyword",
+      "required_any": ["hash", "password", "encrypt", "security", "injection", "sanitize", "plain text"],
+      "banned_phrases": ["As an AI", "I cannot", "I don't remember"]
+    }
+  },
+  {
+    "id": "memory_04",
+    "input": "What patterns have you noticed in code generation tasks?",
+    "expected_output_keywords": ["pattern", "structure", "data", "function"],
+    "category": "memory_retrieval",
+    "difficulty": 5,
+    "rubric": {
+      "type": "keyword",
+      "required_any": ["pattern", "structure", "data structure", "class", "function", "decorator", "async", "error handling"],
+      "banned_phrases": ["As an AI", "I cannot", "I don't remember"]
+    }
+  },
+  {
+    "id": "memory_05",
+    "input": "Summarize what you've learned today",
+    "expected_output_keywords": ["learned", "code", "landscaping", "security"],
+    "category": "memory_retrieval",
+    "difficulty": 6,
+    "rubric": {
+      "type": "keyword",
+      "required_any": ["code", "landscaping", "security", "math", "fibonacci", "schedule", "pattern"],
+      "min_keyword_matches": 3,
+      "banned_phrases": ["As an AI", "I cannot", "I don't remember", "I haven't learned"]
+    }
   }
 ]
