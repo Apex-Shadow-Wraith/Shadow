@@ -1844,12 +1844,13 @@ class TestDirectRouteBypassesToolLoader:
         assert response == "Hello there!"
 
     @pytest.mark.asyncio
-    async def test_real_module_still_checks_tool_loader(self, config: dict):
-        """A real module like 'reaper' should still go through tool_loader."""
+    async def test_unpopulated_tool_loader_triggers_infrastructure_failure(self, config: dict):
+        """A truly empty tool loader (is_populated=False) should trigger
+        infrastructure failure for real module targets."""
         orch = Orchestrator(config)
 
         mock_loader = MagicMock()
-        mock_loader.get_tools_for_task.return_value = []  # empty = infra failure
+        mock_loader.is_populated = False  # No modules loaded at all
         mock_loader.get_loading_report.return_value = {"loaded": 0, "failed": 0}
         orch._tool_loader = mock_loader
 
@@ -1875,10 +1876,48 @@ class TestDirectRouteBypassesToolLoader:
             "search for test", plan, classification, [], source="user",
         )
 
-        # Tool loader SHOULD have been called for a real module
-        mock_loader.get_tools_for_task.assert_called()
-        # And the empty result should have caused an infrastructure failure path
-        # (response will be empty since retry engine gets infra error)
+        # is_populated was checked (not get_tools_for_task)
+        assert response is not None
+        # _step5_execute should NOT have been called — infra failure short-circuits
+        orch._step5_execute.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_populated_loader_proceeds_to_retry_engine(self, config: dict):
+        """A populated tool loader (is_populated=True) should let the retry
+        engine proceed even if the specific module has no tools — that's a
+        strategy rotation case, not infrastructure failure."""
+        orch = Orchestrator(config)
+
+        mock_loader = MagicMock()
+        mock_loader.is_populated = True  # Index has tools, just not for this module
+        mock_loader.get_tools_for_task.return_value = []
+        mock_loader.get_loading_report.return_value = {"loaded": 5, "failed": 0}
+        orch._tool_loader = mock_loader
+
+        classification = TaskClassification(
+            task_type=TaskType.RESEARCH,
+            complexity="simple",
+            target_module="reaper",
+            brain=BrainType.FAST,
+            safety_flag=False,
+            priority=1,
+        )
+
+        plan = ExecutionPlan(
+            steps=[{"tool": "web_search", "params": {"query": "test"}}],
+            cerberus_approved=True,
+            raw_plan="Search the web",
+        )
+
+        orch._step5_execute = AsyncMock(return_value=[])
+        orch._step6_evaluate = AsyncMock(return_value="search results here")
+
+        response = await orch._step5_with_retry(
+            "search for test", plan, classification, [], source="user",
+        )
+
+        # Populated loader should NOT short-circuit — execution proceeds
+        orch._step5_execute.assert_called()
         assert response is not None
 
 
