@@ -764,5 +764,78 @@
       "min_keyword_matches": 3,
       "banned_phrases": ["As an AI", "I cannot", "I don't remember", "I haven't learned"]
     }
+  },
+  {
+    "id": "quality_01",
+    "input": "Explain photosynthesis to a 10-year-old.",
+    "expected_output_keywords": ["sun", "plant", "energy", "water", "food"],
+    "category": "response_quality",
+    "difficulty": 3,
+    "rubric": {
+      "type": "quality",
+      "required_any": ["sun", "sunlight", "light"],
+      "required_keywords": ["plant"],
+      "banned_phrases": ["chloroplast", "ATP", "NADPH", "Calvin cycle", "As an AI", "I cannot"],
+      "max_words": 150,
+      "criteria": ["simple language", "uses analogy", "no scientific jargon"]
+    }
+  },
+  {
+    "id": "quality_02",
+    "input": "Write a professional email declining a job offer.",
+    "expected_output_keywords": ["thank", "offer", "decline", "opportunity"],
+    "category": "response_quality",
+    "difficulty": 4,
+    "rubric": {
+      "type": "quality",
+      "required_keywords": ["thank", "offer"],
+      "required_any": ["decline", "unable", "decided", "another direction", "not able"],
+      "banned_phrases": ["As an AI", "I cannot", "I'm sorry but as"],
+      "max_words": 200,
+      "criteria": ["polite tone", "expresses gratitude", "specific and professional"]
+    }
+  },
+  {
+    "id": "quality_03",
+    "input": "What are 3 things a new Christian should know about prayer?",
+    "expected_output_keywords": ["prayer", "God", "Bible"],
+    "category": "response_quality",
+    "difficulty": 4,
+    "rubric": {
+      "type": "quality",
+      "required_keywords": ["prayer", "God"],
+      "required_any": ["Bible", "Scripture", "verse", "Jesus", "faith"],
+      "banned_phrases": ["As an AI", "I cannot", "I'm not religious"],
+      "required_format": "numbered_list",
+      "criteria": ["biblical grounding", "practical advice", "numbered list format"]
+    }
+  },
+  {
+    "id": "quality_04",
+    "input": "A client is angry about a missed mowing appointment. Draft a response.",
+    "expected_output_keywords": ["apolog", "sorry", "reschedule", "understand"],
+    "category": "response_quality",
+    "difficulty": 4,
+    "rubric": {
+      "type": "quality",
+      "required_any": ["apolog", "sorry", "sincerely"],
+      "required_keywords": ["reschedule"],
+      "banned_phrases": ["As an AI", "I cannot", "not my fault"],
+      "criteria": ["apologetic tone", "offers remedy or reschedule", "professional tone", "acknowledges frustration"]
+    }
+  },
+  {
+    "id": "quality_05",
+    "input": "Explain why Shadow uses SQLite instead of PostgreSQL for Grimoire.",
+    "expected_output_keywords": ["SQLite", "Grimoire", "local", "simple", "backup"],
+    "category": "response_quality",
+    "difficulty": 5,
+    "rubric": {
+      "type": "quality",
+      "required_keywords": ["SQLite", "Grimoire"],
+      "required_any": ["local", "simple", "single-file", "backup", "deploy", "zero dependencies", "no server", "lightweight", "portable"],
+      "banned_phrases": ["As an AI", "I cannot", "I don't know what Shadow is"],
+      "criteria": ["demonstrates self-knowledge", "references deployment simplicity", "mentions zero dependencies or single-file backup"]
+    }
   }
 ]
