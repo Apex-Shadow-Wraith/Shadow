@@ -528,6 +528,7 @@ async def main() -> None:
 
     # Suppress Ollama GIN HTTP debug logs that corrupt the CLI
     os.environ.setdefault("OLLAMA_LOG_LEVEL", "warn")
+    os.environ.setdefault("GIN_MODE", "release")
     print("  Ollama log level set to:", os.environ["OLLAMA_LOG_LEVEL"])
 
     # Load config
@@ -570,7 +571,7 @@ async def main() -> None:
     # Start Ollama supervisor — ensure the AI runtime stays alive
     harbinger_mod = orchestrator.registry.get_module("harbinger") if "harbinger" in orchestrator.registry else None
     ollama_supervisor = OllamaSupervisor(
-        check_interval=30,
+        check_interval=300,
         max_retries=5,
         ollama_bin=config.get("system", {}).get("ollama_bin", "ollama"),
         harbinger=harbinger_mod,

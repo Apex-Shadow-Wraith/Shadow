@@ -30,7 +30,7 @@ class OllamaSupervisor:
 
     def __init__(
         self,
-        check_interval: int = 30,
+        check_interval: int = 300,
         max_retries: int = 5,
         ollama_bin: str = "ollama",
         harbinger: object | None = None,

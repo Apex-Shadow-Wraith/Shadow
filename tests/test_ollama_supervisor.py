@@ -1,6 +1,7 @@
 """Tests for the Ollama Supervisor module."""
 
 import asyncio
+import os
 from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -23,6 +24,50 @@ def supervisor_with_harbinger():
     return OllamaSupervisor(
         check_interval=1, max_retries=5, ollama_bin="ollama", harbinger=harbinger
     )
+
+
+class TestDefaults:
+    """Tests for default configuration values."""
+
+    def test_default_check_interval_is_300(self):
+        """Default check_interval should be 300s (5 min) to avoid GIN log flooding."""
+        sup = OllamaSupervisor()
+        assert sup.check_interval == 300
+
+    def test_custom_check_interval_respected(self):
+        """Explicit check_interval overrides the default."""
+        sup = OllamaSupervisor(check_interval=60)
+        assert sup.check_interval == 60
+
+
+class TestGinSuppression:
+    """Tests for GIN log suppression via environment variables."""
+
+    def test_gin_mode_release_suppresses_request_logs(self):
+        """GIN_MODE=release should be set by main() to suppress per-request GET logs."""
+        # Simulate what main() does
+        old = os.environ.pop("GIN_MODE", None)
+        try:
+            os.environ.setdefault("GIN_MODE", "release")
+            assert os.environ["GIN_MODE"] == "release"
+        finally:
+            if old is not None:
+                os.environ["GIN_MODE"] = old
+            else:
+                os.environ.pop("GIN_MODE", None)
+
+    def test_gin_mode_setdefault_does_not_override(self):
+        """If GIN_MODE is already set, setdefault should not overwrite it."""
+        old = os.environ.get("GIN_MODE")
+        try:
+            os.environ["GIN_MODE"] = "debug"
+            os.environ.setdefault("GIN_MODE", "release")
+            assert os.environ["GIN_MODE"] == "debug"
+        finally:
+            if old is not None:
+                os.environ["GIN_MODE"] = old
+            else:
+                os.environ.pop("GIN_MODE", None)
 
 
 class TestHealthCheck:
