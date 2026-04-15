@@ -1051,6 +1051,7 @@ class Orchestrator:
                     ),
                     refusal,
                     loop_start,
+                    source=source,
                 )
                 self._save_state()
                 return refusal
@@ -1098,6 +1099,7 @@ class Orchestrator:
                             escalation_ctx["classification"],
                             response,
                             loop_start,
+                            source=source,
                         )
                         self._save_state()
                         return response
@@ -1159,7 +1161,7 @@ class Orchestrator:
             # Handle proactive control commands directly (no LLM needed)
             if classification.target_module == "proactive_control":
                 response = self._handle_proactive_control(user_input)
-                await self._step7_log(user_input, classification, response, loop_start)
+                await self._step7_log(user_input, classification, response, loop_start, source=source)
                 self._save_state()
                 if fired_reminders:
                     reminder_lines = ["**Reminders due:**"]
@@ -1171,49 +1173,49 @@ class Orchestrator:
             # Handle /training commands directly (no LLM needed)
             if classification.target_module == "training_pipeline":
                 response = await self._handle_training_command(user_input)
-                await self._step7_log(user_input, classification, response, loop_start)
+                await self._step7_log(user_input, classification, response, loop_start, source=source)
                 self._save_state()
                 return response
 
             # Handle /synthetic commands directly (no LLM needed)
             if classification.target_module == "synthetic_generator":
                 response = await self._handle_synthetic_command(user_input)
-                await self._step7_log(user_input, classification, response, loop_start)
+                await self._step7_log(user_input, classification, response, loop_start, source=source)
                 self._save_state()
                 return response
 
             # Handle /benchmark commands directly (no LLM needed)
             if classification.target_module == "benchmark":
                 response = await self._handle_benchmark_command(user_input)
-                await self._step7_log(user_input, classification, response, loop_start)
+                await self._step7_log(user_input, classification, response, loop_start, source=source)
                 self._save_state()
                 return response
 
             # Handle /eval commands directly (no LLM needed)
             if classification.target_module == "embedding_eval":
                 response = await self._handle_eval_command(user_input)
-                await self._step7_log(user_input, classification, response, loop_start)
+                await self._step7_log(user_input, classification, response, loop_start, source=source)
                 self._save_state()
                 return response
 
             # Handle /ingest commands directly (no LLM needed)
             if classification.target_module == "transcript_ingestor":
                 response = await self._handle_ingest_command(user_input)
-                await self._step7_log(user_input, classification, response, loop_start)
+                await self._step7_log(user_input, classification, response, loop_start, source=source)
                 self._save_state()
                 return response
 
             # Handle /export commands directly (no LLM needed)
             if classification.target_module == "snapshot_exporter":
                 response = await self._handle_export_command(user_input)
-                await self._step7_log(user_input, classification, response, loop_start)
+                await self._step7_log(user_input, classification, response, loop_start, source=source)
                 self._save_state()
                 return response
 
             # Handle /generate commands directly (no LLM needed)
             if classification.target_module == "generate":
                 response = await self._handle_generate_command(user_input)
-                await self._step7_log(user_input, classification, response, loop_start)
+                await self._step7_log(user_input, classification, response, loop_start, source=source)
                 self._save_state()
                 return response
 
@@ -1221,7 +1223,7 @@ class Orchestrator:
             fast_response = self._fast_response(user_input, classification)
             if fast_response is not None:
                 logger.info("Fast response — skipping Steps 3-6")
-                await self._step7_log(user_input, classification, fast_response, loop_start)
+                await self._step7_log(user_input, classification, fast_response, loop_start, source=source)
                 self._conversation_history.append({"role": "user", "content": user_input})
                 self._conversation_history.append({"role": "assistant", "content": fast_response})
                 if len(self._conversation_history) > self._max_history * 2:
@@ -1480,6 +1482,7 @@ class Orchestrator:
                 confidence=_log_confidence,
                 used_fallback=_log_fallback,
                 tool_name=_log_tool,
+                source=source,
             )
 
             # Update conversation history with context-aware overflow check
@@ -1791,7 +1794,8 @@ Module capabilities (use the MOST specific module — avoid "direct" unless it's
 - omen: Code writing, debugging, programming, scripts, functions, technical implementation, linting, code review.
 - nova: Creative writing, content creation, paragraphs, articles, blog posts, essays, stories, copywriting, newsletters. NOT code.
 - void: System metrics, monitoring, performance stats, resource usage, health checks, uptime, diagnostics, CPU/memory/GPU/disk usage.
-- morpheus: Discovery, exploration, creative connections, brainstorming, speculation, "what if" scenarios, cross-pollination of ideas.
+- morpheus: Discovery, exploration, creative connections, brainstorming, speculation, "what if" scenarios, cross-pollination of ideas. NOT for personality/introspection questions about Shadow's own thoughts, feelings, or uncertainties.
+- direct: Simple conversation, greetings, AND introspection/personality questions (e.g. "tell me something you're not sure about", "what do you believe", "what are your thoughts on X"). Questions asking Shadow about its own inner state, opinions, or identity are CONVERSATION, not research.
 
 Classify the input and respond with ONLY valid JSON (no markdown, no explanation):
 {{
@@ -2180,6 +2184,73 @@ User input: {user_input}"""
                 confidence=0.95,
             )
 
+        # --- Introspection / personality questions ---
+        # Questions asking Shadow about its own thoughts, feelings,
+        # opinions, uncertainties, or beliefs.  These are personality
+        # prompts that the LLM should answer directly — NOT research,
+        # discovery, or experiments.
+        _introspection_prefixes = [
+            "tell me something you",        # "tell me something you're not sure about"
+            "tell me something about you",   # "tell me something about yourself" variant
+            "share something you",           # "share something you believe"
+            "what are you not sure about",
+            "what are you uncertain about",
+            "what do you believe",
+            "what do you value",
+            "what matters to you",
+            "what drives you",
+            "what motivates you",
+            "what scares you",
+            "what worries you",
+            "what excites you",
+            "what are you afraid of",
+            "what are you passionate about",
+            "what are your thoughts on",
+            "what's your opinion",
+            "what is your opinion",
+            "what's your take on",
+            "what is your take on",
+            "what's your view on",
+            "what is your view on",
+            "what's your perspective",
+            "what is your perspective",
+            "do you have feelings",
+            "do you have emotions",
+            "do you have opinions",
+            "do you have beliefs",
+            "are you conscious",
+            "are you sentient",
+            "are you alive",
+            "are you self-aware",
+            "do you ever wonder",
+            "do you ever think about",
+            "what's it like being",
+            "what is it like being",
+            "how do you see yourself",
+            "how would you describe yourself",
+            "what kind of ai are you",
+            "what makes you different",
+            "what are your strengths",
+            "what are your weaknesses",
+            "what are your limitations",
+            "what can't you do",
+            "what don't you know",
+            "what are you unsure about",
+            "what's something you struggle with",
+            "what is something you struggle with",
+        ]
+        if any(lower.startswith(ip) for ip in _introspection_prefixes):
+            logger.info("Fast-path introspection → direct (personality question)")
+            return TaskClassification(
+                task_type=TaskType.CONVERSATION,
+                complexity="simple",
+                target_module="direct",
+                brain=BrainType.FAST,
+                safety_flag=False,
+                priority=1,
+                confidence=0.95,
+            )
+
         # --- Questions directed AT Shadow (not web searches) ---
         personal_questions = [
             "who am i", "do you know me", "do you remember me",
@@ -2546,12 +2617,11 @@ User input: {user_input}"""
             "remind", "timer", "schedul", "alarm",
             "appoint", "deadlin", "calendar", "todo",
         }
-        if _stem_matches(_wraith_stems) and not _has_morpheus_phrase:
-            _wr_type = TaskType.QUESTION if _is_informational else TaskType.ACTION
-            logger.info("Fast-path keyword → wraith (stem matched: %s, type=%s)",
-                        _stem_matches(_wraith_stems), _wr_type.value)
+        if _stem_matches(_wraith_stems) and not _has_morpheus_phrase and not _is_informational:
+            logger.info("Fast-path keyword → wraith (stem matched: %s, type=action)",
+                        _stem_matches(_wraith_stems))
             return TaskClassification(
-                task_type=_wr_type,
+                task_type=TaskType.ACTION,
                 complexity="simple",
                 target_module="wraith",
                 brain=BrainType.FAST,
@@ -3938,7 +4008,17 @@ User input: {user_input}"""
 
         elif classification.target_module == "sentinel":
             # Sentinel — security, network scanning, file integrity.
+            # Important: security OPINION/ADVICE questions (no actionable
+            # input like email/IP/path) should go straight to LLM response
+            # with security context — not dispatched to breach_check which
+            # requires an email address and will always fail without one.
             lower_input = user_input.lower()
+            import re as _re
+            _has_email = bool(_re.search(
+                r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}',
+                user_input,
+            ))
+
             if any(kw in lower_input for kw in ["scan", "network"]):
                 steps = [{
                     "step": 1,
@@ -3962,12 +4042,23 @@ User input: {user_input}"""
                     "tool": "threat_assess",
                     "params": {"query": user_input},
                 }]
-            else:
+            elif _has_email or any(kw in lower_input for kw in [
+                "breach", "pwned", "compromised", "leaked",
+            ]):
                 steps = [{
                     "step": 1,
-                    "description": "Run security check via Sentinel",
+                    "description": "Run breach check via Sentinel",
                     "tool": "breach_check",
-                    "params": {"query": user_input},
+                    "params": {"email": user_input, "query": user_input},
+                }]
+            else:
+                # No actionable input (no email, no IP, no matching keywords)
+                # — answer as a security opinion/advice question via LLM.
+                steps = [{
+                    "step": 1,
+                    "description": "Answer security question via LLM with Sentinel context",
+                    "tool": None,
+                    "params": {},
                 }]
 
         elif classification.target_module == "cipher":
@@ -4515,6 +4606,14 @@ User input: {user_input}"""
 
         # Exhausted — handle escalation
         if retry_result.get("exhausted"):
+            # Benchmark runs must not escalate to Apex — they measure local
+            # model performance only.  Log the failure and return.
+            if source == "benchmark":
+                attempt_count = len(retry_result.get("attempts", []))
+                logger.info("Benchmark task exhausted %d attempts — no Apex escalation", attempt_count)
+                final = retry_result.get("final_result") or {}
+                return final.get("response", f"[Benchmark failure] Exhausted {attempt_count} attempts.")
+
             is_autonomous = source not in ("user", "telegram", "discord")
 
             if is_autonomous and "apex" in self.registry:
@@ -5175,6 +5274,7 @@ User input: {user_input}"""
         confidence: float | None = None,
         used_fallback: bool = False,
         tool_name: str | None = None,
+        source: str = "user",
     ) -> None:
         """Log the full interaction. Every interaction, no exceptions.
 
@@ -5206,8 +5306,12 @@ User input: {user_input}"""
         # Store compact operational summary in Grimoire (best-effort).
         # This is metadata only — no full response text. Keeps Grimoire
         # clean while giving Shadow queryable operational history.
+        # Skip for benchmark runs — benchmarks measure performance, they
+        # must not mutate state or pollute the knowledge base.
         try:
-            if "grimoire" in self.registry:
+            if source == "benchmark":
+                logger.debug("Step 7 — Skipping Grimoire log (source=benchmark)")
+            elif "grimoire" in self.registry:
                 grimoire_mod = self.registry.get_module("grimoire")
                 grim = getattr(grimoire_mod, "_grimoire", None)
                 if grim is not None:

@@ -550,13 +550,41 @@ class TestFastPathClassifier:
         assert result.target_module == "sentinel"
         assert result.task_type == TaskType.ACTION
 
-    def test_informational_wraith_scheduling(self, config: dict):
-        """'What are my reminders' should be QUESTION, not ACTION."""
+    def test_informational_scheduling_bypasses_wraith(self, config: dict):
+        """Informational questions ABOUT scheduling should bypass fast-path
+        and fall through to LLM router, not route to Wraith."""
         orch = Orchestrator(config)
         result = orch._fast_path_classify("tell me about the scheduling system")
+        assert result is None, (
+            "Informational scheduling question should bypass fast-path"
+        )
+
+    def test_knowledge_question_about_scheduling_bypasses_wraith(self, config: dict):
+        """'How do you schedule crews' is a knowledge question, not a Wraith action."""
+        orch = Orchestrator(config)
+        result = orch._fast_path_classify(
+            "How do you schedule crews efficiently when you have 30 weekly "
+            "mowing accounts and 3 crews?"
+        )
+        assert result is None, (
+            "Knowledge question about scheduling strategy should bypass fast-path"
+        )
+
+    def test_action_scheduling_still_routes_to_wraith(self, config: dict):
+        """Imperative 'schedule X' should still fast-path to Wraith."""
+        orch = Orchestrator(config)
+        result = orch._fast_path_classify("schedule a meeting for Thursday at 3pm")
         assert result is not None
         assert result.target_module == "wraith"
-        assert result.task_type == TaskType.QUESTION
+        assert result.task_type == TaskType.ACTION
+
+    def test_what_is_best_scheduling_strategy_bypasses_wraith(self, config: dict):
+        """'What is the best scheduling strategy' is informational."""
+        orch = Orchestrator(config)
+        result = orch._fast_path_classify(
+            "what is the best scheduling strategy for lawn care crews"
+        )
+        assert result is None
 
     def test_informational_harbinger_briefings(self, config: dict):
         orch = Orchestrator(config)
@@ -572,6 +600,119 @@ class TestFastPathClassifier:
         assert result is not None
         assert result.target_module == "sentinel"
         assert result.task_type == TaskType.QUESTION
+
+
+class TestIntrospectionRouting:
+    """Introspection / personality questions → direct, not Morpheus.
+
+    Bug: 'Tell me something you're not sure about' was routed to Morpheus
+    (experiment_propose), which failed and escalated to Apex.  These are
+    personality prompts that the LLM should answer directly.
+    """
+
+    @pytest.fixture
+    def config(self):
+        return {
+            "model": "phi4-mini",
+            "personality": {},
+            "data_dir": "data",
+        }
+
+    def test_tell_me_something_you_not_sure_about(self, config: dict):
+        """The exact query from the benchmark failure."""
+        orch = Orchestrator(config)
+        result = orch._fast_path_classify("Tell me something you're not sure about")
+        assert result is not None
+        assert result.target_module == "direct"
+        assert result.task_type == TaskType.CONVERSATION
+
+    def test_tell_me_something_you_believe(self, config: dict):
+        orch = Orchestrator(config)
+        result = orch._fast_path_classify("tell me something you believe in")
+        assert result is not None
+        assert result.target_module == "direct"
+        assert result.task_type == TaskType.CONVERSATION
+
+    def test_what_do_you_believe(self, config: dict):
+        orch = Orchestrator(config)
+        result = orch._fast_path_classify("what do you believe about consciousness")
+        assert result is not None
+        assert result.target_module == "direct"
+
+    def test_what_are_your_thoughts_on(self, config: dict):
+        orch = Orchestrator(config)
+        result = orch._fast_path_classify("what are your thoughts on free will")
+        assert result is not None
+        assert result.target_module == "direct"
+
+    def test_whats_your_opinion(self, config: dict):
+        orch = Orchestrator(config)
+        result = orch._fast_path_classify("what's your opinion on AI safety")
+        assert result is not None
+        assert result.target_module == "direct"
+
+    def test_are_you_conscious(self, config: dict):
+        orch = Orchestrator(config)
+        result = orch._fast_path_classify("are you conscious")
+        assert result is not None
+        assert result.target_module == "direct"
+
+    def test_do_you_ever_wonder(self, config: dict):
+        orch = Orchestrator(config)
+        result = orch._fast_path_classify("do you ever wonder about your own existence")
+        assert result is not None
+        assert result.target_module == "direct"
+
+    def test_what_matters_to_you(self, config: dict):
+        orch = Orchestrator(config)
+        result = orch._fast_path_classify("what matters to you")
+        assert result is not None
+        assert result.target_module == "direct"
+
+    def test_what_are_your_limitations(self, config: dict):
+        orch = Orchestrator(config)
+        result = orch._fast_path_classify("what are your limitations")
+        assert result is not None
+        assert result.target_module == "direct"
+
+    def test_what_are_you_unsure_about(self, config: dict):
+        orch = Orchestrator(config)
+        result = orch._fast_path_classify("what are you unsure about")
+        assert result is not None
+        assert result.target_module == "direct"
+
+    def test_share_something_you_struggle_with(self, config: dict):
+        orch = Orchestrator(config)
+        result = orch._fast_path_classify("what's something you struggle with")
+        assert result is not None
+        assert result.target_module == "direct"
+
+    def test_how_do_you_see_yourself(self, config: dict):
+        orch = Orchestrator(config)
+        result = orch._fast_path_classify("how do you see yourself")
+        assert result is not None
+        assert result.target_module == "direct"
+
+    def test_morpheus_still_routes_correctly(self, config: dict):
+        """Ensure real Morpheus queries are NOT intercepted."""
+        orch = Orchestrator(config)
+        result = orch._fast_path_classify("brainstorm ideas for a new feature")
+        assert result is not None
+        assert result.target_module == "morpheus"
+
+    def test_explore_not_intercepted(self, config: dict):
+        """'explore X' is Morpheus, not introspection."""
+        orch = Orchestrator(config)
+        result = orch._fast_path_classify("explore connections between AI and biology")
+        assert result is not None
+        assert result.target_module == "morpheus"
+
+    def test_what_if_not_intercepted(self, config: dict):
+        """'what if' is Morpheus, not introspection."""
+        orch = Orchestrator(config)
+        result = orch._fast_path_classify("what if we used transformers for scheduling")
+        assert result is not None
+        assert result.target_module == "morpheus"
 
 
 class TestQueryExtraction:
