@@ -2393,6 +2393,10 @@ User input: {user_input}"""
         # return ACTION.
         _INFORMATIONAL_PREFIXES = (
             "tell me about", "what is", "what are", "what's",
+            "what was", "what were", "what do", "what did",
+            "what", "who", "where", "when was", "when did",
+            "when is", "why", "how should", "how would",
+            "how can i", "how can you",
             "describe", "how does", "how do", "explain",
             "what can you", "what can shadow", "what does",
             "can you tell me about", "i want to know about",
@@ -2584,7 +2588,7 @@ User input: {user_input}"""
                 confidence=0.90,
             )
 
-        if omen_stem_hits or has_omen_context:
+        if (omen_stem_hits or has_omen_context) and not _is_informational:
             # Determine if this is analysis or creation
             if has_analysis_intent:
                 logger.info("Fast-path keyword → omen ANALYSIS (stem matched: %s)", analysis_stem_hits)
@@ -2664,9 +2668,26 @@ User input: {user_input}"""
         }
         # Short/ambiguous words kept as exact matches to avoid false positives
         _cipher_exact = {"sum", "product", "quote", "compute"}
-        cipher_hit = _stem_matches(_cipher_stems) or bool(words & _cipher_exact)
-        if cipher_hit:
-            logger.info("Fast-path keyword → cipher (stem matched: %s)", _stem_matches(_cipher_stems))
+        # Stems that are ambiguous — they appear in knowledge questions
+        # ("what is the difference between X and Y") as often as in math
+        # requests.  When _is_informational is True AND only these stems
+        # matched, let the LLM router decide instead of fast-pathing.
+        _cipher_ambiguous_stems = {
+            "differenc", "price", "cost", "compar",
+            "estimat", "total", "percentag",
+            "logic", "puzzle", "riddle",
+        }
+        cipher_stem_hits = _stem_matches(_cipher_stems)
+        cipher_exact_hits = bool(words & _cipher_exact)
+        cipher_hit = bool(cipher_stem_hits) or cipher_exact_hits
+        # Skip when informational and only ambiguous stems matched
+        _skip_cipher = (
+            _is_informational
+            and cipher_stem_hits <= _cipher_ambiguous_stems
+            and not cipher_exact_hits
+        )
+        if cipher_hit and not _skip_cipher:
+            logger.info("Fast-path keyword → cipher (stem matched: %s)", cipher_stem_hits)
             return TaskClassification(
                 task_type=TaskType.ANALYSIS,
                 complexity="moderate",
@@ -2721,8 +2742,14 @@ User input: {user_input}"""
         _reaper_stems = {"research", "search"}
         reaper_phrases = ["look up", "search for", "search the web",
                           "find out about", "look into"]
-        if _stem_matches(_reaper_stems) or any(p in lower for p in reaper_phrases):
-            logger.info("Fast-path keyword → reaper")
+        # Explicit action phrases always fast-path; bare stem matches
+        # skip when informational ("what is the time complexity of
+        # binary search?" is a knowledge question, not a web search).
+        _reaper_phrase_hit = any(p in lower for p in reaper_phrases)
+        _reaper_stem_hit = bool(_stem_matches(_reaper_stems))
+        if _reaper_phrase_hit or (_reaper_stem_hit and not _is_informational):
+            logger.info("Fast-path keyword → reaper (phrase=%s, stem=%s)",
+                        _reaper_phrase_hit, _reaper_stem_hit)
             return TaskClassification(
                 task_type=TaskType.RESEARCH,
                 complexity="moderate",

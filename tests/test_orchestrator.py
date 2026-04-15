@@ -234,9 +234,9 @@ class TestFastPathClassifier:
 
     def test_cipher_price_keyword(self, config: dict):
         orch = Orchestrator(config)
+        # "what is" + ambiguous stems ('price', 'total') → informational, skip fast-path
         result = orch._fast_path_classify("what is the total price for the job")
-        assert result is not None
-        assert result.target_module == "cipher"
+        assert result is None or result.target_module != "cipher"
 
     def test_wraith_remind_keyword(self, config: dict):
         orch = Orchestrator(config)
