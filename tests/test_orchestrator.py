@@ -610,14 +610,6 @@ class TestIntrospectionRouting:
     personality prompts that the LLM should answer directly.
     """
 
-    @pytest.fixture
-    def config(self):
-        return {
-            "model": "phi4-mini",
-            "personality": {},
-            "data_dir": "data",
-        }
-
     def test_tell_me_something_you_not_sure_about(self, config: dict):
         """The exact query from the benchmark failure."""
         orch = Orchestrator(config)
