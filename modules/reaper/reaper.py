@@ -510,6 +510,7 @@ class Reaper:
                     "q": query,
                     "format": "json",
                     "categories": "general",
+                    "language": "en",
                 },
                 timeout=SEARXNG_TIMEOUT
             )
@@ -544,6 +545,7 @@ class Reaper:
             with DDGS() as ddgs:
                 raw_results = list(ddgs.text(
                     query,
+                    region="us-en",
                     max_results=min(max_results, DDG_MAX_RESULTS)
                 ))
 
@@ -582,7 +584,12 @@ class Reaper:
 
             response = requests.get(
                 BING_SEARCH_URL,
-                params={"q": query, "count": min(max_results, BING_MAX_RESULTS)},
+                params={
+                    "q": query,
+                    "count": min(max_results, BING_MAX_RESULTS),
+                    "setlang": "en",
+                    "cc": "US",
+                },
                 headers=headers,
                 timeout=15,
             )
