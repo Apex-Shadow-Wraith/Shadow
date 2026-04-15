@@ -1,0 +1,87 @@
+---
+source_file: "modules\shadow\task_queue.py"
+type: "code"
+community: "Async Task Queue"
+location: "L49"
+tags:
+  - graphify/code
+  - graphify/INFERRED
+  - community/Async_Task_Queue
+---
+
+# QueuedTaskStatus
+
+## Connections
+- [[All four priority levels dequeue in correct order.]] - `uses` [INFERRED]
+- [[Async worker that pulls from PriorityTaskQueue and executes via ModuleRegistry.]] - `uses` [INFERRED]
+- [[AsyncTaskQueue]] - `uses` [INFERRED]
+- [[AsyncTaskQueue — Async worker loop for background task execution. ==============]] - `uses` [INFERRED]
+- [[Background coroutine that processes tasks from the priority queue.]] - `uses` [INFERRED]
+- [[Cleanup keeps recently completed tasks.]] - `uses` [INFERRED]
+- [[Cleanup removes old completed tasks.]] - `uses` [INFERRED]
+- [[Complete a task with result data.]] - `uses` [INFERRED]
+- [[Completing a nonexistent task raises KeyError.]] - `uses` [INFERRED]
+- [[Create a PriorityTaskQueue with temp persistence.]] - `uses` [INFERRED]
+- [[Create a mock ModuleRegistry.]] - `uses` [INFERRED]
+- [[Critical task does NOT preempt P2 tasks (only P3+).]] - `uses` [INFERRED]
+- [[Dequeue on empty queue returns None.]] - `uses` [INFERRED]
+- [[Dequeue returns highest priority task first.]] - `uses` [INFERRED]
+- [[Dequeued task has RUNNING status and started_at set.]] - `uses` [INFERRED]
+- [[Enqueue returns the task_id.]] - `uses` [INFERRED]
+- [[Enqueueing critical (P1) task auto-preempts running P3+ tasks.]] - `uses` [INFERRED]
+- [[Enum]] - `inherits` [EXTRACTED]
+- [[Explicit preempt() pauses a running task.]] - `uses` [INFERRED]
+- [[Factory accepts custom parameters.]] - `uses` [INFERRED]
+- [[Factory sets reasonable defaults.]] - `uses` [INFERRED]
+- [[Fail a task with error description.]] - `uses` [INFERRED]
+- [[Failing a nonexistent task raises KeyError.]] - `uses` [INFERRED]
+- [[Get the result of a completed task.          Returns             Result dict if]] - `uses` [INFERRED]
+- [[Get the status of a task by ID or ID prefix.          Returns             Statu]] - `uses` [INFERRED]
+- [[Helper to create a QueuedTask.]] - `uses` [INFERRED]
+- [[Integration tests simulating the full flow.]] - `uses` [INFERRED]
+- [[Lifecycle state of a queued task.]] - `rationale_for` [EXTRACTED]
+- [[List all queued and running tasks.          Returns             List of task in]] - `uses` [INFERRED]
+- [[Peek on empty queue returns None.]] - `uses` [INFERRED]
+- [[Peek returns next task without removing it.]] - `uses` [INFERRED]
+- [[Persist a completed task's result in Grimoire for later retrieval.          Look]] - `uses` [INFERRED]
+- [[Preempted tasks resume when queue is empty.]] - `uses` [INFERRED]
+- [[Preempting a nonexistent task raises KeyError.]] - `uses` [INFERRED]
+- [[Priority 1 dequeues before priority 2.]] - `uses` [INFERRED]
+- [[Priority 2 dequeues before priority 3.]] - `uses` [INFERRED]
+- [[Priority 3 dequeues before priority 4.]] - `uses` [INFERRED]
+- [[Priority breakdown is accurate.]] - `uses` [INFERRED]
+- [[Queue depth reflects waiting tasks.]] - `uses` [INFERRED]
+- [[Queue state survives saveload cycle.]] - `uses` [INFERRED]
+- [[QueuedTask survives to_dictfrom_dict round trip.]] - `uses` [INFERRED]
+- [[Resolve a task ID or short prefix to a full task ID.          Searches the Prior]] - `uses` [INFERRED]
+- [[Running count reflects active tasks.]] - `uses` [INFERRED]
+- [[Signal shutdown and wait for the worker to finish.]] - `uses` [INFERRED]
+- [[Simulate user request → enqueue → dequeue → chain execution.]] - `uses` [INFERRED]
+- [[Start the background worker loop.]] - `uses` [INFERRED]
+- [[Submit a task for background execution.          Args             module_name]] - `uses` [INFERRED]
+- [[Tasks that were running when saved are re-queued on recovery.]] - `uses` [INFERRED]
+- [[Tasks with equal priority dequeue in FIFO order.]] - `uses` [INFERRED]
+- [[TestCleanup_1]] - `uses` [INFERRED]
+- [[TestCompleteAndFail]] - `uses` [INFERRED]
+- [[TestCreateTaskFactory]] - `uses` [INFERRED]
+- [[TestEnqueueDequeue]] - `uses` [INFERRED]
+- [[TestPreemption]] - `uses` [INFERRED]
+- [[TestPriorityOrdering]] - `uses` [INFERRED]
+- [[TestQueueChainIntegration]] - `uses` [INFERRED]
+- [[TestQueueInspection]] - `uses` [INFERRED]
+- [[TestQueuePersistence]] - `uses` [INFERRED]
+- [[Tests for PriorityTaskQueue — priority queue with preemption and persistence.]] - `uses` [INFERRED]
+- [[Tests for basic queue operations.]] - `uses` [INFERRED]
+- [[Tests for completed task cleanup.]] - `uses` [INFERRED]
+- [[Tests for priority-based dequeue ordering.]] - `uses` [INFERRED]
+- [[Tests for queue depth, peek, and status queries.]] - `uses` [INFERRED]
+- [[Tests for queue state persistence and recovery.]] - `uses` [INFERRED]
+- [[Tests for task completion and failure.]] - `uses` [INFERRED]
+- [[Tests for task preemption.]] - `uses` [INFERRED]
+- [[Tests for the create_task convenience factory.]] - `uses` [INFERRED]
+- [[from_dict()_4]] - `calls` [EXTRACTED]
+- [[get_task finds tasks in any state.]] - `uses` [INFERRED]
+- [[get_task returns None for nonexistent task.]] - `uses` [INFERRED]
+- [[task_queue.py]] - `contains` [EXTRACTED]
+
+#graphify/code #graphify/INFERRED #community/Async_Task_Queue

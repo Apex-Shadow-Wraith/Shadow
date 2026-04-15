@@ -1,0 +1,264 @@
+---
+type: community
+cohesion: 0.02
+members: 231
+---
+
+# Confidence Calibration
+
+**Cohesion:** 0.02 - loosely connected
+**Members:** 231 nodes
+
+## Members
+- [[.__init__()_71]] - code - modules\shadow\lora_tracker.py
+- [[._build_curve_from_rows()]] - code - modules\shadow\confidence_calibration.py
+- [[._check_needs_retrain()]] - code - modules\shadow\lora_tracker.py
+- [[._check_performance()]] - code - modules\shadow\lora_manager.py
+- [[._get_bucket_range()]] - code - modules\shadow\confidence_calibration.py
+- [[._init_db()_6]] - code - modules\shadow\lora_tracker.py
+- [[.calibrate()]] - code - modules\shadow\confidence_calibration.py
+- [[.detect_overlap()]] - code - modules\shadow\lora_tracker.py
+- [[.get_active_adapter()]] - code - modules\shadow\lora_manager.py
+- [[.get_adapter_for_module()]] - code - modules\shadow\lora_manager.py
+- [[.get_adapter_for_task()]] - code - modules\shadow\lora_manager.py
+- [[.get_adapter_profile()]] - code - modules\shadow\lora_tracker.py
+- [[.get_adjustment_factor()]] - code - modules\shadow\confidence_calibration.py
+- [[.get_all_profiles()]] - code - modules\shadow\lora_tracker.py
+- [[.get_calibration_by_type()]] - code - modules\shadow\confidence_calibration.py
+- [[.get_calibration_curve()]] - code - modules\shadow\confidence_calibration.py
+- [[.get_calibration_report()]] - code - modules\shadow\confidence_calibration.py
+- [[.get_load_command()]] - code - modules\shadow\lora_manager.py
+- [[.get_monthly_trend()]] - code - modules\shadow\confidence_calibration.py
+- [[.get_performance_trend()]] - code - modules\shadow\lora_tracker.py
+- [[.get_retrain_candidates()]] - code - modules\shadow\lora_tracker.py
+- [[.get_tracker_summary()]] - code - modules\shadow\lora_tracker.py
+- [[.list_available()]] - code - modules\shadow\lora_manager.py
+- [[.list_by_domain()]] - code - modules\shadow\lora_manager.py
+- [[.mark_recalibrated()]] - code - modules\shadow\confidence_calibration.py
+- [[.recommend_adapter()]] - code - modules\shadow\lora_tracker.py
+- [[.record()_1]] - code - modules\shadow\lora_tracker.py
+- [[.register_adapter()]] - code - modules\shadow\lora_manager.py
+- [[.scan_adapters_directory()]] - code - modules\shadow\lora_manager.py
+- [[.set_active()]] - code - modules\shadow\lora_manager.py
+- [[.should_recalibrate()]] - code - modules\shadow\confidence_calibration.py
+- [[.test_adapter_fields_after_registration()]] - code - tests\test_lora_manager.py
+- [[.test_adapter_with_negative_improvement_skipped()]] - code - tests\test_lora_manager.py
+- [[.test_all_failures()]] - code - tests\test_confidence_calibration.py
+- [[.test_all_successes()]] - code - tests\test_confidence_calibration.py
+- [[.test_avg_improvement_correct()]] - code - tests\test_lora_tracker.py
+- [[.test_buckets_records_correctly()]] - code - tests\test_confidence_calibration.py
+- [[.test_calibrate_clamps()]] - code - tests\test_confidence_calibration.py
+- [[.test_calibrate_well_calibrated_minimal_change()]] - code - tests\test_confidence_calibration.py
+- [[.test_db_created_on_init()]] - code - tests\test_confidence_calibration.py
+- [[.test_db_created_on_init()_2]] - code - tests\test_lora_tracker.py
+- [[.test_different_modules_different_calibration()]] - code - tests\test_confidence_calibration.py
+- [[.test_empty_db_valid_curve()]] - code - tests\test_confidence_calibration.py
+- [[.test_empty_directory()_1]] - code - tests\test_lora_manager.py
+- [[.test_empty_report()]] - code - tests\test_confidence_calibration.py
+- [[.test_filter_by_module()]] - code - tests\test_confidence_calibration.py
+- [[.test_filter_by_task_type()]] - code - tests\test_confidence_calibration.py
+- [[.test_get_active_adapter_none()]] - code - tests\test_lora_manager.py
+- [[.test_get_adapter_for_module()]] - code - tests\test_lora_manager.py
+- [[.test_get_adapter_for_task_domain_match()]] - code - tests\test_lora_manager.py
+- [[.test_get_adapter_for_task_module_priority()]] - code - tests\test_lora_manager.py
+- [[.test_get_adapter_for_task_unknown()]] - code - tests\test_lora_manager.py
+- [[.test_get_adapter_for_unknown_module()]] - code - tests\test_lora_manager.py
+- [[.test_get_all_profiles_sorted()]] - code - tests\test_lora_tracker.py
+- [[.test_graceful_without_tracker()]] - code - tests\test_lora_manager.py
+- [[.test_helped_hurt_neutral_categories()]] - code - tests\test_lora_tracker.py
+- [[.test_high_overlap_same_task_types()]] - code - tests\test_lora_tracker.py
+- [[.test_insufficient_data_unchanged()]] - code - tests\test_confidence_calibration.py
+- [[.test_known_adapters_auto_registered()]] - code - tests\test_lora_manager.py
+- [[.test_known_adapters_skipped_if_missing()]] - code - tests\test_lora_manager.py
+- [[.test_list_available()]] - code - tests\test_lora_manager.py
+- [[.test_list_by_domain()]] - code - tests\test_lora_manager.py
+- [[.test_load_command_llama_cpp()]] - code - tests\test_lora_manager.py
+- [[.test_load_command_ollama()]] - code - tests\test_lora_manager.py
+- [[.test_low_overlap_different_task_types()]] - code - tests\test_lora_tracker.py
+- [[.test_monthly_trend_returns_data()]] - code - tests\test_confidence_calibration.py
+- [[.test_multiple_adapters_same_domain()]] - code - tests\test_lora_manager.py
+- [[.test_multiple_records_accumulate()]] - code - tests\test_confidence_calibration.py
+- [[.test_multiple_records_accumulate()_1]] - code - tests\test_lora_tracker.py
+- [[.test_needs_retrain_declining_performance()]] - code - tests\test_lora_tracker.py
+- [[.test_needs_retrain_high_hurt_rate()]] - code - tests\test_lora_tracker.py
+- [[.test_no_adapters_directory()]] - code - tests\test_lora_manager.py
+- [[.test_no_records_empty_profile()]] - code - tests\test_lora_tracker.py
+- [[.test_only_one_active()]] - code - tests\test_lora_manager.py
+- [[.test_overall_error_calculated()]] - code - tests\test_confidence_calibration.py
+- [[.test_overconfident_adjustment_lowers()]] - code - tests\test_confidence_calibration.py
+- [[.test_overconfident_detected()]] - code - tests\test_confidence_calibration.py
+- [[.test_overlap_merge_recommendation()]] - code - tests\test_lora_tracker.py
+- [[.test_performance_trend_daily()]] - code - tests\test_lora_tracker.py
+- [[.test_recommend_best_adapter()]] - code - tests\test_lora_tracker.py
+- [[.test_recommend_confidence_scales_with_samples()]] - code - tests\test_lora_tracker.py
+- [[.test_recommend_no_data()]] - code - tests\test_lora_tracker.py
+- [[.test_recommend_no_positive_adapter()]] - code - tests\test_lora_tracker.py
+- [[.test_record_none_confidence_without()]] - code - tests\test_lora_tracker.py
+- [[.test_record_stores_all_fields()]] - code - tests\test_lora_tracker.py
+- [[.test_record_stores_pair()]] - code - tests\test_confidence_calibration.py
+- [[.test_register_invalid_path()]] - code - tests\test_lora_manager.py
+- [[.test_register_valid_path()]] - code - tests\test_lora_manager.py
+- [[.test_report_returns_string()]] - code - tests\test_confidence_calibration.py
+- [[.test_retrain_candidates()]] - code - tests\test_lora_tracker.py
+- [[.test_scan_discovers_new()]] - code - tests\test_lora_manager.py
+- [[.test_scan_no_duplicates()]] - code - tests\test_lora_manager.py
+- [[.test_set_active()]] - code - tests\test_lora_manager.py
+- [[.test_set_active_unknown()]] - code - tests\test_lora_manager.py
+- [[.test_should_recalibrate_high_error()]] - code - tests\test_confidence_calibration.py
+- [[.test_should_recalibrate_many_records()]] - code - tests\test_confidence_calibration.py
+- [[.test_single_adapter_valid_profile()]] - code - tests\test_lora_tracker.py
+- [[.test_single_record()]] - code - tests\test_confidence_calibration.py
+- [[.test_summary_empty()]] - code - tests\test_lora_tracker.py
+- [[.test_summary_mentions_best_and_worst()]] - code - tests\test_lora_tracker.py
+- [[.test_summary_readable()]] - code - tests\test_lora_tracker.py
+- [[.test_underconfident_adjustment_raises()]] - code - tests\test_confidence_calibration.py
+- [[.test_underconfident_detected()]] - code - tests\test_confidence_calibration.py
+- [[.test_unknown_adapter_empty_profile()]] - code - tests\test_lora_tracker.py
+- [[.test_well_calibrated_detected()]] - code - tests\test_confidence_calibration.py
+- [[A registered LoRA adapter with metadata.]] - rationale - modules\shadow\lora_manager.py
+- [[A single prediction-outcome pair.]] - rationale - modules\shadow\confidence_calibration.py
+- [[Adapter that was good but is getting worse needs retrain.]] - rationale - tests\test_lora_tracker.py
+- [[AdapterProfile]] - code - modules\shadow\lora_tracker.py
+- [[Adapters with negative improvement should be skipped.]] - rationale - tests\test_lora_manager.py
+- [[Aggregate performance for one adapter over a time period.          Args]] - rationale - modules\shadow\lora_tracker.py
+- [[Aggregated performance profile for one adapter.]] - rationale - modules\shadow\lora_tracker.py
+- [[All failures calibration reflects that.]] - rationale - tests\test_confidence_calibration.py
+- [[All successes calibration reflects that.]] - rationale - tests\test_confidence_calibration.py
+- [[Apply adjustment factor to raw confidence score.          This is what other sys]] - rationale - modules\shadow\confidence_calibration.py
+- [[Build calibration curve from (predicted_confidence, actual_success) rows.]] - rationale - modules\shadow\confidence_calibration.py
+- [[Build the calibration curve from all stored records.]] - rationale - modules\shadow\confidence_calibration.py
+- [[Calibration curve filtered by task_type or module.]] - rationale - modules\shadow\confidence_calibration.py
+- [[CalibrationRecord]] - code - modules\shadow\confidence_calibration.py
+- [[Calibrator populated with overconfident data (predicts 0.8, succeeds ~60%).]] - rationale - tests\test_confidence_calibration.py
+- [[Calibrator populated with underconfident data (predicts 0.3, succeeds ~70%).]] - rationale - tests\test_confidence_calibration.py
+- [[Calibrator populated with well-calibrated data.]] - rationale - tests\test_confidence_calibration.py
+- [[Check if an adapter has positive performance for a task type.          If the tr]] - rationale - modules\shadow\lora_manager.py
+- [[Confidence Calibration Curve ============================ Calibrates Shadow's co]] - rationale - modules\shadow\confidence_calibration.py
+- [[Create a LoRAManager with a temp adapters directory.]] - rationale - tests\test_lora_manager.py
+- [[Create a calibrator with a temp database.]] - rationale - tests\test_confidence_calibration.py
+- [[Create a fake adapter directory for registration.]] - rationale - tests\test_lora_manager.py
+- [[Create a temporary adapters directory.]] - rationale - tests\test_lora_manager.py
+- [[Create a tracker with a temporary database.]] - rationale - tests\test_lora_tracker.py
+- [[Create tables if they don't exist._1]] - rationale - modules\shadow\lora_tracker.py
+- [[Default adapters are NOT registered if paths don't exist.]] - rationale - tests\test_lora_manager.py
+- [[Default adapters are registered if their paths exist.]] - rationale - tests\test_lora_manager.py
+- [[Detect overlap between two adapters' effective task types.          Args]] - rationale - modules\shadow\lora_tracker.py
+- [[Determine if an adapter needs retraining.          True if hurt_rate  0.2 or pe]] - rationale - modules\shadow\lora_tracker.py
+- [[Determine which adapter to load for a given task.          Priority module-spec]] - rationale - modules\shadow\lora_manager.py
+- [[Different modules can have different calibration.]] - rationale - tests\test_confidence_calibration.py
+- [[Direct module lookup for adapter.          Args             module_name Name o]] - rationale - modules\shadow\lora_manager.py
+- [[Empty DB returns a valid empty curve.]] - rationale - tests\test_confidence_calibration.py
+- [[Empty database returns meaningful report.]] - rationale - tests\test_confidence_calibration.py
+- [[Filter adapters by domain.          Args             domain Domain to filter b]] - rationale - modules\shadow\lora_manager.py
+- [[Generate a plain-English summary for Harbinger briefing.          Returns]] - rationale - modules\shadow\lora_tracker.py
+- [[Generate the commandconfig needed to load an adapter.          Args]] - rationale - modules\shadow\lora_manager.py
+- [[Get adapters that need retraining.          Returns             List of adapter]] - rationale - modules\shadow\lora_tracker.py
+- [[Get daily performance trend for an adapter.          Args             adapter_n]] - rationale - modules\shadow\lora_tracker.py
+- [[Get profiles for all adapters, sorted by avg_improvement descending.          Ar]] - rationale - modules\shadow\lora_tracker.py
+- [[Graceful empty state when directory doesn't exist.]] - rationale - tests\test_lora_manager.py
+- [[Insufficient data returns predicted_confidence unchanged.]] - rationale - tests\test_confidence_calibration.py
+- [[Is calibration improving over time Returns monthly data.]] - rationale - modules\shadow\confidence_calibration.py
+- [[LoRA Manager — Domain-Specific Adapter Selection & Stacking ====================]] - rationale - modules\shadow\lora_manager.py
+- [[LoRA Performance Tracker — Per-Adapter Performance Metrics =====================]] - rationale - modules\shadow\lora_tracker.py
+- [[LoRAAdapter]] - code - modules\shadow\lora_manager.py
+- [[LoRAPerformanceTracker]] - code - modules\shadow\lora_tracker.py
+- [[LoRARecord]] - code - modules\shadow\lora_tracker.py
+- [[Manage domain-specific LoRA adapter selection and stacking.      Tracks which ad]] - rationale - modules\shadow\lora_manager.py
+- [[Mark an adapter as the currently active one.          Only one adapter can be ac]] - rationale - modules\shadow\lora_manager.py
+- [[Module-specific match takes priority over domain match.]] - rationale - tests\test_lora_manager.py
+- [[Multiple records accumulate correctly.]] - rationale - tests\test_confidence_calibration.py
+- [[No adapters registered from empty directory.]] - rationale - tests\test_lora_manager.py
+- [[Overconfident bucket adjustment factor  predicted.]] - rationale - tests\test_confidence_calibration.py
+- [[Overconfident pattern detected.]] - rationale - tests\test_confidence_calibration.py
+- [[Plain-English summary for Harbinger daily briefing.]] - rationale - modules\shadow\confidence_calibration.py
+- [[Re-scan adapters directory for new adapter files.          Auto-registers any ne]] - rationale - modules\shadow\lora_manager.py
+- [[Recommend the best adapter for a given task type.          Args             tas]] - rationale - modules\shadow\lora_tracker.py
+- [[Record stores a prediction-outcome pair in SQLite.]] - rationale - tests\test_confidence_calibration.py
+- [[Record that a recalibration was performed.]] - rationale - modules\shadow\confidence_calibration.py
+- [[Register a new LoRA adapter.          Args             name Unique adapter nam]] - rationale - modules\shadow\lora_manager.py
+- [[Return (lower, upper) for a bucket index.]] - rationale - modules\shadow\confidence_calibration.py
+- [[Return True if calibration error  0.15 or  100 new records since last check.]] - rationale - modules\shadow\confidence_calibration.py
+- [[Return all registered adapters.]] - rationale - modules\shadow\lora_manager.py
+- [[Return an adjusted confidence based on calibration curve.          Uses linear i]] - rationale - modules\shadow\confidence_calibration.py
+- [[Return the currently active adapter, if any.]] - rationale - modules\shadow\lora_manager.py
+- [[SQLite DB created on init.]] - rationale - tests\test_confidence_calibration.py
+- [[Selection works fine when tracker is unavailable.]] - rationale - tests\test_lora_manager.py
+- [[Single performance observation for an adapter on a task.]] - rationale - modules\shadow\lora_tracker.py
+- [[Single record valid but insufficient data for adjustment.]] - rationale - tests\test_confidence_calibration.py
+- [[Store a performance record for an adapter on a task.          Args]] - rationale - modules\shadow\lora_tracker.py
+- [[TestAdjustment]] - code - tests\test_confidence_calibration.py
+- [[TestCalibrationCurve]] - code - tests\test_confidence_calibration.py
+- [[TestCommands]] - code - tests\test_lora_manager.py
+- [[TestDirectoryScanning]] - code - tests\test_lora_manager.py
+- [[TestEdgeCases_2]] - code - tests\test_confidence_calibration.py
+- [[TestEdgeCases_11]] - code - tests\test_lora_manager.py
+- [[TestEdgeCases_12]] - code - tests\test_lora_tracker.py
+- [[TestFiltering]] - code - tests\test_confidence_calibration.py
+- [[TestListing]] - code - tests\test_lora_manager.py
+- [[TestMaintenance]] - code - tests\test_lora_tracker.py
+- [[TestOverlap]] - code - tests\test_lora_tracker.py
+- [[TestPreRegistration]] - code - tests\test_lora_manager.py
+- [[TestProfiles]] - code - tests\test_lora_tracker.py
+- [[TestRecommendations]] - code - tests\test_lora_tracker.py
+- [[TestRecording]] - code - tests\test_confidence_calibration.py
+- [[TestRecording_1]] - code - tests\test_lora_tracker.py
+- [[TestRegistration]] - code - tests\test_lora_manager.py
+- [[TestReporting]] - code - tests\test_confidence_calibration.py
+- [[TestReporting_1]] - code - tests\test_lora_tracker.py
+- [[TestSelection]] - code - tests\test_lora_manager.py
+- [[TestStateManagement]] - code - tests\test_lora_manager.py
+- [[Tests for LoRA Manager — domain-specific adapter selection and stacking.]] - rationale - tests\test_lora_manager.py
+- [[Tests for LoRA Performance Tracker.]] - rationale - tests\test_lora_tracker.py
+- [[Tests for the Confidence Calibration Curve module.]] - rationale - tests\test_confidence_calibration.py
+- [[Track and analyze LoRA adapter performance across tasks.]] - rationale - modules\shadow\lora_tracker.py
+- [[Tracker pre-loaded with sample data across multiple adapters.]] - rationale - tests\test_lora_tracker.py
+- [[Underconfident bucket adjustment factor  predicted.]] - rationale - tests\test_confidence_calibration.py
+- [[Underconfident pattern detected.]] - rationale - tests\test_confidence_calibration.py
+- [[Well-calibrated pattern detected.]] - rationale - tests\test_confidence_calibration.py
+- [[Well-calibrated calibrate returns value close to input.]] - rationale - tests\test_confidence_calibration.py
+- [[When multiple adapters match a domain, the first registered is returned.]] - rationale - tests\test_lora_manager.py
+- [[adapter_dir()]] - code - tests\test_lora_manager.py
+- [[calibrate applies adjustment and clamps to 0.0-1.0.]] - rationale - tests\test_confidence_calibration.py
+- [[calibrator()]] - code - tests\test_confidence_calibration.py
+- [[confidence_calibration.py]] - code - modules\shadow\confidence_calibration.py
+- [[get_calibration_by_type filters by module.]] - rationale - tests\test_confidence_calibration.py
+- [[get_calibration_by_type filters by task_type.]] - rationale - tests\test_confidence_calibration.py
+- [[get_calibration_curve buckets records correctly.]] - rationale - tests\test_confidence_calibration.py
+- [[get_calibration_report returns a readable string.]] - rationale - tests\test_confidence_calibration.py
+- [[get_monthly_trend returns monthly data.]] - rationale - tests\test_confidence_calibration.py
+- [[lora_manager.py]] - code - modules\shadow\lora_manager.py
+- [[lora_tracker.py]] - code - modules\shadow\lora_tracker.py
+- [[manager()]] - code - tests\test_lora_manager.py
+- [[overall_calibration_error calculated correctly.]] - rationale - tests\test_confidence_calibration.py
+- [[overconfident_calibrator()]] - code - tests\test_confidence_calibration.py
+- [[populated_tracker()]] - code - tests\test_lora_tracker.py
+- [[should_recalibrate True when error  0.15.]] - rationale - tests\test_confidence_calibration.py
+- [[should_recalibrate True when many new records since last check.]] - rationale - tests\test_confidence_calibration.py
+- [[test_confidence_calibration.py]] - code - tests\test_confidence_calibration.py
+- [[test_lora_manager.py]] - code - tests\test_lora_manager.py
+- [[test_lora_tracker.py]] - code - tests\test_lora_tracker.py
+- [[tmp_adapters_dir()]] - code - tests\test_lora_manager.py
+- [[tracker()]] - code - tests\test_lora_tracker.py
+- [[underconfident_calibrator()]] - code - tests\test_confidence_calibration.py
+- [[well_calibrated_calibrator()]] - code - tests\test_confidence_calibration.py
+
+## Live Query (requires Dataview plugin)
+
+```dataview
+TABLE source_file, type FROM #community/Confidence_Calibration
+SORT file.name ASC
+```
+
+## Connections to other communities
+- 91 edges to [[_COMMUNITY_Async Task Queue]]
+- 20 edges to [[_COMMUNITY_Data Pipeline & Embeddings]]
+- 13 edges to [[_COMMUNITY_Module Lifecycle]]
+- 2 edges to [[_COMMUNITY_Context Compression]]
+- 2 edges to [[_COMMUNITY_Base Module & Apex API]]
+
+## Top bridge nodes
+- [[.record()_1]] - degree 34, connects to 3 communities
+- [[LoRAPerformanceTracker]] - degree 43, connects to 2 communities
+- [[.register_adapter()]] - degree 20, connects to 2 communities
+- [[.get_calibration_curve()]] - degree 17, connects to 2 communities
+- [[.get_adapter_for_task()]] - degree 12, connects to 2 communities

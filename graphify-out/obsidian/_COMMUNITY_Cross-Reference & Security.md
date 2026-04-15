@@ -1,0 +1,666 @@
+---
+type: community
+cohesion: 0.01
+members: 619
+---
+
+# Cross-Reference & Security
+
+**Cohesion:** 0.01 - loosely connected
+**Members:** 619 nodes
+
+## Members
+- [[.__init__()_15]] - code - modules\grimoire\cross_reference.py
+- [[.__init__()_18]] - code - modules\grimoire\graph_layer.py
+- [[.__init__()_19]] - code - modules\grimoire\grimoire.py
+- [[.__new__()]] - code - modules\shadow\message_bus.py
+- [[._build_chain()]] - code - tests\test_grimoire_graph.py
+- [[._contains_credential_pattern()]] - code - modules\cerberus\cerberus.py
+- [[._create_schema()]] - code - modules\grimoire\graph_layer.py
+- [[._create_table()]] - code - modules\grimoire\cross_reference.py
+- [[._create_tables()]] - code - modules\grimoire\grimoire.py
+- [[._extract_tiers()]] - code - modules\shadow\self_teaching.py
+- [[._get_embedding()_1]] - code - modules\grimoire\grimoire.py
+- [[._make_orchestrator()]] - code - tests\test_code_analyze_routing.py
+- [[._remember_impl()]] - code - modules\grimoire\grimoire.py
+- [[._step7_log()]] - code - modules\shadow\orchestrator.py
+- [[._store_link()]] - code - modules\grimoire\cross_reference.py
+- [[.add_entity()]] - code - modules\grimoire\graph_layer.py
+- [[.add_relationship()]] - code - modules\grimoire\graph_layer.py
+- [[.auto_link_new_entry()]] - code - modules\grimoire\cross_reference.py
+- [[.backfill_summaries()]] - code - modules\grimoire\staged_retrieval.py
+- [[.build_link_graph()]] - code - modules\grimoire\cross_reference.py
+- [[.close()_1]] - code - modules\grimoire\graph_layer.py
+- [[.close()_2]] - code - modules\grimoire\grimoire.py
+- [[.compact()]] - code - modules\grimoire\grimoire.py
+- [[.correct()]] - code - modules\grimoire\grimoire.py
+- [[.estimate_difficulty()]] - code - modules\shadow\self_teaching.py
+- [[.execute()_3]] - code - modules\grimoire\grimoire_module.py
+- [[.extract_entities()]] - code - modules\grimoire\entity_extractor.py
+- [[.extract_from_memory()]] - code - modules\grimoire\entity_extractor.py
+- [[.extract_relationships()]] - code - modules\grimoire\entity_extractor.py
+- [[.find_conflicts()]] - code - modules\grimoire\graph_layer.py
+- [[.find_conflicts()_1]] - code - modules\grimoire\grimoire.py
+- [[.forget()]] - code - modules\grimoire\grimoire.py
+- [[.generate_teaching()]] - code - modules\shadow\self_teaching.py
+- [[.get_entity()]] - code - modules\grimoire\graph_layer.py
+- [[.get_entity_stats()]] - code - modules\grimoire\graph_layer.py
+- [[.get_links()]] - code - modules\grimoire\cross_reference.py
+- [[.get_pointer_index()]] - code - modules\grimoire\grimoire.py
+- [[.get_temporal_stats()]] - code - modules\grimoire\grimoire.py
+- [[.initialize()_3]] - code - modules\grimoire\grimoire_module.py
+- [[.initialize()_8]] - code - modules\reaper\reaper_module.py
+- [[.link_related()]] - code - modules\grimoire\cross_reference.py
+- [[.memory_block_search()]] - code - modules\grimoire\grimoire.py
+- [[.merge_entities()]] - code - modules\grimoire\graph_layer.py
+- [[.pointer_index_as_text()]] - code - modules\grimoire\grimoire.py
+- [[.query_neighbors()]] - code - modules\grimoire\graph_layer.py
+- [[.query_path()]] - code - modules\grimoire\graph_layer.py
+- [[.recall()]] - code - modules\grimoire\grimoire.py
+- [[.recall_by_tag()]] - code - modules\grimoire\grimoire.py
+- [[.recall_enriched()]] - code - modules\grimoire\grimoire.py
+- [[.recall_graph()]] - code - modules\grimoire\grimoire.py
+- [[.recall_operational()]] - code - modules\grimoire\grimoire.py
+- [[.recall_recent()]] - code - modules\grimoire\grimoire.py
+- [[.remember()]] - code - modules\grimoire\grimoire.py
+- [[.search_corrections()]] - code - modules\grimoire\grimoire.py
+- [[.should_teach()]] - code - modules\shadow\self_teaching.py
+- [[.stats()]] - code - modules\grimoire\grimoire.py
+- [[.store_teaching()]] - code - modules\shadow\self_teaching.py
+- [[.supersede()]] - code - modules\grimoire\grimoire.py
+- [[.teach_from_success()]] - code - modules\shadow\self_teaching.py
+- [[.test_active_entry_has_full_relevance()]] - code - tests\test_grimoire_temporal.py
+- [[.test_add_entity()]] - code - tests\test_grimoire_graph.py
+- [[.test_add_entity_invalid_type()]] - code - tests\test_grimoire_graph.py
+- [[.test_add_entity_upsert()]] - code - tests\test_grimoire_graph.py
+- [[.test_add_relationship()]] - code - tests\test_grimoire_graph.py
+- [[.test_add_relationship_invalid_confidence()]] - code - tests\test_grimoire_graph.py
+- [[.test_add_relationship_invalid_type()]] - code - tests\test_grimoire_graph.py
+- [[.test_add_relationship_missing_source()]] - code - tests\test_grimoire_graph.py
+- [[.test_add_relationship_missing_target()]] - code - tests\test_grimoire_graph.py
+- [[.test_all_active()]] - code - tests\test_grimoire_temporal.py
+- [[.test_all_valid_entity_types()]] - code - tests\test_grimoire_graph.py
+- [[.test_all_valid_relation_types()]] - code - tests\test_grimoire_graph.py
+- [[.test_auto_tag_bible_content()]] - code - tests\test_grimoire_faceted_tags.py
+- [[.test_auto_tag_bible_verse()]] - code - tests\test_grimoire_faceted_tags.py
+- [[.test_auto_tag_business()]] - code - tests\test_grimoire_faceted_tags.py
+- [[.test_auto_tag_business_content()]] - code - tests\test_grimoire_faceted_tags.py
+- [[.test_auto_tag_class()]] - code - tests\test_grimoire_faceted_tags.py
+- [[.test_auto_tag_code()]] - code - tests\test_grimoire_faceted_tags.py
+- [[.test_auto_tag_code_content()]] - code - tests\test_grimoire_faceted_tags.py
+- [[.test_auto_tag_generic()]] - code - tests\test_grimoire_faceted_tags.py
+- [[.test_auto_tag_no_domain_match()]] - code - tests\test_grimoire_faceted_tags.py
+- [[.test_auto_tag_trim()]] - code - tests\test_grimoire_faceted_tags.py
+- [[.test_bidirectional_similarity_matches()]] - code - tests\test_cross_reference.py
+- [[.test_block_order_preserved()]] - code - tests\test_grimoire_blocks.py
+- [[.test_calls_generate_fn_with_correct_prompt()]] - code - tests\test_self_teaching.py
+- [[.test_capped_at_10()]] - code - tests\test_self_teaching.py
+- [[.test_close_and_reopen()]] - code - tests\test_grimoire_graph.py
+- [[.test_code_keywords_add_code_tag()]] - code - tests\test_self_teaching.py
+- [[.test_complex_code_task()]] - code - tests\test_self_teaching.py
+- [[.test_confidence_at_threshold_returns_false()]] - code - tests\test_self_teaching.py
+- [[.test_confidence_boundary_one()]] - code - tests\test_grimoire_graph.py
+- [[.test_confidence_boundary_zero()]] - code - tests\test_grimoire_graph.py
+- [[.test_content_blocks_with_all_valid_types()]] - code - tests\test_grimoire_blocks.py
+- [[.test_creates_links_on_insert()]] - code - tests\test_cross_reference.py
+- [[.test_detects_api_key()]] - code - tests\test_cerberus.py
+- [[.test_detects_bearer_token()]] - code - tests\test_cerberus.py
+- [[.test_detects_github_token()]] - code - tests\test_cerberus.py
+- [[.test_detects_openai_key()]] - code - tests\test_cerberus.py
+- [[.test_empty_faceted_tags_dict()]] - code - tests\test_grimoire_faceted_tags.py
+- [[.test_empty_list_content_blocks()]] - code - tests\test_grimoire_blocks.py
+- [[.test_empty_response_both_attempts_returns_empty()]] - code - tests\test_self_teaching.py
+- [[.test_empty_response_retries()]] - code - tests\test_self_teaching.py
+- [[.test_entities_chromadb_comma_separated()]] - code - tests\test_grimoire_faceted_tags.py
+- [[.test_entities_stored_and_retrieved()]] - code - tests\test_grimoire_faceted_tags.py
+- [[.test_entities_string_normalised_to_list()]] - code - tests\test_grimoire_faceted_tags.py
+- [[.test_entries_expiring_soon()]] - code - tests\test_grimoire_temporal.py
+- [[.test_estimates_difficulty_when_not_provided()]] - code - tests\test_self_teaching.py
+- [[.test_exact_threshold_boundary_included()]] - code - tests\test_cross_reference.py
+- [[.test_expired_count()]] - code - tests\test_grimoire_temporal.py
+- [[.test_expired_entries_deprioritized()]] - code - tests\test_grimoire_temporal.py
+- [[.test_expired_entries_hidden_by_default()]] - code - tests\test_grimoire_temporal.py
+- [[.test_expired_entries_included_when_requested()]] - code - tests\test_grimoire_temporal.py
+- [[.test_expired_entries_still_in_db()]] - code - tests\test_grimoire_temporal.py
+- [[.test_expired_retrievable_with_include_flag()]] - code - tests\test_grimoire_temporal.py
+- [[.test_explicit_valid_from()]] - code - tests\test_grimoire_temporal.py
+- [[.test_extract_deduplicates()]] - code - tests\test_grimoire_graph.py
+- [[.test_extract_empty_text()]] - code - tests\test_grimoire_graph.py
+- [[.test_extract_from_memory_convenience()]] - code - tests\test_grimoire_graph.py
+- [[.test_extract_known_entity_confidence()]] - code - tests\test_grimoire_graph.py
+- [[.test_extract_module_names()]] - code - tests\test_grimoire_graph.py
+- [[.test_extract_no_entities()]] - code - tests\test_grimoire_graph.py
+- [[.test_extract_person_name()]] - code - tests\test_grimoire_graph.py
+- [[.test_extract_proper_noun_confidence()]] - code - tests\test_grimoire_graph.py
+- [[.test_extract_proper_nouns()]] - code - tests\test_grimoire_graph.py
+- [[.test_extract_source_memory_id_propagated()]] - code - tests\test_grimoire_graph.py
+- [[.test_extract_technology_names()]] - code - tests\test_grimoire_graph.py
+- [[.test_extract_tiers_fallback_whole_response()]] - code - tests\test_self_teaching.py
+- [[.test_extract_tiers_from_numbered_paragraphs()]] - code - tests\test_self_teaching.py
+- [[.test_extract_tiers_xml_still_works()]] - code - tests\test_self_teaching.py
+- [[.test_faceted_tags_to_chromadb()]] - code - tests\test_grimoire_faceted_tags.py
+- [[.test_faceted_tags_to_chromadb_empty_entities()]] - code - tests\test_grimoire_faceted_tags.py
+- [[.test_find_conflicts_contradicts()]] - code - tests\test_grimoire_graph.py
+- [[.test_find_conflicts_none()]] - code - tests\test_grimoire_graph.py
+- [[.test_find_conflicts_supersedes()]] - code - tests\test_grimoire_graph.py
+- [[.test_finds_similar_entries()]] - code - tests\test_cross_reference.py
+- [[.test_full_pipeline_when_conditions_met()]] - code - tests\test_self_teaching.py
+- [[.test_full_pipeline_with_real_grimoire()]] - code - tests\test_self_teaching.py
+- [[.test_generate_fn_none_produces_empty_tiers()]] - code - tests\test_self_teaching.py
+- [[.test_get_entity_not_found()]] - code - tests\test_grimoire_graph.py
+- [[.test_get_entity_stats()]] - code - tests\test_grimoire_graph.py
+- [[.test_get_entity_stats_empty()]] - code - tests\test_grimoire_graph.py
+- [[.test_graceful_when_generate_fn_fails()]] - code - tests\test_self_teaching.py
+- [[.test_graceful_when_generate_fn_fails()_1]] - code - tests\test_self_teaching.py
+- [[.test_graceful_when_generate_fn_is_none()_1]] - code - tests\test_self_teaching.py
+- [[.test_graceful_when_grimoire_unavailable()]] - code - tests\test_self_teaching.py
+- [[.test_graceful_when_teaching_extractor_fails()]] - code - tests\test_self_teaching.py
+- [[.test_graph_contains_correct_nodes()]] - code - tests\test_cross_reference.py
+- [[.test_graph_edges_deduplicated()]] - code - tests\test_cross_reference.py
+- [[.test_graph_empty_when_no_links()]] - code - tests\test_cross_reference.py
+- [[.test_graph_filters_by_collection()]] - code - tests\test_cross_reference.py
+- [[.test_graph_nodes_have_labels()]] - code - tests\test_cross_reference.py
+- [[.test_grimoire_store_retrieve_roundtrip()]] - code - tests\test_effectiveness.py
+- [[.test_high_difficulty_high_confidence_no_escalation()]] - code - tests\test_self_teaching.py
+- [[.test_ignores_normal_text()]] - code - tests\test_cerberus.py
+- [[.test_inferred_from_task_type()]] - code - tests\test_self_teaching.py
+- [[.test_invalid_content_type_raises()]] - code - tests\test_grimoire_faceted_tags.py
+- [[.test_invalid_domain_raises()]] - code - tests\test_grimoire_faceted_tags.py
+- [[.test_just_above_threshold()]] - code - tests\test_cross_reference.py
+- [[.test_just_below_threshold_excluded()]] - code - tests\test_cross_reference.py
+- [[.test_keeps_real_grimoire_as_is()]] - code - tests\test_self_teaching.py
+- [[.test_legacy_entry_not_in_block_search()]] - code - tests\test_grimoire_blocks.py
+- [[.test_legacy_entry_recall_returns_text_block()]] - code - tests\test_grimoire_blocks.py
+- [[.test_link_dict_structure()]] - code - tests\test_cross_reference.py
+- [[.test_links_are_bidirectional()]] - code - tests\test_cross_reference.py
+- [[.test_long_inputs_truncated_in_prompt()]] - code - tests\test_self_teaching.py
+- [[.test_low_confidence_returns_false()]] - code - tests\test_self_teaching.py
+- [[.test_low_difficulty_returns_false()]] - code - tests\test_self_teaching.py
+- [[.test_manual_tags_in_chromadb_metadata()]] - code - tests\test_grimoire_faceted_tags.py
+- [[.test_manual_tags_override_auto()]] - code - tests\test_grimoire_faceted_tags.py
+- [[.test_manual_tags_stored_in_metadata()]] - code - tests\test_grimoire_faceted_tags.py
+- [[.test_math_bonus()]] - code - tests\test_self_teaching.py
+- [[.test_merge_keep_not_found()]] - code - tests\test_grimoire_graph.py
+- [[.test_merge_redirects_edges()]] - code - tests\test_grimoire_graph.py
+- [[.test_merge_remove_not_found()]] - code - tests\test_grimoire_graph.py
+- [[.test_merge_removes_self_loops()]] - code - tests\test_grimoire_graph.py
+- [[.test_metadata_includes_self_teaching_source()]] - code - tests\test_self_teaching.py
+- [[.test_mixed_blocks_and_legacy_in_recall()]] - code - tests\test_grimoire_blocks.py
+- [[.test_multiple_edges_between_same_pair()]] - code - tests\test_grimoire_graph.py
+- [[.test_multiple_related_entries()]] - code - tests\test_cross_reference.py
+- [[.test_multistep_indicators_increase_score()]] - code - tests\test_self_teaching.py
+- [[.test_no_duplicate_tags()]] - code - tests\test_self_teaching.py
+- [[.test_none_content_blocks_same_as_omitted()]] - code - tests\test_grimoire_blocks.py
+- [[.test_null_content_blocks_in_sqlite()]] - code - tests\test_grimoire_blocks.py
+- [[.test_query_neighbors_bidirectional()]] - code - tests\test_grimoire_graph.py
+- [[.test_query_neighbors_depth_1()]] - code - tests\test_grimoire_graph.py
+- [[.test_query_neighbors_depth_2()]] - code - tests\test_grimoire_graph.py
+- [[.test_query_neighbors_depth_3()]] - code - tests\test_grimoire_graph.py
+- [[.test_query_neighbors_isolated_node()]] - code - tests\test_grimoire_graph.py
+- [[.test_query_neighbors_nonexistent_entity()]] - code - tests\test_grimoire_graph.py
+- [[.test_query_neighbors_with_relation_filter()]] - code - tests\test_grimoire_graph.py
+- [[.test_query_path_exists()]] - code - tests\test_grimoire_graph.py
+- [[.test_query_path_no_path()]] - code - tests\test_grimoire_graph.py
+- [[.test_query_path_nonexistent_source()]] - code - tests\test_grimoire_graph.py
+- [[.test_query_path_nonexistent_target()]] - code - tests\test_grimoire_graph.py
+- [[.test_query_path_same_node()]] - code - tests\test_grimoire_graph.py
+- [[.test_reasoning_steps_accepted_without_error()]] - code - tests\test_self_teaching.py
+- [[.test_recall_enriched_merges_results()]] - code - tests\test_grimoire_graph.py
+- [[.test_recall_enriched_no_graph_fallback()]] - code - tests\test_grimoire_graph.py
+- [[.test_recall_graph_no_graph_layer()]] - code - tests\test_grimoire_graph.py
+- [[.test_recall_graph_returns_neighbors()]] - code - tests\test_grimoire_graph.py
+- [[.test_recall_multiple_tag_filters()]] - code - tests\test_grimoire_faceted_tags.py
+- [[.test_recall_no_filter_returns_all()]] - code - tests\test_grimoire_faceted_tags.py
+- [[.test_recall_returns_content_blocks()]] - code - tests\test_grimoire_blocks.py
+- [[.test_recall_single_domain_filter()]] - code - tests\test_grimoire_faceted_tags.py
+- [[.test_relationship_depends_on()]] - code - tests\test_grimoire_graph.py
+- [[.test_relationship_empty_text()]] - code - tests\test_grimoire_graph.py
+- [[.test_relationship_proximity()]] - code - tests\test_grimoire_graph.py
+- [[.test_relationship_single_entity()]] - code - tests\test_grimoire_graph.py
+- [[.test_relationship_supersedes()]] - code - tests\test_grimoire_graph.py
+- [[.test_relationship_uses()]] - code - tests\test_grimoire_graph.py
+- [[.test_remember_embedding_failure_raises()]] - code - tests\test_grimoire_blocks.py
+- [[.test_remember_graph_failure_doesnt_break()]] - code - tests\test_grimoire_graph.py
+- [[.test_remember_increases_chromadb_count()]] - code - tests\test_grimoire_blocks.py
+- [[.test_remember_increases_sqlite_count()]] - code - tests\test_grimoire_blocks.py
+- [[.test_remember_no_graph_layer()]] - code - tests\test_grimoire_graph.py
+- [[.test_remember_returns_valid_uuid()]] - code - tests\test_grimoire_blocks.py
+- [[.test_remember_stores_relationships()]] - code - tests\test_grimoire_graph.py
+- [[.test_remember_stores_to_graph()]] - code - tests\test_grimoire_graph.py
+- [[.test_respects_custom_threshold()]] - code - tests\test_cross_reference.py
+- [[.test_returns_correct_references()]] - code - tests\test_cross_reference.py
+- [[.test_returns_dict_with_all_required_fields()]] - code - tests\test_self_teaching.py
+- [[.test_returns_empty_for_missing_entry()]] - code - tests\test_cross_reference.py
+- [[.test_returns_empty_for_unlinked_entry()]] - code - tests\test_cross_reference.py
+- [[.test_returns_none_when_conditions_not_met()]] - code - tests\test_self_teaching.py
+- [[.test_returns_valid_graph_structure()]] - code - tests\test_cross_reference.py
+- [[.test_returns_zero_when_no_matches()]] - code - tests\test_cross_reference.py
+- [[.test_routing_type_returns_false()]] - code - tests\test_self_teaching.py
+- [[.test_search_by_code_blocks()]] - code - tests\test_grimoire_blocks.py
+- [[.test_search_by_error_blocks()]] - code - tests\test_grimoire_blocks.py
+- [[.test_search_invalid_block_type_raises()]] - code - tests\test_grimoire_blocks.py
+- [[.test_search_returns_empty_for_no_matches()]] - code - tests\test_grimoire_blocks.py
+- [[.test_self_referential_edge_allowed()]] - code - tests\test_grimoire_graph.py
+- [[.test_short_simple_question()_1]] - code - tests\test_self_teaching.py
+- [[.test_simple_task_type_returns_false()]] - code - tests\test_self_teaching.py
+- [[.test_skips_self_reference()]] - code - tests\test_cross_reference.py
+- [[.test_special_characters_in_entity_name()]] - code - tests\test_grimoire_graph.py
+- [[.test_store_and_retrieve_blocks()]] - code - tests\test_grimoire_blocks.py
+- [[.test_store_teaching_category_valid()]] - code - tests\test_self_teaching.py
+- [[.test_store_teaching_content_valid()]] - code - tests\test_self_teaching.py
+- [[.test_store_teaching_returns_ids()]] - code - tests\test_self_teaching.py
+- [[.test_store_teaching_succeeds()]] - code - tests\test_self_teaching.py
+- [[.test_stores_in_grimoire_with_trust_level()]] - code - tests\test_self_teaching.py
+- [[.test_successful_teaching_stores()]] - code - tests\test_self_teaching.py
+- [[.test_supersede_creates_new_and_links()]] - code - tests\test_grimoire_temporal.py
+- [[.test_supersede_nonexistent_raises()]] - code - tests\test_grimoire_temporal.py
+- [[.test_supersede_with_kwargs()]] - code - tests\test_grimoire_temporal.py
+- [[.test_superseded_count()]] - code - tests\test_grimoire_temporal.py
+- [[.test_superseded_entries_deprioritized()]] - code - tests\test_grimoire_temporal.py
+- [[.test_superseded_entries_hidden_by_default()]] - code - tests\test_grimoire_temporal.py
+- [[.test_superseded_entries_included_when_requested()]] - code - tests\test_grimoire_temporal.py
+- [[.test_superseded_entries_still_in_db()]] - code - tests\test_grimoire_temporal.py
+- [[.test_supersedes_links_old_to_new()]] - code - tests\test_grimoire_temporal.py
+- [[.test_teaching_persists_in_db()]] - code - tests\test_self_teaching.py
+- [[.test_teaching_prompt_not_empty_and_under_limit()]] - code - tests\test_self_teaching.py
+- [[.test_teaching_prompt_simplified()]] - code - tests\test_self_teaching.py
+- [[.test_threshold_one_links_nothing()]] - code - tests\test_cross_reference.py
+- [[.test_threshold_zero_links_everything()]] - code - tests\test_cross_reference.py
+- [[.test_tiers_extracted_correctly()]] - code - tests\test_self_teaching.py
+- [[.test_unicode_entity_name()]] - code - tests\test_grimoire_graph.py
+- [[.test_unknown_keys_ignored()]] - code - tests\test_grimoire_faceted_tags.py
+- [[.test_untagged_entry_still_found()]] - code - tests\test_grimoire_faceted_tags.py
+- [[.test_unwraps_grimoire_module_at_init()]] - code - tests\test_self_teaching.py
+- [[.test_uses_teaching_extractor_when_available()]] - code - tests\test_self_teaching.py
+- [[.test_valid_from_defaults_to_now()]] - code - tests\test_grimoire_temporal.py
+- [[.test_valid_until_null_by_default()]] - code - tests\test_grimoire_temporal.py
+- [[.test_valid_until_stored()]] - code - tests\test_grimoire_temporal.py
+- [[.test_validate_faceted_tags_empty()]] - code - tests\test_grimoire_faceted_tags.py
+- [[.test_validate_faceted_tags_none()]] - code - tests\test_grimoire_faceted_tags.py
+- [[.test_validate_faceted_tags_valid()]] - code - tests\test_grimoire_faceted_tags.py
+- [[.test_very_long_entity_name()]] - code - tests\test_grimoire_graph.py
+- [[.test_very_long_text_extraction()]] - code - tests\test_grimoire_graph.py
+- [[.test_was_escalated_returns_false()]] - code - tests\test_self_teaching.py
+- [[A task that should trigger self-teaching.]] - rationale - tests\test_self_teaching.py
+- [[A task too simple to trigger self-teaching.]] - rationale - tests\test_self_teaching.py
+- [[A valid teaching dict as generate_teaching() would produce.]] - rationale - tests\test_self_teaching.py
+- [[Active entries (not expired, not superseded) get temporal_status='active'.]] - rationale - tests\test_grimoire_temporal.py
+- [[Add a directed edge between two entities.          Both source and target entiti]] - rationale - modules\grimoire\graph_layer.py
+- [[Add or update an entity node.          Deduplicates by name — if entity already]] - rationale - modules\grimoire\graph_layer.py
+- [[Adding same entity name again updates fields.]] - rationale - tests\test_grimoire_graph.py
+- [[After store_teaching(), Grimoire.recall() can find the memories.]] - rationale - tests\test_self_teaching.py
+- [[All 8 valid block types can be stored and retrieved.]] - rationale - tests\test_grimoire_blocks.py
+- [[Apply a correction to an existing memory.                  Corrections are the]] - rationale - modules\grimoire\grimoire.py
+- [[Apply heuristic rules to infer faceted tags from content.          Only sets d]] - rationale - modules\grimoire\grimoire.py
+- [[BFS traversal from an entity up to max_depth hops.          Returns all reachabl]] - rationale - modules\grimoire\graph_layer.py
+- [[BFS traversal, path finding, and conflict detection.]] - rationale - tests\test_grimoire_graph.py
+- [[Basic SelfTeacher with mocked dependencies.]] - rationale - tests\test_self_teaching.py
+- [[Basic node and edge operations.]] - rationale - tests\test_grimoire_graph.py
+- [[Bidirectional links should produce only one edge per pair.]] - rationale - tests\test_cross_reference.py
+- [[Both directions of a link should have the same similarity score.]] - rationale - tests\test_cross_reference.py
+- [[Build a graph of all cross-references for visualization.          Returns a node]] - rationale - modules\grimoire\cross_reference.py
+- [[Build A -uses- B -depends_on- C -related_to- D]] - rationale - tests\test_grimoire_graph.py
+- [[Called after remember() — finds and creates links for a new entry.          This]] - rationale - modules\grimoire\cross_reference.py
+- [[Category stored in Grimoire is the expected 'self_teaching' string.]] - rationale - tests\test_self_teaching.py
+- [[Check if new content conflicts with existing memories.                  From M]] - rationale - modules\grimoire\grimoire.py
+- [[Clean shutdown. Always call this when you're done.          SQLite connections]] - rationale - modules\grimoire\grimoire.py
+- [[Close the database connection._1]] - rationale - modules\grimoire\graph_layer.py
+- [[Combined convenience method check → generate → store.          This is the me]] - rationale - modules\shadow\self_teaching.py
+- [[Confidence must be strictly greater than threshold.]] - rationale - tests\test_self_teaching.py
+- [[Content blocks must maintain their insertion order.]] - rationale - tests\test_grimoire_blocks.py
+- [[Content passed to remember() is a non-empty string for each tier.]] - rationale - tests\test_self_teaching.py
+- [[Content that doesn't match any pattern gets content_type but no domain.]] - rationale - tests\test_grimoire_faceted_tags.py
+- [[Content with business terms auto-tags as domain=business.]] - rationale - tests\test_grimoire_faceted_tags.py
+- [[Content with code patterns auto-tags as domain=code.]] - rationale - tests\test_grimoire_faceted_tags.py
+- [[Content with verse references auto-tags as domain=bible.]] - rationale - tests\test_grimoire_faceted_tags.py
+- [[Convenience extract both entities and relationships.          Args]] - rationale - modules\grimoire\entity_extractor.py
+- [[Convert text into a vector (list of numbers) using Ollama.                  Th]] - rationale - modules\grimoire\grimoire.py
+- [[Count nodes by type, edges by type, and total graph size.          Returns]] - rationale - modules\grimoire\graph_layer.py
+- [[Create a Grimoire instance with temp paths and mocked embeddings.]] - rationale - tests\test_grimoire_blocks.py
+- [[Create a Grimoire instance with temp paths and mocked embeddings._1]] - rationale - tests\test_grimoire_faceted_tags.py
+- [[Create a Grimoire instance with temp paths and mocked embeddings._2]] - rationale - tests\test_grimoire_temporal.py
+- [[Create a Grimoire instance with temporary storage for testing.]] - rationale - tests\test_shadow_memory.py
+- [[Create a Reaper instance with temporary storage for testing.]] - rationale - tests\test_shadow_memory.py
+- [[Create a mock Grimoire with a real SQLite connection.      The linker needs a re]] - rationale - tests\test_cross_reference.py
+- [[Create a real Grimoire instance backed by SQLite + ChromaDB in a temp dir.]] - rationale - tests\test_self_teaching.py
+- [[Create graph tables if they don't exist.]] - rationale - modules\grimoire\graph_layer.py
+- [[Create the SQLite tables that store all of Shadow's memories.]] - rationale - modules\grimoire\grimoire.py
+- [[Create the cross_references table if it doesn't exist.]] - rationale - modules\grimoire\cross_reference.py
+- [[Creating a link from A-B should also create B-A.]] - rationale - tests\test_cross_reference.py
+- [[Cross-Reference Linker — Auto-discover and link related Grimoire memories.  When]] - rationale - modules\grimoire\cross_reference.py
+- [[CrossReferenceLinker]] - code - modules\grimoire\cross_reference.py
+- [[Data persists across closereopen.]] - rationale - tests\test_grimoire_graph.py
+- [[Demonstrate semantic search across all seeded memories.]] - rationale - tests\test_shadow_memory.py
+- [[Determine whether a self-teaching event should fire.          All four conditi]] - rationale - modules\shadow\self_teaching.py
+- [[Deterministic fake embedding — 768-dim vector derived from text hash.]] - rationale - tests\test_grimoire_blocks.py
+- [[Deterministic fake embedding — 768-dim vector derived from text hash._1]] - rationale - tests\test_grimoire_faceted_tags.py
+- [[Deterministic fake embedding — 768-dim vector derived from text hash._2]] - rationale - tests\test_grimoire_graph.py
+- [[Deterministic fake embedding — 768-dim vector derived from text hash._3]] - rationale - tests\test_grimoire_temporal.py
+- [[Discovers and manages semantic links between Grimoire memories.      Uses Grimoi]] - rationale - modules\grimoire\cross_reference.py
+- [[Each link should have related_id, similarity, and created_at.]] - rationale - tests\test_cross_reference.py
+- [[Each node should have an id and label field.]] - rationale - tests\test_cross_reference.py
+- [[Edge cases for graph layer and extractor.]] - rationale - tests\test_grimoire_graph.py
+- [[Embedded knowledge graph using SQLite alongside ChromaDB.      Stores entities a]] - rationale - modules\grimoire\graph_layer.py
+- [[End-to-end tests generate_fn produces content → store_teaching()     persists]] - rationale - tests\test_self_teaching.py
+- [[End-to-end generate_fn → generate_teaching → store_teaching → recall.]] - rationale - tests\test_self_teaching.py
+- [[Enriched recall vector similarity + graph connectivity.          1. Normal Ch]] - rationale - modules\grimoire\grimoire.py
+- [[Entities are stored comma-separated in ChromaDB metadata.]] - rationale - tests\test_grimoire_faceted_tags.py
+- [[Entities list survives storage → retrieval as a list of strings.]] - rationale - tests\test_grimoire_faceted_tags.py
+- [[Entities passed as comma-separated string are normalised to a list.]] - rationale - tests\test_grimoire_faceted_tags.py
+- [[Entity merging  deduplication.]] - rationale - tests\test_grimoire_graph.py
+- [[EntityExtractor]] - code - modules\grimoire\entity_extractor.py
+- [[EntityExtractor instance.]] - rationale - tests\test_grimoire_graph.py
+- [[EntityExtractor — Rule-Based Entity & Relationship Extraction ==================]] - rationale - modules\grimoire\entity_extractor.py
+- [[Entries expiring within 7 days appear in entries_expiring_soon.]] - rationale - tests\test_grimoire_temporal.py
+- [[Entries stored without content_blocks should return a single text block on recal]] - rationale - tests\test_grimoire_blocks.py
+- [[Entries stored without faceted_tags are still returned by recall.]] - rationale - tests\test_grimoire_faceted_tags.py
+- [[Entries without content_blocks should have NULL in the database column.]] - rationale - tests\test_grimoire_blocks.py
+- [[Entry at exact threshold value SHOULD be linked (threshold is inclusive).]] - rationale - tests\test_cross_reference.py
+- [[Entry just above threshold should be linked.]] - rationale - tests\test_cross_reference.py
+- [[Entry just below threshold should NOT be linked.]] - rationale - tests\test_cross_reference.py
+- [[Estimate task difficulty on a 1-10 scale using heuristics.          Factors d]] - rationale - modules\shadow\self_teaching.py
+- [[Every declared valid entity type can be used.]] - rationale - tests\test_grimoire_graph.py
+- [[Every declared valid relation type can be used.]] - rationale - tests\test_grimoire_graph.py
+- [[Expired entries are counted correctly.]] - rationale - tests\test_grimoire_temporal.py
+- [[Expired entries are not returned when include_expired=False (default).]] - rationale - tests\test_grimoire_temporal.py
+- [[Expired entries can always be retrieved with include_expired=True.]] - rationale - tests\test_grimoire_temporal.py
+- [[Expired entries get relevance  0.5 compared to active entries.]] - rationale - tests\test_grimoire_temporal.py
+- [[Expired entries remain in SQLite — they are never hard-deleted.]] - rationale - tests\test_grimoire_temporal.py
+- [[Explicit faceted_tags prevent auto-tagging from running.]] - rationale - tests\test_grimoire_faceted_tags.py
+- [[Explicit valid_from is stored as-is.]] - rationale - tests\test_grimoire_temporal.py
+- [[Explicit valid_until is stored in the database.]] - rationale - tests\test_grimoire_temporal.py
+- [[Explicitly forget a specific memory.                  From Memory System Desig]] - rationale - modules\grimoire\grimoire.py
+- [[Explicitly passing None should behave the same as omitting content_blocks.]] - rationale - tests\test_grimoire_blocks.py
+- [[Extract entities from text using known lists + heuristics.          Scans for]] - rationale - modules\grimoire\entity_extractor.py
+- [[Extract relationships between entities from text.          Uses two strategies]] - rationale - modules\grimoire\entity_extractor.py
+- [[Extract three-tier content from model output.          Supports two formats]] - rationale - modules\shadow\self_teaching.py
+- [[Extracts entities and relationships from text for graph storage.      Uses rule-]] - rationale - modules\grimoire\entity_extractor.py
+- [[Faceted tags are flattened into ChromaDB metadata with tag_ prefix.]] - rationale - tests\test_grimoire_faceted_tags.py
+- [[Fetch a single entity by name. Returns None if not found.]] - rationale - modules\grimoire\graph_layer.py
+- [[Find entries related to the given entry by semantic similarity.          Retriev]] - rationale - modules\grimoire\cross_reference.py
+- [[Find memories by tag (exact match, not semantic).                  Sometimes y]] - rationale - modules\grimoire\grimoire.py
+- [[Find shortest path between two entities.          Uses iterative BFS with parent]] - rationale - modules\grimoire\graph_layer.py
+- [[Flatten faceted_tags dict into ChromaDB-compatible metadata fields.          C]] - rationale - modules\grimoire\grimoire.py
+- [[Format the pointer index as readable text for injection into prompts.]] - rationale - modules\grimoire\grimoire.py
+- [[Fresh GraphLayer backed by a temp SQLite file.]] - rationale - tests\test_grimoire_graph.py
+- [[Generate a lightweight summary of Shadow's most important knowledge.]] - rationale - modules\grimoire\grimoire.py
+- [[Generate a random UUID string for test memories.]] - rationale - tests\test_cross_reference.py
+- [[Generate a teaching document from a successful task completion.          Uses]] - rationale - modules\shadow\self_teaching.py
+- [[Generate summaries for existing Grimoire content that doesn't have them.]] - rationale - modules\grimoire\staged_retrieval.py
+- [[Get all cross-references for a memory.          Returns links in both directions]] - rationale - modules\grimoire\cross_reference.py
+- [[Get most recent memories, optionally filtered by source.                  Usef]] - rationale - modules\grimoire\grimoire.py
+- [[Graph nodes should include all linked memories.]] - rationale - tests\test_cross_reference.py
+- [[GraphLayer]] - code - modules\grimoire\graph_layer.py
+- [[GraphLayer — Embedded Knowledge Graph for Grimoire =============================]] - rationale - modules\grimoire\graph_layer.py
+- [[Grimoire]] - code - modules\grimoire\grimoire.py
+- [[Grimoire instance with temp paths, mocked embeddings, graph enabled.]] - rationale - tests\test_grimoire_graph.py
+- [[Grimoire — Shadow's Memory System =================================== This is]] - rationale - modules\grimoire\grimoire.py
+- [[Helper to insert a test memory into the mock database.]] - rationale - tests\test_cross_reference.py
+- [[If graph layer raises, remember() still returns a memory ID.]] - rationale - tests\test_grimoire_graph.py
+- [[If merging creates a self-loop, the edge is removed.]] - rationale - tests\test_grimoire_graph.py
+- [[If passed an object that already has .remember(), use it directly.]] - rationale - tests\test_self_teaching.py
+- [[If passed an object without .remember() but with ._grimoire,         SelfTeache]] - rationale - tests\test_self_teaching.py
+- [[In-memory GraphLayer for fast tests.]] - rationale - tests\test_grimoire_graph.py
+- [[Initialize Grimoire with both storage engines.                  Args]] - rationale - modules\grimoire\grimoire.py
+- [[Initialize SQLite-backed graph at the given path.          Creates schema (entit]] - rationale - modules\grimoire\graph_layer.py
+- [[Initialize the linker with a reference to Grimoire.          Args             g]] - rationale - modules\grimoire\cross_reference.py
+- [[Internal implementation of remember() — separated for error logging.]] - rationale - modules\grimoire\grimoire.py
+- [[Invalid content_type value raises ValueError.]] - rationale - tests\test_grimoire_faceted_tags.py
+- [[Invalid faceted tag values are rejected with ValueError.]] - rationale - tests\test_grimoire_faceted_tags.py
+- [[Legacy entries (NULL content_blocks) should not appear in block searches.]] - rationale - tests\test_grimoire_blocks.py
+- [[Long task descriptions and solutions are truncated to keep prompt short.]] - rationale - tests\test_self_teaching.py
+- [[Manual faceted_tags dict is stored in SQLite metadata_json.]] - rationale - tests\test_grimoire_faceted_tags.py
+- [[Merge two entity nodes — redirect all edges from 'remove' to 'keep'.          Af]] - rationale - modules\grimoire\graph_layer.py
+- [[No path between disconnected entities.]] - rationale - tests\test_grimoire_graph.py
+- [[No relationships possible with only one entity.]] - rationale - tests\test_grimoire_graph.py
+- [[Node with no edges returns empty neighbors.]] - rationale - tests\test_grimoire_graph.py
+- [[Passing an empty dict for faceted_tags stores no tag dimensions.]] - rationale - tests\test_grimoire_faceted_tags.py
+- [[Passing an empty list for content_blocks stores '' and recall handles it.]] - rationale - tests\test_grimoire_blocks.py
+- [[Print a formatted section header.]] - rationale - tests\test_shadow_memory.py
+- [[Print a labeled result.]] - rationale - tests\test_shadow_memory.py
+- [[Query the knowledge graph for an entity's neighborhood.          For each conn]] - rationale - modules\grimoire\grimoire.py
+- [[Recall with domain filter returns only matching entries.]] - rationale - tests\test_grimoire_faceted_tags.py
+- [[Recall with multiple filters uses AND logic.]] - rationale - tests\test_grimoire_faceted_tags.py
+- [[Recall without tag_filters returns entries regardless of tags.]] - rationale - tests\test_grimoire_faceted_tags.py
+- [[Recalling multiple results — some with blocks, some without — works correctly.]] - rationale - tests\test_grimoire_blocks.py
+- [[Replace an old memory with updated content, preserving the chain.          The]] - rationale - modules\grimoire\grimoire.py
+- [[Retrieve operational interaction logs stored by the orchestrator.          The]] - rationale - modules\grimoire\grimoire.py
+- [[Return all 'contradicts' or 'supersedes' edges involving this entity.          C]] - rationale - modules\grimoire\graph_layer.py
+- [[Return counts of active, expired, and superseded memories plus         entries]] - rationale - modules\grimoire\grimoire.py
+- [[Return database statistics. Useful for monitoring and debugging.          Retu]] - rationale - modules\grimoire\grimoire.py
+- [[Route tool calls to the existing Grimoire methods.]] - rationale - modules\grimoire\grimoire_module.py
+- [[Rule-based entity and relationship extraction.]] - rationale - tests\test_grimoire_graph.py
+- [[Same entity pair can have multiple relationship types.]] - rationale - tests\test_grimoire_graph.py
+- [[Search for memories that contain a specific block type.          This enables]] - rationale - modules\grimoire\grimoire.py
+- [[Search memories by meaning (semantic search).          This is the core read f]] - rationale - modules\grimoire\grimoire.py
+- [[Seed Shadow's core identity memories.     These are the foundational facts about]] - rationale - tests\test_shadow_memory.py
+- [[Seed Shadow's knowledge about its own development status.]] - rationale - tests\test_shadow_memory.py
+- [[Seed Shadow's knowledge about its own hardware.]] - rationale - tests\test_shadow_memory.py
+- [[Seed Shadow's knowledge about its software stack.]] - rationale - tests\test_shadow_memory.py
+- [[Seed Shadow's knowledge about key architectural decisions.]] - rationale - tests\test_shadow_memory.py
+- [[Self-loops are technically allowed (entity references itself).]] - rationale - tests\test_grimoire_graph.py
+- [[SelfTeacher should unwrap a GrimoireModule adapter to access the     inner Grim]] - rationale - tests\test_self_teaching.py
+- [[Shadow Research Runner — One command to research everything ====================]] - rationale - run_research.py
+- [[Shadow Teaching Shadow — Zero-Cost Knowledge Accumulation =====================]] - rationale - modules\shadow\self_teaching.py
+- [[Shadow's First Memories — Test & Seed Script ===================================]] - rationale - tests\test_shadow_memory.py
+- [[Shadow's memory system — stores, searches, corrects, and manages all knowledge.]] - rationale - modules\grimoire\grimoire.py
+- [[Show final statistics after seeding.]] - rationale - tests\test_shadow_memory.py
+- [[Soft-archive old, low-access memories to reduce search noise.          This is]] - rationale - modules\grimoire\grimoire.py
+- [[Stats with only active entries.]] - rationale - tests\test_grimoire_temporal.py
+- [[Store a bidirectional link between two memories.          Uses INSERT OR REPLACE]] - rationale - modules\grimoire\cross_reference.py
+- [[Store a new memory in both SQLite and ChromaDB.                  This is the m]] - rationale - modules\grimoire\grimoire.py
+- [[Store an entry with multiple block types, recall it, verify structure.]] - rationale - tests\test_grimoire_blocks.py
+- [[Store and retrieve a memory through Grimoire.]] - rationale - tests\test_effectiveness.py
+- [[Store the teaching document in Grimoire.          Uses TeachingExtractor.store]] - rationale - modules\shadow\self_teaching.py
+- [[Superseded entries are counted correctly.]] - rationale - tests\test_grimoire_temporal.py
+- [[Superseded entries are not returned when include_superseded=False.]] - rationale - tests\test_grimoire_temporal.py
+- [[Superseded entries get relevance  0.3.]] - rationale - tests\test_grimoire_temporal.py
+- [[Superseded entries remain in SQLite — they are never hard-deleted.]] - rationale - tests\test_grimoire_temporal.py
+- [[Test Reaper's LLM summarization.]] - rationale - tests\test_shadow_memory.py
+- [[Test Reaper's source evaluation hierarchy.]] - rationale - tests\test_shadow_memory.py
+- [[Test core Grimoire functionality.]] - rationale - tests\test_shadow_memory.py
+- [[Test that Grimoire wires graph layer into rememberrecall paths.]] - rationale - tests\test_grimoire_graph.py
+- [[TestAutoLinkNewEntry]] - code - tests\test_cross_reference.py
+- [[TestAutoTagging]] - code - tests\test_grimoire_faceted_tags.py
+- [[TestBidirectionalLinks]] - code - tests\test_cross_reference.py
+- [[TestBlockSearch]] - code - tests\test_grimoire_blocks.py
+- [[TestBuildLinkGraph]] - code - tests\test_cross_reference.py
+- [[TestContentBlockStorage]] - code - tests\test_grimoire_blocks.py
+- [[TestCredentialDetection]] - code - tests\test_cerberus.py
+- [[TestDomainTags]] - code - tests\test_self_teaching.py
+- [[TestEdgeCases_9]] - code - tests\test_grimoire_blocks.py
+- [[TestEdgeCases_10]] - code - tests\test_grimoire_graph.py
+- [[TestEntitiesRoundTrip]] - code - tests\test_grimoire_faceted_tags.py
+- [[TestEntityExtractor]] - code - tests\test_grimoire_graph.py
+- [[TestEstimateDifficulty]] - code - tests\test_self_teaching.py
+- [[TestGenerateTeaching]] - code - tests\test_self_teaching.py
+- [[TestGetLinks]] - code - tests\test_cross_reference.py
+- [[TestGraphLayerCRUD]] - code - tests\test_grimoire_graph.py
+- [[TestGraphLayerMerge]] - code - tests\test_grimoire_graph.py
+- [[TestGraphLayerTraversal]] - code - tests\test_grimoire_graph.py
+- [[TestGrimoireGraphIntegration]] - code - tests\test_grimoire_graph.py
+- [[TestGrimoireModuleUnwrap_1]] - code - tests\test_self_teaching.py
+- [[TestLegacyCompatibility]] - code - tests\test_grimoire_blocks.py
+- [[TestLinkRelated]] - code - tests\test_cross_reference.py
+- [[TestManualFacetedTags]] - code - tests\test_grimoire_faceted_tags.py
+- [[TestPerfectRecall]] - code - tests\test_grimoire_temporal.py
+- [[TestRecallTemporal]] - code - tests\test_grimoire_temporal.py
+- [[TestRecallWithTagFilters]] - code - tests\test_grimoire_faceted_tags.py
+- [[TestRememberDBCount]] - code - tests\test_grimoire_blocks.py
+- [[TestRememberTemporal]] - code - tests\test_grimoire_temporal.py
+- [[TestShouldTeach]] - code - tests\test_self_teaching.py
+- [[TestStaticHelpers]] - code - tests\test_grimoire_faceted_tags.py
+- [[TestStoreTeaching]] - code - tests\test_self_teaching.py
+- [[TestStoreTeachingIntegration]] - code - tests\test_self_teaching.py
+- [[TestSupersede]] - code - tests\test_grimoire_temporal.py
+- [[TestTeachFromSuccess]] - code - tests\test_self_teaching.py
+- [[TestTemporalStats]] - code - tests\test_grimoire_temporal.py
+- [[TestThresholdFiltering]] - code - tests\test_cross_reference.py
+- [[TestUntaggedEntries]] - code - tests\test_grimoire_faceted_tags.py
+- [[Tests for CrossReferenceLinker — Grimoire's memory linking system.  Tests that t]] - rationale - tests\test_cross_reference.py
+- [[Tests for Grimoire Content Block Support ======================================]] - rationale - tests\test_grimoire_blocks.py
+- [[Tests for Grimoire Faceted Multi-Dimensional Tagging (32C Item 7) ==============]] - rationale - tests\test_grimoire_faceted_tags.py
+- [[Tests for Grimoire Graph Layer ================================ Covers GraphLaye]] - rationale - tests\test_grimoire_graph.py
+- [[Tests for Grimoire Temporal Validity (32C Item 5) ==============================]] - rationale - tests\test_grimoire_temporal.py
+- [[Tests for Shadow Teaching Shadow — zero-cost knowledge accumulation.]] - rationale - tests\test_self_teaching.py
+- [[Tests for auto_link_new_entry() — the remember() integration point.]] - rationale - tests\test_cross_reference.py
+- [[Tests for build_link_graph() — graph structure generation.]] - rationale - tests\test_cross_reference.py
+- [[Tests for get_links() — retrieving cross-references.]] - rationale - tests\test_cross_reference.py
+- [[Tests for link_related() — finding and linking similar entries.]] - rationale - tests\test_cross_reference.py
+- [[Tests that links are stored in both directions.]] - rationale - tests\test_cross_reference.py
+- [[Tests that threshold filtering works correctly.]] - rationale - tests\test_cross_reference.py
+- [[The prompt sent to generate_fn must be a non-empty string under 2000 chars.]] - rationale - tests\test_self_teaching.py
+- [[The prompt should not require complex XML formatting from the model.]] - rationale - tests\test_self_teaching.py
+- [[Traversal follows edges in both directions.]] - rationale - tests\test_grimoire_graph.py
+- [[Unknown faceted tag keys are silently dropped.]] - rationale - tests\test_grimoire_faceted_tags.py
+- [[Validate a faceted_tags dict against the allowed dimensions and values.]] - rationale - modules\grimoire\grimoire.py
+- [[View correction history. Training data for anti-sycophancy.                  R]] - rationale - modules\grimoire\grimoire.py
+- [[When both attempts return empty, raw_teaching is empty.]] - rationale - tests\test_self_teaching.py
+- [[When generate_fn is None, all tiers are empty → 0 stored.]] - rationale - tests\test_self_teaching.py
+- [[When generate_fn returns empty, it should retry once with a simpler prompt.]] - rationale - tests\test_self_teaching.py
+- [[When generate_fn returns valid text, store_teaching stores it.]] - rationale - tests\test_self_teaching.py
+- [[When model returns plain text without structure, store as specific_solution.]] - rationale - tests\test_self_teaching.py
+- [[When supersedes is set, the old entry's superseded_by points to new.]] - rationale - tests\test_grimoire_temporal.py
+- [[When task has no difficulty, estimate_difficulty is used.]] - rationale - tests\test_self_teaching.py
+- [[When valid_from is not provided, it defaults to approximately now.]] - rationale - tests\test_grimoire_temporal.py
+- [[When valid_until is not provided, it is NULL (never expires).]] - rationale - tests\test_grimoire_temporal.py
+- [[With _graph=None, remember() works as vector-only.]] - rationale - tests\test_grimoire_graph.py
+- [[With threshold=0, even low similarity should create links.]] - rationale - tests\test_cross_reference.py
+- [[With threshold=1.0, only perfect matches would link (practically none).]] - rationale - tests\test_cross_reference.py
+- [[Without graph layer, recall_enriched returns vector-only.]] - rationale - tests\test_grimoire_graph.py
+- [[XML-tagged output still works for backward compatibility.]] - rationale - tests\test_self_teaching.py
+- [[__init__.py_4]] - code - modules\grimoire\__init__.py
+- [[_auto_tag()]] - code - modules\grimoire\grimoire.py
+- [[_extract_tiers handles numbered paragraph format.]] - rationale - tests\test_self_teaching.py
+- [[_faceted_tags_to_chromadb()]] - code - modules\grimoire\grimoire.py
+- [[_fake_embedding()]] - code - tests\test_grimoire_blocks.py
+- [[_fake_embedding()_1]] - code - tests\test_grimoire_faceted_tags.py
+- [[_fake_embedding()_2]] - code - tests\test_grimoire_graph.py
+- [[_fake_embedding()_3]] - code - tests\test_grimoire_temporal.py
+- [[_insert_memory()]] - code - tests\test_cross_reference.py
+- [[_make_classification()_1]] - code - tests\test_operational_history.py
+- [[_make_grimoire_mock()]] - code - tests\test_operational_history.py
+- [[_make_memory_id()]] - code - tests\test_cross_reference.py
+- [[_make_orchestrator_with_grimoire()]] - code - tests\test_operational_history.py
+- [[_split_numbered_paragraphs()]] - code - modules\shadow\self_teaching.py
+- [[_validate_faceted_tags()]] - code - modules\grimoire\grimoire.py
+- [[auto_link_new_entry should find and link related memories.]] - rationale - tests\test_cross_reference.py
+- [[auto_link_new_entry should return 0 when nothing is similar enough.]] - rationale - tests\test_cross_reference.py
+- [[auto_link_new_entry should use the provided threshold.]] - rationale - tests\test_cross_reference.py
+- [[build_link_graph should return empty nodesedges when no links exist.]] - rationale - tests\test_cross_reference.py
+- [[build_link_graph should return {nodes ..., edges ...}.]] - rationale - tests\test_cross_reference.py
+- [[build_link_graph with collection param should filter by category.]] - rationale - tests\test_cross_reference.py
+- [[cross_reference.py]] - code - modules\grimoire\cross_reference.py
+- [[entity_extractor.py]] - code - modules\grimoire\entity_extractor.py
+- [[extractor()_2]] - code - tests\test_grimoire_graph.py
+- [[final_stats()]] - code - tests\test_shadow_memory.py
+- [[get_links should return all links for a given entry.]] - rationale - tests\test_cross_reference.py
+- [[get_links should return empty list if entry has no links.]] - rationale - tests\test_cross_reference.py
+- [[graph()]] - code - tests\test_grimoire_graph.py
+- [[graph_layer.py]] - code - modules\grimoire\graph_layer.py
+- [[graph_memory()]] - code - tests\test_grimoire_graph.py
+- [[grimoire()_1]] - code - tests\test_grimoire_blocks.py
+- [[grimoire()_2]] - code - tests\test_grimoire_faceted_tags.py
+- [[grimoire()_3]] - code - tests\test_grimoire_graph.py
+- [[grimoire()_4]] - code - tests\test_grimoire_temporal.py
+- [[grimoire()_5]] - code - tests\test_shadow_memory.py
+- [[grimoire.py]] - code - modules\grimoire\grimoire.py
+- [[hard_code_task()]] - code - tests\test_self_teaching.py
+- [[include_expired=True returns expired entries with deprioritized scores.]] - rationale - tests\test_grimoire_temporal.py
+- [[include_superseded=True returns superseded entries.]] - rationale - tests\test_grimoire_temporal.py
+- [[link_related should find and return entries above the threshold.]] - rationale - tests\test_cross_reference.py
+- [[link_related should link to multiple entries above threshold.]] - rationale - tests\test_cross_reference.py
+- [[link_related should not link a memory to itself.]] - rationale - tests\test_cross_reference.py
+- [[link_related should return empty list for non-existent entry.]] - rationale - tests\test_cross_reference.py
+- [[main()_1]] - code - run_research.py
+- [[memory_block_search returns empty list when no entries have that block type.]] - rationale - tests\test_grimoire_blocks.py
+- [[memory_block_search with invalid type should raise ValueError.]] - rationale - tests\test_grimoire_blocks.py
+- [[memory_block_search('code') should return only entries with code blocks.]] - rationale - tests\test_grimoire_blocks.py
+- [[memory_block_search('error') finds entries containing error blocks.]] - rationale - tests\test_grimoire_blocks.py
+- [[mock_grimoire()_4]] - code - tests\test_cross_reference.py
+- [[print_header()]] - code - tests\test_shadow_memory.py
+- [[print_result()]] - code - tests\test_shadow_memory.py
+- [[real_grimoire()]] - code - tests\test_self_teaching.py
+- [[reaper()_2]] - code - tests\test_shadow_memory.py
+- [[reasoning_steps parameter is accepted (not used in prompt to keep it simple).]] - rationale - tests\test_self_teaching.py
+- [[recall() should return content_blocks in the result dict.]] - rationale - tests\test_grimoire_blocks.py
+- [[recall_enriched combines vector + graph results.]] - rationale - tests\test_grimoire_graph.py
+- [[recall_graph returns empty result when graph is None.]] - rationale - tests\test_grimoire_graph.py
+- [[recall_graph should return graph neighbors and related memories.]] - rationale - tests\test_grimoire_graph.py
+- [[remember() must increase ChromaDB collection count by 1.]] - rationale - tests\test_grimoire_blocks.py
+- [[remember() must insert exactly one row into SQLite memories table.]] - rationale - tests\test_grimoire_blocks.py
+- [[remember() must propagate embedding errors, not swallow them.]] - rationale - tests\test_grimoire_blocks.py
+- [[remember() must return a valid UUID string.]] - rationale - tests\test_grimoire_blocks.py
+- [[remember() should extract and store relationships.]] - rationale - tests\test_grimoire_graph.py
+- [[remember() should extract entities and store them in graph.]] - rationale - tests\test_grimoire_graph.py
+- [[run_research.py]] - code - run_research.py
+- [[run_semantic_search_demo()]] - code - tests\test_shadow_memory.py
+- [[seed_architecture_decisions()]] - code - tests\test_shadow_memory.py
+- [[seed_development_context()]] - code - tests\test_shadow_memory.py
+- [[seed_hardware_knowledge()]] - code - tests\test_shadow_memory.py
+- [[seed_shadow_identity()]] - code - tests\test_shadow_memory.py
+- [[seed_software_knowledge()]] - code - tests\test_shadow_memory.py
+- [[self_teaching.py]] - code - modules\shadow\self_teaching.py
+- [[simple_task()]] - code - tests\test_self_teaching.py
+- [[store_teaching() returns a list of string memory IDs.]] - rationale - tests\test_self_teaching.py
+- [[store_teaching() with a real Grimoire returns non-empty ID list.]] - rationale - tests\test_self_teaching.py
+- [[supersede() creates a new entry and sets superseded_by on old.]] - rationale - tests\test_grimoire_temporal.py
+- [[supersede() passes extra kwargs to remember().]] - rationale - tests\test_grimoire_temporal.py
+- [[supersede() raises ValueError for a nonexistent old_id.]] - rationale - tests\test_grimoire_temporal.py
+- [[teacher()]] - code - tests\test_self_teaching.py
+- [[teaching_payload()]] - code - tests\test_self_teaching.py
+- [[test_cross_reference.py]] - code - tests\test_cross_reference.py
+- [[test_defaults_when_no_kwargs()]] - code - tests\test_operational_history.py
+- [[test_failures_only_returns_failures()]] - code - tests\test_operational_history.py
+- [[test_fallback_yes_also_caught()]] - code - tests\test_operational_history.py
+- [[test_grimoire_basics()]] - code - tests\test_shadow_memory.py
+- [[test_grimoire_blocks.py]] - code - tests\test_grimoire_blocks.py
+- [[test_grimoire_faceted_tags.py]] - code - tests\test_grimoire_faceted_tags.py
+- [[test_grimoire_graph.py]] - code - tests\test_grimoire_graph.py
+- [[test_grimoire_temporal.py]] - code - tests\test_grimoire_temporal.py
+- [[test_history_limit()]] - code - tests\test_operational_history.py
+- [[test_history_returns_entries()]] - code - tests\test_operational_history.py
+- [[test_no_crash_without_grimoire()]] - code - tests\test_operational_history.py
+- [[test_no_failures_returns_empty()]] - code - tests\test_operational_history.py
+- [[test_operational_history.py]] - code - tests\test_operational_history.py
+- [[test_reaper_source_eval()]] - code - tests\test_shadow_memory.py
+- [[test_reaper_summarize()]] - code - tests\test_shadow_memory.py
+- [[test_self_teaching.py]] - code - tests\test_self_teaching.py
+- [[test_shadow_memory.py]] - code - tests\test_shadow_memory.py
+- [[test_stores_failure_on_fallback_response()]] - code - tests\test_operational_history.py
+- [[test_stores_summary_on_success()]] - code - tests\test_operational_history.py
+
+## Live Query (requires Dataview plugin)
+
+```dataview
+TABLE source_file, type FROM #community/Cross-Reference_&_Security
+SORT file.name ASC
+```
+
+## Connections to other communities
+- 79 edges to [[_COMMUNITY_Async Task Queue]]
+- 63 edges to [[_COMMUNITY_Data Pipeline & Embeddings]]
+- 60 edges to [[_COMMUNITY_Adversarial Sparring]]
+- 50 edges to [[_COMMUNITY_Module Registry & Tools]]
+- 48 edges to [[_COMMUNITY_Base Module & Apex API]]
+- 18 edges to [[_COMMUNITY_Module Lifecycle]]
+- 6 edges to [[_COMMUNITY_Apex API Providers]]
+- 3 edges to [[_COMMUNITY_Embedding Evaluator]]
+- 3 edges to [[_COMMUNITY_Code Analyzer (Omen)]]
+- 3 edges to [[_COMMUNITY_Behavioral Benchmark]]
+- 3 edges to [[_COMMUNITY_Problem Fingerprinting]]
+- 2 edges to [[_COMMUNITY_Embedding Router]]
+- 2 edges to [[_COMMUNITY_Workflow Store]]
+- 2 edges to [[_COMMUNITY_CLAUDE.md Generator]]
+- 2 edges to [[_COMMUNITY_Predictive Escalation]]
+- 1 edge to [[_COMMUNITY_Ethics Engine (Cerberus)]]
+- 1 edge to [[_COMMUNITY_Conversation Ingestor]]
+- 1 edge to [[_COMMUNITY_Security Analyzer Rationale]]
+- 1 edge to [[_COMMUNITY_Morpheus Creative Pipeline]]
+
+## Top bridge nodes
+- [[.remember()]] - degree 111, connects to 13 communities
+- [[.recall()]] - degree 46, connects to 11 communities
+- [[.store_teaching()]] - degree 21, connects to 4 communities
+- [[Store and retrieve a memory through Grimoire.]] - degree 12, connects to 4 communities
+- [[Route tool calls to the existing Grimoire methods.]] - degree 8, connects to 4 communities

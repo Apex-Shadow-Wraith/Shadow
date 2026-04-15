@@ -1,0 +1,525 @@
+---
+type: community
+cohesion: 0.01
+members: 488
+---
+
+# Morpheus Creative Pipeline
+
+**Cohesion:** 0.01 - loosely connected
+**Members:** 488 nodes
+
+## Members
+- [[.__init__()_29]] - code - modules\morpheus\morpheus.py
+- [[.__init__()_30]] - code - modules\morpheus\prompt_evolution.py
+- [[.__init__()_31]] - code - modules\morpheus\prompt_templates.py
+- [[.__init__()_32]] - code - modules\morpheus\rd_lab.py
+- [[.__init__()_33]] - code - modules\morpheus\self_improvement.py
+- [[._abstract_mutation()]] - code - modules\morpheus\prompt_evolution.py
+- [[._apply_mutation()]] - code - modules\morpheus\prompt_evolution.py
+- [[._calculate_trend()]] - code - modules\morpheus\prompt_evolution.py
+- [[._combine_mutation()]] - code - modules\morpheus\prompt_evolution.py
+- [[._create_tables()_2]] - code - modules\morpheus\morpheus.py
+- [[._create_tables()_3]] - code - modules\morpheus\prompt_evolution.py
+- [[._create_tables()_4]] - code - modules\morpheus\self_improvement.py
+- [[._experiment_complete()]] - code - modules\morpheus\morpheus.py
+- [[._experiment_evaluate()]] - code - modules\morpheus\morpheus.py
+- [[._experiment_list()]] - code - modules\morpheus\morpheus.py
+- [[._experiment_propose()]] - code - modules\morpheus\morpheus.py
+- [[._experiment_queue()]] - code - modules\morpheus\morpheus.py
+- [[._experiment_start()]] - code - modules\morpheus\morpheus.py
+- [[._generate_test_code()]] - code - modules\morpheus\rd_lab.py
+- [[._get_experiment()]] - code - modules\morpheus\morpheus.py
+- [[._invert_mutation()]] - code - modules\morpheus\prompt_evolution.py
+- [[._make_proposal()]] - code - modules\morpheus\self_improvement.py
+- [[._morpheus_report()]] - code - modules\morpheus\morpheus.py
+- [[._persist_evolved_template()]] - code - modules\morpheus\prompt_evolution.py
+- [[._persist_proposal()]] - code - modules\morpheus\self_improvement.py
+- [[._prompt_evolve()]] - code - modules\morpheus\morpheus.py
+- [[._prompt_stats()]] - code - modules\morpheus\morpheus.py
+- [[._pull_random_knowledge()]] - code - modules\morpheus\rd_lab.py
+- [[._row_to_dict()]] - code - modules\morpheus\morpheus.py
+- [[._self_improve_analyze()]] - code - modules\morpheus\morpheus.py
+- [[._self_improve_proposals()]] - code - modules\morpheus\morpheus.py
+- [[._store_failure()]] - code - modules\morpheus\rd_lab.py
+- [[._store_speculative()]] - code - modules\morpheus\rd_lab.py
+- [[._total_outcomes()]] - code - modules\morpheus\prompt_evolution.py
+- [[.add_template()]] - code - modules\morpheus\prompt_templates.py
+- [[.analyze_module()]] - code - modules\morpheus\self_improvement.py
+- [[.approve_proposal()]] - code - modules\morpheus\self_improvement.py
+- [[.close()_5]] - code - modules\morpheus\prompt_evolution.py
+- [[.close()_6]] - code - modules\morpheus\self_improvement.py
+- [[.evolve_cycle()]] - code - modules\morpheus\prompt_evolution.py
+- [[.execute()_5]] - code - modules\morpheus\morpheus.py
+- [[.generate_hypotheses()]] - code - modules\morpheus\rd_lab.py
+- [[.generate_mutations()]] - code - modules\morpheus\prompt_evolution.py
+- [[.generate_proposals()]] - code - modules\morpheus\self_improvement.py
+- [[.get_all()]] - code - modules\morpheus\prompt_templates.py
+- [[.get_by_id()]] - code - modules\morpheus\prompt_templates.py
+- [[.get_by_pattern()]] - code - modules\morpheus\prompt_templates.py
+- [[.get_exploration_stats()]] - code - modules\morpheus\rd_lab.py
+- [[.get_improvement_stats()]] - code - modules\morpheus\self_improvement.py
+- [[.get_lineage()]] - code - modules\morpheus\prompt_templates.py
+- [[.get_proposals()]] - code - modules\morpheus\self_improvement.py
+- [[.get_rejection_patterns()]] - code - modules\morpheus\self_improvement.py
+- [[.get_template_stats()]] - code - modules\morpheus\prompt_evolution.py
+- [[.get_tools()_5]] - code - modules\morpheus\morpheus.py
+- [[.get_top_performers()]] - code - modules\morpheus\prompt_evolution.py
+- [[.get_underperformers()]] - code - modules\morpheus\prompt_evolution.py
+- [[.graduate_to_production()]] - code - modules\morpheus\rd_lab.py
+- [[.initialize()_5]] - code - modules\morpheus\morpheus.py
+- [[.load_evolved_templates()]] - code - modules\morpheus\prompt_evolution.py
+- [[.record_outcome()_1]] - code - modules\shadow\predictive_escalation.py
+- [[.record_outcome()]] - code - modules\morpheus\prompt_evolution.py
+- [[.reject_proposal()]] - code - modules\morpheus\self_improvement.py
+- [[.run_experiment()]] - code - modules\morpheus\rd_lab.py
+- [[.run_exploration_session()]] - code - modules\morpheus\rd_lab.py
+- [[.select_template()]] - code - modules\morpheus\prompt_evolution.py
+- [[.should_explore()]] - code - modules\morpheus\rd_lab.py
+- [[.test_active_curriculum_returns_false()]] - code - tests\test_rd_lab.py
+- [[.test_add_template()]] - code - tests\test_prompt_evolution.py
+- [[.test_add_template_missing_keys()]] - code - tests\test_prompt_evolution.py
+- [[.test_analysis_tools_are_autonomous()]] - code - tests\test_self_improvement.py
+- [[.test_analyze_is_read_only()]] - code - tests\test_self_improvement.py
+- [[.test_approval_rate()]] - code - tests\test_self_improvement.py
+- [[.test_approve_not_a_morpheus_tool()]] - code - tests\test_self_improvement.py
+- [[.test_approve_not_found()]] - code - tests\test_self_improvement.py
+- [[.test_approve_works()]] - code - tests\test_self_improvement.py
+- [[.test_cannot_approve_rejected()]] - code - tests\test_self_improvement.py
+- [[.test_cannot_reject_approved()]] - code - tests\test_self_improvement.py
+- [[.test_clean_file_no_issues()]] - code - tests\test_self_improvement.py
+- [[.test_cooldown_returns_false()]] - code - tests\test_rd_lab.py
+- [[.test_correct_change_types()]] - code - tests\test_self_improvement.py
+- [[.test_counts_correct()]] - code - tests\test_self_improvement.py
+- [[.test_counts_correctly()]] - code - tests\test_self_improvement.py
+- [[.test_detects_bare_excepts()]] - code - tests\test_self_improvement.py
+- [[.test_detects_long_functions()]] - code - tests\test_self_improvement.py
+- [[.test_detects_missing_docstrings()]] - code - tests\test_self_improvement.py
+- [[.test_detects_todo_comments()]] - code - tests\test_self_improvement.py
+- [[.test_detects_undocumented_class()]] - code - tests\test_self_improvement.py
+- [[.test_each_has_hypothesis()]] - code - tests\test_self_improvement.py
+- [[.test_each_hypothesis_has_testable_flag()]] - code - tests\test_rd_lab.py
+- [[.test_empty_knowledge_pull_clean_exit()]] - code - tests\test_rd_lab.py
+- [[.test_empty_results()_1]] - code - tests\test_self_improvement.py
+- [[.test_empty_when_no_rejections()]] - code - tests\test_self_improvement.py
+- [[.test_entries_come_from_different_domains()]] - code - tests\test_rd_lab.py
+- [[.test_evolve_cycle_insufficient_data()]] - code - tests\test_prompt_evolution.py
+- [[.test_evolve_cycle_never_retires_seeds()]] - code - tests\test_prompt_evolution.py
+- [[.test_evolve_cycle_produces_templates()]] - code - tests\test_prompt_evolution.py
+- [[.test_evolve_cycle_retires_bad_templates()]] - code - tests\test_prompt_evolution.py
+- [[.test_experiment_result_has_all_fields()]] - code - tests\test_rd_lab.py
+- [[.test_exploration_domains_constant_exists()]] - code - tests\test_rd_lab.py
+- [[.test_exploration_report_has_all_fields()]] - code - tests\test_rd_lab.py
+- [[.test_failed_experiment_rejected()]] - code - tests\test_rd_lab.py
+- [[.test_file_not_found()_1]] - code - tests\test_self_improvement.py
+- [[.test_filter_by_module()_2]] - code - tests\test_self_improvement.py
+- [[.test_filter_by_status()]] - code - tests\test_self_improvement.py
+- [[.test_generate_fn_failure_partial_report()]] - code - tests\test_rd_lab.py
+- [[.test_generate_mutations_count()]] - code - tests\test_prompt_evolution.py
+- [[.test_generate_mutations_lineage()]] - code - tests\test_prompt_evolution.py
+- [[.test_generate_mutations_nonexistent_template()]] - code - tests\test_prompt_evolution.py
+- [[.test_generate_mutations_unique_ids()]] - code - tests\test_prompt_evolution.py
+- [[.test_generate_mutations_valid_type()]] - code - tests\test_prompt_evolution.py
+- [[.test_generates_hypotheses_from_random_knowledge()]] - code - tests\test_rd_lab.py
+- [[.test_genuine_improvement_validates()]] - code - tests\test_rd_lab.py
+- [[.test_get_all_returns_copies()]] - code - tests\test_prompt_evolution.py
+- [[.test_get_by_id_existing()]] - code - tests\test_prompt_evolution.py
+- [[.test_get_by_id_nonexistent()]] - code - tests\test_prompt_evolution.py
+- [[.test_get_by_pattern()]] - code - tests\test_prompt_evolution.py
+- [[.test_get_by_pattern_no_match()]] - code - tests\test_prompt_evolution.py
+- [[.test_get_lineage_chain()]] - code - tests\test_prompt_evolution.py
+- [[.test_get_lineage_nonexistent()]] - code - tests\test_prompt_evolution.py
+- [[.test_get_lineage_seed()]] - code - tests\test_prompt_evolution.py
+- [[.test_get_template_stats()]] - code - tests\test_prompt_evolution.py
+- [[.test_get_template_stats_empty()]] - code - tests\test_prompt_evolution.py
+- [[.test_get_template_stats_trend()]] - code - tests\test_prompt_evolution.py
+- [[.test_get_top_performers()]] - code - tests\test_prompt_evolution.py
+- [[.test_get_top_performers_min_uses_filter()]] - code - tests\test_prompt_evolution.py
+- [[.test_get_underperformers()]] - code - tests\test_prompt_evolution.py
+- [[.test_get_underperformers_none()]] - code - tests\test_prompt_evolution.py
+- [[.test_graduate_to_production_stores_in_grimoire()]] - code - tests\test_rd_lab.py
+- [[.test_graduate_without_grimoire_returns_empty()]] - code - tests\test_rd_lab.py
+- [[.test_groups_by_change_type()]] - code - tests\test_self_improvement.py
+- [[.test_groups_correctly()]] - code - tests\test_self_improvement.py
+- [[.test_handles_empty_file()]] - code - tests\test_self_improvement.py
+- [[.test_handles_syntax_error()]] - code - tests\test_self_improvement.py
+- [[.test_high_fatigue_returns_false()]] - code - tests\test_rd_lab.py
+- [[.test_hypotheses_reference_multiple_domains()]] - code - tests\test_rd_lab.py
+- [[.test_initial_stats_zero()]] - code - tests\test_rd_lab.py
+- [[.test_is_read_only()]] - code - tests\test_self_improvement.py
+- [[.test_json_embedded_in_text()]] - code - tests\test_rd_lab.py
+- [[.test_load_evolved_excludes_inactive()]] - code - tests\test_prompt_evolution.py
+- [[.test_load_evolved_templates()]] - code - tests\test_prompt_evolution.py
+- [[.test_most_improved_modules()]] - code - tests\test_self_improvement.py
+- [[.test_multiple_patterns()]] - code - tests\test_self_improvement.py
+- [[.test_mutation_abstract()]] - code - tests\test_prompt_evolution.py
+- [[.test_mutation_combine()]] - code - tests\test_prompt_evolution.py
+- [[.test_mutation_constrain()]] - code - tests\test_prompt_evolution.py
+- [[.test_mutation_extend()]] - code - tests\test_prompt_evolution.py
+- [[.test_mutation_invert()]] - code - tests\test_prompt_evolution.py
+- [[.test_mutation_of_mutated_template()]] - code - tests\test_prompt_evolution.py
+- [[.test_mutation_specialize()]] - code - tests\test_prompt_evolution.py
+- [[.test_no_generate_fn_raises()]] - code - tests\test_rd_lab.py
+- [[.test_no_grimoire_returns_empty_session()]] - code - tests\test_rd_lab.py
+- [[.test_no_metrics_rejected()]] - code - tests\test_rd_lab.py
+- [[.test_no_pending_tasks_returns_true()]] - code - tests\test_rd_lab.py
+- [[.test_no_proposals_for_clean_file()]] - code - tests\test_self_improvement.py
+- [[.test_no_proposals_for_missing_file()]] - code - tests\test_self_improvement.py
+- [[.test_no_proposals_for_syntax_error()]] - code - tests\test_self_improvement.py
+- [[.test_no_sandbox_stores_speculative()]] - code - tests\test_rd_lab.py
+- [[.test_no_sandbox_stores_speculative_only()]] - code - tests\test_rd_lab.py
+- [[.test_non_testable_stores_speculative()]] - code - tests\test_rd_lab.py
+- [[.test_not_found()]] - code - tests\test_self_improvement.py
+- [[.test_only_technical_domains_queried()]] - code - tests\test_rd_lab.py
+- [[.test_pending_tasks_returns_false()]] - code - tests\test_rd_lab.py
+- [[.test_personal_domains_never_pulled()]] - code - tests\test_rd_lab.py
+- [[.test_produces_2_3_hypotheses()]] - code - tests\test_rd_lab.py
+- [[.test_produces_proposals_for_fixture()]] - code - tests\test_self_improvement.py
+- [[.test_proposal()]] - code - modules\morpheus\self_improvement.py
+- [[.test_proposals_persisted_to_db()]] - code - tests\test_self_improvement.py
+- [[.test_record_outcome()]] - code - tests\test_prompt_evolution.py
+- [[.test_record_outcome_multiple()]] - code - tests\test_prompt_evolution.py
+- [[.test_reject_not_found()]] - code - tests\test_self_improvement.py
+- [[.test_reject_stores_reason()]] - code - tests\test_self_improvement.py
+- [[.test_reject_works()]] - code - tests\test_self_improvement.py
+- [[.test_rejection_pattern_suppression()]] - code - tests\test_self_improvement.py
+- [[.test_resolved_at_set_on_approve()]] - code - tests\test_self_improvement.py
+- [[.test_resolved_at_set_on_reject()]] - code - tests\test_self_improvement.py
+- [[.test_respects_max_proposals()]] - code - tests\test_self_improvement.py
+- [[.test_returns_all_when_no_filter()]] - code - tests\test_self_improvement.py
+- [[.test_returns_pending_status()]] - code - tests\test_self_improvement.py
+- [[.test_runs_testable_experiments_in_sandbox()]] - code - tests\test_rd_lab.py
+- [[.test_sandbox_exception_returns_failure()]] - code - tests\test_rd_lab.py
+- [[.test_seed_template_ids()]] - code - tests\test_prompt_evolution.py
+- [[.test_seed_templates_count()]] - code - tests\test_prompt_evolution.py
+- [[.test_seed_templates_have_required_fields()]] - code - tests\test_prompt_evolution.py
+- [[.test_select_all_seeds_eligible()]] - code - tests\test_prompt_evolution.py
+- [[.test_select_favors_high_performers()]] - code - tests\test_prompt_evolution.py
+- [[.test_select_never_fully_excludes()]] - code - tests\test_prompt_evolution.py
+- [[.test_select_novelty_bonus()]] - code - tests\test_prompt_evolution.py
+- [[.test_select_returns_valid_template()]] - code - tests\test_prompt_evolution.py
+- [[.test_select_with_no_performance_data()]] - code - tests\test_prompt_evolution.py
+- [[.test_session_with_validated_discovery()]] - code - tests\test_rd_lab.py
+- [[.test_speculative_uses_separate_collection()]] - code - tests\test_rd_lab.py
+- [[.test_stats_after_session()]] - code - tests\test_rd_lab.py
+- [[.test_stores_failures_in_experiment_store()]] - code - tests\test_rd_lab.py
+- [[.test_tables_created()]] - code - tests\test_prompt_evolution.py
+- [[.test_testable_hypothesis_runs_sandbox()]] - code - tests\test_rd_lab.py
+- [[.test_threshold_of_two()]] - code - tests\test_self_improvement.py
+- [[.test_tools_registered()]] - code - tests\test_self_improvement.py
+- [[.test_trivial_result_rejected()]] - code - tests\test_rd_lab.py
+- [[.test_unparseable_output_returns_empty()]] - code - tests\test_rd_lab.py
+- [[.test_untested_rejected()]] - code - tests\test_rd_lab.py
+- [[.test_updates_db_status()]] - code - tests\test_self_improvement.py
+- [[.test_zero_proposals()]] - code - tests\test_self_improvement.py
+- [[.validate_discovery()]] - code - modules\morpheus\rd_lab.py
+- [[A Python file with a syntax error.]] - rationale - tests\test_self_improvement.py
+- [[A small, clean Python file with no issues.]] - rationale - tests\test_self_improvement.py
+- [[Abstract mutation generalizes the template.]] - rationale - tests\test_prompt_evolution.py
+- [[Active learning curriculum prevents exploration.]] - rationale - tests\test_rd_lab.py
+- [[Add an evolved template and retrieve it.]] - rationale - tests\test_prompt_evolution.py
+- [[Adding a template with missing keys raises ValueError.]] - rationale - tests\test_prompt_evolution.py
+- [[All 8 seed templates loaded on init.]] - rationale - tests\test_prompt_evolution.py
+- [[An empty Python file.]] - rationale - tests\test_self_improvement.py
+- [[Analyze a Shadow module for improvement opportunities.          Delegates to Sel]] - rationale - modules\morpheus\morpheus.py
+- [[Analyze rejected proposals to find patterns to avoid.          Groups rejected p]] - rationale - modules\morpheus\self_improvement.py
+- [[Apply a single mutation to a template.          Args             source The pa]] - rationale - modules\morpheus\prompt_evolution.py
+- [[Before any outcomes, all seeds are eligible (equal weight).]] - rationale - tests\test_prompt_evolution.py
+- [[Both template_performance and evolved_templates tables exist.]] - rationale - tests\test_prompt_evolution.py
+- [[Calculate whether a template's performance is improving, declining, or stable.]] - rationale - modules\morpheus\prompt_evolution.py
+- [[Can extract JSON array embedded in surrounding text.]] - rationale - tests\test_rd_lab.py
+- [[Can pass a specific template_id.]] - rationale - tests\test_prompt_evolution.py
+- [[Close the database connection._3]] - rationale - modules\morpheus\prompt_evolution.py
+- [[Close the database connection._4]] - rationale - modules\morpheus\self_improvement.py
+- [[Combine mutation merges two templates.]] - rationale - tests\test_prompt_evolution.py
+- [[Combine two templates setup from source, twist from another.]] - rationale - modules\morpheus\prompt_evolution.py
+- [[Compile experiment report for morning briefing.          Returns             -]] - rationale - modules\morpheus\morpheus.py
+- [[Constrain mutation appends to the template text.]] - rationale - tests\test_prompt_evolution.py
+- [[Convert a sqlite3.Row to a dict, deserializing JSON fields.]] - rationale - modules\morpheus\morpheus.py
+- [[Cooldown period prevents exploration.]] - rationale - tests\test_rd_lab.py
+- [[Count total outcome records.]] - rationale - modules\morpheus\prompt_evolution.py
+- [[Create a fresh SelfImprovementEngine with an isolated DB.]] - rationale - tests\test_self_improvement.py
+- [[Create a new experiment proposal.          Args             params title, hypo]] - rationale - modules\morpheus\morpheus.py
+- [[Create a proposal dict (not yet persisted).]] - rationale - modules\morpheus\self_improvement.py
+- [[Create evolution tables if they don't exist.]] - rationale - modules\morpheus\prompt_evolution.py
+- [[Create the improvement_proposals table.]] - rationale - modules\morpheus\self_improvement.py
+- [[Create the morpheus_experiments table.]] - rationale - modules\morpheus\morpheus.py
+- [[Creative discovery pipeline — experiment tracking and evaluation.      Phase 1 b]] - rationale - modules\morpheus\morpheus.py
+- [[Determine if now is a good time for R&D exploration.          Returns True if]] - rationale - modules\morpheus\rd_lab.py
+- [[EXPLORATION_DOMAINS is a class-level constant with expected entries.]] - rationale - tests\test_rd_lab.py
+- [[Each hypothesis has a testable boolean.]] - rationale - tests\test_rd_lab.py
+- [[Each hypothesis references at least one domain.]] - rationale - tests\test_rd_lab.py
+- [[Each mutation gets a unique ID.]] - rationale - tests\test_prompt_evolution.py
+- [[Each mutation has a valid mutation_type.]] - rationale - tests\test_prompt_evolution.py
+- [[Each seed has the expected ID prefix.]] - rationale - tests\test_prompt_evolution.py
+- [[Edge case tests for RDLab.]] - rationale - tests\test_rd_lab.py
+- [[Empty knowledge pull results in clean exit with no hypotheses.]] - rationale - tests\test_rd_lab.py
+- [[Evaluating an experiment records outcome in evolution engine.]] - rationale - tests\test_prompt_evolution.py
+- [[Even the worst performer has a non-zero selection chance.]] - rationale - tests\test_prompt_evolution.py
+- [[Every seed template has all required fields.]] - rationale - tests\test_prompt_evolution.py
+- [[Evolve cycle retires templates with avg_tier  3.5 and 10+ uses.]] - rationale - tests\test_prompt_evolution.py
+- [[Evolve cycle returns early when not enough experiments.]] - rationale - tests\test_prompt_evolution.py
+- [[Evolve cycle with enough data produces new templates.]] - rationale - tests\test_prompt_evolution.py
+- [[Evolves Morpheus prompt templates based on experiment outcomes.      Tracks whic]] - rationale - modules\morpheus\prompt_evolution.py
+- [[Execute a Morpheus tool.]] - rationale - modules\morpheus\morpheus.py
+- [[Experiment result contains all required keys.]] - rationale - tests\test_rd_lab.py
+- [[ExplorationReport]] - code - modules\morpheus\rd_lab.py
+- [[ExplorationReport has all required fields.]] - rationale - tests\test_rd_lab.py
+- [[Extend mutation appends a follow-up step.]] - rationale - tests\test_prompt_evolution.py
+- [[Failed experiment can't be validated.]] - rationale - tests\test_rd_lab.py
+- [[Failed experiments are stored in experiment_store.]] - rationale - tests\test_rd_lab.py
+- [[Fetch a single experiment by UUID.]] - rationale - modules\morpheus\morpheus.py
+- [[Filter by thinking_pattern returns correct templates.]] - rationale - tests\test_prompt_evolution.py
+- [[Filter by unknown pattern returns empty list.]] - rationale - tests\test_prompt_evolution.py
+- [[Flip the direction of a template using inversion word pairs.]] - rationale - modules\morpheus\prompt_evolution.py
+- [[Fresh lab has zeroed stats.]] - rationale - tests\test_rd_lab.py
+- [[Full cycle propose with template - evaluate - evolve - propose with evolved.]] - rationale - tests\test_prompt_evolution.py
+- [[Fully configured RDLab.]] - rationale - tests\test_rd_lab.py
+- [[Generate cross-domain connection hypotheses from knowledge entries.          Arg]] - rationale - modules\morpheus\rd_lab.py
+- [[Generate function that returns valid hypothesis JSON.]] - rationale - tests\test_rd_lab.py
+- [[Generate improvement proposals based on static analysis.          Rule-based in]] - rationale - modules\morpheus\self_improvement.py
+- [[Generate mutated variants of a template. Rule-based, no LLM.          Args]] - rationale - modules\morpheus\prompt_evolution.py
+- [[Generate test code for a hypothesis using the model.          Args]] - rationale - modules\morpheus\rd_lab.py
+- [[Generates the requested number of mutations.]] - rationale - tests\test_prompt_evolution.py
+- [[Genuine improvement with metrics passes validation.]] - rationale - tests\test_rd_lab.py
+- [[Get a known seed template by ID.]] - rationale - tests\test_prompt_evolution.py
+- [[Get consistently underperforming templates.          Args             max_avg_t]] - rationale - modules\morpheus\prompt_evolution.py
+- [[Get performance statistics for each template.          Returns             List]] - rationale - modules\morpheus\prompt_evolution.py
+- [[Get the best-performing templates.          Args             n Number of top p]] - rationale - modules\morpheus\prompt_evolution.py
+- [[Get the overnight experiment queue.          Returns proposed experiments sorted]] - rationale - modules\morpheus\morpheus.py
+- [[Graduate without Grimoire returns empty string.]] - rationale - tests\test_rd_lab.py
+- [[Helper to propose an experiment with defaults._1]] - rationale - tests\test_prompt_evolution.py
+- [[Helper propose - start - complete - evaluate. Returns experiment_id.]] - rationale - tests\test_prompt_evolution.py
+- [[High fatigue prevents exploration.]] - rationale - tests\test_rd_lab.py
+- [[If generate_fn throws, session ends with partial report.]] - rationale - tests\test_rd_lab.py
+- [[If model returns garbage, generate_hypotheses returns empty list.]] - rationale - tests\test_rd_lab.py
+- [[Inactive (retired) templates are not loaded.]] - rationale - tests\test_prompt_evolution.py
+- [[Initialize Morpheus.          Args             config Module configuration. Ke]] - rationale - modules\morpheus\morpheus.py
+- [[Initialize the evolution engine.          Args             db_path Path to the]] - rationale - modules\morpheus\prompt_evolution.py
+- [[Initialize the self-improvement engine.          Args             db_path Path]] - rationale - modules\morpheus\self_improvement.py
+- [[Initialize with seed templates.]] - rationale - modules\morpheus\prompt_templates.py
+- [[Insert a proposal directly for test setup.]] - rationale - tests\test_self_improvement.py
+- [[Insert a proposal into the database.]] - rationale - modules\morpheus\self_improvement.py
+- [[Invert mutation produces a different template.]] - rationale - tests\test_prompt_evolution.py
+- [[Knowledge entries are pulled from multiple distinct domains.]] - rationale - tests\test_rd_lab.py
+- [[Lineage of a seed template is just itself.]] - rationale - tests\test_prompt_evolution.py
+- [[Lineage of nonexistent template is empty list.]] - rationale - tests\test_prompt_evolution.py
+- [[Lineage walks parent_id chain seed - child - grandchild.]] - rationale - tests\test_prompt_evolution.py
+- [[List experiments with optional filters.          Args             params Optio]] - rationale - modules\morpheus\morpheus.py
+- [[List proposals with optional filters.          Args             status Filter]] - rationale - modules\morpheus\self_improvement.py
+- [[Listfilter improvement proposals.          Delegates to SelfImprovementEngine.g]] - rationale - modules\morpheus\morpheus.py
+- [[Load all active evolved templates from the database.          Returns]] - rationale - modules\morpheus\prompt_evolution.py
+- [[Log a template's performance for a specific experiment.          Args]] - rationale - modules\morpheus\prompt_evolution.py
+- [[Mark a proposal as approved (creator-only action).          In Phase 2, this tri]] - rationale - modules\morpheus\self_improvement.py
+- [[Mark a proposal as rejected with reason.          The reason is stored for futur]] - rationale - modules\morpheus\self_improvement.py
+- [[Mock ExperimentStore.]] - rationale - tests\test_rd_lab.py
+- [[Mock Grimoire with domain-filtered random entries and store.]] - rationale - tests\test_rd_lab.py
+- [[Mock sandbox that returns successful execution.]] - rationale - tests\test_rd_lab.py
+- [[Morpheus]] - code - modules\morpheus\morpheus.py
+- [[Morpheus R&D Laboratory — idea-to-implementation pipeline.      Pulls domain-fil]] - rationale - modules\morpheus\rd_lab.py
+- [[Morpheus has at least 11 tools (7 original + evolution tools).]] - rationale - tests\test_prompt_evolution.py
+- [[Morpheus proposes code improvements to Shadow's own modules.      Pipeline Anal]] - rationale - modules\morpheus\self_improvement.py
+- [[Morpheus — Creative Discovery Pipeline =========================================]] - rationale - modules\morpheus\morpheus.py
+- [[Move a validated discovery from speculative to production Grimoire.          Tag]] - rationale - modules\morpheus\rd_lab.py
+- [[Move an experiment from proposed to running.          Args             params]] - rationale - modules\morpheus\morpheus.py
+- [[Multiple outcomes for the same template accumulate.]] - rationale - tests\test_prompt_evolution.py
+- [[Mutating a nonexistent template raises ValueError.]] - rationale - tests\test_prompt_evolution.py
+- [[Mutating an already-mutated template increments generation correctly.]] - rationale - tests\test_prompt_evolution.py
+- [[Mutations have correct parent_id pointing to source.]] - rationale - tests\test_prompt_evolution.py
+- [[No pending tasks, no curriculum, low fatigue → explore.]] - rationale - tests\test_rd_lab.py
+- [[No underperformers when all templates perform well.]] - rationale - tests\test_prompt_evolution.py
+- [[Non-testable hypothesis stored as speculative.]] - rationale - tests\test_rd_lab.py
+- [[Only allowed technical domains are queried from Grimoire.]] - rationale - tests\test_rd_lab.py
+- [[Pending tasks prevent exploration.]] - rationale - tests\test_rd_lab.py
+- [[Persisted evolved templates reload correctly.]] - rationale - tests\test_prompt_evolution.py
+- [[Personal and non-technical domains are never queried.]] - rationale - tests\test_rd_lab.py
+- [[Prompt Evolution Engine for Morpheus ====================================== Evol]] - rationale - modules\morpheus\prompt_evolution.py
+- [[Prompt Template Registry for Morpheus ====================================== Reg]] - rationale - modules\morpheus\prompt_templates.py
+- [[PromptEvolutionEngine]] - code - modules\morpheus\prompt_evolution.py
+- [[PromptTemplateRegistry]] - code - modules\morpheus\prompt_templates.py
+- [[Proposals whose (change_type, module) were rejected 2+ times are suppressed.]] - rationale - tests\test_self_improvement.py
+- [[Proposed experiments get a template_id auto-assigned.]] - rationale - tests\test_prompt_evolution.py
+- [[Pull domain-filtered knowledge from different technical Grimoire collections.]] - rationale - modules\morpheus\rd_lab.py
+- [[RDLab]] - code - modules\morpheus\rd_lab.py
+- [[RDLab without Grimoire.]] - rationale - tests\test_rd_lab.py
+- [[RDLab without sandbox.]] - rationale - tests\test_rd_lab.py
+- [[RDLab — Morpheus R&D Laboratory ================================ Research and de]] - rationale - modules\morpheus\rd_lab.py
+- [[Record results for a running experiment.          Args             params expe]] - rationale - modules\morpheus\morpheus.py
+- [[Record whether a prediction was correct.          Updates the prediction's actua]] - rationale - modules\shadow\predictive_escalation.py
+- [[Recording an outcome inserts a row.]] - rationale - tests\test_prompt_evolution.py
+- [[Register a new evolved template.          Args             template Must conta]] - rationale - modules\morpheus\prompt_templates.py
+- [[Registry of prompt templates with performance tracking.      Each template has a]] - rationale - modules\morpheus\prompt_templates.py
+- [[Remove domain specifics, generalize the template.]] - rationale - modules\morpheus\prompt_evolution.py
+- [[Result with empty metrics rejected.]] - rationale - tests\test_rd_lab.py
+- [[Return Morpheus's tool definitions.]] - rationale - modules\morpheus\morpheus.py
+- [[Return a template by its ID, or None if not found.]] - rationale - modules\morpheus\prompt_templates.py
+- [[Return aggregate exploration statistics.          Returns             Dict with]] - rationale - modules\morpheus\rd_lab.py
+- [[Return all templates (seed + evolved).]] - rationale - modules\morpheus\prompt_templates.py
+- [[Return all templates matching the given thinking pattern.]] - rationale - modules\morpheus\prompt_templates.py
+- [[Return the full parent chain back to the seed template.          Returns a list]] - rationale - modules\morpheus\prompt_templates.py
+- [[Returns None for unknown ID.]] - rationale - tests\test_prompt_evolution.py
+- [[Run a full R&D exploration session.          Flow         1. Pull 3-5 random kn]] - rationale - modules\morpheus\rd_lab.py
+- [[Run an experiment for a hypothesis.          If testable and sandbox is availabl]] - rationale - modules\morpheus\rd_lab.py
+- [[Run one evolution cycle.          1. Check if enough experiments have run since]] - rationale - modules\morpheus\prompt_evolution.py
+- [[Safety invariant tests.]] - rationale - tests\test_self_improvement.py
+- [[Sandbox that throws returns a failure result.]] - rationale - tests\test_rd_lab.py
+- [[Save an evolved template to the database.]] - rationale - modules\morpheus\prompt_evolution.py
+- [[Schema migration added template_id column to morpheus_experiments.]] - rationale - tests\test_prompt_evolution.py
+- [[Score and tier a completed experiment.          Tier 1 = Breakthrough, Tier 2 =]] - rationale - modules\morpheus\morpheus.py
+- [[Seed templates are never retired, even with bad performance.]] - rationale - tests\test_prompt_evolution.py
+- [[Select a template for the next experiment using weighted random.          Weight]] - rationale - modules\morpheus\prompt_evolution.py
+- [[Selected template exists in registry.]] - rationale - tests\test_prompt_evolution.py
+- [[Selection works with no performance data (all equal weight).]] - rationale - tests\test_prompt_evolution.py
+- [[Self-Improvement Engine — Morpheus × Omen RSI Bridge ===========================]] - rationale - modules\morpheus\self_improvement.py
+- [[SelfImprovementEngine]] - code - modules\morpheus\self_improvement.py
+- [[Session pulls domain-filtered knowledge and generates hypotheses.]] - rationale - tests\test_rd_lab.py
+- [[Session runs testable hypotheses through sandbox.]] - rationale - tests\test_rd_lab.py
+- [[Show template performance stats.          Args             params Optional 'te]] - rationale - modules\morpheus\morpheus.py
+- [[Shut down Morpheus. Close DB connection.]] - rationale - modules\morpheus\morpheus.py
+- [[Single rejection does not create a pattern.]] - rationale - tests\test_self_improvement.py
+- [[Specialize mutation adds domain-specific framing.]] - rationale - tests\test_prompt_evolution.py
+- [[Speculative storage uses the speculative collection, not production.]] - rationale - tests\test_rd_lab.py
+- [[Start Morpheus. Create DB and tables.]] - rationale - modules\morpheus\morpheus.py
+- [[Static analysis of a module file.          Returns line count, function count, d]] - rationale - modules\morpheus\self_improvement.py
+- [[Stats aggregates correctly across multiple outcomes.]] - rationale - tests\test_prompt_evolution.py
+- [[Stats are updated after running a session.]] - rationale - tests\test_rd_lab.py
+- [[Stats with no data returns empty list.]] - rationale - tests\test_prompt_evolution.py
+- [[Store a failed experiment in the ExperimentStore.          Args             res]] - rationale - modules\morpheus\rd_lab.py
+- [[Store a result in the speculative knowledge collection.          Args]] - rationale - modules\morpheus\rd_lab.py
+- [[Summary of an R&D exploration session.]] - rationale - modules\morpheus\rd_lab.py
+- [[Summary statistics for the improvement pipeline.          Returns             D]] - rationale - modules\morpheus\self_improvement.py
+- [[Templates with  5 uses get a novelty bonus.]] - rationale - tests\test_prompt_evolution.py
+- [[Templates with fewer than min_uses are excluded.]] - rationale - tests\test_prompt_evolution.py
+- [[Test a proposal in an isolated sandbox.          Phase 1 STUB Returns pending s]] - rationale - modules\morpheus\self_improvement.py
+- [[TestAnalyzeModule]] - code - tests\test_self_improvement.py
+- [[TestApproveReject]] - code - tests\test_self_improvement.py
+- [[TestDomainFiltering]] - code - tests\test_rd_lab.py
+- [[TestEdgeCases_18]] - code - tests\test_rd_lab.py
+- [[TestGenerateHypotheses]] - code - tests\test_rd_lab.py
+- [[TestGenerateProposals]] - code - tests\test_self_improvement.py
+- [[TestGetExplorationStats]] - code - tests\test_rd_lab.py
+- [[TestGetProposals]] - code - tests\test_self_improvement.py
+- [[TestMorpheusIntegration]] - code - tests\test_prompt_evolution.py
+- [[TestMorpheusIntegration_1]] - code - tests\test_self_improvement.py
+- [[TestPromptEvolutionEngine]] - code - tests\test_prompt_evolution.py
+- [[TestPromptTemplateRegistry]] - code - tests\test_prompt_evolution.py
+- [[TestRejectionPatterns]] - code - tests\test_self_improvement.py
+- [[TestRunExperiment]] - code - tests\test_rd_lab.py
+- [[TestRunExplorationSession]] - code - tests\test_rd_lab.py
+- [[TestSafety]] - code - tests\test_self_improvement.py
+- [[TestSelectTemplate]] - code - tests\test_prompt_evolution.py
+- [[TestShouldExplore]] - code - tests\test_rd_lab.py
+- [[TestStats_1]] - code - tests\test_self_improvement.py
+- [[TestTestProposal]] - code - tests\test_self_improvement.py
+- [[TestValidateDiscovery]] - code - tests\test_rd_lab.py
+- [[Testable hypothesis with sandbox runs the experiment.]] - rationale - tests\test_rd_lab.py
+- [[Testable hypothesis without sandbox stored as speculative.]] - rationale - tests\test_rd_lab.py
+- [[Tests for Morpheus Prompt Evolution Engine =====================================]] - rationale - tests\test_prompt_evolution.py
+- [[Tests for Morpheus R&D Lab — idea-to-implementation pipeline.]] - rationale - tests\test_rd_lab.py
+- [[Tests for Morpheus tool registration and execution.]] - rationale - tests\test_self_improvement.py
+- [[Tests for SelfImprovementEngine — Morpheus × Omen RSI Bridge ===================]] - rationale - tests\test_self_improvement.py
+- [[Tests for analyze_module — pure ASTregex static analysis.]] - rationale - tests\test_self_improvement.py
+- [[Tests for approve_proposal and reject_proposal.]] - rationale - tests\test_self_improvement.py
+- [[Tests for discovery validation.]] - rationale - tests\test_rd_lab.py
+- [[Tests for exploration statistics.]] - rationale - tests\test_rd_lab.py
+- [[Tests for generate_proposals — rule-based proposal generation.]] - rationale - tests\test_self_improvement.py
+- [[Tests for get_improvement_stats.]] - rationale - tests\test_self_improvement.py
+- [[Tests for get_proposals filtering.]] - rationale - tests\test_self_improvement.py
+- [[Tests for get_rejection_patterns.]] - rationale - tests\test_self_improvement.py
+- [[Tests for hypothesis generation.]] - rationale - tests\test_rd_lab.py
+- [[Tests for running individual experiments.]] - rationale - tests\test_rd_lab.py
+- [[Tests for should_explore decision logic.]] - rationale - tests\test_rd_lab.py
+- [[Tests for technical domain filtering in knowledge pulls.]] - rationale - tests\test_rd_lab.py
+- [[Tests for test_proposal — Phase 1 stub.]] - rationale - tests\test_self_improvement.py
+- [[Tests for the full exploration session pipeline.]] - rationale - tests\test_rd_lab.py
+- [[Top performers sorted by best avg tier.]] - rationale - tests\test_prompt_evolution.py
+- [[Top-tier templates are selected more often (statistical test).]] - rationale - tests\test_prompt_evolution.py
+- [[Trend detection declining when recent tiers are worse.]] - rationale - tests\test_prompt_evolution.py
+- [[Trigger an evolution cycle. Returns summary of newretired templates.          A]] - rationale - modules\morpheus\morpheus.py
+- [[Trivial result is rejected.]] - rationale - tests\test_rd_lab.py
+- [[Underperformers have avg tier = 3.5.]] - rationale - tests\test_prompt_evolution.py
+- [[Untested hypothesis can't be validated.]] - rationale - tests\test_rd_lab.py
+- [[Validate whether a discovery should graduate to production.          Checks]] - rationale - modules\morpheus\rd_lab.py
+- [[Validated discoveries are graduated to production Grimoire.]] - rationale - tests\test_rd_lab.py
+- [[Without Grimoire, exploration returns empty report.]] - rationale - tests\test_rd_lab.py
+- [[Without sandbox, all hypotheses stored as speculative.]] - rationale - tests\test_rd_lab.py
+- [[_full_lifecycle()_1]] - code - tests\test_prompt_evolution.py
+- [[_insert_proposal()]] - code - tests\test_self_improvement.py
+- [[_propose()_1]] - code - tests\test_prompt_evolution.py
+- [[analyze_module must NOT modify the source file.]] - rationale - tests\test_self_improvement.py
+- [[analyze_module must not modify source files.]] - rationale - tests\test_self_improvement.py
+- [[approve_proposal must NOT be registered as a Morpheus tool.]] - rationale - tests\test_self_improvement.py
+- [[clean_file()]] - code - tests\test_self_improvement.py
+- [[empty_file()]] - code - tests\test_self_improvement.py
+- [[engine()_2]] - code - tests\test_prompt_evolution.py
+- [[engine()_5]] - code - tests\test_self_improvement.py
+- [[generate_hypotheses raises RuntimeError without generate_fn.]] - rationale - tests\test_rd_lab.py
+- [[generate_hypotheses returns 2-3 hypotheses.]] - rationale - tests\test_rd_lab.py
+- [[get_all returns deep copies, not references.]] - rationale - tests\test_prompt_evolution.py
+- [[graduate_to_production stores in production Grimoire with tags.]] - rationale - tests\test_rd_lab.py
+- [[lab()]] - code - tests\test_rd_lab.py
+- [[lab_no_grimoire()]] - code - tests\test_rd_lab.py
+- [[lab_no_sandbox()]] - code - tests\test_rd_lab.py
+- [[mock_experiment_store()_1]] - code - tests\test_rd_lab.py
+- [[mock_generate_fn()]] - code - tests\test_rd_lab.py
+- [[mock_grimoire()_12]] - code - tests\test_rd_lab.py
+- [[mock_sandbox()]] - code - tests\test_rd_lab.py
+- [[morpheus()_2]] - code - tests\test_prompt_evolution.py
+- [[morpheus.py]] - code - modules\morpheus\morpheus.py
+- [[online_morpheus()_1]] - code - tests\test_prompt_evolution.py
+- [[prompt_evolution.py]] - code - modules\morpheus\prompt_evolution.py
+- [[prompt_evolve and prompt_stats are in tool list.]] - rationale - tests\test_prompt_evolution.py
+- [[prompt_evolve produces new templates after enough experiments.]] - rationale - tests\test_prompt_evolution.py
+- [[prompt_evolve with insufficient experiments returns skipped.]] - rationale - tests\test_prompt_evolution.py
+- [[prompt_stats tool returns stats data.]] - rationale - tests\test_prompt_evolution.py
+- [[prompt_stats with template_id returns single template data.]] - rationale - tests\test_prompt_evolution.py
+- [[prompt_templates.py]] - code - modules\morpheus\prompt_templates.py
+- [[rd_lab.py]] - code - modules\morpheus\rd_lab.py
+- [[registry()_2]] - code - tests\test_prompt_evolution.py
+- [[self_improve_analyze and self_improve_proposals must be autonomous.]] - rationale - tests\test_self_improvement.py
+- [[self_improvement.py]] - code - modules\morpheus\self_improvement.py
+- [[syntax_error_file()]] - code - tests\test_self_improvement.py
+- [[template_id is optional — doesn't break existing callers.]] - rationale - tests\test_prompt_evolution.py
+- [[test_analyze_executes()]] - code - tests\test_self_improvement.py
+- [[test_analyze_requires_module_name()]] - code - tests\test_self_improvement.py
+- [[test_evaluate_records_outcome()]] - code - tests\test_prompt_evolution.py
+- [[test_full_evolution_lifecycle()]] - code - tests\test_prompt_evolution.py
+- [[test_new_tool_names()]] - code - tests\test_prompt_evolution.py
+- [[test_prompt_evolution.py]] - code - tests\test_prompt_evolution.py
+- [[test_prompt_evolve_insufficient_data()]] - code - tests\test_prompt_evolution.py
+- [[test_prompt_evolve_tool()]] - code - tests\test_prompt_evolution.py
+- [[test_prompt_stats_specific_template()]] - code - tests\test_prompt_evolution.py
+- [[test_prompt_stats_tool()]] - code - tests\test_prompt_evolution.py
+- [[test_proposals_executes()]] - code - tests\test_self_improvement.py
+- [[test_propose_gets_template_id()]] - code - tests\test_prompt_evolution.py
+- [[test_propose_template_id_optional()]] - code - tests\test_prompt_evolution.py
+- [[test_propose_with_explicit_template_id()]] - code - tests\test_prompt_evolution.py
+- [[test_rd_lab.py]] - code - tests\test_rd_lab.py
+- [[test_self_improvement.py]] - code - tests\test_self_improvement.py
+- [[test_template_id_column_exists()]] - code - tests\test_prompt_evolution.py
+- [[test_tool_count()_1]] - code - tests\test_prompt_evolution.py
+
+## Live Query (requires Dataview plugin)
+
+```dataview
+TABLE source_file, type FROM #community/Morpheus_Creative_Pipeline
+SORT file.name ASC
+```
+
+## Connections to other communities
+- 166 edges to [[_COMMUNITY_Base Module & Apex API]]
+- 64 edges to [[_COMMUNITY_Data Pipeline & Embeddings]]
+- 58 edges to [[_COMMUNITY_Module Registry & Tools]]
+- 11 edges to [[_COMMUNITY_Module Lifecycle]]
+- 7 edges to [[_COMMUNITY_Predictive Escalation]]
+- 2 edges to [[_COMMUNITY_Experiment Store]]
+- 2 edges to [[_COMMUNITY_Workflow Store]]
+- 1 edge to [[_COMMUNITY_Cross-Reference & Security]]
+- 1 edge to [[_COMMUNITY_Adversarial Sparring]]
+
+## Top bridge nodes
+- [[Morpheus]] - degree 214, connects to 5 communities
+- [[.run_exploration_session()]] - degree 25, connects to 2 communities
+- [[.record_outcome()_1]] - degree 24, connects to 2 communities
+- [[Shut down Morpheus. Close DB connection.]] - degree 8, connects to 2 communities
+- [[._experiment_evaluate()]] - degree 7, connects to 2 communities

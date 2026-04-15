@@ -1,0 +1,501 @@
+---
+type: community
+cohesion: 0.01
+members: 451
+---
+
+# Adversarial Sparring
+
+**Cohesion:** 0.01 - loosely connected
+**Members:** 451 nodes
+
+## Members
+- [[.__init__()_51]] - code - modules\shadow\adversarial_sparring.py
+- [[.__init__()_46]] - code - modules\reaper\reaper.py
+- [[._brave_get_usage()]] - code - modules\reaper\reaper.py
+- [[._brave_increment_usage()]] - code - modules\reaper\reaper.py
+- [[._build_critic_prompt()]] - code - modules\shadow\adversarial_sparring.py
+- [[._build_solver_prompt()]] - code - modules\shadow\adversarial_sparring.py
+- [[._call_model()]] - code - modules\shadow\adversarial_sparring.py
+- [[._check_searxng()]] - code - modules\reaper\reaper.py
+- [[._classify_issue()]] - code - modules\shadow\adversarial_sparring.py
+- [[._classify_task()]] - code - modules\shadow\adversarial_sparring.py
+- [[._clean_vtt()]] - code - modules\reaper\reaper.py
+- [[._detect_brute_force()]] - code - modules\sentinel\threat_intelligence.py
+- [[._detect_data_exfiltration()]] - code - modules\sentinel\threat_intelligence.py
+- [[._detect_port_scan()]] - code - modules\sentinel\threat_intelligence.py
+- [[._detect_privilege_escalation()]] - code - modules\sentinel\threat_intelligence.py
+- [[._detect_web_attacks()]] - code - modules\sentinel\threat_intelligence.py
+- [[._estimate_confidence()]] - code - modules\shadow\adversarial_sparring.py
+- [[._explain_iptables_rule()]] - code - modules\sentinel\security_analyzer.py
+- [[._explain_nftables_rule()]] - code - modules\sentinel\security_analyzer.py
+- [[._explain_pf_rule()]] - code - modules\sentinel\security_analyzer.py
+- [[._explain_ufw_rule()]] - code - modules\sentinel\security_analyzer.py
+- [[._extract_bible_queries()]] - code - modules\grimoire\embedding_evaluator.py
+- [[._extract_code_queries()]] - code - modules\grimoire\embedding_evaluator.py
+- [[._extract_technical_queries()]] - code - modules\grimoire\embedding_evaluator.py
+- [[._generate_research_report()]] - code - modules\reaper\reaper.py
+- [[._get_stealth_headers()]] - code - modules\reaper\reaper.py
+- [[._infer_domain_tags()]] - code - modules\shadow\self_teaching.py
+- [[._make_reaper()]] - code - tests\test_reaper_reformulation.py
+- [[._parse_iptables()]] - code - modules\sentinel\security_analyzer.py
+- [[._parse_iptables_rule_tokens()]] - code - modules\sentinel\security_analyzer.py
+- [[._parse_nftables()]] - code - modules\sentinel\security_analyzer.py
+- [[._parse_pf()]] - code - modules\sentinel\security_analyzer.py
+- [[._parse_ufw()]] - code - modules\sentinel\security_analyzer.py
+- [[._reddit_json_get()]] - code - modules\reaper\reaper.py
+- [[._reddit_search_praw()]] - code - modules\reaper\reaper.py
+- [[._search_bing()]] - code - modules\reaper\reaper.py
+- [[._search_brave()]] - code - modules\reaper\reaper.py
+- [[._search_ddg()]] - code - modules\reaper\reaper.py
+- [[._search_once()]] - code - modules\reaper\reaper.py
+- [[._search_searxng()]] - code - modules\reaper\reaper.py
+- [[._stealth_delay()]] - code - modules\reaper\reaper.py
+- [[._store_reddit_post()]] - code - modules\reaper\reaper.py
+- [[.analyze_log_pattern()]] - code - modules\sentinel\threat_intelligence.py
+- [[.check_download_safety()]] - code - modules\reaper\reaper.py
+- [[.close()_9]] - code - modules\reaper\reaper.py
+- [[.expand_query()]] - code - modules\reaper\reaper.py
+- [[.explain_rule()]] - code - modules\sentinel\security_analyzer.py
+- [[.fetch_page()]] - code - modules\reaper\reaper.py
+- [[.get_sparring_stats()]] - code - modules\shadow\adversarial_sparring.py
+- [[.monitor_subreddit_json()]] - code - modules\reaper\reaper.py
+- [[.parse_critic_issues()]] - code - modules\shadow\adversarial_sparring.py
+- [[.read_chrome_history()]] - code - modules\reaper\reaper.py
+- [[.reddit_search()]] - code - modules\reaper\reaper.py
+- [[.research()]] - code - modules\reaper\reaper.py
+- [[.run_single_topic()]] - code - modules\reaper\reaper.py
+- [[.run_standing_research()]] - code - modules\reaper\reaper.py
+- [[.score_relevance()]] - code - modules\reaper\reaper.py
+- [[.search()_2]] - code - modules\reaper\reaper.py
+- [[.search_reddit_json()]] - code - modules\reaper\reaper.py
+- [[.should_spar()]] - code - modules\shadow\adversarial_sparring.py
+- [[.spar()]] - code - modules\shadow\adversarial_sparring.py
+- [[.store_critique_patterns()]] - code - modules\shadow\adversarial_sparring.py
+- [[.summarize()]] - code - modules\reaper\reaper.py
+- [[.test_bullet_points()]] - code - tests\test_adversarial_sparring.py
+- [[.test_clean_logs_return_false()]] - code - tests\test_threat_intelligence.py
+- [[.test_confidence_improves_when_issues_resolved()]] - code - tests\test_adversarial_sparring.py
+- [[.test_critique_pattern_metadata()]] - code - tests\test_adversarial_sparring.py
+- [[.test_detects_brute_force()]] - code - tests\test_threat_intelligence.py
+- [[.test_detects_port_scanning()]] - code - tests\test_threat_intelligence.py
+- [[.test_duration_tracked()]] - code - tests\test_adversarial_sparring.py
+- [[.test_early_exit_when_no_issues()]] - code - tests\test_adversarial_sparring.py
+- [[.test_empty_after_prefix_returns_original()]] - code - tests\test_orchestrator.py
+- [[.test_empty_initial_solution()]] - code - tests\test_adversarial_sparring.py
+- [[.test_empty_log_returns_false()]] - code - tests\test_threat_intelligence.py
+- [[.test_empty_response()]] - code - tests\test_adversarial_sparring.py
+- [[.test_empty_results_not_relevant()]] - code - tests\test_reaper_reformulation.py
+- [[.test_exact_threshold_unchanged()]] - code - tests\test_reaper_reformulation.py
+- [[.test_explain_broad_accept_raises_concern()]] - code - tests\test_security_analyzer.py
+- [[.test_explain_iptables_drop()]] - code - tests\test_security_analyzer.py
+- [[.test_explain_nftables_rule()]] - code - tests\test_security_analyzer.py
+- [[.test_explain_pf_rule()]] - code - tests\test_security_analyzer.py
+- [[.test_explain_provides_equivalents()]] - code - tests\test_security_analyzer.py
+- [[.test_explain_ufw_rule()]] - code - tests\test_security_analyzer.py
+- [[.test_extract_reddit_target()]] - code - tests\test_reddit_json.py
+- [[.test_final_solution_is_solvers_last_response()]] - code - tests\test_adversarial_sparring.py
+- [[.test_generate_fn_failure_returns_best_solution()]] - code - tests\test_adversarial_sparring.py
+- [[.test_get_sparring_stats_empty()]] - code - tests\test_adversarial_sparring.py
+- [[.test_get_sparring_stats_with_data()]] - code - tests\test_adversarial_sparring.py
+- [[.test_given_preamble_stripped()]] - code - tests\test_reaper_reformulation.py
+- [[.test_good_results_no_reformulation()]] - code - tests\test_reaper_reformulation.py
+- [[.test_high_confidence()]] - code - tests\test_adversarial_sparring.py
+- [[.test_improved_false_when_no_improvement()]] - code - tests\test_adversarial_sparring.py
+- [[.test_improved_true_when_confidence_raised()]] - code - tests\test_adversarial_sparring.py
+- [[.test_initial_usage_is_zero()]] - code - tests\test_reaper_brave.py
+- [[.test_is_reddit_query_detection()]] - code - tests\test_reddit_json.py
+- [[.test_labeled_issues()]] - code - tests\test_adversarial_sparring.py
+- [[.test_long_benchmark_query_shortened()]] - code - tests\test_reaper_reformulation.py
+- [[.test_long_query_extracted_before_first_search()]] - code - tests\test_reaper_reformulation.py
+- [[.test_looks_good()]] - code - tests\test_adversarial_sparring.py
+- [[.test_low_confidence_code_task()]] - code - tests\test_adversarial_sparring.py
+- [[.test_low_relevance_triggers_reformulation()]] - code - tests\test_reaper_reformulation.py
+- [[.test_math_task_low_confidence()]] - code - tests\test_adversarial_sparring.py
+- [[.test_max_two_retries()]] - code - tests\test_reaper_reformulation.py
+- [[.test_mixed_format()]] - code - tests\test_adversarial_sparring.py
+- [[.test_no_generate_fn()]] - code - tests\test_adversarial_sparring.py
+- [[.test_no_issues_found()]] - code - tests\test_adversarial_sparring.py
+- [[.test_no_prefix_passthrough()]] - code - tests\test_orchestrator.py
+- [[.test_not_relevant_when_no_keyword_match()]] - code - tests\test_reaper_reformulation.py
+- [[.test_numbered_list()]] - code - tests\test_adversarial_sparring.py
+- [[.test_only_stores_resolved_issues()]] - code - tests\test_adversarial_sparring.py
+- [[.test_original_query_preserved_in_metadata()]] - code - tests\test_reaper_reformulation.py
+- [[.test_plain_long_question_gets_keywords()]] - code - tests\test_reaper_reformulation.py
+- [[.test_preserves_case()]] - code - tests\test_orchestrator.py
+- [[.test_preserves_core_words()]] - code - tests\test_reaper_reformulation.py
+- [[.test_quoted_passage_removed()]] - code - tests\test_reaper_reformulation.py
+- [[.test_relevant_when_keyword_in_snippet()]] - code - tests\test_reaper_reformulation.py
+- [[.test_relevant_when_keyword_in_title()]] - code - tests\test_reaper_reformulation.py
+- [[.test_removes_last_word()]] - code - tests\test_reaper_reformulation.py
+- [[.test_returns_empty_without_api_key()]] - code - tests\test_reaper_brave.py
+- [[.test_returns_none_for_single_word()]] - code - tests\test_reaper_reformulation.py
+- [[.test_returns_none_when_all_filler()]] - code - tests\test_reaper_reformulation.py
+- [[.test_returns_none_when_no_filler()]] - code - tests\test_reaper_reformulation.py
+- [[.test_returns_string_not_none()]] - code - tests\test_reaper_reformulation.py
+- [[.test_search_empty_results()]] - code - tests\test_grimoire_reader.py
+- [[.test_search_graceful_when_not_connected()]] - code - tests\test_grimoire_reader.py
+- [[.test_search_returns_results()]] - code - tests\test_grimoire_reader.py
+- [[.test_search_skips_inactive_memories()]] - code - tests\test_grimoire_reader.py
+- [[.test_search_with_category_filter()_1]] - code - tests\test_grimoire_reader.py
+- [[.test_security_task_low_confidence()]] - code - tests\test_adversarial_sparring.py
+- [[.test_short_query_unchanged()]] - code - tests\test_reaper_reformulation.py
+- [[.test_short_words_ignored()]] - code - tests\test_reaper_reformulation.py
+- [[.test_simple_greeting()]] - code - tests\test_adversarial_sparring.py
+- [[.test_single_round()]] - code - tests\test_adversarial_sparring.py
+- [[.test_solver_and_critic_called_alternately()]] - code - tests\test_adversarial_sparring.py
+- [[.test_solver_receives_critics_issues()]] - code - tests\test_adversarial_sparring.py
+- [[.test_stores_in_grimoire()]] - code - tests\test_adversarial_sparring.py
+- [[.test_strips_filler_words()]] - code - tests\test_reaper_reformulation.py
+- [[.test_strips_look_up()]] - code - tests\test_orchestrator.py
+- [[.test_strips_please_prefix()]] - code - tests\test_orchestrator.py
+- [[.test_strips_search_for()]] - code - tests\test_orchestrator.py
+- [[.test_strips_what_is()]] - code - tests\test_orchestrator.py
+- [[.test_three_rounds_by_default()]] - code - tests\test_adversarial_sparring.py
+- [[.test_two_words_to_one()]] - code - tests\test_reaper_reformulation.py
+- [[.test_usage_file_written_correctly()]] - code - tests\test_reaper_brave.py
+- [[.test_usage_resets_on_new_month()]] - code - tests\test_reaper_brave.py
+- [[.test_with_initial_solution()]] - code - tests\test_adversarial_sparring.py
+- [[.test_zero_results_triggers_reformulation()]] - code - tests\test_reaper_reformulation.py
+- [[.youtube_transcribe()]] - code - modules\reaper\reaper.py
+- [[A plain long question without context markers still gets shortened.]] - rationale - tests\test_reaper_reformulation.py
+- [[A query mentioning rLocalLLaMA should hit Reddit .json before DDG.]] - rationale - tests\test_reddit_json.py
+- [[A single search result.]] - rationale - modules\reaper\mcp_server.py
+- [[A standing research topic that Reaper monitors automatically.]] - rationale - modules\reaper\config.py
+- [[Adversarial Model Sparring — Dual-Instance Debate ==============================]] - rationale - modules\shadow\adversarial_sparring.py
+- [[AdversarialSparring]] - code - modules\shadow\adversarial_sparring.py
+- [[Always returns a string, never None.]] - rationale - tests\test_reaper_reformulation.py
+- [[Analyze log entries for signs of attack or suspicious activity.          Args]] - rationale - modules\sentinel\threat_intelligence.py
+- [[BaseModel]] - code
+- [[Benchmark-style query with embedded context gets trimmed.]] - rationale - tests\test_reaper_reformulation.py
+- [[Broad accept rule flags concerns.]] - rationale - tests\test_security_analyzer.py
+- [[Build a Reddit-style listing JSON from post dicts.]] - rationale - tests\test_reddit_json.py
+- [[Build the prompt for the critic instance.]] - rationale - modules\shadow\adversarial_sparring.py
+- [[Build the prompt for the solver instance.]] - rationale - modules\shadow\adversarial_sparring.py
+- [[Bullet points should be parsed into individual issues.]] - rationale - tests\test_adversarial_sparring.py
+- [[Call the generate function with error handling.]] - rationale - modules\shadow\adversarial_sparring.py
+- [[Check if SearXNG is running and responding.]] - rationale - modules\reaper\reaper.py
+- [[Check if any result title or snippet contains keywords from the query.]] - rationale - modules\reaper\reaper.py
+- [[Classify a task for metadata.]] - rationale - modules\shadow\adversarial_sparring.py
+- [[Classify an issue type for metadata.]] - rationale - modules\shadow\adversarial_sparring.py
+- [[Clean WebVTT remove timestamps, formatting, deduplicate.]] - rationale - modules\reaper\reaper.py
+- [[Clean log entries return no threats.]] - rationale - tests\test_threat_intelligence.py
+- [[Counter resets when month changes.]] - rationale - tests\test_reaper_brave.py
+- [[Create a Reaper instance with Brave API key set.]] - rationale - tests\test_reaper_brave.py
+- [[Create a Reaper instance without Brave API key.]] - rationale - tests\test_reaper_brave.py
+- [[Create a Reaper with a mock Grimoire (no real DB needed).]] - rationale - tests\test_reddit_json.py
+- [[Create a Reaper with mocked grimoire and no live backends.]] - rationale - tests\test_reaper_reformulation.py
+- [[Create a minimal mock Grimoire for Reaper init.]] - rationale - tests\test_reaper_brave.py
+- [[Create a mock generate_fn that returns responses in order.]] - rationale - tests\test_adversarial_sparring.py
+- [[Create the FastAPI app with an initialized Reaper.      Args         reaper_ins]] - rationale - modules\reaper\mcp_server.py
+- [[Create the FastAPI app, optionally injecting a Grimoire instance.]] - rationale - modules\grimoire\mcp_server.py
+- [[Critique patterns should be stored via grimoire.store().]] - rationale - tests\test_adversarial_sparring.py
+- [[Debate should stop early when critic finds no issues.]] - rationale - tests\test_adversarial_sparring.py
+- [[DebateRound]] - code - modules\shadow\adversarial_sparring.py
+- [[Decide whether a task is worth the multi-round sparring cost.          Args]] - rationale - modules\shadow\adversarial_sparring.py
+- [[Default max_rounds=3 should produce up to 3 rounds.]] - rationale - tests\test_adversarial_sparring.py
+- [[Detect brute force patterns in log entries.]] - rationale - modules\sentinel\threat_intelligence.py
+- [[Detect port scanning patterns in log entries.]] - rationale - modules\sentinel\threat_intelligence.py
+- [[Detect potential data exfiltration patterns.]] - rationale - modules\sentinel\threat_intelligence.py
+- [[Detect privilege escalation attempts.]] - rationale - modules\sentinel\threat_intelligence.py
+- [[Detect web attack patterns in log entries.]] - rationale - modules\sentinel\threat_intelligence.py
+- [[Detects brute force from auth log entries.]] - rationale - tests\test_threat_intelligence.py
+- [[Detects port scanning from firewall log entries.]] - rationale - tests\test_threat_intelligence.py
+- [[Download YouTube subtitles and store. Long transcripts get summarized.]] - rationale - modules\reaper\reaper.py
+- [[Empty log text returns no threats.]] - rationale - tests\test_threat_intelligence.py
+- [[Empty response should return empty list.]] - rationale - tests\test_adversarial_sparring.py
+- [[Empty results trigger simplification retry.]] - rationale - tests\test_reaper_reformulation.py
+- [[Empty subreddit search returns empty list.]] - rationale - tests\test_reddit_json.py
+- [[Evaluate URL trustworthiness. Returns tier (1-4) and trust score.     Trust scor]] - rationale - modules\reaper\reaper.py
+- [[Evaluate whether a download is safe.          Returns             Dict with]] - rationale - modules\reaper\reaper.py
+- [[Execute a single search attempt across all backends.          Backend priority i]] - rationale - modules\reaper\reaper.py
+- [[Explain a single firewall rule in plain English.          Args             rule]] - rationale - modules\sentinel\security_analyzer.py
+- [[Explain an iptables rule.]] - rationale - modules\sentinel\security_analyzer.py
+- [[Explain an nftables rule.]] - rationale - modules\sentinel\security_analyzer.py
+- [[Explains an iptables DROP rule correctly.]] - rationale - tests\test_security_analyzer.py
+- [[Explains an nftables rule.]] - rationale - tests\test_security_analyzer.py
+- [[Extract bibleethics queries verse refs, theological terms.]] - rationale - modules\grimoire\embedding_evaluator.py
+- [[Extract code-relevant queries function names, class names, errors.]] - rationale - modules\grimoire\embedding_evaluator.py
+- [[Extract individual issues from the critic's response.          Looks for numbere]] - rationale - modules\shadow\adversarial_sparring.py
+- [[Extract search-worthy keywords from an overly long query.      Benchmark-style q]] - rationale - modules\reaper\reaper.py
+- [[Extract technical queries tool names, specs, error types.]] - rationale - modules\grimoire\embedding_evaluator.py
+- [[Fetch a web page with stealth headers, extract text, evaluate source,         op]] - rationale - modules\reaper\reaper.py
+- [[Fetch and extract content from a URL.      Supports text extraction with stealth]] - rationale - modules\reaper\mcp_server.py
+- [[Fetch posts from a subreddit using the public .json endpoint.          Args]] - rationale - modules\reaper\reaper.py
+- [[FetchRequest]] - code - modules\reaper\mcp_server.py
+- [[FetchResponse]] - code - modules\reaper\mcp_server.py
+- [[Full research pipeline. Search → fetch → score → store.          If URLs provide]] - rationale - modules\reaper\reaper.py
+- [[Full result of a sparring session.]] - rationale - modules\shadow\adversarial_sparring.py
+- [[Generate formatted report from standing research results.]] - rationale - modules\reaper\reaper.py
+- [[Generate request headers that look like a normal browser.]] - rationale - modules\reaper\reaper.py
+- [[Get current month's Brave API query count.]] - rationale - modules\reaper\reaper.py
+- [[Get the initialized Reaper instance.]] - rationale - modules\reaper\mcp_server.py
+- [[Given ... ' preamble clauses are removed.]] - rationale - tests\test_reaper_reformulation.py
+- [[HTTP errors (429, 500) return empty list gracefully.]] - rationale - tests\test_reddit_json.py
+- [[High confidence → should NOT spar.]] - rationale - tests\test_adversarial_sparring.py
+- [[If generate_fn fails, return the best available solution.]] - rationale - tests\test_adversarial_sparring.py
+- [[Increment monthly Brave API usage counter.]] - rationale - modules\reaper\reaper.py
+- [[Infer domain tags from task type and description.]] - rationale - modules\shadow\self_teaching.py
+- [[Initialize Reaper with a Grimoire instance for storage.          Args]] - rationale - modules\reaper\reaper.py
+- [[Labeled issues (Issue, Bug, Error) should be extracted.]] - rationale - tests\test_adversarial_sparring.py
+- [[Load MCP config from shadow_config.yaml.]] - rationale - modules\grimoire\mcp_server.py
+- [[Long benchmark-style queries are shortened before the first search call.]] - rationale - tests\test_reaper_reformulation.py
+- [[Long quoted passages inside the query are stripped.]] - rationale - tests\test_reaper_reformulation.py
+- [[Low confidence + code task → should spar.]] - rationale - tests\test_adversarial_sparring.py
+- [[MCPToolResult]] - code - modules\grimoire\mcp_server.py
+- [[Make a rate-limited GET to a Reddit .json endpoint.          Returns parsed JSON]] - rationale - modules\reaper\reaper.py
+- [[Math task with low confidence → should spar.]] - rationale - tests\test_adversarial_sparring.py
+- [[Mixed numberedbulletlabeled formats should all be extracted.]] - rationale - tests\test_adversarial_sparring.py
+- [[Monitor returns parsed posts from subreddit feed.]] - rationale - tests\test_reddit_json.py
+- [[No initial_solution → solver generates from scratch.]] - rationale - tests\test_adversarial_sparring.py
+- [[No issues found' should return empty list.]] - rationale - tests\test_adversarial_sparring.py
+- [[None generate_fn should handle gracefully.]] - rationale - tests\test_adversarial_sparring.py
+- [[Numbered lists should be parsed into individual issues.]] - rationale - tests\test_adversarial_sparring.py
+- [[One round of solver-critic exchange.]] - rationale - modules\shadow\adversarial_sparring.py
+- [[Only issues from rounds where solver_addressed=True should be stored.]] - rationale - tests\test_adversarial_sparring.py
+- [[Original query is always in reformulation metadata.]] - rationale - tests\test_reaper_reformulation.py
+- [[PRAW-based Reddit search — fallback when .json returns nothing.]] - rationale - modules\reaper\reaper.py
+- [[Parse an iptables-save style rule line after -A CHAIN.]] - rationale - modules\sentinel\security_analyzer.py
+- [[Parse iptables -L or iptables-save output.]] - rationale - modules\sentinel\security_analyzer.py
+- [[Parse nftables configuration.]] - rationale - modules\sentinel\security_analyzer.py
+- [[Parse pf.conf configuration.]] - rationale - modules\sentinel\security_analyzer.py
+- [[Parse ufw status verbose output.]] - rationale - modules\sentinel\security_analyzer.py
+- [[Providing initial_solution should pass it to solver.]] - rationale - tests\test_adversarial_sparring.py
+- [[Queries under the length threshold pass through unchanged.]] - rationale - tests\test_reaper_reformulation.py
+- [[Query exactly at the threshold passes through.]] - rationale - tests\test_reaper_reformulation.py
+- [[Quick heuristic confidence estimate (no LLM call).]] - rationale - modules\shadow\adversarial_sparring.py
+- [[Random delay between requests to mimic human browsing.]] - rationale - modules\reaper\reaper.py
+- [[Read recent Chrome browsing history (read-only).]] - rationale - modules\reaper\reaper.py
+- [[Reaper]] - code - modules\reaper\reaper.py
+- [[Reaper Configuration — Standing Topics, Safety Rules, Stealth Settings =========]] - rationale - modules\reaper\config.py
+- [[Reaper MCP Server — Exposes Reaper's research capabilities via HTTP. ===========]] - rationale - modules\reaper\mcp_server.py
+- [[Reaper — Shadow's Research & Data Collection Module (Full Build) ===============]] - rationale - modules\reaper\reaper.py
+- [[RecallRequest]] - code - modules\grimoire\mcp_server.py
+- [[Reformulation attempts are capped at 2.]] - rationale - tests\test_reaper_reformulation.py
+- [[RememberRequest]] - code - modules\grimoire\mcp_server.py
+- [[Remove the most specific (last) term to broaden the query.]] - rationale - modules\reaper\reaper.py
+- [[Request body for reaper_fetch.]] - rationale - modules\reaper\mcp_server.py
+- [[Request body for reaper_search.]] - rationale - modules\reaper\mcp_server.py
+- [[Request body for reaper_summarize.]] - rationale - modules\reaper\mcp_server.py
+- [[ResearchTopic]] - code - modules\reaper\config.py
+- [[Response body for reaper_fetch.]] - rationale - modules\reaper\mcp_server.py
+- [[Response body for reaper_search.]] - rationale - modules\reaper\mcp_server.py
+- [[Response body for reaper_summarize.]] - rationale - modules\reaper\mcp_server.py
+- [[Results with keyword matches pass through without reformulation.]] - rationale - tests\test_reaper_reformulation.py
+- [[Results with no keyword overlap trigger reformulation.]] - rationale - tests\test_reaper_reformulation.py
+- [[Return aggregate statistics for the Growth Engine.          Returns]] - rationale - modules\shadow\adversarial_sparring.py
+- [[Rule explanation includes equivalents in other syntaxes.]] - rationale - tests\test_security_analyzer.py
+- [[Run a multi-round debate between solver and critic.          Args             t]] - rationale - modules\shadow\adversarial_sparring.py
+- [[Run dual-instance debate to battle-test solutions.]] - rationale - modules\shadow\adversarial_sparring.py
+- [[Run research for one specific standing topic by name.]] - rationale - modules\reaper\reaper.py
+- [[Run research on ALL standing topics from config.py.         This is the one comm]] - rationale - modules\reaper\reaper.py
+- [[Search a subreddit for posts matching keywords.         Filters by minimum score]] - rationale - modules\reaper\reaper.py
+- [[Search a subreddit using the public .json endpoint.          Args             s]] - rationale - modules\reaper\reaper.py
+- [[Search for a topic and synthesize results into a summary.      Searches for the]] - rationale - modules\reaper\mcp_server.py
+- [[Search should not return inactive (deleted) memories.]] - rationale - tests\test_grimoire_reader.py
+- [[Search should pass category filter to ChromaDB.]] - rationale - tests\test_grimoire_reader.py
+- [[Search should return empty list when no matches.]] - rationale - tests\test_grimoire_reader.py
+- [[Search should return empty list when not connected.]] - rationale - tests\test_grimoire_reader.py
+- [[Search should return enriched results from ChromaDB + SQLite.]] - rationale - tests\test_grimoire_reader.py
+- [[Search the web using best available backend.         Cascade SearXNG → Reddit .]] - rationale - modules\reaper\reaper.py
+- [[Search the web via Reaper's search backends.      Uses the configured cascade (D]] - rationale - modules\reaper\mcp_server.py
+- [[Search using Bing by scraping the results page.         Second fallback — no API]] - rationale - modules\reaper\reaper.py
+- [[Search using Brave Search API. Free tier 2,000 queriesmonth.]] - rationale - modules\reaper\reaper.py
+- [[Search using DuckDuckGo (fallback). No API key needed.]] - rationale - modules\reaper\reaper.py
+- [[Search using local SearXNG instance (aggregates Google+Bing+DDG+more).]] - rationale - modules\reaper\reaper.py
+- [[SearchRequest]] - code - modules\reaper\mcp_server.py
+- [[SearchResponse]] - code - modules\reaper\mcp_server.py
+- [[SearchResult]] - code - modules\reaper\mcp_server.py
+- [[Security task with low confidence → should spar.]] - rationale - tests\test_adversarial_sparring.py
+- [[Sentinel Security Analyzer — firewall configuration analysis and learning pipeli]] - rationale - modules\sentinel\security_analyzer.py
+- [[Sentinel Threat Intelligence — attack pattern analysis and defense profiling.  W]] - rationale - modules\sentinel\threat_intelligence.py
+- [[Shadow's research and data collection module.      Usage         from modules.g]] - rationale - modules\reaper\reaper.py
+- [[Should print warning when approaching quota.]] - rationale - tests\test_reaper_brave.py
+- [[Should return empty and skip API call when over monthly quota.]] - rationale - tests\test_reaper_brave.py
+- [[Simple greeting → should NOT spar.]] - rationale - tests\test_adversarial_sparring.py
+- [[Solver and critic should be called in alternating order.]] - rationale - tests\test_adversarial_sparring.py
+- [[Solver's prompt in round 2+ should contain critic's issues.]] - rationale - tests\test_adversarial_sparring.py
+- [[SparringResult]] - code - modules\shadow\adversarial_sparring.py
+- [[Standard MCP tool result wrapper.]] - rationale - modules\grimoire\mcp_server.py
+- [[Start the Grimoire MCP server.]] - rationale - modules\grimoire\mcp_server.py
+- [[Stats should reflect actual sparring history.]] - rationale - tests\test_adversarial_sparring.py
+- [[Stats with no history should return zeros.]] - rationale - tests\test_adversarial_sparring.py
+- [[Store a Reddit post as research context in Grimoire.]] - rationale - modules\reaper\reaper.py
+- [[Store effective critique patterns in Grimoire.          Only stores issues that]] - rationale - modules\shadow\adversarial_sparring.py
+- [[Stored patterns should have correct metadata fields.]] - rationale - tests\test_adversarial_sparring.py
+- [[Strip filler words, reduce to core nounverb phrases.]] - rationale - modules\reaper\reaper.py
+- [[Successful search returns parsed post data.]] - rationale - tests\test_reddit_json.py
+- [[Summarize content using phi4-mini.]] - rationale - modules\reaper\reaper.py
+- [[SummarizeRequest]] - code - modules\reaper\mcp_server.py
+- [[SummarizeResponse]] - code - modules\reaper\mcp_server.py
+- [[Test _search_brave returns correct format.]] - rationale - tests\test_reaper_brave.py
+- [[Test backend selection from config.]] - rationale - tests\test_reaper_brave.py
+- [[Test error handling on network failures.]] - rationale - tests\test_reaper_brave.py
+- [[Test fallback to DDG when over Brave quota.]] - rationale - tests\test_reaper_brave.py
+- [[Test filler word stripping.]] - rationale - tests\test_reaper_reformulation.py
+- [[Test monthly usage counter increments and resets.]] - rationale - tests\test_reaper_brave.py
+- [[Test most-specific-term removal.]] - rationale - tests\test_reaper_reformulation.py
+- [[Test pre-search keyword extraction for long queries.]] - rationale - tests\test_reaper_reformulation.py
+- [[Test rate limit (429) handling.]] - rationale - tests\test_reaper_brave.py
+- [[Test relevance checking.]] - rationale - tests\test_reaper_reformulation.py
+- [[Test that Reaper.search triggers reformulation correctly.]] - rationale - tests\test_reaper_reformulation.py
+- [[TestAnalyzeLogPattern]] - code - tests\test_threat_intelligence.py
+- [[TestBackendSelection]] - code - tests\test_reaper_brave.py
+- [[TestBraveErrorHandling]] - code - tests\test_reaper_brave.py
+- [[TestBraveMonthlyCounter]] - code - tests\test_reaper_brave.py
+- [[TestBraveQuotaFallback]] - code - tests\test_reaper_brave.py
+- [[TestBraveRateLimiting]] - code - tests\test_reaper_brave.py
+- [[TestBraveSearchResults]] - code - tests\test_reaper_brave.py
+- [[TestBroadenQuery]] - code - tests\test_reaper_reformulation.py
+- [[TestCriticParsing]] - code - tests\test_adversarial_sparring.py
+- [[TestDebateFlow]] - code - tests\test_adversarial_sparring.py
+- [[TestEdgeCases]] - code - tests\test_adversarial_sparring.py
+- [[TestExplainRule]] - code - tests\test_security_analyzer.py
+- [[TestExtractSearchQuery]] - code - tests\test_reaper_reformulation.py
+- [[TestGrimoireStorage]] - code - tests\test_adversarial_sparring.py
+- [[TestMonitorSubredditJson]] - code - tests\test_reddit_json.py
+- [[TestQualityMetrics]] - code - tests\test_adversarial_sparring.py
+- [[TestQueryExtraction_1]] - code - tests\test_orchestrator.py
+- [[TestRateLimiting_1]] - code - tests\test_reddit_json.py
+- [[TestResultsRelevant]] - code - tests\test_reaper_reformulation.py
+- [[TestSearch]] - code - tests\test_grimoire_reader.py
+- [[TestSearchChainRedditRouting]] - code - tests\test_reddit_json.py
+- [[TestSearchRedditJson]] - code - tests\test_reddit_json.py
+- [[TestSearchReformulation]] - code - tests\test_reaper_reformulation.py
+- [[TestShouldSpar]] - code - tests\test_adversarial_sparring.py
+- [[TestSimplifyQuery]] - code - tests\test_reaper_reformulation.py
+- [[TestUserAgent]] - code - tests\test_reddit_json.py
+- [[Tests for Adversarial Model Sparring — Dual-Instance Debate ====================]] - rationale - tests\test_adversarial_sparring.py
+- [[Tests for Reaper Reddit .json backend — research context endpoints.]] - rationale - tests\test_reddit_json.py
+- [[Tests for Reaper query reformulation logic.]] - rationale - tests\test_reaper_reformulation.py
+- [[Tests for Reaper's Brave Search API integration. All web calls are mocked — no r]] - rationale - tests\test_reaper_brave.py
+- [[Tests for analyze_log_pattern.]] - rationale - tests\test_threat_intelligence.py
+- [[Tests for confidence scoring and improvement detection.]] - rationale - tests\test_adversarial_sparring.py
+- [[Tests for error handling and boundary conditions.]] - rationale - tests\test_adversarial_sparring.py
+- [[Tests for parse_critic_issues().]] - rationale - tests\test_adversarial_sparring.py
+- [[Tests for rule explanation.]] - rationale - tests\test_security_analyzer.py
+- [[Tests for semantic search.]] - rationale - tests\test_grimoire_reader.py
+- [[Tests for should_spar() decision method.]] - rationale - tests\test_adversarial_sparring.py
+- [[Tests for store_critique_patterns().]] - rationale - tests\test_adversarial_sparring.py
+- [[Tests for the core spar() method and debate mechanics.]] - rationale - tests\test_adversarial_sparring.py
+- [[Use phi4-mini to generate search variants for better coverage.         RTX 5090]] - rationale - modules\reaper\reaper.py
+- [[Use phi4-mini to score content relevance 1-10.         7+ = store full  4-6 = s]] - rationale - modules\reaper\reaper.py
+- [[Verify 2-second delay is applied before each request.]] - rationale - tests\test_reddit_json.py
+- [[Verify Reddit query detection works correctly.]] - rationale - tests\test_reddit_json.py
+- [[Verify subreddit and search term extraction.]] - rationale - tests\test_reddit_json.py
+- [[Verify the correct User-Agent header is sent.]] - rationale - tests\test_reddit_json.py
+- [[When Brave is over quota, _search_once should cascade to DDG.]] - rationale - tests\test_reaper_brave.py
+- [[Words = 2 chars are skipped during relevance check.]] - rationale - tests\test_reaper_reformulation.py
+- [[__init__.py_9]] - code - modules\reaper\__init__.py
+- [[_broaden_query()]] - code - modules\reaper\reaper.py
+- [[_detect_log_type()]] - code - modules\sentinel\threat_intelligence.py
+- [[_detect_type()]] - code - modules\sentinel\security_analyzer.py
+- [[_extract_ips()]] - code - modules\sentinel\threat_intelligence.py
+- [[_extract_reddit_target()]] - code - modules\reaper\reaper.py
+- [[_extract_search_query()_1]] - code - modules\shadow\orchestrator.py
+- [[_extract_search_query()]] - code - modules\reaper\reaper.py
+- [[_extract_timestamps()]] - code - modules\sentinel\threat_intelligence.py
+- [[_is_reddit_query()]] - code - modules\reaper\reaper.py
+- [[_load_config()]] - code - modules\grimoire\mcp_server.py
+- [[_make_generate_fn()]] - code - tests\test_adversarial_sparring.py
+- [[_make_listing()]] - code - tests\test_reddit_json.py
+- [[_nft_to_iptables()]] - code - modules\sentinel\security_analyzer.py
+- [[_parse_iptables_list_line()]] - code - modules\sentinel\security_analyzer.py
+- [[_parse_nftables_rule()]] - code - modules\sentinel\security_analyzer.py
+- [[_parse_reddit_listing()]] - code - modules\reaper\reaper.py
+- [[_results_relevant()]] - code - modules\reaper\reaper.py
+- [[_simplify_query()]] - code - modules\reaper\reaper.py
+- [[_tag_results()]] - code - modules\reaper\reaper.py
+- [[_to_ufw_equivalent()]] - code - modules\sentinel\security_analyzer.py
+- [[adversarial_sparring.py]] - code - modules\shadow\adversarial_sparring.py
+- [[confidence_after = confidence_before when issues were found and fixed.]] - rationale - tests\test_adversarial_sparring.py
+- [[config.py]] - code - modules\reaper\config.py
+- [[create_app()]] - code - modules\reaper\mcp_server.py
+- [[duration_seconds should be positive.]] - rationale - tests\test_adversarial_sparring.py
+- [[evaluate_source()]] - code - modules\reaper\reaper.py
+- [[final_solution should be the solver's most recent output.]] - rationale - tests\test_adversarial_sparring.py
+- [[get_reaper()]] - code - modules\reaper\mcp_server.py
+- [[improved=False when sparring didn't help.]] - rationale - tests\test_adversarial_sparring.py
+- [[improved=True when sparring raised confidence.]] - rationale - tests\test_adversarial_sparring.py
+- [[looks good'  'correct' signals should return empty list.]] - rationale - tests\test_adversarial_sparring.py
+- [[main()_2]] - code - modules\grimoire\mcp_server.py
+- [[max_rounds=1 should work correctly.]] - rationale - tests\test_adversarial_sparring.py
+- [[mcp_server.py]] - code - modules\grimoire\mcp_server.py
+- [[mcp_server.py_1]] - code - modules\reaper\mcp_server.py
+- [[mock_grimoire()_13]] - code - tests\test_reaper_brave.py
+- [[reaper()]] - code - tests\test_reaper_brave.py
+- [[reaper()_1]] - code - tests\test_reddit_json.py
+- [[reaper.py]] - code - modules\reaper\reaper.py
+- [[reaper_fetch()]] - code - modules\reaper\mcp_server.py
+- [[reaper_no_brave()]] - code - tests\test_reaper_brave.py
+- [[reaper_search()]] - code - modules\reaper\mcp_server.py
+- [[reaper_summarize()]] - code - modules\reaper\mcp_server.py
+- [[security_analyzer.py]] - code - modules\sentinel\security_analyzer.py
+- [[test_500_error_returns_empty()]] - code - tests\test_reaper_brave.py
+- [[test_adversarial_sparring.py]] - code - tests\test_adversarial_sparring.py
+- [[test_brave_backend_tries_brave_first()]] - code - tests\test_reaper_brave.py
+- [[test_cascade_falls_to_ddg_when_brave_exhausted()]] - code - tests\test_reaper_brave.py
+- [[test_connection_error_returns_empty()]] - code - tests\test_reaper_brave.py
+- [[test_correct_user_agent()]] - code - tests\test_reddit_json.py
+- [[test_ddg_backend_tries_ddg_first()]] - code - tests\test_reaper_brave.py
+- [[test_default_backend_is_ddg()]] - code - tests\test_reaper_brave.py
+- [[test_delay_between_requests()]] - code - tests\test_reddit_json.py
+- [[test_empty_results()]] - code - tests\test_reddit_json.py
+- [[test_gives_up_after_double_429()]] - code - tests\test_reaper_brave.py
+- [[test_http_error_returns_empty()]] - code - tests\test_reddit_json.py
+- [[test_malformed_json_returns_empty()]] - code - tests\test_reaper_brave.py
+- [[test_reaper_brave.py]] - code - tests\test_reaper_brave.py
+- [[test_reaper_reformulation.py]] - code - tests\test_reaper_reformulation.py
+- [[test_reddit_json.py]] - code - tests\test_reddit_json.py
+- [[test_reddit_query_routes_to_json()]] - code - tests\test_reddit_json.py
+- [[test_respects_max_results()]] - code - tests\test_reaper_brave.py
+- [[test_result_content_matches_api()]] - code - tests\test_reaper_brave.py
+- [[test_retries_on_429()]] - code - tests\test_reaper_brave.py
+- [[test_retry_after_capped_at_10s()]] - code - tests\test_reaper_brave.py
+- [[test_returns_correct_format()]] - code - tests\test_reaper_brave.py
+- [[test_returns_posts()]] - code - tests\test_reddit_json.py
+- [[test_sends_api_key_header()]] - code - tests\test_reaper_brave.py
+- [[test_skips_when_over_quota()]] - code - tests\test_reaper_brave.py
+- [[test_source_eval_included()]] - code - tests\test_reaper_brave.py
+- [[test_timeout_returns_empty()]] - code - tests\test_reaper_brave.py
+- [[test_usage_increments_on_search()]] - code - tests\test_reaper_brave.py
+- [[test_warns_at_threshold()]] - code - tests\test_reaper_brave.py
+- [[threat_intelligence.py]] - code - modules\sentinel\threat_intelligence.py
+
+## Live Query (requires Dataview plugin)
+
+```dataview
+TABLE source_file, type FROM #community/Adversarial_Sparring
+SORT file.name ASC
+```
+
+## Connections to other communities
+- 61 edges to [[_COMMUNITY_Base Module & Apex API]]
+- 60 edges to [[_COMMUNITY_Cross-Reference & Security]]
+- 15 edges to [[_COMMUNITY_Code Analyzer (Omen)]]
+- 14 edges to [[_COMMUNITY_Async Task Queue]]
+- 11 edges to [[_COMMUNITY_Module Registry & Tools]]
+- 2 edges to [[_COMMUNITY_Module Lifecycle]]
+- 2 edges to [[_COMMUNITY_Apex API Providers]]
+- 2 edges to [[_COMMUNITY_Grimoire MCP Server]]
+- 2 edges to [[_COMMUNITY_Context Compression]]
+- 2 edges to [[_COMMUNITY_Execution Planner]]
+- 2 edges to [[_COMMUNITY_Proactive Engine]]
+- 2 edges to [[_COMMUNITY_Security Analyzer Rationale]]
+- 1 edge to [[_COMMUNITY_CLI Input & Fuzzy Match]]
+- 1 edge to [[_COMMUNITY_Injection Detector]]
+- 1 edge to [[_COMMUNITY_Model Evaluator & Nova]]
+- 1 edge to [[_COMMUNITY_Morpheus Creative Pipeline]]
+- 1 edge to [[_COMMUNITY_CLAUDE.md Generator]]
+- 1 edge to [[_COMMUNITY_Prompt Evolution]]
+- 1 edge to [[_COMMUNITY_ESV Bible Processor]]
+- 1 edge to [[_COMMUNITY_Data Pipeline & Embeddings]]
+- 1 edge to [[_COMMUNITY_Workflow Store]]
+- 1 edge to [[_COMMUNITY_Grimoire Reader]]
+
+## Top bridge nodes
+- [[.search()_2]] - degree 89, connects to 14 communities
+- [[Reaper]] - degree 138, connects to 3 communities
+- [[.fetch_page()]] - degree 13, connects to 3 communities
+- [[create_app()]] - degree 9, connects to 3 communities
+- [[TestExplainRule]] - degree 9, connects to 2 communities

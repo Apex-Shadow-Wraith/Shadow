@@ -1,0 +1,25 @@
+---
+source_file: "tests\test_task_chain.py"
+type: "rationale"
+community: "Ethics Engine (Cerberus)"
+location: "L669"
+tags:
+  - graphify/rationale
+  - graphify/INFERRED
+  - community/Ethics_Engine_(Cerberus)
+---
+
+# Incomplete chains are recovered on engine startup.
+
+## Connections
+- [[.test_chain_recovery_on_startup()]] - `rationale_for` [EXTRACTED]
+- [[ChainStatus]] - `uses` [INFERRED]
+- [[ChainStep]] - `uses` [INFERRED]
+- [[InputSource]] - `uses` [INFERRED]
+- [[ModuleStatus]] - `uses` [INFERRED]
+- [[StepStatus]] - `uses` [INFERRED]
+- [[TaskChain]] - `uses` [INFERRED]
+- [[TaskChainEngine]] - `uses` [INFERRED]
+- [[ToolResult]] - `uses` [INFERRED]
+
+#graphify/rationale #graphify/INFERRED #community/Ethics_Engine_(Cerberus)

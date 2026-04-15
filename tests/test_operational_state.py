@@ -374,3 +374,140 @@ class TestEdgeCases:
         assert _clamp(-0.5) == 0.0
         assert _clamp(1.5) == 1.0
         assert _clamp(0.5) == 0.5
+
+
+# ─── Fatigue Decay (Continuous) ────────────────────────────────────────
+
+class TestFatigueDecay:
+    """Fatigue should decay continuously over time, not just at a 30-min cliff."""
+
+    def test_fatigue_decays_after_short_idle(self, state_db, monkeypatch):
+        """Fatigue decays even after a short idle period (< cooldown threshold)."""
+        ops = OperationalState(db_path=state_db)
+
+        # Build up fatigue
+        for i in range(10):
+            ops.update_after_task(_task(duration=120.0, task_type=f"t{i}"))
+        high_fatigue = ops.get_current_state().fatigue
+        assert high_fatigue > 0.3, "Precondition: fatigue should be significant"
+
+        # Simulate 5 minutes passing (well under 30-min threshold)
+        import modules.shadow.operational_state as os_mod
+        original_time = time.time
+        monkeypatch.setattr(os_mod.time, "time", lambda: original_time() + 300)
+
+        state = ops.get_current_state()
+        assert state.fatigue < high_fatigue, (
+            f"Fatigue should decay after 5 min idle: was {high_fatigue}, "
+            f"now {state.fatigue}"
+        )
+
+    def test_fatigue_decays_proportionally_to_time(self, state_db, monkeypatch):
+        """Longer idle = more decay. 10 min idle decays more than 2 min idle."""
+        import modules.shadow.operational_state as os_mod
+        base_time = time.time()
+
+        ops = OperationalState(db_path=state_db)
+
+        # Build up fatigue with a known base time
+        monkeypatch.setattr(os_mod.time, "time", lambda: base_time)
+        for i in range(15):
+            ops.update_after_task(_task(duration=120.0, task_type=f"t{i}"))
+        high_fatigue = ops.get_current_state().fatigue
+
+        # Read after 2 minutes
+        monkeypatch.setattr(os_mod.time, "time", lambda: base_time + 120)
+        fatigue_2min = ops.get_current_state().fatigue
+
+        # Read after 10 minutes
+        monkeypatch.setattr(os_mod.time, "time", lambda: base_time + 600)
+        fatigue_10min = ops.get_current_state().fatigue
+
+        assert fatigue_2min < high_fatigue, "2 min should show some decay"
+        assert fatigue_10min < fatigue_2min, "10 min should decay more than 2 min"
+
+    def test_fatigue_at_threshold_matches_config(self, state_db, monkeypatch):
+        """At exactly cooldown_threshold_minutes, decay matches fatigue_decay_cooldown."""
+        import modules.shadow.operational_state as os_mod
+        base_time = time.time()
+
+        ops = OperationalState(db_path=state_db)
+        decay_factor = ops._config["fatigue_decay_cooldown"]  # 0.5
+        threshold_min = ops._config["cooldown_threshold_minutes"]  # 30
+
+        # Set a known fatigue level
+        monkeypatch.setattr(os_mod.time, "time", lambda: base_time)
+        for i in range(20):
+            ops.update_after_task(_task(duration=120.0, task_type=f"t{i}"))
+        high_fatigue = ops.get_current_state().fatigue
+
+        # Read at exactly threshold minutes later
+        monkeypatch.setattr(
+            os_mod.time, "time", lambda: base_time + threshold_min * 60
+        )
+        decayed = ops.get_current_state().fatigue
+        expected = high_fatigue * decay_factor
+
+        assert decayed == pytest.approx(expected, abs=0.02), (
+            f"At {threshold_min} min, fatigue should be ~{expected:.3f}, "
+            f"got {decayed:.3f}"
+        )
+
+    def test_benchmark_scenario_fatigue_stays_manageable(self, state_db, monkeypatch):
+        """Simulate 50-task benchmark (~18s per task). Fatigue should not hit 1.0."""
+        import modules.shadow.operational_state as os_mod
+        base_time = time.time()
+        current_time = base_time
+
+        ops = OperationalState(db_path=state_db)
+
+        max_fatigue = 0.0
+        for i in range(50):
+            # Each task takes ~15s, with ~3s between tasks
+            current_time += 18.0
+            t = current_time  # capture for lambda
+            monkeypatch.setattr(os_mod.time, "time", lambda _t=t: _t)
+
+            result = ops.update_after_task(
+                _task(success=True, confidence=0.85, task_type="benchmark",
+                      duration=15.0)
+            )
+            max_fatigue = max(max_fatigue, result.fatigue)
+
+        final = ops.get_current_state()
+        # With continuous decay, fatigue should plateau well below 1.0
+        assert final.fatigue < 1.0, (
+            f"Fatigue hit {final.fatigue} during 50-task benchmark — "
+            f"continuous decay should prevent saturation"
+        )
+        assert max_fatigue < 1.0, (
+            f"Max fatigue during benchmark was {max_fatigue} — should stay < 1.0"
+        )
+
+    def test_fatigue_decreases_during_cooldown_period(self, state_db, monkeypatch):
+        """After tasks stop, fatigue should continuously decrease over time."""
+        import modules.shadow.operational_state as os_mod
+        base_time = time.time()
+
+        ops = OperationalState(db_path=state_db)
+
+        # Build up fatigue
+        monkeypatch.setattr(os_mod.time, "time", lambda: base_time)
+        for i in range(20):
+            ops.update_after_task(_task(duration=120.0, task_type=f"t{i}"))
+
+        readings = []
+        # Sample fatigue at 0, 1, 5, 15, 30 minutes
+        for minutes in [0, 1, 5, 15, 30]:
+            monkeypatch.setattr(
+                os_mod.time, "time", lambda m=minutes: base_time + m * 60
+            )
+            readings.append((minutes, ops.get_current_state().fatigue))
+
+        # Each reading should be less than or equal to the previous
+        for i in range(1, len(readings)):
+            assert readings[i][1] <= readings[i - 1][1], (
+                f"Fatigue should decrease: at {readings[i][0]} min "
+                f"({readings[i][1]:.3f}) > at {readings[i-1][0]} min "
+                f"({readings[i-1][1]:.3f})"
+            )

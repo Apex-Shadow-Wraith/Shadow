@@ -1,0 +1,950 @@
+---
+type: community
+cohesion: 0.01
+members: 901
+---
+
+# Module Registry & Tools
+
+**Cohesion:** 0.01 - loosely connected
+**Members:** 901 nodes
+
+## Members
+- [[.__contains__()]] - code - modules\base.py
+- [[.__init__()_1]] - code - modules\base.py
+- [[.__init__()_13]] - code - modules\cipher\cipher.py
+- [[.__init__()_20]] - code - modules\grimoire\grimoire_module.py
+- [[.__init__()_47]] - code - modules\reaper\reaper_module.py
+- [[.__init__()_87]] - code - modules\shadow\shadow_module.py
+- [[.__init__()_24]] - code - modules\grimoire\staged_retrieval.py
+- [[.__init__()_88]] - code - modules\shadow\standing_tasks.py
+- [[.__init__()_101]] - code - tests\test_base.py
+- [[.__init__()_100]] - code - tests\test_base.py
+- [[.__init__()_103]] - code - tests\test_cerberus_auto_registration.py
+- [[.__init__()_115]] - code - tests\test_observability.py
+- [[.__init__()_122]] - code - tests\test_shadow_module.py
+- [[.__init__()_123]] - code - tests\test_standing_tasks.py
+- [[.__init__()_126]] - code - tests\test_wraith_proactive.py
+- [[.__init__()_95]] - code - modules\void\void.py
+- [[.__init__()_96]] - code - modules\wraith\wraith.py
+- [[.__init__()_97]] - code - modules\wraith\wraith.py
+- [[.__len__()]] - code - modules\base.py
+- [[._briefing_deliver()]] - code - modules\harbinger\harbinger.py
+- [[._create_tables()_9]] - code - modules\shadow\shadow_module.py
+- [[._decision_queue_add()]] - code - modules\harbinger\harbinger.py
+- [[._empty_section()]] - code - modules\harbinger\harbinger.py
+- [[._ensure_personalization_db()]] - code - modules\harbinger\harbinger.py
+- [[._error_section()]] - code - modules\harbinger\harbinger.py
+- [[._marshal()]] - code - modules\shadow\standing_tasks.py
+- [[._module_health()]] - code - modules\shadow\shadow_module.py
+- [[._personalization_update()]] - code - modules\harbinger\harbinger.py
+- [[._preemptive_approval_scan()]] - code - modules\harbinger\harbinger.py
+- [[._pull_apex_stats()]] - code - modules\harbinger\harbinger.py
+- [[._pull_cerberus()]] - code - modules\harbinger\harbinger.py
+- [[._pull_completed_today()]] - code - modules\harbinger\harbinger.py
+- [[._pull_decision_queue()]] - code - modules\harbinger\harbinger.py
+- [[._pull_grimoire()]] - code - modules\harbinger\harbinger.py
+- [[._pull_growth_evening()]] - code - modules\harbinger\harbinger.py
+- [[._pull_growth_summary()]] - code - modules\harbinger\harbinger.py
+- [[._pull_neglect_report()]] - code - modules\harbinger\harbinger.py
+- [[._pull_overnight_plan()]] - code - modules\harbinger\harbinger.py
+- [[._pull_pending_items()]] - code - modules\harbinger\harbinger.py
+- [[._pull_reaper()]] - code - modules\harbinger\harbinger.py
+- [[._pull_safety_report()]] - code - modules\harbinger\harbinger.py
+- [[._pull_shadow_activity()]] - code - modules\harbinger\harbinger.py
+- [[._pull_task_tracker()]] - code - modules\harbinger\harbinger.py
+- [[._pull_tomorrow_preview()]] - code - modules\harbinger\harbinger.py
+- [[._pull_void()]] - code - modules\harbinger\harbinger.py
+- [[._pull_wraith()]] - code - modules\harbinger\harbinger.py
+- [[._run_grimoire_stats()]] - code - modules\shadow\standing_tasks.py
+- [[._run_self_analysis()]] - code - modules\shadow\standing_tasks.py
+- [[._run_standing_research()]] - code - modules\shadow\standing_tasks.py
+- [[._sample_briefing()]] - code - tests\test_harbinger_tools.py
+- [[._setup_mock_for_search()]] - code - tests\test_staged_retrieval.py
+- [[._staged_grimoire_retrieval()]] - code - modules\shadow\context_orchestrator.py
+- [[._task_create()]] - code - modules\shadow\shadow_module.py
+- [[._task_list()]] - code - modules\shadow\shadow_module.py
+- [[._task_status()]] - code - modules\shadow\shadow_module.py
+- [[.assemble_evening_summary()]] - code - modules\harbinger\harbinger.py
+- [[.assemble_morning_briefing()]] - code - modules\harbinger\harbinger.py
+- [[.check_neglected_items()]] - code - modules\wraith\wraith.py
+- [[.execute()_14]] - code - modules\shadow\shadow_module.py
+- [[.execute()_20]] - code - tests\test_base.py
+- [[.execute()_19]] - code - tests\test_base.py
+- [[.execute()_22]] - code - tests\test_cerberus_auto_registration.py
+- [[.execute()_23]] - code - tests\test_decision_loop.py
+- [[.execute()_35]] - code - tests\test_shadow_module.py
+- [[.find_tools()]] - code - modules\base.py
+- [[.format_briefing_text()]] - code - modules\harbinger\harbinger.py
+- [[.format_evening_summary()]] - code - modules\harbinger\harbinger.py
+- [[.generate_summary()]] - code - modules\grimoire\staged_retrieval.py
+- [[.get_briefing_data()]] - code - modules\reaper\reaper.py
+- [[.get_full_documents()]] - code - modules\grimoire\staged_retrieval.py
+- [[.get_module_for_tool()]] - code - modules\base.py
+- [[.get_personalization_weights()]] - code - modules\harbinger\harbinger.py
+- [[.get_retrieval_stats()]] - code - modules\grimoire\staged_retrieval.py
+- [[.get_schedule_info()]] - code - modules\shadow\standing_tasks.py
+- [[.get_tools()_2]] - code - modules\cipher\cipher.py
+- [[.get_tools()_3]] - code - modules\grimoire\grimoire_module.py
+- [[.get_tools()_4]] - code - modules\harbinger\harbinger.py
+- [[.get_tools()_6]] - code - modules\nova\nova.py
+- [[.get_tools()_8]] - code - modules\reaper\reaper_module.py
+- [[.get_tools()_11]] - code - modules\shadow\shadow_module.py
+- [[.get_tools()_17]] - code - tests\test_base.py
+- [[.get_tools()_16]] - code - tests\test_base.py
+- [[.get_tools()_19]] - code - tests\test_cerberus_auto_registration.py
+- [[.get_tools()_20]] - code - tests\test_decision_loop.py
+- [[.get_tools()_12]] - code - modules\void\void.py
+- [[.get_tools()_13]] - code - modules\wraith\wraith.py
+- [[.initialize()_11]] - code - modules\shadow\shadow_module.py
+- [[.initialize()_21]] - code - tests\test_base.py
+- [[.initialize()_20]] - code - tests\test_base.py
+- [[.initialize()_28]] - code - tests\test_decision_loop.py
+- [[.initialize()_24]] - code - tests\test_decision_loop.py
+- [[.list_modules()]] - code - modules\base.py
+- [[.list_tasks()_1]] - code - tests\test_wraith_proactive.py
+- [[.list_tools()]] - code - modules\base.py
+- [[.register()]] - code - modules\base.py
+- [[.run_task()]] - code - modules\shadow\standing_tasks.py
+- [[.search()_1]] - code - modules\grimoire\staged_retrieval.py
+- [[.search_staged()]] - code - modules\grimoire\grimoire_module.py
+- [[.search_summaries()]] - code - modules\grimoire\staged_retrieval.py
+- [[.set_cerberus()]] - code - modules\base.py
+- [[.shutdown()_18]] - code - tests\test_base.py
+- [[.shutdown()_17]] - code - tests\test_base.py
+- [[.shutdown()_20]] - code - tests\test_cerberus_auto_registration.py
+- [[.shutdown()_21]] - code - tests\test_decision_loop.py
+- [[.store_routed()]] - code - modules\grimoire\grimoire_module.py
+- [[.store_with_summary()]] - code - modules\grimoire\staged_retrieval.py
+- [[.test_all_modules_available()]] - code - tests\test_morning_briefing.py
+- [[.test_all_modules_have_names()]] - code - tests\test_integration.py
+- [[.test_apex_exception_in_evening()]] - code - tests\test_evening_summary.py
+- [[.test_apex_stats_exception_handled()]] - code - tests\test_morning_briefing.py
+- [[.test_apex_stats_in_briefing()]] - code - tests\test_morning_briefing.py
+- [[.test_apex_stats_in_evening()]] - code - tests\test_evening_summary.py
+- [[.test_apex_stats_no_apex()]] - code - tests\test_morning_briefing.py
+- [[.test_appends_metadata_tags()]] - code - tests\test_staged_retrieval.py
+- [[.test_auto_select_controls_full_doc_count()]] - code - tests\test_staged_retrieval.py
+- [[.test_broken_task_tracker()]] - code - tests\test_evening_summary.py
+- [[.test_broken_void()]] - code - tests\test_evening_summary.py
+- [[.test_cerberus_data_in_briefing()]] - code - tests\test_morning_briefing.py
+- [[.test_completed_excludes_other_days()]] - code - tests\test_evening_summary.py
+- [[.test_completed_tasks_in_summary()]] - code - tests\test_evening_summary.py
+- [[.test_contains_all_section_titles()]] - code - tests\test_evening_summary.py
+- [[.test_contains_all_section_titles()_1]] - code - tests\test_morning_briefing.py
+- [[.test_counts_tools()]] - code - tests\test_base.py
+- [[.test_creates_without_errors()]] - code - tests\test_standing_tasks.py
+- [[.test_custom_research_topics()]] - code - tests\test_standing_tasks.py
+- [[.test_date_in_header()]] - code - tests\test_morning_briefing.py
+- [[.test_decision_queue_in_briefing()]] - code - tests\test_morning_briefing.py
+- [[.test_decision_queue_with_pending_gets_priority_1()]] - code - tests\test_morning_briefing.py
+- [[.test_default_research_topics()]] - code - tests\test_standing_tasks.py
+- [[.test_detect_daily_pattern()]] - code - tests\test_wraith_proactive.py
+- [[.test_detect_weekly_pattern()]] - code - tests\test_wraith_proactive.py
+- [[.test_detects_result_query_with_task_id()]] - code - tests\test_async_tasks.py
+- [[.test_detects_show_results_query()]] - code - tests\test_async_tasks.py
+- [[.test_detects_what_did_you_find()]] - code - tests\test_async_tasks.py
+- [[.test_empty_briefing_format()]] - code - tests\test_morning_briefing.py
+- [[.test_empty_document_returns_empty()]] - code - tests\test_staged_retrieval.py
+- [[.test_empty_ids_returns_empty()]] - code - tests\test_staged_retrieval.py
+- [[.test_empty_query_returns_empty()_1]] - code - tests\test_staged_retrieval.py
+- [[.test_empty_query_returns_empty()]] - code - tests\test_staged_retrieval.py
+- [[.test_empty_registry()]] - code - tests\test_base.py
+- [[.test_empty_suggestions_not_included()]] - code - tests\test_evening_summary.py
+- [[.test_empty_summary_format()]] - code - tests\test_evening_summary.py
+- [[.test_error_tool_result_no_crash()]] - code - tests\test_effectiveness.py
+- [[.test_evening_summary_has_6_sections()]] - code - tests\test_effectiveness.py
+- [[.test_evening_summary_no_modules()]] - code - tests\test_evening_summary.py
+- [[.test_evening_summary_structure()]] - code - tests\test_evening_summary.py
+- [[.test_executes_and_stores()_2]] - code - tests\test_standing_tasks.py
+- [[.test_executes_and_stores()]] - code - tests\test_standing_tasks.py
+- [[.test_executes_and_stores()_1]] - code - tests\test_standing_tasks.py
+- [[.test_existing_search_unchanged()]] - code - tests\test_embedding_router.py
+- [[.test_extracts_first_sentences()]] - code - tests\test_staged_retrieval.py
+- [[.test_failed_task_does_not_crash_scheduler()]] - code - tests\test_standing_tasks.py
+- [[.test_failed_tasks_elevate_priority()]] - code - tests\test_morning_briefing.py
+- [[.test_fallback_when_no_summaries()]] - code - tests\test_staged_retrieval.py
+- [[.test_find_all()]] - code - tests\test_base.py
+- [[.test_find_by_module()]] - code - tests\test_base.py
+- [[.test_find_by_name()]] - code - tests\test_base.py
+- [[.test_find_by_permission()]] - code - tests\test_base.py
+- [[.test_find_combined_filters()]] - code - tests\test_base.py
+- [[.test_find_includes_offline_modules()]] - code - tests\test_base.py
+- [[.test_find_no_match()]] - code - tests\test_base.py
+- [[.test_full_doc_has_staged_doc_id()]] - code - tests\test_staged_retrieval.py
+- [[.test_get_module_for_tool()]] - code - tests\test_base.py
+- [[.test_get_module_for_unknown_tool_raises()]] - code - tests\test_base.py
+- [[.test_get_nonexistent_raises()]] - code - tests\test_base.py
+- [[.test_get_tools_returns_list()]] - code - tests\test_base.py
+- [[.test_getattr_unwrap_matches()]] - code - tests\test_grimoire_storage_integration.py
+- [[.test_grimoire_data_in_briefing()]] - code - tests\test_morning_briefing.py
+- [[.test_grimoire_module_has_grimoire_attribute()]] - code - tests\test_grimoire_storage_integration.py
+- [[.test_growth_section_in_morning_briefing()]] - code - tests\test_effectiveness.py
+- [[.test_harbinger_pulls_growth_data()]] - code - tests\test_effectiveness.py
+- [[.test_includes_key_terms()]] - code - tests\test_staged_retrieval.py
+- [[.test_info_dict()]] - code - tests\test_base.py
+- [[.test_initial_stats_are_zero()_1]] - code - tests\test_staged_retrieval.py
+- [[.test_initial_tracking_state()]] - code - tests\test_standing_tasks.py
+- [[.test_injection_blocking()]] - code - tests\test_effectiveness.py
+- [[.test_instantiate_all_modules()]] - code - tests\test_integration.py
+- [[.test_is_raw_content_request_false_no_content()]] - code - tests\test_nova.py
+- [[.test_is_raw_content_request_false_with_sections()]] - code - tests\test_nova.py
+- [[.test_is_raw_content_request_false_with_title()]] - code - tests\test_nova.py
+- [[.test_is_raw_content_request_true()]] - code - tests\test_nova.py
+- [[.test_learning_report_in_evening_summary()]] - code - tests\test_effectiveness.py
+- [[.test_len()]] - code - tests\test_base.py
+- [[.test_missing_module_reports_failure()]] - code - tests\test_standing_tasks.py
+- [[.test_mixed_permissions()]] - code - tests\test_base.py
+- [[.test_mock_remember_returns_uuid()]] - code - tests\test_grimoire_storage_integration.py
+- [[.test_module_exception_handled_gracefully()]] - code - tests\test_morning_briefing.py
+- [[.test_module_info()]] - code - tests\test_shadow_module.py
+- [[.test_module_init_failure_sets_error()]] - code - tests\test_effectiveness.py
+- [[.test_morning_briefing_has_11_sections()]] - code - tests\test_effectiveness.py
+- [[.test_morning_evening_no_section_overlap()]] - code - tests\test_effectiveness.py
+- [[.test_neglect_24h_severity1()]] - code - tests\test_wraith_proactive.py
+- [[.test_neglect_72h_severity2()]] - code - tests\test_wraith_proactive.py
+- [[.test_neglect_7d_severity3()]] - code - tests\test_wraith_proactive.py
+- [[.test_neglect_completed_tasks_excluded()]] - code - tests\test_wraith_proactive.py
+- [[.test_neglect_report_empty()]] - code - tests\test_morning_briefing.py
+- [[.test_neglect_report_empty()_1]] - code - tests\test_wraith_proactive.py
+- [[.test_neglect_report_formatted()]] - code - tests\test_wraith_proactive.py
+- [[.test_neglect_report_in_briefing()]] - code - tests\test_morning_briefing.py
+- [[.test_neglect_report_no_wraith()]] - code - tests\test_morning_briefing.py
+- [[.test_no_duplicate_tool_names()]] - code - tests\test_integration.py
+- [[.test_no_grimoire_returns_empty()_3]] - code - tests\test_staged_retrieval.py
+- [[.test_no_grimoire_returns_empty()_2]] - code - tests\test_staged_retrieval.py
+- [[.test_no_grimoire_returns_id()]] - code - tests\test_staged_retrieval.py
+- [[.test_no_grimoire_returns_zeros()]] - code - tests\test_staged_retrieval.py
+- [[.test_no_marshaling_needed()]] - code - tests\test_standing_tasks.py
+- [[.test_no_match_for_general_question()]] - code - tests\test_async_tasks.py
+- [[.test_no_match_for_new_work_request()]] - code - tests\test_async_tasks.py
+- [[.test_no_metadata_no_crash()]] - code - tests\test_staged_retrieval.py
+- [[.test_no_modules()]] - code - tests\test_morning_briefing.py
+- [[.test_no_neglect_fresh_items()]] - code - tests\test_wraith_proactive.py
+- [[.test_no_pattern_insufficient_data()]] - code - tests\test_wraith_proactive.py
+- [[.test_no_task_tracker_shows_unavailable()]] - code - tests\test_evening_summary.py
+- [[.test_numbered_sections()]] - code - tests\test_morning_briefing.py
+- [[.test_online_count()]] - code - tests\test_base.py
+- [[.test_online_modules()]] - code - tests\test_base.py
+- [[.test_other_modules_unaffected_by_failure()]] - code - tests\test_effectiveness.py
+- [[.test_overnight_plan_always_present()]] - code - tests\test_evening_summary.py
+- [[.test_pattern_confidence_scales()]] - code - tests\test_wraith_proactive.py
+- [[.test_pending_items_include_decision_queue()]] - code - tests\test_evening_summary.py
+- [[.test_pending_resolved_decisions_excluded()]] - code - tests\test_evening_summary.py
+- [[.test_pending_with_no_tasks_but_decisions()]] - code - tests\test_evening_summary.py
+- [[.test_priority_labels_present()]] - code - tests\test_morning_briefing.py
+- [[.test_priority_sorting()]] - code - tests\test_evening_summary.py
+- [[.test_priority_sorting()_1]] - code - tests\test_morning_briefing.py
+- [[.test_proactive_suggestions_in_evening()]] - code - tests\test_evening_summary.py
+- [[.test_processes_existing_documents()]] - code - tests\test_staged_retrieval.py
+- [[.test_produces_readable_string()]] - code - tests\test_evening_summary.py
+- [[.test_produces_readable_string()_1]] - code - tests\test_morning_briefing.py
+- [[.test_reaper_research_in_briefing()]] - code - tests\test_morning_briefing.py
+- [[.test_record_event()]] - code - tests\test_wraith_proactive.py
+- [[.test_record_event_with_metadata()]] - code - tests\test_wraith_proactive.py
+- [[.test_register_and_get()]] - code - tests\test_base.py
+- [[.test_register_duplicate_raises()]] - code - tests\test_base.py
+- [[.test_register_duplicate_tool_raises()]] - code - tests\test_base.py
+- [[.test_registry_round_trip()]] - code - tests\test_integration.py
+- [[.test_registry_tool_stats()]] - code - tests\test_integration.py
+- [[.test_remember_through_unwrapped_grimoire()]] - code - tests\test_grimoire_storage_integration.py
+- [[.test_respects_max_tokens()]] - code - tests\test_staged_retrieval.py
+- [[.test_retrieves_by_id()]] - code - tests\test_staged_retrieval.py
+- [[.test_returns_formatted_output()]] - code - tests\test_standing_tasks.py
+- [[.test_returns_full_docs_for_top_n()]] - code - tests\test_staged_retrieval.py
+- [[.test_returns_none_when_no_task_id()]] - code - tests\test_async_tasks.py
+- [[.test_returns_relevance_scores()]] - code - tests\test_staged_retrieval.py
+- [[.test_returns_summaries_not_full_docs()]] - code - tests\test_staged_retrieval.py
+- [[.test_safety_report_anomalies_elevate_priority()]] - code - tests\test_morning_briefing.py
+- [[.test_safety_report_appears_in_briefing()]] - code - tests\test_morning_briefing.py
+- [[.test_safety_report_exception_handled()]] - code - tests\test_morning_briefing.py
+- [[.test_safety_report_graceful_degradation_no_db()]] - code - tests\test_morning_briefing.py
+- [[.test_search_staged_calls_staged_retrieval()]] - code - tests\test_staged_retrieval.py
+- [[.test_search_staged_fallback_when_unavailable()]] - code - tests\test_staged_retrieval.py
+- [[.test_search_staged_no_grimoire_no_staged()]] - code - tests\test_staged_retrieval.py
+- [[.test_section_count_in_footer()]] - code - tests\test_morning_briefing.py
+- [[.test_sections_have_required_fields()]] - code - tests\test_evening_summary.py
+- [[.test_sections_have_required_fields()_1]] - code - tests\test_morning_briefing.py
+- [[.test_self_teacher_late_wiring()]] - code - tests\test_grimoire_storage_integration.py
+- [[.test_self_teacher_unwraps_grimoire_module()]] - code - tests\test_grimoire_storage_integration.py
+- [[.test_self_teacher_with_grimoire_stores_memories()]] - code - tests\test_grimoire_storage_integration.py
+- [[.test_self_teacher_with_none_grimoire_stores_nothing()]] - code - tests\test_grimoire_storage_integration.py
+- [[.test_shadow_activity_no_modules()]] - code - tests\test_evening_summary.py
+- [[.test_shadow_activity_with_modules()]] - code - tests\test_evening_summary.py
+- [[.test_shows_last_run_after_execution()]] - code - tests\test_standing_tasks.py
+- [[.test_single_doc_round_trip()]] - code - tests\test_staged_retrieval.py
+- [[.test_single_sentence_document()]] - code - tests\test_staged_retrieval.py
+- [[.test_skips_docs_with_summaries()]] - code - tests\test_staged_retrieval.py
+- [[.test_skips_summary_docs()]] - code - tests\test_staged_retrieval.py
+- [[.test_some_modules_missing()]] - code - tests\test_morning_briefing.py
+- [[.test_stats_include_stage_counts()]] - code - tests\test_staged_retrieval.py
+- [[.test_stats_track_correctly()]] - code - tests\test_staged_retrieval.py
+- [[.test_stop_when_not_running()]] - code - tests\test_standing_tasks.py
+- [[.test_store_routed_routes_to_correct_collection()]] - code - tests\test_embedding_router.py
+- [[.test_stores_both_full_and_summary()]] - code - tests\test_staged_retrieval.py
+- [[.test_success_rate_starts_at_100()]] - code - tests\test_base.py
+- [[.test_success_rate_tracks_failures()]] - code - tests\test_base.py
+- [[.test_summaries_smaller_than_full_docs()]] - code - tests\test_staged_retrieval.py
+- [[.test_summary_has_is_summary_flag()]] - code - tests\test_staged_retrieval.py
+- [[.test_task_data_appears_in_briefing()]] - code - tests\test_morning_briefing.py
+- [[.test_task_tracker_cross_module()]] - code - tests\test_effectiveness.py
+- [[.test_task_tracker_exception_handled()]] - code - tests\test_morning_briefing.py
+- [[.test_task_tracker_graceful_degradation()]] - code - tests\test_morning_briefing.py
+- [[.test_teach_from_success_returns_empty_ids_without_grimoire()]] - code - tests\test_grimoire_storage_integration.py
+- [[.test_teach_from_success_stores_when_wired()]] - code - tests\test_grimoire_storage_integration.py
+- [[.test_time_window_respected()]] - code - tests\test_wraith_proactive.py
+- [[.test_tokens_saved_estimate_is_positive()]] - code - tests\test_staged_retrieval.py
+- [[.test_tomorrow_shows_high_priority()]] - code - tests\test_evening_summary.py
+- [[.test_tomorrow_shows_queued_count()]] - code - tests\test_evening_summary.py
+- [[.test_tool_count()_1]] - code - tests\test_integration.py
+- [[.test_tool_dicts_have_required_fields()]] - code - tests\test_integration.py
+- [[.test_tool_names_are_strings()]] - code - tests\test_integration.py
+- [[.test_topic_rotation()]] - code - tests\test_standing_tasks.py
+- [[.test_unknown_task_returns_error()]] - code - tests\test_standing_tasks.py
+- [[.test_unknown_tool_name()]] - code - tests\test_effectiveness.py
+- [[.test_unregister()]] - code - tests\test_base.py
+- [[.test_unregister_nonexistent_raises()]] - code - tests\test_base.py
+- [[.test_valid_task_names()]] - code - tests\test_standing_tasks.py
+- [[.test_void_system_health_in_briefing()]] - code - tests\test_morning_briefing.py
+- [[.test_works_without_event_loop()]] - code - tests\test_standing_tasks.py
+- [[.test_wraith_exception_in_evening()]] - code - tests\test_evening_summary.py
+- [[.test_wraith_reminders_in_briefing()]] - code - tests\test_morning_briefing.py
+- [[.test_wrapper_calls_remember_on_inner_grimoire()]] - code - tests\test_grimoire_storage_integration.py
+- [[.test_wrapper_returns_no_grimoire_when_missing()]] - code - tests\test_grimoire_storage_integration.py
+- [[.tool_stats()]] - code - modules\base.py
+- [[.unregister()]] - code - modules\base.py
+- [[10 summaries use fewer tokens than 10 full documents.]] - rationale - tests\test_staged_retrieval.py
+- [[A task failure updates status but doesn't propagate exceptions.]] - rationale - tests\test_standing_tasks.py
+- [[Add an old neglected task - suggestion to address it.]] - rationale - tests\test_wraith_proactive.py
+- [[Add items to decision queue, verify they appear in pending section.]] - rationale - tests\test_evening_summary.py
+- [[After a task runs, schedule info shows the execution time.]] - rationale - tests\test_standing_tasks.py
+- [[All 13 BaseModule subclasses instantiate without error.]] - rationale - tests\test_integration.py
+- [[All defined task names are accepted by run_task.]] - rationale - tests\test_standing_tasks.py
+- [[All items created within 24h - empty list.]] - rationale - tests\test_wraith_proactive.py
+- [[All tasks start with 'never run' status.]] - rationale - tests\test_standing_tasks.py
+- [[All tool names are non-empty strings.]] - rationale - tests\test_integration.py
+- [[An error ToolResult doesn't crash anything.]] - rationale - tests\test_effectiveness.py
+- [[Anomalies in safety report cause priority 1.]] - rationale - tests\test_morning_briefing.py
+- [[Apex exception doesn't crash briefing.]] - rationale - tests\test_morning_briefing.py
+- [[Apex exception doesn't crash evening summary.]] - rationale - tests\test_evening_summary.py
+- [[Apex stats degrade gracefully when apex unavailable.]] - rationale - tests\test_morning_briefing.py
+- [[Assert total tools = 152 across 13 modules.]] - rationale - tests\test_integration.py
+- [[BaseModule_1]] - code
+- [[Benchmark Cerberus safety_check tool.]] - rationale - tests\test_benchmarks.py
+- [[Benchmark Cipher calculate tool.]] - rationale - tests\test_benchmarks.py
+- [[Benchmark Morpheus experiment_list tool.]] - rationale - tests\test_benchmarks.py
+- [[Benchmark Nova format_document tool.]] - rationale - tests\test_benchmarks.py
+- [[Benchmark ShadowModule task_list tool.]] - rationale - tests\test_benchmarks.py
+- [[Benchmark Void health_check tool.]] - rationale - tests\test_benchmarks.py
+- [[Benchmark Wraith reminder_list tool.]] - rationale - tests\test_benchmarks.py
+- [[Briefing assembles correctly with all modules present.]] - rationale - tests\test_morning_briefing.py
+- [[Briefing degrades gracefully when some modules are absent.]] - rationale - tests\test_morning_briefing.py
+- [[Briefing handles safety report exceptions gracefully.]] - rationale - tests\test_morning_briefing.py
+- [[Briefing handles task tracker exceptions gracefully.]] - rationale - tests\test_morning_briefing.py
+- [[Briefing with empty modules dict still returns valid structure.]] - rationale - tests\test_morning_briefing.py
+- [[Briefing works when audit DB does not exist.]] - rationale - tests\test_morning_briefing.py
+- [[Briefing works when task tracker is not available.]] - rationale - tests\test_morning_briefing.py
+- [[Build a safe config pointing all DBsfiles to tmp_path.]] - rationale - tests\test_integration.py
+- [[Calling remember() on unwrapped _grimoire must work.]] - rationale - tests\test_grimoire_storage_integration.py
+- [[Cerberus safety stats appear in briefing.]] - rationale - tests\test_morning_briefing.py
+- [[Check if a module is online and responsive.]] - rationale - modules\shadow\shadow_module.py
+- [[Cipher]] - code - modules\cipher\cipher.py
+- [[Clean state - empty list.]] - rationale - tests\test_wraith_proactive.py
+- [[Collect Grimoire database stats and store a health summary.          Entirely]] - rationale - modules\shadow\standing_tasks.py
+- [[Collect all tool names across all modules and verify uniqueness.]] - rationale - tests\test_integration.py
+- [[Combined two-stage search — main entry point.          Stage 1 Search summaries]] - rationale - modules\grimoire\staged_retrieval.py
+- [[Completed tasks are never flagged as neglected.]] - rationale - tests\test_wraith_proactive.py
+- [[Configure logging. Every interaction is logged from day one.]] - rationale - main.py
+- [[Configure mock to return summaries then full docs.]] - rationale - tests\test_staged_retrieval.py
+- [[Create Harbinger with mock Telegram credentials.]] - rationale - tests\test_harbinger_telegram.py
+- [[Create Harbinger without Telegram credentials.]] - rationale - tests\test_harbinger_telegram.py
+- [[Create a GrimoireModule with a mocked internal Grimoire.]] - rationale - tests\test_grimoire_module.py
+- [[Create a Harbinger instance with temp paths.]] - rationale - tests\test_harbinger_tools.py
+- [[Create a Harbinger instance with tmp_path for queue persistence.]] - rationale - tests\test_evening_summary.py
+- [[Create a Harbinger instance with tmp_path for queue persistence._1]] - rationale - tests\test_morning_briefing.py
+- [[Create a ShadowModule with a temp database.]] - rationale - tests\test_shadow_module.py
+- [[Create a registry with a mock module for health tests.]] - rationale - tests\test_shadow_module.py
+- [[Create a tracked task in SQLite.]] - rationale - modules\shadow\shadow_module.py
+- [[Create and initialize a Harbinger instance._1]] - rationale - tests\test_harbinger_tools.py
+- [[Create the tasks table if it doesn't exist.]] - rationale - modules\shadow\shadow_module.py
+- [[Create, wire, and initialize everything in the right order.      Dependency chai]] - rationale - main.py
+- [[Custom research topics override defaults.]] - rationale - tests\test_standing_tasks.py
+- [[Decision queue item 8 days old - severity 3.]] - rationale - tests\test_wraith_proactive.py
+- [[Decision queue items show up even without task tracker.]] - rationale - tests\test_evening_summary.py
+- [[Decision queue section gets priority 1 when items are pending.]] - rationale - tests\test_morning_briefing.py
+- [[Decorator should be invisible when Langfuse is not configured.]] - rationale - tests\test_observability.py
+- [[Default research topics match the module constant.]] - rationale - tests\test_standing_tasks.py
+- [[Detect if user is asking about a previous task's results.      Returns the task]] - rationale - main.py
+- [[Dict of all mocked modules for evening summary.]] - rationale - tests\test_evening_summary.py
+- [[Dict of all mocked modules.]] - rationale - tests\test_morning_briefing.py
+- [[Direct console delivery.]] - rationale - tests\test_harbinger_tools.py
+- [[Due reminders from Wraith appear in briefing.]] - rationale - tests\test_morning_briefing.py
+- [[Each tool returned by get_tools() has name, description, parameters, permission_]] - rationale - tests\test_integration.py
+- [[Empty event_type should fail.]] - rationale - tests\test_wraith_proactive.py
+- [[Empty list - no neglected items message.]] - rationale - tests\test_wraith_proactive.py
+- [[Empty neglect check still works.]] - rationale - tests\test_morning_briefing.py
+- [[Empty suggestions list is not added to activity.]] - rationale - tests\test_evening_summary.py
+- [[Events outside the time window are excluded from detection.]] - rationale - tests\test_wraith_proactive.py
+- [[Every module can be instantiated with safe test configs.]] - rationale - tests\test_integration.py
+- [[Every module has a unique name.]] - rationale - tests\test_integration.py
+- [[Every section has title, content, and priority.]] - rationale - tests\test_morning_briefing.py
+- [[Every section has title, content, priority, and source.]] - rationale - tests\test_evening_summary.py
+- [[Every tool dict has the required fields.]] - rationale - tests\test_integration.py
+- [[Execute Omen's code_analyze_self and store results in Grimoire.]] - rationale - modules\shadow\standing_tasks.py
+- [[Execute neglect_check through Wraith.execute().]] - rationale - tests\test_wraith_proactive.py
+- [[Execute personalization_update through harbinger.execute().]] - rationale - tests\test_harbinger_tools.py
+- [[Execute temporal_patterns through Wraith.execute().]] - rationale - tests\test_wraith_proactive.py
+- [[Execute temporal_record through Wraith.execute().]] - rationale - tests\test_wraith_proactive.py
+- [[Execute through harbinger.execute().]] - rationale - tests\test_harbinger_tools.py
+- [[Execute through harbinger.execute()._1]] - rationale - tests\test_harbinger_tools.py
+- [[Failed tasks cause the section to get priority 1.]] - rationale - tests\test_morning_briefing.py
+- [[FailingModule]] - code - tests\test_base.py
+- [[FakeOrchestrator]] - code - tests\test_observability.py
+- [[Footer shows correct section count.]] - rationale - tests\test_morning_briefing.py
+- [[Format produces a non-empty readable string.]] - rationale - tests\test_evening_summary.py
+- [[Format produces a non-empty readable string._1]] - rationale - tests\test_morning_briefing.py
+- [[Formatted text includes all section titles.]] - rationale - tests\test_evening_summary.py
+- [[Formatted text includes all section titles._1]] - rationale - tests\test_morning_briefing.py
+- [[Formatted text includes the date.]] - rationale - tests\test_morning_briefing.py
+- [[Formatted text shows priority labels.]] - rationale - tests\test_morning_briefing.py
+- [[Formatting an empty briefing still works.]] - rationale - tests\test_morning_briefing.py
+- [[Formatting with no modules still works.]] - rationale - tests\test_evening_summary.py
+- [[Fresh TemporalTracker with an in-memory-like temp DB.]] - rationale - tests\test_wraith_proactive.py
+- [[Full teach_from_success path with wired grimoire.]] - rationale - tests\test_grimoire_storage_integration.py
+- [[Gather recent data for Harbinger's daily briefing.]] - rationale - modules\reaper\reaper.py
+- [[Generate a compact summary from a document for Stage 1 search.          Extracts]] - rationale - modules\grimoire\staged_retrieval.py
+- [[Get retrieval performance statistics for Growth Engine  context profiling.]] - rationale - modules\grimoire\staged_retrieval.py
+- [[Graceful degradation when no modules available.]] - rationale - tests\test_evening_summary.py
+- [[Grimoire memory stats appear in briefing.]] - rationale - tests\test_morning_briefing.py
+- [[Grimoire stats collects data and stores a health summary.]] - rationale - tests\test_standing_tasks.py
+- [[GrimoireModule]] - code - modules\grimoire\grimoire_module.py
+- [[GrimoireModule must have _grimoire attr after __init__.]] - rationale - tests\test_grimoire_storage_integration.py
+- [[GrimoireModule.search_staged delegates to StagedRetrieval.]] - rationale - tests\test_staged_retrieval.py
+- [[GrimoireModule.search_staged falls back to regular search.]] - rationale - tests\test_staged_retrieval.py
+- [[GrimoireModule.search_staged returns empty when nothing available.]] - rationale - tests\test_staged_retrieval.py
+- [[GrimoireModule.store_routed should route storage through the router.]] - rationale - tests\test_embedding_router.py
+- [[Handle slash commands. Returns True if handled, False otherwise.]] - rationale - main.py
+- [[Harbinger]] - code - modules\harbinger\harbinger.py
+- [[Harbinger morning briefing includes growth engine data when provided.]] - rationale - tests\test_effectiveness.py
+- [[HealthMock]] - code - tests\test_shadow_module.py
+- [[Helper create a loop, set it on the scheduler, run a task synchronously.]] - rationale - tests\test_standing_tasks.py
+- [[Higher confidence suggestions come first.]] - rationale - tests\test_wraith_proactive.py
+- [[If Void raises, shadow activity still works.]] - rationale - tests\test_evening_summary.py
+- [[If a module raises an exception, briefing still works.]] - rationale - tests\test_morning_briefing.py
+- [[If given a GrimoireModule (no remember()), unwrap to _grimoire.]] - rationale - tests\test_grimoire_storage_integration.py
+- [[If grimoire is None, store_teaching returns empty list.]] - rationale - tests\test_grimoire_storage_integration.py
+- [[If grimoire is wired, store_teaching stores all tiers.]] - rationale - tests\test_grimoire_storage_integration.py
+- [[If grimoire not in registry, wrapper returns 'no_grimoire'.]] - rationale - tests\test_grimoire_storage_integration.py
+- [[If task tracker raises, sections still work.]] - rationale - tests\test_evening_summary.py
+- [[If the wrapped function raises, the decorator must re-raise.]] - rationale - tests\test_observability.py
+- [[Import a module class, returning None on failure.]] - rationale - main.py
+- [[Initialize staged retrieval.          Args             grimoire The existing G]] - rationale - modules\grimoire\staged_retrieval.py
+- [[Injection score 0.7 triggers block action.]] - rationale - tests\test_effectiveness.py
+- [[Instantiate all 13 modules with safe configs.]] - rationale - tests\test_integration.py
+- [[Integration Tests ================== Verifies all 13 modules instantiate, expo]] - rationale - tests\test_integration.py
+- [[Integration tests for Grimoire storage paths.  Verifies that the orchestrator ca]] - rationale - tests\test_grimoire_storage_integration.py
+- [[List tasks, optionally filtered by status.]] - rationale - modules\shadow\shadow_module.py
+- [[Load master configuration.]] - rationale - main.py
+- [[Main entry point. Load config, start Shadow, run the loop.]] - rationale - main.py
+- [[Manages recurring background tasks via APScheduler.]] - rationale - modules\shadow\standing_tasks.py
+- [[Manually trigger a standing task by name. Returns status message.]] - rationale - modules\shadow\standing_tasks.py
+- [[Many possible suggestions - capped at 3.]] - rationale - tests\test_wraith_proactive.py
+- [[Minimal mock matching TaskTracker.list_tasks() interface.]] - rationale - tests\test_wraith_proactive.py
+- [[Minimal module for testing module_health queries.]] - rationale - tests\test_shadow_module.py
+- [[Minimal module mock that tracks execute calls.]] - rationale - tests\test_standing_tasks.py
+- [[Minimal stand-in for Orchestrator to test the decorator.]] - rationale - tests\test_observability.py
+- [[Mock Cerberus module with stats property.]] - rationale - tests\test_morning_briefing.py
+- [[Mock Grimoire module with stats().]] - rationale - tests\test_morning_briefing.py
+- [[Mock Grimoire.remember() should return a UUID string.]] - rationale - tests\test_grimoire_storage_integration.py
+- [[Mock Reaper module with get_briefing_data().]] - rationale - tests\test_evening_summary.py
+- [[Mock Reaper module with get_briefing_data()._1]] - rationale - tests\test_morning_briefing.py
+- [[Mock TaskTracker with completed, queued, and running tasks.]] - rationale - tests\test_evening_summary.py
+- [[Mock Void module with _system_health().]] - rationale - tests\test_evening_summary.py
+- [[Mock Void module with _system_health()._1]] - rationale - tests\test_morning_briefing.py
+- [[Mock Wraith module with _proactive_check().]] - rationale - tests\test_morning_briefing.py
+- [[Mock apex module — escalation stats appear in Shadow Activity section.]] - rationale - tests\test_evening_summary.py
+- [[Mock apex with escalation stats — section appears in briefing.]] - rationale - tests\test_morning_briefing.py
+- [[Mock grimoire with remember and recall methods.]] - rationale - tests\test_staged_retrieval.py
+- [[Mock task tracker with completed tasks, verify they appear.]] - rationale - tests\test_evening_summary.py
+- [[Mock wraith with neglect items — section appears in briefing.]] - rationale - tests\test_morning_briefing.py
+- [[Mock wraith with suggestions — appear in evening summary.]] - rationale - tests\test_evening_summary.py
+- [[MockModule_1]] - code - tests\test_base.py
+- [[MockModule_2]] - code - tests\test_standing_tasks.py
+- [[MockWraithModule]] - code - tests\test_decision_loop.py
+- [[Module that fails to initialize gets ERROR status.]] - rationale - tests\test_effectiveness.py
+- [[ModuleRegistry]] - code - modules\base.py
+- [[More occurrences - higher confidence.]] - rationale - tests\test_wraith_proactive.py
+- [[Multiple interactions produce correct scores.]] - rationale - tests\test_harbinger_tools.py
+- [[Multiple items are sorted high - medium - low.]] - rationale - tests\test_harbinger_tools.py
+- [[Neglect report degrades gracefully without wraith.]] - rationale - tests\test_morning_briefing.py
+- [[NeglectDetector]] - code - modules\wraith\wraith.py
+- [[No data returns empty weights.]] - rationale - tests\test_harbinger_tools.py
+- [[No pending items returns empty list with message.]] - rationale - tests\test_harbinger_tools.py
+- [[No two modules should register the same tool name.]] - rationale - tests\test_integration.py
+- [[Nova]] - code - modules\nova\nova.py
+- [[One module failing doesn't affect others in the registry.]] - rationale - tests\test_effectiveness.py
+- [[Only 2 occurrences - no pattern detected.]] - rationale - tests\test_wraith_proactive.py
+- [[Only today's completed tasks are included.]] - rationale - tests\test_evening_summary.py
+- [[Overnight plan section is always present even with no modules.]] - rationale - tests\test_evening_summary.py
+- [[Pending decision queue items appear in briefing.]] - rationale - tests\test_morning_briefing.py
+- [[Pending decision queue items appear in the scan.]] - rationale - tests\test_harbinger_tools.py
+- [[Performance Benchmarks ====================== Measures tool execution time and m]] - rationale - tests\test_benchmarks.py
+- [[Pick the next research topic, search via Reaper, store in Grimoire.]] - rationale - modules\shadow\standing_tasks.py
+- [[Provide a running event loop for marshaling.]] - rationale - tests\test_standing_tasks.py
+- [[Reaper research data appears in briefing.]] - rationale - tests\test_morning_briefing.py
+- [[ReaperModule]] - code - modules\reaper\reaper_module.py
+- [[Record an engagement interaction.]] - rationale - tests\test_harbinger_tools.py
+- [[Record an event and verify it's stored in DB.]] - rationale - tests\test_wraith_proactive.py
+- [[Record same event at similar times on 4 different days - daily pattern.]] - rationale - tests\test_wraith_proactive.py
+- [[Record same event on same weekday 3 times - weekly pattern.]] - rationale - tests\test_wraith_proactive.py
+- [[Record with metadata dict, verify JSON stored correctly.]] - rationale - tests\test_wraith_proactive.py
+- [[Register all modules and verify tool routing.]] - rationale - tests\test_integration.py
+- [[Register all modules, then look up each tool's owner.]] - rationale - tests\test_integration.py
+- [[Registry raises KeyError for unknown tool names.]] - rationale - tests\test_effectiveness.py
+- [[Registry tool_stats() matches expected counts.]] - rationale - tests\test_integration.py
+- [[Registry with mock omen, reaper, and grimoire modules.]] - rationale - tests\test_standing_tasks.py
+- [[Resolved decisions don't count in pending.]] - rationale - tests\test_evening_summary.py
+- [[Return a factory for temp DB paths.]] - rationale - tests\test_benchmarks.py
+- [[Return a formatted summary of all standing tasks.]] - rationale - modules\shadow\standing_tasks.py
+- [[Return a minimal briefing dict.]] - rationale - tests\test_harbinger_tools.py
+- [[Return the closest known command for cmd_body, or None.      cmd_body is the]] - rationale - main.py
+- [[Route tool calls to taskhealth handlers.]] - rationale - modules\shadow\shadow_module.py
+- [[Run a coroutine on the main event loop from a background thread.]] - rationale - modules\shadow\standing_tasks.py
+- [[Run a tool n times, return (avg_ms, memory_delta_bytes).]] - rationale - tests\test_benchmarks.py
+- [[Safety report data appears when audit DB exists.]] - rationale - tests\test_morning_briefing.py
+- [[Scheduler initializes cleanly with a registry.]] - rationale - tests\test_standing_tasks.py
+- [[Scheduler starts and stops without errors.]] - rationale - tests\test_standing_tasks.py
+- [[Search Grimoire for a persisted async task result by task ID prefix.      Return]] - rationale - main.py
+- [[Section with 20% engagement is flagged for demotion.]] - rationale - tests\test_harbinger_tools.py
+- [[Section with 80% engagement is flagged for promotion.]] - rationale - tests\test_harbinger_tools.py
+- [[Sections are numbered in the output.]] - rationale - tests\test_morning_briefing.py
+- [[Sections are sorted by priority (1 first).]] - rationale - tests\test_evening_summary.py
+- [[Sections are sorted by priority (1 first)._1]] - rationale - tests\test_morning_briefing.py
+- [[Self-analysis calls Omen and stores result in Grimoire.]] - rationale - tests\test_standing_tasks.py
+- [[Set up a daily pattern matching current time - suggestion generated.]] - rationale - tests\test_wraith_proactive.py
+- [[Severity 1 (Silent) should not attempt Telegram delivery.]] - rationale - tests\test_harbinger_telegram.py
+- [[Severity 1-2 always held during sleep regardless of importance.]] - rationale - tests\test_harbinger_telegram.py
+- [[Severity 3, importance  5, during sleep held.]] - rationale - tests\test_harbinger_telegram.py
+- [[Severity 3, importance = 5, during sleep delivered.]] - rationale - tests\test_harbinger_telegram.py
+- [[Severity 4 always delivered, regardless of sleep hours.]] - rationale - tests\test_harbinger_telegram.py
+- [[Shadow activity degrades when no modules available.]] - rationale - tests\test_evening_summary.py
+- [[Shadow activity includes health and research data.]] - rationale - tests\test_evening_summary.py
+- [[Shadow — Main Entry Point =========================== Run this to start Shadow]] - rationale - main.py
+- [[ShadowModule]] - code - modules\shadow\shadow_module.py
+- [[ShadowModule's MCP tools.]] - rationale - modules\shadow\shadow_module.py
+- [[Simulates the orchestrator wiring grimoire after init.]] - rationale - tests\test_grimoire_storage_integration.py
+- [[Single document summary search returns it, full retrieval gets it.]] - rationale - tests\test_staged_retrieval.py
+- [[Stage 1 Search against summary embeddings only.          Args             quer]] - rationale - modules\grimoire\staged_retrieval.py
+- [[Stage 2 Retrieve full content for specific document IDs.          Args]] - rationale - modules\grimoire\staged_retrieval.py
+- [[Staged Retrieval — Hierarchical Two-Stage Grimoire Search ======================]] - rationale - modules\grimoire\staged_retrieval.py
+- [[StagedRetrieval]] - code - modules\grimoire\staged_retrieval.py
+- [[StagedRetrieval wired to a mock grimoire.]] - rationale - tests\test_staged_retrieval.py
+- [[StagedRetrieval with no grimoire (unit testing generate_summary, etc.).]] - rationale - tests\test_staged_retrieval.py
+- [[Standing Tasks — APScheduler-based recurring background tasks. ================]] - rationale - modules\shadow\standing_tasks.py
+- [[Standing research calls Reaper and stores result in Grimoire.]] - rationale - tests\test_standing_tasks.py
+- [[StandingTaskScheduler]] - code - modules\shadow\standing_tasks.py
+- [[StandingTaskScheduler with mocked registry, not started.]] - rationale - tests\test_standing_tasks.py
+- [[Stopping a never-started scheduler doesn't raise.]] - rationale - tests\test_standing_tasks.py
+- [[Store both full content and its summary in Grimoire.          Args]] - rationale - modules\grimoire\staged_retrieval.py
+- [[Strip GIN log noise and other leading garbage from user input.      Ollama's GIN]] - rationale - main.py
+- [[Successful Telegram delivery.]] - rationale - tests\test_harbinger_tools.py
+- [[Task queued 30h ago - severity 1.]] - rationale - tests\test_wraith_proactive.py
+- [[Task queued 80h ago - severity 2.]] - rationale - tests\test_wraith_proactive.py
+- [[Task tracker data appears when a tracker is provided.]] - rationale - tests\test_morning_briefing.py
+- [[TaskTracker handles tasks assigned to different modules.]] - rationale - tests\test_effectiveness.py
+- [[Tasks fail gracefully when a required module is missing.]] - rationale - tests\test_standing_tasks.py
+- [[Telegram fails, falls back to console.]] - rationale - tests\test_harbinger_tools.py
+- [[Telegram not configured, falls back to console.]] - rationale - tests\test_harbinger_tools.py
+- [[TemporalTracker]] - code - modules\wraith\wraith.py
+- [[Test Apex escalation stats in evening summary.]] - rationale - tests\test_evening_summary.py
+- [[Test Wraith proactive suggestions in evening summary.]] - rationale - tests\test_evening_summary.py
+- [[Test format_evening_summary() output.]] - rationale - tests\test_evening_summary.py
+- [[Test graceful degradation when no modules available.]] - rationale - tests\test_evening_summary.py
+- [[Test shadow activity section.]] - rationale - tests\test_evening_summary.py
+- [[Test that briefing_compile tool works with evening + modules.]] - rationale - tests\test_evening_summary.py
+- [[Test that completed tasks appear correctly.]] - rationale - tests\test_evening_summary.py
+- [[Test that evening summary has the correct structure.]] - rationale - tests\test_evening_summary.py
+- [[Test that module exceptions don't crash the evening summary.]] - rationale - tests\test_evening_summary.py
+- [[Test that pending items include both tasks and decision queue.]] - rationale - tests\test_evening_summary.py
+- [[Test that severity-3 notifications during sleep hours     are only delivered if]] - rationale - tests\test_harbinger_telegram.py
+- [[Test the orchestrator's _grimoire_store_wrapper function.]] - rationale - tests\test_grimoire_storage_integration.py
+- [[Test tomorrow preview section.]] - rationale - tests\test_evening_summary.py
+- [[TestApexStatsInBriefing]] - code - tests\test_morning_briefing.py
+- [[TestApexStatsInEvening]] - code - tests\test_evening_summary.py
+- [[TestAssembleMorningBriefing]] - code - tests\test_morning_briefing.py
+- [[TestBackfillSummaries]] - code - tests\test_staged_retrieval.py
+- [[TestBaseModule]] - code - tests\test_base.py
+- [[TestBriefingCompileEvening]] - code - tests\test_evening_summary.py
+- [[TestBriefingCompleteness]] - code - tests\test_effectiveness.py
+- [[TestBriefingDeliver]] - code - tests\test_harbinger_tools.py
+- [[TestCerberusBenchmark]] - code - tests\test_benchmarks.py
+- [[TestCipherBenchmark]] - code - tests\test_benchmarks.py
+- [[TestCombinedSearch]] - code - tests\test_staged_retrieval.py
+- [[TestCompletedTasksInSummary]] - code - tests\test_evening_summary.py
+- [[TestDecisionLoop]] - code - tests\test_effectiveness.py
+- [[TestEveningSummaryNoModules]] - code - tests\test_evening_summary.py
+- [[TestEveningSummaryStructure]] - code - tests\test_evening_summary.py
+- [[TestFailureHandling_1]] - code - tests\test_standing_tasks.py
+- [[TestFormatBriefingText]] - code - tests\test_morning_briefing.py
+- [[TestFormatEveningSummary]] - code - tests\test_evening_summary.py
+- [[TestGenerateSummary]] - code - tests\test_staged_retrieval.py
+- [[TestGetFullDocuments]] - code - tests\test_staged_retrieval.py
+- [[TestGetScheduleInfo]] - code - tests\test_standing_tasks.py
+- [[TestGetToolsStructure]] - code - tests\test_integration.py
+- [[TestGracefulDegradation_3]] - code - tests\test_effectiveness.py
+- [[TestGrimoireModuleSearchStaged]] - code - tests\test_staged_retrieval.py
+- [[TestGrimoireModuleUnwrap]] - code - tests\test_grimoire_storage_integration.py
+- [[TestGrimoireStats_1]] - code - tests\test_standing_tasks.py
+- [[TestGrimoireStatsNoEventLoop]] - code - tests\test_standing_tasks.py
+- [[TestGrimoireStoreWrapper]] - code - tests\test_grimoire_storage_integration.py
+- [[TestInstantiateAllModules]] - code - tests\test_integration.py
+- [[TestModuleCommunication]] - code - tests\test_effectiveness.py
+- [[TestModuleExceptionHandling]] - code - tests\test_evening_summary.py
+- [[TestModuleRegistry]] - code - tests\test_base.py
+- [[TestMorpheusBenchmark]] - code - tests\test_benchmarks.py
+- [[TestNeglectDetector]] - code - tests\test_wraith_proactive.py
+- [[TestNeglectReportInBriefing]] - code - tests\test_morning_briefing.py
+- [[TestNighttimeImportanceGating]] - code - tests\test_harbinger_telegram.py
+- [[TestNoDuplicateToolNames]] - code - tests\test_integration.py
+- [[TestNoUnboundedGrowth]] - code - tests\test_benchmarks.py
+- [[TestNovaBenchmark]] - code - tests\test_benchmarks.py
+- [[TestPendingItemsIncludeDecisionQueue]] - code - tests\test_evening_summary.py
+- [[TestPersonalization]] - code - tests\test_harbinger_tools.py
+- [[TestPreemptiveApprovalScan]] - code - tests\test_harbinger_tools.py
+- [[TestProactiveSuggestions]] - code - tests\test_wraith_proactive.py
+- [[TestProactiveSuggestionsInEvening]] - code - tests\test_evening_summary.py
+- [[TestRawContentGeneration]] - code - tests\test_nova.py
+- [[TestRegistryFindTools]] - code - tests\test_base.py
+- [[TestRegistryRoundTrip]] - code - tests\test_integration.py
+- [[TestRegistryToolStats]] - code - tests\test_base.py
+- [[TestRememberReturnsId]] - code - tests\test_grimoire_storage_integration.py
+- [[TestRetrievalStats]] - code - tests\test_staged_retrieval.py
+- [[TestRunTask]] - code - tests\test_standing_tasks.py
+- [[TestSafetyReportInBriefing]] - code - tests\test_morning_briefing.py
+- [[TestSchedulerInit]] - code - tests\test_standing_tasks.py
+- [[TestSchedulerLifecycle]] - code - tests\test_standing_tasks.py
+- [[TestSearchSummaries]] - code - tests\test_staged_retrieval.py
+- [[TestSelfAnalysis]] - code - tests\test_standing_tasks.py
+- [[TestSelfTeacherGrimoireWiring]] - code - tests\test_grimoire_storage_integration.py
+- [[TestShadowActivity]] - code - tests\test_evening_summary.py
+- [[TestShadowBenchmark]] - code - tests\test_benchmarks.py
+- [[TestShadowModuleLifecycle]] - code - tests\test_shadow_module.py
+- [[TestStandingResearch]] - code - tests\test_standing_tasks.py
+- [[TestStoreWithSummary]] - code - tests\test_staged_retrieval.py
+- [[TestTaskResultQueryDetection]] - code - tests\test_async_tasks.py
+- [[TestTaskTrackerInBriefing]] - code - tests\test_morning_briefing.py
+- [[TestTemporalTracker]] - code - tests\test_wraith_proactive.py
+- [[TestTokenSavings]] - code - tests\test_staged_retrieval.py
+- [[TestTomorrowPreview]] - code - tests\test_evening_summary.py
+- [[TestToolCount_1]] - code - tests\test_integration.py
+- [[TestToolIntegration]] - code - tests\test_wraith_proactive.py
+- [[TestVoidBenchmark]] - code - tests\test_benchmarks.py
+- [[TestWraithBenchmark]] - code - tests\test_benchmarks.py
+- [[Tests for Apex escalation stats in morning briefing.]] - rationale - tests\test_morning_briefing.py
+- [[Tests for Harbinger evening summary assembly pipeline.]] - rationale - tests\test_evening_summary.py
+- [[Tests for Harbinger morning briefing assembly pipeline.]] - rationale - tests\test_morning_briefing.py
+- [[Tests for Harbinger new tools — preemptive_approval_scan, briefing_deliver, pers]] - rationale - tests\test_harbinger_tools.py
+- [[Tests for Hierarchical Two-Stage Grimoire Retrieval ============================]] - rationale - tests\test_staged_retrieval.py
+- [[Tests for Shadow Observability (Langfuse tracing) ==============================]] - rationale - tests\test_observability.py
+- [[Tests for Stage 1 summary search.]] - rationale - tests\test_staged_retrieval.py
+- [[Tests for Stage 2 full document retrieval.]] - rationale - tests\test_staged_retrieval.py
+- [[Tests for StandingTaskScheduler — APScheduler-based recurring background tasks.]] - rationale - tests\test_standing_tasks.py
+- [[Tests for Wraith Proactive Intelligence System =================================]] - rationale - tests\test_wraith_proactive.py
+- [[Tests for assemble_morning_briefing().]] - rationale - tests\test_morning_briefing.py
+- [[Tests for backfilling existing documents with summaries.]] - rationale - tests\test_staged_retrieval.py
+- [[Tests for cross-module data flow.]] - rationale - tests\test_effectiveness.py
+- [[Tests for error handling and graceful failure.]] - rationale - tests\test_effectiveness.py
+- [[Tests for format_briefing_text().]] - rationale - tests\test_morning_briefing.py
+- [[Tests for neglect detection across tasks and decision queue items.]] - rationale - tests\test_wraith_proactive.py
+- [[Tests for neglect report integration in morning briefing.]] - rationale - tests\test_morning_briefing.py
+- [[Tests for new tools executing through Wraith.execute().]] - rationale - tests\test_wraith_proactive.py
+- [[Tests for retrieval statistics tracking.]] - rationale - tests\test_staged_retrieval.py
+- [[Tests for safety report integration in morning briefing.]] - rationale - tests\test_morning_briefing.py
+- [[Tests for storing documents with summaries.]] - rationale - tests\test_staged_retrieval.py
+- [[Tests for summary generation.]] - rationale - tests\test_staged_retrieval.py
+- [[Tests for task tracker integration in morning briefing.]] - rationale - tests\test_morning_briefing.py
+- [[Tests for temporal event recording and pattern detection.]] - rationale - tests\test_wraith_proactive.py
+- [[Tests for the Ollama-backed raw content generation path.]] - rationale - tests\test_nova.py
+- [[Tests for the Orchestrator's seven-step decision loop.]] - rationale - tests\test_effectiveness.py
+- [[Tests for the combined two-stage search method.]] - rationale - tests\test_staged_retrieval.py
+- [[Tests for the proactive suggestions engine.]] - rationale - tests\test_wraith_proactive.py
+- [[Tests for the search_staged method on GrimoireModule.]] - rationale - tests\test_staged_retrieval.py
+- [[The existing search_staged method should still work without router.]] - rationale - tests\test_embedding_router.py
+- [[The wrapper must unwrap GrimoireModule and call remember().]] - rationale - tests\test_grimoire_storage_integration.py
+- [[Tomorrow preview highlights high-priority items (priority = 3).]] - rationale - tests\test_evening_summary.py
+- [[Tomorrow preview shows count of queued tasks.]] - rationale - tests\test_evening_summary.py
+- [[Topics rotate through the list on successive runs.]] - rationale - tests\test_standing_tasks.py
+- [[Total tool count across all modules.]] - rationale - tests\test_integration.py
+- [[Two-stage retrieval search summaries first, then pull full docs selectively.]] - rationale - modules\grimoire\staged_retrieval.py
+- [[Use StagedRetrieval for two-stage search.]] - rationale - modules\shadow\context_orchestrator.py
+- [[Validate that staged retrieval actually saves tokens.]] - rationale - tests\test_staged_retrieval.py
+- [[Verify SelfTeacher gets and uses a Grimoire instance.]] - rationale - tests\test_grimoire_storage_integration.py
+- [[Verify all 5 sections present with correct names.]] - rationale - tests\test_evening_summary.py
+- [[Verify grimoire_stats runs without an event loop (pure sync path).]] - rationale - tests\test_standing_tasks.py
+- [[Verify that 50 rapid calls don't cause unbounded list growth.]] - rationale - tests\test_benchmarks.py
+- [[Verify that remember() returns a non-None ID.]] - rationale - tests\test_grimoire_storage_integration.py
+- [[Verify the GrimoireModule adapter exposes _grimoire correctly.]] - rationale - tests\test_grimoire_storage_integration.py
+- [[Void]] - code - modules\void\void.py
+- [[Void system health data appears in briefing.]] - rationale - tests\test_morning_briefing.py
+- [[When Langfuse is available, decorator creates a trace and flushes.]] - rationale - tests\test_observability.py
+- [[When Telegram delivery fails, a decision queue item is created.]] - rationale - tests\test_harbinger_telegram.py
+- [[Without modules dict, still scans decision queue.]] - rationale - tests\test_harbinger_tools.py
+- [[Without task_tracker, completed section degrades gracefully.]] - rationale - tests\test_evening_summary.py
+- [[Wraith]] - code - modules\wraith\wraith.py
+- [[Wraith exception doesn't crash evening summary.]] - rationale - tests\test_evening_summary.py
+- [[_DummyModule]] - code - tests\test_cerberus_auto_registration.py
+- [[_MockTaskTracker]] - code - tests\test_wraith_proactive.py
+- [[_State]] - code - tests\test_observability.py
+- [[__init__.py_7]] - code - modules\nova\__init__.py
+- [[__init__.py_13]] - code - modules\void\__init__.py
+- [[_active_reminders()]] - code - modules\wraith\wraith.py
+- [[_age_to_severity()]] - code - modules\wraith\wraith.py
+- [[_bench_tool()]] - code - tests\test_benchmarks.py
+- [[_compress_text()]] - code - modules\nova\nova.py
+- [[_create_all_modules()]] - code - tests\test_integration.py
+- [[_heading_slug()]] - code - modules\nova\nova.py
+- [[_is_raw_content_request()]] - code - modules\nova\nova.py
+- [[_lookup_task_in_grimoire()]] - code - main.py
+- [[_make_config()]] - code - tests\test_integration.py
+- [[_mock_ollama_response()]] - code - tests\test_decision_loop.py
+- [[_mock_router_json()]] - code - tests\test_decision_loop.py
+- [[_pending_items()]] - code - modules\harbinger\harbinger.py
+- [[_run_task_with_loop()]] - code - tests\test_standing_tasks.py
+- [[_test_config()]] - code - tests\test_decision_loop.py
+- [[_try_import()]] - code - main.py
+- [[all_modules()]] - code - tests\test_evening_summary.py
+- [[all_modules()_1]] - code - tests\test_morning_briefing.py
+- [[backfill_summaries generates summaries for docs without them.]] - rationale - tests\test_staged_retrieval.py
+- [[backfill_summaries returns zeros when grimoire is None.]] - rationale - tests\test_staged_retrieval.py
+- [[backfill_summaries skips documents that ARE summaries.]] - rationale - tests\test_staged_retrieval.py
+- [[backfill_summaries skips documents that already have summaries.]] - rationale - tests\test_staged_retrieval.py
+- [[briefing_compile with evening type and modules uses assemble_evening_summary.]] - rationale - tests\test_evening_summary.py
+- [[briefing_compile without modules falls back to template behavior.]] - rationale - tests\test_evening_summary.py
+- [[cerberus()]] - code - tests\test_benchmarks.py
+- [[cipher()]] - code - tests\test_benchmarks.py
+- [[cipher()_1]] - code - tests\test_cipher.py
+- [[config()_3]] - code - tests\test_effectiveness.py
+- [[detector()_3]] - code - tests\test_wraith_proactive.py
+- [[event_loop_for_tasks()]] - code - tests\test_standing_tasks.py
+- [[format_neglect_report produces readable string.]] - rationale - tests\test_wraith_proactive.py
+- [[full_mocks()]] - code - tests\test_effectiveness.py
+- [[generate_summary appends metadata when provided.]] - rationale - tests\test_staged_retrieval.py
+- [[generate_summary extracts first 2-3 sentences.]] - rationale - tests\test_staged_retrieval.py
+- [[generate_summary handles single-sentence documents.]] - rationale - tests\test_staged_retrieval.py
+- [[generate_summary includes key terms like capitalized and technical words.]] - rationale - tests\test_staged_retrieval.py
+- [[generate_summary returns empty string for empty input.]] - rationale - tests\test_staged_retrieval.py
+- [[generate_summary truncates to summary_max_tokens.]] - rationale - tests\test_staged_retrieval.py
+- [[generate_summary works without metadata.]] - rationale - tests\test_staged_retrieval.py
+- [[get_full_documents retrieves documents by their staged_doc_id.]] - rationale - tests\test_staged_retrieval.py
+- [[get_full_documents returns empty for empty ID list.]] - rationale - tests\test_staged_retrieval.py
+- [[get_full_documents returns empty when grimoire is None.]] - rationale - tests\test_staged_retrieval.py
+- [[get_retrieval_stats returns zeros before any searches.]] - rationale - tests\test_staged_retrieval.py
+- [[get_retrieval_stats updates after searches.]] - rationale - tests\test_staged_retrieval.py
+- [[get_schedule_info returns a formatted string with all tasks.]] - rationale - tests\test_standing_tasks.py
+- [[get_tools()]] - code - modules\base.py
+- [[get_tools() returns 12 tools (8 original + 4 new).]] - rationale - tests\test_wraith_proactive.py
+- [[getattr(mod, '_grimoire', None) must return the inner Grimoire.]] - rationale - tests\test_grimoire_storage_integration.py
+- [[grimoire()]] - code - tests\test_effectiveness.py
+- [[grimoire_module()]] - code - tests\test_grimoire_module.py
+- [[grimoire_module.py]] - code - modules\grimoire\grimoire_module.py
+- [[grimoire_stats never calls _marshal (no async dependency).]] - rationale - tests\test_standing_tasks.py
+- [[grimoire_stats succeeds even when no event loop is set.]] - rationale - tests\test_standing_tasks.py
+- [[harbinger()]] - code - tests\test_effectiveness.py
+- [[harbinger()_1]] - code - tests\test_evening_summary.py
+- [[harbinger()_3]] - code - tests\test_harbinger_tools.py
+- [[harbinger()_4]] - code - tests\test_morning_briefing.py
+- [[harbinger.py]] - code - modules\harbinger\harbinger.py
+- [[harbinger_no_telegram()]] - code - tests\test_harbinger_telegram.py
+- [[harbinger_with_telegram()]] - code - tests\test_harbinger_telegram.py
+- [[is_task_result_query()]] - code - main.py
+- [[load_config()]] - code - main.py
+- [[main()]] - code - main.py
+- [[main.py]] - code - main.py
+- [[mock_cerberus()]] - code - tests\test_morning_briefing.py
+- [[mock_grimoire()_8]] - code - tests\test_morning_briefing.py
+- [[mock_grimoire()_16]] - code - tests\test_staged_retrieval.py
+- [[mock_reaper()]] - code - tests\test_evening_summary.py
+- [[mock_reaper()_1]] - code - tests\test_morning_briefing.py
+- [[mock_registry()]] - code - tests\test_standing_tasks.py
+- [[mock_task_tracker()]] - code - tests\test_evening_summary.py
+- [[mock_void()]] - code - tests\test_evening_summary.py
+- [[mock_void()_1]] - code - tests\test_morning_briefing.py
+- [[mock_wraith()]] - code - tests\test_morning_briefing.py
+- [[morpheus()]] - code - tests\test_benchmarks.py
+- [[nova()]] - code - tests\test_benchmarks.py
+- [[nova()_1]] - code - tests\test_nova.py
+- [[nova.py]] - code - modules\nova\nova.py
+- [[online_harbinger()_1]] - code - tests\test_harbinger_tools.py
+- [[online_shadow()]] - code - tests\test_shadow_module.py
+- [[online_wraith()_1]] - code - tests\test_wraith_proactive.py
+- [[process_input()_1]] - code - tests\test_observability.py
+- [[reaper_module.py]] - code - modules\reaper\reaper_module.py
+- [[registry()]] - code - tests\test_async_tasks.py
+- [[registry()_3]] - code - tests\test_shadow_module.py
+- [[retrieval()]] - code - tests\test_staged_retrieval.py
+- [[retrieval_with_grimoire()]] - code - tests\test_staged_retrieval.py
+- [[run_task with invalid name returns error message, doesn't crash.]] - rationale - tests\test_standing_tasks.py
+- [[scheduler()]] - code - tests\test_standing_tasks.py
+- [[search auto_select parameter controls how many full docs are pulled.]] - rationale - tests\test_staged_retrieval.py
+- [[search reports positive token savings estimate.]] - rationale - tests\test_staged_retrieval.py
+- [[search returns empty for empty query.]] - rationale - tests\test_staged_retrieval.py
+- [[search returns full docs for top auto_select results.]] - rationale - tests\test_staged_retrieval.py
+- [[search stats include stage1_count and stage2_count.]] - rationale - tests\test_staged_retrieval.py
+- [[search_summaries falls back to truncated full docs when no summaries exist.]] - rationale - tests\test_staged_retrieval.py
+- [[search_summaries includes relevance scores.]] - rationale - tests\test_staged_retrieval.py
+- [[search_summaries returns empty for empty query.]] - rationale - tests\test_staged_retrieval.py
+- [[search_summaries returns empty when grimoire is None.]] - rationale - tests\test_staged_retrieval.py
+- [[search_summaries returns summaries not full documents.]] - rationale - tests\test_staged_retrieval.py
+- [[sentinel()]] - code - tests\test_sentinel.py
+- [[setup_logging()]] - code - main.py
+- [[shadow_mod()]] - code - tests\test_benchmarks.py
+- [[shadow_module()]] - code - tests\test_shadow_module.py
+- [[shadow_module.py]] - code - modules\shadow\shadow_module.py
+- [[staged_retrieval.py]] - code - modules\grimoire\staged_retrieval.py
+- [[standing_tasks.py]] - code - modules\shadow\standing_tasks.py
+- [[startup()]] - code - main.py
+- [[store_with_summary marks summary with is_summary metadata.]] - rationale - tests\test_staged_retrieval.py
+- [[store_with_summary returns an ID even without grimoire (no crash).]] - rationale - tests\test_staged_retrieval.py
+- [[store_with_summary sets staged_doc_id on full document.]] - rationale - tests\test_staged_retrieval.py
+- [[store_with_summary stores both full content and summary.]] - rationale - tests\test_staged_retrieval.py
+- [[teach_from_success without grimoire returns teaching with empty ids.]] - rationale - tests\test_grimoire_storage_integration.py
+- [[test_base.py]] - code - tests\test_base.py
+- [[test_benchmarks.py]] - code - tests\test_benchmarks.py
+- [[test_calculate_speed()]] - code - tests\test_benchmarks.py
+- [[test_dangerous_input_blocked()]] - code - tests\test_decision_loop.py
+- [[test_dangerous_request_does_not_reach_step2()]] - code - tests\test_decision_loop.py
+- [[test_db_locked_graceful_error()]] - code - tests\test_effectiveness.py
+- [[test_decision_loop.py]] - code - tests\test_decision_loop.py
+- [[test_decorator_calls_langfuse_when_configured()]] - code - tests\test_observability.py
+- [[test_decorator_passes_through_without_langfuse()]] - code - tests\test_observability.py
+- [[test_decorator_preserves_exception()]] - code - tests\test_observability.py
+- [[test_default_priority()]] - code - tests\test_shadow_module.py
+- [[test_deliver_console()]] - code - tests\test_harbinger_tools.py
+- [[test_deliver_no_telegram()]] - code - tests\test_harbinger_tools.py
+- [[test_deliver_telegram_fallback()]] - code - tests\test_harbinger_tools.py
+- [[test_deliver_telegram_success()]] - code - tests\test_harbinger_tools.py
+- [[test_deliver_tool_execution()]] - code - tests\test_harbinger_tools.py
+- [[test_effectiveness.py]] - code - tests\test_effectiveness.py
+- [[test_empty_list()]] - code - tests\test_shadow_module.py
+- [[test_evening_compile_with_modules()]] - code - tests\test_evening_summary.py
+- [[test_evening_compile_without_modules_uses_template()]] - code - tests\test_evening_summary.py
+- [[test_evening_summary.py]] - code - tests\test_evening_summary.py
+- [[test_execute_returns_tool_result()]] - code - tests\test_base.py
+- [[test_experiment_list_speed()]] - code - tests\test_benchmarks.py
+- [[test_filter_by_status()]] - code - tests\test_shadow_module.py
+- [[test_format_document_speed()]] - code - tests\test_benchmarks.py
+- [[test_found()]] - code - tests\test_shadow_module.py
+- [[test_get_tools_includes_new_tools()]] - code - tests\test_wraith_proactive.py
+- [[test_greeting_increments_interaction_count()]] - code - tests\test_decision_loop.py
+- [[test_greeting_uses_fast_path()]] - code - tests\test_decision_loop.py
+- [[test_grimoire_storage_integration.py]] - code - tests\test_grimoire_storage_integration.py
+- [[test_harbinger_tools.py]] - code - tests\test_harbinger_tools.py
+- [[test_health_check_speed()]] - code - tests\test_benchmarks.py
+- [[test_history_trimmed_on_fast_response()]] - code - tests\test_orchestrator.py
+- [[test_initialize_sets_online()_2]] - code - tests\test_shadow_module.py
+- [[test_injection_blocked()]] - code - tests\test_orchestrator.py
+- [[test_integration.py]] - code - tests\test_integration.py
+- [[test_invalid_priority_string()]] - code - tests\test_shadow_module.py
+- [[test_invalid_priority_too_high()]] - code - tests\test_shadow_module.py
+- [[test_invalid_priority_zero()]] - code - tests\test_shadow_module.py
+- [[test_invalid_status_filter()]] - code - tests\test_shadow_module.py
+- [[test_known_module()]] - code - tests\test_shadow_module.py
+- [[test_lifecycle()]] - code - tests\test_base.py
+- [[test_list_tools_only_online()]] - code - tests\test_base.py
+- [[test_lists_all_tasks()]] - code - tests\test_shadow_module.py
+- [[test_math_falls_back_when_router_fails()]] - code - tests\test_decision_loop.py
+- [[test_math_routes_to_cipher()]] - code - tests\test_decision_loop.py
+- [[test_memory_store_and_recall()]] - code - tests\test_decision_loop.py
+- [[test_missing_assigned_module()]] - code - tests\test_shadow_module.py
+- [[test_missing_description()]] - code - tests\test_shadow_module.py
+- [[test_missing_module_name()_1]] - code - tests\test_shadow_module.py
+- [[test_missing_task_id()]] - code - tests\test_shadow_module.py
+- [[test_morning_briefing.py]] - code - tests\test_morning_briefing.py
+- [[test_neglect_check_tool()]] - code - tests\test_wraith_proactive.py
+- [[test_no_suggestions_when_nothing_detected()]] - code - tests\test_wraith_proactive.py
+- [[test_not_found()]] - code - tests\test_shadow_module.py
+- [[test_observability.py]] - code - tests\test_observability.py
+- [[test_personalization_empty_data()]] - code - tests\test_harbinger_tools.py
+- [[test_personalization_high_engagement()]] - code - tests\test_harbinger_tools.py
+- [[test_personalization_low_engagement()]] - code - tests\test_harbinger_tools.py
+- [[test_personalization_record()]] - code - tests\test_harbinger_tools.py
+- [[test_personalization_tool_execution()]] - code - tests\test_harbinger_tools.py
+- [[test_personalization_weights_computed()]] - code - tests\test_harbinger_tools.py
+- [[test_preemptive_scan_finds_pending_decisions()]] - code - tests\test_harbinger_tools.py
+- [[test_preemptive_scan_no_items()]] - code - tests\test_harbinger_tools.py
+- [[test_preemptive_scan_no_modules()]] - code - tests\test_harbinger_tools.py
+- [[test_preemptive_scan_sorted_by_risk()]] - code - tests\test_harbinger_tools.py
+- [[test_preemptive_scan_tool_execution()]] - code - tests\test_harbinger_tools.py
+- [[test_process_input_runs_full_loop()]] - code - tests\test_effectiveness.py
+- [[test_registry_respects_never_autonomous()]] - code - tests\test_cerberus_auto_registration.py
+- [[test_registry_triggers_auto_register()]] - code - tests\test_cerberus_auto_registration.py
+- [[test_registry_without_cerberus_works()]] - code - tests\test_cerberus_auto_registration.py
+- [[test_reminder_list_speed()]] - code - tests\test_benchmarks.py
+- [[test_safe_input_passes_injection_screen()]] - code - tests\test_decision_loop.py
+- [[test_safety_check_speed()]] - code - tests\test_benchmarks.py
+- [[test_search_routes_to_reaper()]] - code - tests\test_decision_loop.py
+- [[test_shadow_module.py]] - code - tests\test_shadow_module.py
+- [[test_shutdown_sets_offline()_2]] - code - tests\test_shadow_module.py
+- [[test_staged_retrieval.py]] - code - tests\test_staged_retrieval.py
+- [[test_standing_tasks.py]] - code - tests\test_standing_tasks.py
+- [[test_state_persistence()]] - code - tests\test_effectiveness.py
+- [[test_success()_2]] - code - tests\test_shadow_module.py
+- [[test_suggestions_from_neglect()]] - code - tests\test_wraith_proactive.py
+- [[test_suggestions_from_patterns()]] - code - tests\test_wraith_proactive.py
+- [[test_suggestions_max_three()]] - code - tests\test_wraith_proactive.py
+- [[test_suggestions_sorted_by_confidence()]] - code - tests\test_wraith_proactive.py
+- [[test_task_list_speed()]] - code - tests\test_benchmarks.py
+- [[test_temporal_event_recorded()]] - code - tests\test_orchestrator.py
+- [[test_temporal_patterns_tool()]] - code - tests\test_wraith_proactive.py
+- [[test_temporal_record_empty_type_fails()]] - code - tests\test_wraith_proactive.py
+- [[test_temporal_record_tool()]] - code - tests\test_wraith_proactive.py
+- [[test_temporal_recording_failure_ignored()]] - code - tests\test_orchestrator.py
+- [[test_unknown_module()]] - code - tests\test_shadow_module.py
+- [[test_unknown_tool_returns_error()]] - code - tests\test_shadow_module.py
+- [[test_wraith_proactive.py]] - code - tests\test_wraith_proactive.py
+- [[tmp_config()]] - code - tests\test_decision_loop.py
+- [[tmp_db()]] - code - tests\test_benchmarks.py
+- [[tracker()_2]] - code - tests\test_wraith_proactive.py
+- [[void()]] - code - tests\test_void.py
+- [[void.py]] - code - modules\void\void.py
+- [[void_module()]] - code - tests\test_benchmarks.py
+- [[wraith()]] - code - tests\test_benchmarks.py
+- [[wraith()_2]] - code - tests\test_wraith_proactive.py
+- [[wraith.py]] - code - modules\wraith\wraith.py
+
+## Live Query (requires Dataview plugin)
+
+```dataview
+TABLE source_file, type FROM #community/Module_Registry_&_Tools
+SORT file.name ASC
+```
+
+## Connections to other communities
+- 986 edges to [[_COMMUNITY_Base Module & Apex API]]
+- 277 edges to [[_COMMUNITY_Async Task Queue]]
+- 138 edges to [[_COMMUNITY_Data Pipeline & Embeddings]]
+- 58 edges to [[_COMMUNITY_Morpheus Creative Pipeline]]
+- 50 edges to [[_COMMUNITY_Cross-Reference & Security]]
+- 38 edges to [[_COMMUNITY_Introspection Dashboard]]
+- 32 edges to [[_COMMUNITY_Module Lifecycle]]
+- 32 edges to [[_COMMUNITY_Code Analyzer (Omen)]]
+- 26 edges to [[_COMMUNITY_Apex API Providers]]
+- 25 edges to [[_COMMUNITY_Embedding Router]]
+- 11 edges to [[_COMMUNITY_Adversarial Sparring]]
+- 7 edges to [[_COMMUNITY_Cerberus Auto-Registration]]
+- 6 edges to [[_COMMUNITY_CLI Input & Fuzzy Match]]
+- 2 edges to [[_COMMUNITY_Ethical Topics & Watchdog]]
+- 2 edges to [[_COMMUNITY_CLAUDE.md Generator]]
+- 1 edge to [[_COMMUNITY_Ethics Engine (Cerberus)]]
+- 1 edge to [[_COMMUNITY_Injection Detector]]
+- 1 edge to [[_COMMUNITY_Model Evaluator & Nova]]
+- 1 edge to [[_COMMUNITY_Benchmark Generator]]
+- 1 edge to [[_COMMUNITY_Context Orchestrator]]
+- 1 edge to [[_COMMUNITY_Langfuse Observability]]
+
+## Top bridge nodes
+- [[startup()]] - degree 25, connects to 8 communities
+- [[GrimoireModule]] - degree 154, connects to 6 communities
+- [[BaseModule_1]] - degree 32, connects to 6 communities
+- [[main()]] - degree 22, connects to 6 communities
+- [[ModuleRegistry]] - degree 459, connects to 5 communities

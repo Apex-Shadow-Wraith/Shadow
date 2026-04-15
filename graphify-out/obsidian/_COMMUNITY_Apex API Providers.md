@@ -1,0 +1,360 @@
+---
+type: community
+cohesion: 0.01
+members: 321
+---
+
+# Apex API Providers
+
+**Cohesion:** 0.01 - loosely connected
+**Members:** 321 nodes
+
+## Members
+- [[.__init__()_3]] - code - modules\apex\apex.py
+- [[.__init__()_2]] - code - modules\apex\apex.py
+- [[.__init__()_5]] - code - modules\apex\training_data_pipeline.py
+- [[._apex_clear_history()]] - code - modules\apex\apex.py
+- [[._apex_log()]] - code - modules\apex\apex.py
+- [[._apex_query()]] - code - modules\apex\apex.py
+- [[._apex_teach()]] - code - modules\apex\apex.py
+- [[._call_api()]] - code - modules\apex\apex.py
+- [[._call_claude()]] - code - modules\apex\apex.py
+- [[._call_openai()]] - code - modules\apex\apex.py
+- [[._escalation_frequent()]] - code - modules\apex\apex.py
+- [[._escalation_stats()]] - code - modules\apex\apex.py
+- [[._estimate_cost()]] - code - modules\apex\apex.py
+- [[._init_db()]] - code - modules\apex\apex.py
+- [[._load_log()]] - code - modules\apex\apex.py
+- [[._record_escalation()]] - code - modules\apex\apex.py
+- [[._sanitize()]] - code - modules\apex\training_data_pipeline.py
+- [[._save_log()]] - code - modules\apex\apex.py
+- [[._store_transaction_in_grimoire()]] - code - modules\apex\apex.py
+- [[._teaching_review()]] - code - modules\apex\apex.py
+- [[._training_export()]] - code - modules\apex\apex.py
+- [[._training_stats()]] - code - modules\apex\apex.py
+- [[._trim_history()]] - code - modules\apex\apex.py
+- [[._update_daily_cost()]] - code - modules\apex\apex.py
+- [[.capture()]] - code - modules\apex\training_data_pipeline.py
+- [[.check_grimoire_for_prior_learning()]] - code - modules\apex\apex.py
+- [[.check_grimoire_for_prior_learning()_1]] - code - tests\test_orchestrator.py
+- [[.clear_history()]] - code - modules\apex\apex.py
+- [[.execute()]] - code - modules\apex\apex.py
+- [[.export_for_lora()]] - code - modules\apex\training_data_pipeline.py
+- [[.extract_teaching_signal()]] - code - modules\apex\teaching_extractor.py
+- [[.extract_three_tiers()]] - code - modules\apex\teaching_extractor.py
+- [[.get_escalation_stats()]] - code - modules\apex\apex.py
+- [[.get_frequent_escalation_types()]] - code - modules\apex\apex.py
+- [[.get_recent_teaching_signals()]] - code - modules\apex\apex.py
+- [[.get_stats()_2]] - code - modules\grimoire\conversation_ingestor.py
+- [[.get_stats()_1]] - code - modules\apex\training_data_pipeline.py
+- [[.get_tools()]] - code - modules\apex\apex.py
+- [[.initialize()]] - code - modules\apex\apex.py
+- [[.log_escalation()]] - code - modules\apex\apex.py
+- [[.mark_local_retry_success()]] - code - modules\apex\apex.py
+- [[.save()]] - code - modules\apex\training_data_pipeline.py
+- [[.search_with_tier_priority()]] - code - modules\apex\teaching_extractor.py
+- [[.set_grimoire()]] - code - modules\apex\apex.py
+- [[.shutdown()]] - code - modules\apex\apex.py
+- [[.store_three_tiers()]] - code - modules\apex\teaching_extractor.py
+- [[.test_apex_teach_includes_template()]] - code - tests\test_apex_teaching.py
+- [[.test_approach_truncated()]] - code - tests\test_apex_learning.py
+- [[.test_capture_all_metadata_fields_present()]] - code - tests\test_training_data_pipeline.py
+- [[.test_capture_assistant_content_matches()]] - code - tests\test_training_data_pipeline.py
+- [[.test_capture_default_metadata()]] - code - tests\test_training_data_pipeline.py
+- [[.test_capture_has_conversations()]] - code - tests\test_training_data_pipeline.py
+- [[.test_capture_has_metadata()]] - code - tests\test_training_data_pipeline.py
+- [[.test_capture_includes_failed_response_in_metadata()]] - code - tests\test_training_data_pipeline.py
+- [[.test_capture_returns_dict()]] - code - tests\test_training_data_pipeline.py
+- [[.test_capture_user_content_matches()]] - code - tests\test_training_data_pipeline.py
+- [[.test_capture_without_failed_response()]] - code - tests\test_training_data_pipeline.py
+- [[.test_clear_history_empties_list()]] - code - tests\test_apex_conversation.py
+- [[.test_confidence_at_creation()]] - code - tests\test_apex_teaching.py
+- [[.test_cost_tracking()]] - code - tests\test_apex_learning.py
+- [[.test_creates_output_dir()_1]] - code - tests\test_training_data_pipeline.py
+- [[.test_cross_domain_meta_retrieved()]] - code - tests\test_apex_teaching.py
+- [[.test_custom_max_turns()]] - code - tests\test_apex_conversation.py
+- [[.test_default_max_turns()]] - code - tests\test_apex_conversation.py
+- [[.test_different_dates_different_files()]] - code - tests\test_training_data_pipeline.py
+- [[.test_domain_tags_propagated()]] - code - tests\test_apex_teaching.py
+- [[.test_each_entry_has_tier_metadata()]] - code - tests\test_apex_teaching.py
+- [[.test_empty_response_still_returns_specific()]] - code - tests\test_apex_teaching.py
+- [[.test_empty_results_handled()]] - code - tests\test_apex_teaching.py
+- [[.test_escalation_stats()]] - code - tests\test_apex_learning.py
+- [[.test_escalation_stats_date_filtering()]] - code - tests\test_apex_learning.py
+- [[.test_existing_dir_no_error()_1]] - code - tests\test_training_data_pipeline.py
+- [[.test_export_creates_parent_dirs()]] - code - tests\test_training_data_pipeline.py
+- [[.test_export_empty_returns_zero()]] - code - tests\test_training_data_pipeline.py
+- [[.test_export_merges_files()]] - code - tests\test_training_data_pipeline.py
+- [[.test_export_returns_count()]] - code - tests\test_training_data_pipeline.py
+- [[.test_export_valid_jsonl()]] - code - tests\test_training_data_pipeline.py
+- [[.test_extract_basic_signal()]] - code - tests\test_apex_learning.py
+- [[.test_frequent_escalation_types()]] - code - tests\test_apex_learning.py
+- [[.test_general_ranked_above_meta()]] - code - tests\test_apex_teaching.py
+- [[.test_grimoire_error_handled()]] - code - tests\test_apex_teaching.py
+- [[.test_grimoire_error_returns_empty()]] - code - tests\test_apex_teaching.py
+- [[.test_history_starts_empty()]] - code - tests\test_apex_conversation.py
+- [[.test_import_from_apex_module()]] - code - tests\test_apex_teaching.py
+- [[.test_infrequent_types_excluded()]] - code - tests\test_apex_learning.py
+- [[.test_initial_stats()]] - code - tests\test_conversation_ingestor.py
+- [[.test_input_summary_truncated()]] - code - tests\test_apex_learning.py
+- [[.test_log_escalation()]] - code - tests\test_apex_learning.py
+- [[.test_mark_local_retry_success()]] - code - tests\test_apex_learning.py
+- [[.test_meta_gets_broader_tags()]] - code - tests\test_apex_teaching.py
+- [[.test_metadata_tier_tags()]] - code - tests\test_apex_teaching.py
+- [[.test_missing_tiers_reported()]] - code - tests\test_apex_teaching.py
+- [[.test_no_xml_heuristic_only()]] - code - tests\test_apex_teaching.py
+- [[.test_old_extract_teaching_signal_still_works()]] - code - tests\test_apex_teaching.py
+- [[.test_partial_xml_with_heuristic_fallback()]] - code - tests\test_apex_teaching.py
+- [[.test_same_date_same_file()]] - code - tests\test_training_data_pipeline.py
+- [[.test_sanitize_in_failed_response()]] - code - tests\test_training_data_pipeline.py
+- [[.test_sanitize_preserves_normal_text()]] - code - tests\test_training_data_pipeline.py
+- [[.test_save_appends_not_overwrites()]] - code - tests\test_training_data_pipeline.py
+- [[.test_save_creates_file()_1]] - code - tests\test_training_data_pipeline.py
+- [[.test_save_daily_filename_format()]] - code - tests\test_training_data_pipeline.py
+- [[.test_save_returns_filepath_string()]] - code - tests\test_training_data_pipeline.py
+- [[.test_save_utf8_encoding()]] - code - tests\test_training_data_pipeline.py
+- [[.test_save_valid_jsonl()]] - code - tests\test_training_data_pipeline.py
+- [[.test_source_task_hash_links_tiers()]] - code - tests\test_apex_teaching.py
+- [[.test_specific_ranked_above_general()]] - code - tests\test_apex_teaching.py
+- [[.test_stats_by_category()]] - code - tests\test_training_data_pipeline.py
+- [[.test_stats_by_module()]] - code - tests\test_training_data_pipeline.py
+- [[.test_stats_empty()]] - code - tests\test_synthetic_data_generator.py
+- [[.test_stats_empty()_1]] - code - tests\test_training_data_pipeline.py
+- [[.test_stats_today_count()]] - code - tests\test_training_data_pipeline.py
+- [[.test_stats_total_count()]] - code - tests\test_training_data_pipeline.py
+- [[.test_strips_anthropic_api_key()]] - code - tests\test_training_data_pipeline.py
+- [[.test_strips_bare_sk_ant_key()]] - code - tests\test_training_data_pipeline.py
+- [[.test_strips_config_env_reference()]] - code - tests\test_training_data_pipeline.py
+- [[.test_strips_openai_api_key()]] - code - tests\test_training_data_pipeline.py
+- [[.test_strips_secret_key_assignment()]] - code - tests\test_training_data_pipeline.py
+- [[.test_task_hash_in_specific()]] - code - tests\test_apex_teaching.py
+- [[.test_task_type_preserved()]] - code - tests\test_apex_learning.py
+- [[.test_template_contains_three_sections()]] - code - tests\test_apex_teaching.py
+- [[.test_three_entries_created()]] - code - tests\test_apex_teaching.py
+- [[.test_tools_include_learning_tools()]] - code - tests\test_apex_learning.py
+- [[.test_trim_preserves_pairs()]] - code - tests\test_apex_conversation.py
+- [[.test_update_teaching_signal()]] - code - tests\test_apex_learning.py
+- [[.test_well_formatted_xml_all_tiers()]] - code - tests\test_apex_teaching.py
+- [[.update_teaching_signal()]] - code - modules\apex\apex.py
+- [[3 Grimoire entries created for 3 non-empty tiers.]] - rationale - tests\test_apex_teaching.py
+- [[API fallback to ClaudeOpenAI when local models fail.      Apex tracks every c]] - rationale - modules\apex\apex.py
+- [[Apex]] - code - modules\apex\apex.py
+- [[Apex now has 9 tools (4 original + 3 learning + 2 training).]] - rationale - tests\test_apex_learning.py
+- [[Apex query logs escalation in the SQLite escalation log.]] - rationale - tests\test_apex_learning.py
+- [[Apex — API Fallback and Active Learning =======================================]] - rationale - modules\apex\apex.py
+- [[Apex._apex_teach teaching request includes the template.]] - rationale - tests\test_apex_teaching.py
+- [[Append entry to today's JSONL file.          Args             entry A training]] - rationale - modules\apex\training_data_pipeline.py
+- [[Attach a teaching signal to an existing escalation log entry.          Args]] - rationale - modules\apex\apex.py
+- [[Call the Anthropic Claude API with conversation history.          Sends the fu]] - rationale - modules\apex\apex.py
+- [[Call the OpenAI API with conversation history.          Sends the full convers]] - rationale - modules\apex\apex.py
+- [[Capture Apex escalation exchanges as LoRA-ready training data.      Each success]] - rationale - modules\apex\training_data_pipeline.py
+- [[Capture one training example from an escalation.          Args             user]] - rationale - modules\apex\training_data_pipeline.py
+- [[Clear the conversation history.          Call on session end or when the user]] - rationale - modules\apex\apex.py
+- [[Conversation history starts as an empty list.]] - rationale - tests\test_apex_conversation.py
+- [[Create a TeachingExtractor.]] - rationale - tests\test_apex_learning.py
+- [[Create a TrainingDataPipeline with a temp output directory.]] - rationale - tests\test_training_data_pipeline.py
+- [[Create a sample training entry via capture().]] - rationale - tests\test_training_data_pipeline.py
+- [[Create an Apex instance with a temp log file.]] - rationale - tests\test_apex_conversation.py
+- [[Create an Apex instance with temp paths.]] - rationale - tests\test_apex_learning.py
+- [[Create an EscalationLog with a temp database.]] - rationale - tests\test_apex_learning.py
+- [[Create and initialize Apex.]] - rationale - tests\test_apex_learning.py
+- [[Create the escalation log table if it doesn't exist.]] - rationale - modules\apex\apex.py
+- [[Cross-domain meta-principle surfaces for novel domain.]] - rationale - tests\test_apex_teaching.py
+- [[Default max_turns is 10 when not specified in config.]] - rationale - tests\test_apex_conversation.py
+- [[Dispatch a task to the selected API provider.          Sends the full conversa]] - rationale - modules\apex\apex.py
+- [[Domain tags appear in all stored entries' tags list.]] - rationale - tests\test_apex_teaching.py
+- [[Each stored entry has correct tier metadata.]] - rationale - tests\test_apex_teaching.py
+- [[Each tier has correct tier metadata and domain_tags.]] - rationale - tests\test_apex_teaching.py
+- [[Empty Grimoire results returns empty list.]] - rationale - tests\test_apex_teaching.py
+- [[Escalation stores teaching signal in Grimoire when available.]] - rationale - tests\test_apex_learning.py
+- [[EscalationLog]] - code - modules\apex\apex.py
+- [[Estimate cost in USD for an API call.          Args             api claude]] - rationale - modules\apex\apex.py
+- [[Execute an Apex tool.          Args             tool_name Which tool to inv]] - rationale - modules\apex\apex.py
+- [[Execute escalation_frequent through Apex.execute().]] - rationale - tests\test_apex_learning.py
+- [[Execute escalation_stats through Apex.execute().]] - rationale - tests\test_apex_learning.py
+- [[Execute teaching_review through Apex.execute().]] - rationale - tests\test_apex_learning.py
+- [[Export all JSONL files as a single merged LoRA-ready dataset.          Args]] - rationale - modules\apex\training_data_pipeline.py
+- [[Export all training data as merged LoRA-ready JSONL.          Args]] - rationale - modules\apex\apex.py
+- [[Extract a teaching signal from an escalation (Phase 1 interface).          Prese]] - rationale - modules\apex\teaching_extractor.py
+- [[Extract from task input + response, dict has required keys.]] - rationale - tests\test_apex_learning.py
+- [[Extract teaching signals from API escalation responses.      Phase 1 Simple str]] - rationale - modules\apex\teaching_extractor.py
+- [[General ranked above meta.]] - rationale - tests\test_apex_teaching.py
+- [[Generate a deterministic hash for a task dict.]] - rationale - modules\apex\teaching_extractor.py
+- [[Get escalation statistics for the given time window.          Args]] - rationale - modules\apex\apex.py
+- [[Get escalation statistics.          Args             params Optional 'days']] - rationale - modules\apex\apex.py
+- [[Get recent escalations that have teaching signals.          Args]] - rationale - modules\apex\apex.py
+- [[Get recent teaching signals for review.          Args             params Op]] - rationale - modules\apex\apex.py
+- [[Get task types that frequently escalate.          Args             params N]] - rationale - modules\apex\apex.py
+- [[Get task types that keep escalating — learning priorities.          Args]] - rationale - modules\apex\apex.py
+- [[Get training data pipeline statistics.          Args             params No]] - rationale - modules\apex\apex.py
+- [[Graceful degradation empty-ish response stored as specific only.]] - rationale - tests\test_apex_teaching.py
+- [[Grimoire exception returns empty list.]] - rationale - tests\test_apex_teaching.py
+- [[Grimoire has matching result, returns its content.]] - rationale - tests\test_apex_learning.py
+- [[Grimoire raises exception, returns None gracefully.]] - rationale - tests\test_apex_learning.py
+- [[Grimoire raising exceptions doesn't crash store_three_tiers.]] - rationale - tests\test_apex_teaching.py
+- [[Grimoire set but no matching results, returns None.]] - rationale - tests\test_apex_learning.py
+- [[Initialize Apex.          Args             config Module configuration from]] - rationale - modules\apex\apex.py
+- [[Initialize escalation log.          Args             db_path Path to the SQ]] - rationale - modules\apex\apex.py
+- [[Initialize the training data pipeline.          Args             output_dir Di]] - rationale - modules\apex\training_data_pipeline.py
+- [[Initialized Apex with a fake Anthropic key for live-mode dispatch.]] - rationale - tests\test_apex_conversation.py
+- [[Inject a Grimoire reference for teaching signal storage.          Called by th]] - rationale - modules\apex\apex.py
+- [[Legacy extract_teaching_signal interface unchanged.]] - rationale - tests\test_apex_teaching.py
+- [[Load call log from disk.]] - rationale - modules\apex\apex.py
+- [[Log 4 escalations of same type, appears in frequent list.]] - rationale - tests\test_apex_learning.py
+- [[Log 5 escalations across 3 task types, verify stats breakdown.]] - rationale - tests\test_apex_learning.py
+- [[Log an API usage entry manually.          Args             params 'entry' d]] - rationale - modules\apex\apex.py
+- [[Log an escalation event.          Args             task_type Category of th]] - rationale - modules\apex\apex.py
+- [[Log an escalation, verify entry in DB with correct fields.]] - rationale - tests\test_apex_learning.py
+- [[Log escalation - extract teaching - store signal - query - found.]] - rationale - tests\test_apex_learning.py
+- [[Log escalation, mark retry success, verify flag set.]] - rationale - tests\test_apex_learning.py
+- [[Log escalation, update with teaching signal, verify stored.]] - rationale - tests\test_apex_learning.py
+- [[Log escalations with cost, verify total in stats.]] - rationale - tests\test_apex_learning.py
+- [[Long input truncated to 200 chars in summary.]] - rationale - tests\test_apex_learning.py
+- [[Long response truncated to 500 chars in approach.]] - rationale - tests\test_apex_learning.py
+- [[Mark that a similar task was later handled locally.          This is the key m]] - rationale - modules\apex\apex.py
+- [[Meta-principle gets broader (prefix) domain tags.]] - rationale - tests\test_apex_teaching.py
+- [[No XML tags at all — heuristic extraction produces at least specific.]] - rationale - tests\test_apex_teaching.py
+- [[No grimoire set, returns None.]] - rationale - tests\test_apex_learning.py
+- [[Old escalations outside window are excluded.]] - rationale - tests\test_apex_learning.py
+- [[Only 1 escalation of a type, not in frequent list.]] - rationale - tests\test_apex_learning.py
+- [[Parse a frontier model response into three reasoning tiers.          Tries XML t]] - rationale - modules\apex\teaching_extractor.py
+- [[Persist call log to disk.]] - rationale - modules\apex\apex.py
+- [[Record an escalation and extractstore teaching signal.          This is the c]] - rationale - modules\apex\apex.py
+- [[Request a teaching explanation from the API.          Architecture 'Shadow se]] - rationale - modules\apex\apex.py
+- [[Response with only specific_solution tag uses heuristic for others.]] - rationale - tests\test_apex_teaching.py
+- [[Return Apex's tool definitions.]] - rationale - modules\apex\apex.py
+- [[Return a value matching _call_claude's return signature.]] - rationale - tests\test_apex_conversation.py
+- [[Return counts total examples, examples today, by category, by module.]] - rationale - modules\apex\training_data_pipeline.py
+- [[Return ingestion history stats.          Returns             {total_files, tota]] - rationale - modules\grimoire\conversation_ingestor.py
+- [[SQLite-backed log of every Apex escalation.      Tracks what was escalated, wh]] - rationale - modules\apex\apex.py
+- [[Search Grimoire for prior teaching signals matching this task.          Called]] - rationale - modules\apex\apex.py
+- [[Search Grimoire for teachings, re-ranked by tier priority.          Priority sp]] - rationale - modules\apex\teaching_extractor.py
+- [[Select the best available API.          Claude is default. OpenAI is fallback.]] - rationale - modules\apex\apex.py
+- [[Send a task to a frontier API.          Makes real API calls when keys are pre]] - rationale - modules\apex\apex.py
+- [[Shut down Apex. Persist call log and clear conversation history.]] - rationale - modules\apex\apex.py
+- [[Specific result ranked above general when both returned.]] - rationale - tests\test_apex_teaching.py
+- [[Specific tier has a task_hash in metadata.]] - rationale - tests\test_apex_teaching.py
+- [[Start Apex. Load API keys from environment and config.env.]] - rationale - modules\apex\apex.py
+- [[Store an Apex transaction record in Grimoire for audit trail.          Args]] - rationale - modules\apex\apex.py
+- [[Store each tier as a separate Grimoire entry.          Args             tiers]] - rationale - modules\apex\teaching_extractor.py
+- [[Strip secrets, API keys, and env references from text.          Args]] - rationale - modules\apex\training_data_pipeline.py
+- [[Task type passes through correctly.]] - rationale - tests\test_apex_learning.py
+- [[Teaching Extractor — 3-Tier Reasoning Storage ==================================]] - rationale - modules\apex\teaching_extractor.py
+- [[TeachingExtractor]] - code - modules\apex\teaching_extractor.py
+- [[TeachingExtractor still importable from modules.apex.apex.]] - rationale - tests\test_apex_teaching.py
+- [[Template includes all three XML section tags.]] - rationale - tests\test_apex_teaching.py
+- [[TestBackwardCompatibility]] - code - tests\test_apex_teaching.py
+- [[TestCapture]] - code - tests\test_training_data_pipeline.py
+- [[TestClearHistory]] - code - tests\test_apex_conversation.py
+- [[TestConversationConfig]] - code - tests\test_apex_conversation.py
+- [[TestConversationHistory]] - code - tests\test_apex_conversation.py
+- [[TestDailyRotation]] - code - tests\test_training_data_pipeline.py
+- [[TestEscalationLogBasic]] - code - tests\test_apex_learning.py
+- [[TestEscalationStats]] - code - tests\test_apex_learning.py
+- [[TestEscalationTemplate]] - code - tests\test_apex_teaching.py
+- [[TestEscalationTools]] - code - tests\test_apex_learning.py
+- [[TestExportForLora]] - code - tests\test_training_data_pipeline.py
+- [[TestExtractThreeTiers]] - code - tests\test_apex_teaching.py
+- [[TestFrequentEscalations]] - code - tests\test_apex_learning.py
+- [[TestFullCycle]] - code - tests\test_apex_learning.py
+- [[TestGrimoireIntegration]] - code - tests\test_apex_learning.py
+- [[TestGrimoireTransactionStorage]] - code - tests\test_apex_conversation.py
+- [[TestInit_3]] - code - tests\test_training_data_pipeline.py
+- [[TestMaxTurnsTrimming]] - code - tests\test_apex_conversation.py
+- [[TestSanitization]] - code - tests\test_training_data_pipeline.py
+- [[TestSave]] - code - tests\test_training_data_pipeline.py
+- [[TestSearchWithTierPriority]] - code - tests\test_apex_teaching.py
+- [[TestStats_3]] - code - tests\test_synthetic_data_generator.py
+- [[TestStats_4]] - code - tests\test_training_data_pipeline.py
+- [[TestStoreThreeTiers]] - code - tests\test_apex_teaching.py
+- [[TestTeachingExtractor]] - code - tests\test_apex_learning.py
+- [[TestToolCount]] - code - tests\test_apex_learning.py
+- [[Tests for 3-Tier TeachingExtractor ==================================== Covers e]] - rationale - tests\test_apex_teaching.py
+- [[Tests for Apex Conversation History ===================================== Covers]] - rationale - tests\test_apex_conversation.py
+- [[Tests for Apex Escalation-Learning Cycle =======================================]] - rationale - tests\test_apex_learning.py
+- [[Tests for Training Data Pipeline — LoRA-Ready Dataset from Apex Escalations ====]] - rationale - tests\test_training_data_pipeline.py
+- [[Tool handler clear conversation history.          Args             params]] - rationale - modules\apex\apex.py
+- [[Track daily spending.]] - rationale - modules\apex\apex.py
+- [[Training Data Pipeline — LoRA-Ready Dataset from Apex Escalations ==============]] - rationale - modules\apex\training_data_pipeline.py
+- [[TrainingDataPipeline]] - code - modules\apex\training_data_pipeline.py
+- [[Trim conversation history to max_turns (pairs of user+assistant).          Eac]] - rationale - modules\apex\apex.py
+- [[Well-formatted XML response extracts all 3 tiers.]] - rationale - tests\test_apex_teaching.py
+- [[_extract_xml()]] - code - modules\apex\teaching_extractor.py
+- [[_heuristic_extract()]] - code - modules\apex\teaching_extractor.py
+- [[_stub_call_claude()]] - code - tests\test_apex_conversation.py
+- [[_task_hash()]] - code - modules\apex\teaching_extractor.py
+- [[_trim_history always removes in user+assistant pairs.]] - rationale - tests\test_apex_conversation.py
+- [[apex()_1]] - code - tests\test_apex_conversation.py
+- [[apex()_2]] - code - tests\test_apex_learning.py
+- [[apex.py]] - code - modules\apex\apex.py
+- [[clear_history() empties the conversation history.]] - rationale - tests\test_apex_conversation.py
+- [[confidence_at_creation set to 0.7 for all tiers.]] - rationale - tests\test_apex_teaching.py
+- [[domain_tags()]] - code - tests\test_apex_teaching.py
+- [[esc_log()]] - code - tests\test_apex_learning.py
+- [[extractor()]] - code - tests\test_apex_learning.py
+- [[extractor()_1]] - code - tests\test_apex_teaching.py
+- [[live_apex()]] - code - tests\test_apex_conversation.py
+- [[max_turns can be set via config.]] - rationale - tests\test_apex_conversation.py
+- [[missing_tiers correctly reports which tiers weren't found.]] - rationale - tests\test_apex_teaching.py
+- [[mock_grimoire()]] - code - tests\test_apex_teaching.py
+- [[online_apex()_1]] - code - tests\test_apex_learning.py
+- [[partial_xml_response()]] - code - tests\test_apex_teaching.py
+- [[pipeline()]] - code - tests\test_training_data_pipeline.py
+- [[plain_response()]] - code - tests\test_apex_teaching.py
+- [[sample_entry()]] - code - tests\test_training_data_pipeline.py
+- [[source_task_hash is the same across all three tiers.]] - rationale - tests\test_apex_teaching.py
+- [[task()]] - code - tests\test_apex_teaching.py
+- [[teaching_extractor.py]] - code - modules\apex\teaching_extractor.py
+- [[test_apex_conversation.py]] - code - tests\test_apex_conversation.py
+- [[test_apex_learning.py]] - code - tests\test_apex_learning.py
+- [[test_apex_teaching.py]] - code - tests\test_apex_teaching.py
+- [[test_check_grimoire_handles_exception()]] - code - tests\test_apex_learning.py
+- [[test_check_grimoire_returns_content()]] - code - tests\test_apex_learning.py
+- [[test_check_grimoire_returns_none_empty_results()]] - code - tests\test_apex_learning.py
+- [[test_check_grimoire_returns_none_no_match()]] - code - tests\test_apex_learning.py
+- [[test_clear_history_tool()]] - code - tests\test_apex_conversation.py
+- [[test_escalation_frequent_tool()]] - code - tests\test_apex_learning.py
+- [[test_escalation_stats_tool()]] - code - tests\test_apex_learning.py
+- [[test_full_cycle()]] - code - tests\test_apex_learning.py
+- [[test_grimoire_failure_does_not_break_query()]] - code - tests\test_apex_conversation.py
+- [[test_history_accumulates_across_calls()]] - code - tests\test_apex_conversation.py
+- [[test_history_not_added_in_dry_run()]] - code - tests\test_apex_conversation.py
+- [[test_history_not_added_on_api_failure()]] - code - tests\test_apex_conversation.py
+- [[test_history_sent_in_api_request()]] - code - tests\test_apex_conversation.py
+- [[test_max_turns_trims_oldest()]] - code - tests\test_apex_conversation.py
+- [[test_no_grimoire_no_crash()]] - code - tests\test_apex_conversation.py
+- [[test_query_triggers_escalation_log()]] - code - tests\test_apex_learning.py
+- [[test_record_escalation_with_grimoire()]] - code - tests\test_apex_learning.py
+- [[test_shutdown_clears_history()]] - code - tests\test_apex_conversation.py
+- [[test_teaching_review_tool()]] - code - tests\test_apex_learning.py
+- [[test_training_data_pipeline.py]] - code - tests\test_training_data_pipeline.py
+- [[test_transaction_stored_in_grimoire()]] - code - tests\test_apex_conversation.py
+- [[training_data_pipeline.py]] - code - modules\apex\training_data_pipeline.py
+- [[well_formatted_response()]] - code - tests\test_apex_teaching.py
+
+## Live Query (requires Dataview plugin)
+
+```dataview
+TABLE source_file, type FROM #community/Apex_API_Providers
+SORT file.name ASC
+```
+
+## Connections to other communities
+- 190 edges to [[_COMMUNITY_Base Module & Apex API]]
+- 39 edges to [[_COMMUNITY_Data Pipeline & Embeddings]]
+- 26 edges to [[_COMMUNITY_Module Registry & Tools]]
+- 9 edges to [[_COMMUNITY_Module Lifecycle]]
+- 6 edges to [[_COMMUNITY_Cross-Reference & Security]]
+- 5 edges to [[_COMMUNITY_Async Task Queue]]
+- 4 edges to [[_COMMUNITY_Code Analyzer (Omen)]]
+- 4 edges to [[_COMMUNITY_Synthetic Data Generator]]
+- 3 edges to [[_COMMUNITY_Conversation Ingestor]]
+- 2 edges to [[_COMMUNITY_Adversarial Sparring]]
+- 1 edge to [[_COMMUNITY_Introspection Dashboard]]
+
+## Top bridge nodes
+- [[.get_stats()_2]] - degree 17, connects to 4 communities
+- [[Apex]] - degree 173, connects to 3 communities
+- [[._apex_query()]] - degree 12, connects to 3 communities
+- [[.save()]] - degree 21, connects to 2 communities
+- [[.export_for_lora()]] - degree 10, connects to 2 communities

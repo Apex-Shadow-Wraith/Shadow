@@ -1,0 +1,85 @@
+---
+source_file: "modules\morpheus\self_improvement.py"
+type: "code"
+community: "Morpheus Creative Pipeline"
+location: "L59"
+tags:
+  - graphify/code
+  - graphify/INFERRED
+  - community/Morpheus_Creative_Pipeline
+---
+
+# SelfImprovementEngine
+
+## Connections
+- [[.__init__()_29]] - `calls` [INFERRED]
+- [[.__init__()_33]] - `method` [EXTRACTED]
+- [[._create_tables()_4]] - `method` [EXTRACTED]
+- [[._make_proposal()]] - `method` [EXTRACTED]
+- [[._persist_proposal()]] - `method` [EXTRACTED]
+- [[.analyze_module()]] - `method` [EXTRACTED]
+- [[.approve_proposal()]] - `method` [EXTRACTED]
+- [[.close()_6]] - `method` [EXTRACTED]
+- [[.generate_proposals()]] - `method` [EXTRACTED]
+- [[.get_improvement_stats()]] - `method` [EXTRACTED]
+- [[.get_proposals()]] - `method` [EXTRACTED]
+- [[.get_rejection_patterns()]] - `method` [EXTRACTED]
+- [[.reject_proposal()]] - `method` [EXTRACTED]
+- [[.test_proposal()]] - `method` [EXTRACTED]
+- [[A Python file with a syntax error.]] - `uses` [INFERRED]
+- [[A small, clean Python file with no issues.]] - `uses` [INFERRED]
+- [[An empty Python file.]] - `uses` [INFERRED]
+- [[Analyze a Shadow module for improvement opportunities.          Delegates to Sel]] - `uses` [INFERRED]
+- [[Compile experiment report for morning briefing.          Returns             -]] - `uses` [INFERRED]
+- [[Convert a sqlite3.Row to a dict, deserializing JSON fields.]] - `uses` [INFERRED]
+- [[Create a fresh SelfImprovementEngine with an isolated DB.]] - `uses` [INFERRED]
+- [[Create a new experiment proposal.          Args             params title, hypo]] - `uses` [INFERRED]
+- [[Create the morpheus_experiments table.]] - `uses` [INFERRED]
+- [[Creative discovery pipeline — experiment tracking and evaluation.      Phase 1 b]] - `uses` [INFERRED]
+- [[Execute a Morpheus tool.]] - `uses` [INFERRED]
+- [[Fetch a single experiment by UUID.]] - `uses` [INFERRED]
+- [[Get the overnight experiment queue.          Returns proposed experiments sorted]] - `uses` [INFERRED]
+- [[Initialize Morpheus.          Args             config Module configuration. Ke]] - `uses` [INFERRED]
+- [[Insert a proposal directly for test setup.]] - `uses` [INFERRED]
+- [[List experiments with optional filters.          Args             params Optio]] - `uses` [INFERRED]
+- [[Listfilter improvement proposals.          Delegates to SelfImprovementEngine.g]] - `uses` [INFERRED]
+- [[Morpheus]] - `uses` [INFERRED]
+- [[Morpheus proposes code improvements to Shadow's own modules.      Pipeline Anal]] - `rationale_for` [EXTRACTED]
+- [[Morpheus — Creative Discovery Pipeline =========================================]] - `uses` [INFERRED]
+- [[Move an experiment from proposed to running.          Args             params]] - `uses` [INFERRED]
+- [[Proposals whose (change_type, module) were rejected 2+ times are suppressed.]] - `uses` [INFERRED]
+- [[Record results for a running experiment.          Args             params expe]] - `uses` [INFERRED]
+- [[Return Morpheus's tool definitions.]] - `uses` [INFERRED]
+- [[Safety invariant tests.]] - `uses` [INFERRED]
+- [[Score and tier a completed experiment.          Tier 1 = Breakthrough, Tier 2 =]] - `uses` [INFERRED]
+- [[Show template performance stats.          Args             params Optional 'te]] - `uses` [INFERRED]
+- [[Shut down Morpheus. Close DB connection.]] - `uses` [INFERRED]
+- [[Single rejection does not create a pattern.]] - `uses` [INFERRED]
+- [[Start Morpheus. Create DB and tables.]] - `uses` [INFERRED]
+- [[TestAnalyzeModule]] - `uses` [INFERRED]
+- [[TestApproveReject]] - `uses` [INFERRED]
+- [[TestGenerateProposals]] - `uses` [INFERRED]
+- [[TestGetProposals]] - `uses` [INFERRED]
+- [[TestMorpheusIntegration_1]] - `uses` [INFERRED]
+- [[TestRejectionPatterns]] - `uses` [INFERRED]
+- [[TestSafety]] - `uses` [INFERRED]
+- [[TestStats_1]] - `uses` [INFERRED]
+- [[TestTestProposal]] - `uses` [INFERRED]
+- [[Tests for Morpheus tool registration and execution.]] - `uses` [INFERRED]
+- [[Tests for SelfImprovementEngine — Morpheus × Omen RSI Bridge ===================]] - `uses` [INFERRED]
+- [[Tests for analyze_module — pure ASTregex static analysis.]] - `uses` [INFERRED]
+- [[Tests for approve_proposal and reject_proposal.]] - `uses` [INFERRED]
+- [[Tests for generate_proposals — rule-based proposal generation.]] - `uses` [INFERRED]
+- [[Tests for get_improvement_stats.]] - `uses` [INFERRED]
+- [[Tests for get_proposals filtering.]] - `uses` [INFERRED]
+- [[Tests for get_rejection_patterns.]] - `uses` [INFERRED]
+- [[Tests for test_proposal — Phase 1 stub.]] - `uses` [INFERRED]
+- [[Trigger an evolution cycle. Returns summary of newretired templates.          A]] - `uses` [INFERRED]
+- [[analyze_module must NOT modify the source file.]] - `uses` [INFERRED]
+- [[analyze_module must not modify source files.]] - `uses` [INFERRED]
+- [[approve_proposal must NOT be registered as a Morpheus tool.]] - `uses` [INFERRED]
+- [[engine()_5]] - `calls` [INFERRED]
+- [[self_improve_analyze and self_improve_proposals must be autonomous.]] - `uses` [INFERRED]
+- [[self_improvement.py]] - `contains` [EXTRACTED]
+
+#graphify/code #graphify/INFERRED #community/Morpheus_Creative_Pipeline

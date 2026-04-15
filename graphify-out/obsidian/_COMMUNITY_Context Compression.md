@@ -1,0 +1,264 @@
+---
+type: community
+cohesion: 0.02
+members: 230
+---
+
+# Context Compression
+
+**Cohesion:** 0.02 - loosely connected
+**Members:** 230 nodes
+
+## Members
+- [[.__init__()_61]] - code - modules\shadow\context_compressor.py
+- [[.__init__()_62]] - code - modules\shadow\context_manager.py
+- [[._compress_history()]] - code - modules\shadow\context_orchestrator.py
+- [[._estimate_component_tokens()]] - code - modules\shadow\context_manager.py
+- [[._format_failure_patterns()]] - code - modules\shadow\context_manager.py
+- [[._format_memories()]] - code - modules\shadow\context_manager.py
+- [[._format_tool_results()]] - code - modules\shadow\context_manager.py
+- [[._is_code()]] - code - modules\shadow\context_manager.py
+- [[._sort_memories_by_relevance()]] - code - modules\shadow\context_manager.py
+- [[._summarize_history_turns()]] - code - modules\shadow\context_manager.py
+- [[._summarize_tool_result()]] - code - modules\shadow\context_manager.py
+- [[.as_dict()]] - code - modules\shadow\context_manager.py
+- [[.build_context()]] - code - modules\shadow\context_manager.py
+- [[.calibrate()_1]] - code - modules\shadow\context_manager.py
+- [[.compress_all()]] - code - modules\shadow\context_compressor.py
+- [[.compress_conversation_history()]] - code - modules\shadow\context_compressor.py
+- [[.compress_failure_patterns()]] - code - modules\shadow\context_compressor.py
+- [[.compress_grimoire_results()]] - code - modules\shadow\context_compressor.py
+- [[.compress_system_prompt()]] - code - modules\shadow\context_compressor.py
+- [[.compress_tool_results()]] - code - modules\shadow\context_compressor.py
+- [[.estimate_messages_tokens()]] - code - modules\shadow\context_manager.py
+- [[.estimate_tokens()]] - code - modules\shadow\context_manager.py
+- [[.estimate_tokens()_1]] - code - tests\test_chunked_processor.py
+- [[.get_compression_report()]] - code - modules\shadow\context_compressor.py
+- [[.get_model_context_limit()]] - code - modules\shadow\context_manager.py
+- [[.get_usage_report()]] - code - modules\shadow\context_manager.py
+- [[.test_assembles_all_components()]] - code - tests\test_context_manager.py
+- [[.test_calibrate_invalid_inputs()]] - code - tests\test_context_manager.py
+- [[.test_calibrate_updates_ratio()]] - code - tests\test_context_manager.py
+- [[.test_check_history_overflow()]] - code - tests\test_context_manager.py
+- [[.test_code_detection()]] - code - tests\test_context_manager.py
+- [[.test_compresses_all_components()]] - code - tests\test_context_compressor.py
+- [[.test_config_overrides()]] - code - tests\test_context_manager.py
+- [[.test_context_manager_calls_compressor_before_trimming()]] - code - tests\test_context_compressor.py
+- [[.test_drops_oldest_history_keeps_last_3()]] - code - tests\test_context_manager.py
+- [[.test_empty_content_handled()]] - code - tests\test_context_compressor.py
+- [[.test_empty_history()]] - code - tests\test_context_compressor.py
+- [[.test_empty_prompt()]] - code - tests\test_context_compressor.py
+- [[.test_empty_results()]] - code - tests\test_context_compressor.py
+- [[.test_empty_string()_2]] - code - tests\test_context_manager.py
+- [[.test_enormous_single_input_returns_error()]] - code - tests\test_context_manager.py
+- [[.test_failure_patterns_trimmed_last()]] - code - tests\test_context_manager.py
+- [[.test_fewer_turns_than_keep_recent()]] - code - tests\test_context_compressor.py
+- [[.test_handles_empty_results()]] - code - tests\test_context_compressor.py
+- [[.test_keeps_highest_relevance_when_over_limit()]] - code - tests\test_context_compressor.py
+- [[.test_keeps_last_n_turns_verbatim()]] - code - tests\test_context_compressor.py
+- [[.test_keeps_most_recent_verbatim()]] - code - tests\test_context_compressor.py
+- [[.test_known_models()]] - code - tests\test_context_manager.py
+- [[.test_known_value_within_20_percent()]] - code - tests\test_context_manager.py
+- [[.test_longer_english()]] - code - tests\test_context_manager.py
+- [[.test_messages_estimation()]] - code - tests\test_context_manager.py
+- [[.test_metadata_present()]] - code - tests\test_context_compressor.py
+- [[.test_no_data_report()]] - code - tests\test_context_manager.py
+- [[.test_no_trim_when_under_limit()]] - code - tests\test_context_manager.py
+- [[.test_none_empty_inputs_all_methods()]] - code - tests\test_context_compressor.py
+- [[.test_none_inputs_handled()]] - code - tests\test_context_compressor.py
+- [[.test_output_fits_within_max_tokens()]] - code - tests\test_context_manager.py
+- [[.test_preserves_code_blocks()]] - code - tests\test_context_compressor.py
+- [[.test_preserves_current_input_always()]] - code - tests\test_context_manager.py
+- [[.test_preserves_error_messages()]] - code - tests\test_context_compressor.py
+- [[.test_preserves_system_prompt_always()]] - code - tests\test_context_manager.py
+- [[.test_ratio_is_positive()]] - code - tests\test_context_compressor.py
+- [[.test_reduces_token_count()]] - code - tests\test_context_compressor.py
+- [[.test_removes_optional_sections()]] - code - tests\test_context_compressor.py
+- [[.test_report_has_accurate_ratios()]] - code - tests\test_context_compressor.py
+- [[.test_reserve_from_config()]] - code - tests\test_context_manager.py
+- [[.test_returns_accurate_breakdown()]] - code - tests\test_context_manager.py
+- [[.test_returns_unchanged_no_max_tokens()]] - code - tests\test_context_compressor.py
+- [[.test_short_english()]] - code - tests\test_context_manager.py
+- [[.test_short_prompt_unchanged_with_max()]] - code - tests\test_context_compressor.py
+- [[.test_single_char()]] - code - tests\test_context_manager.py
+- [[.test_single_result_unchanged()]] - code - tests\test_context_compressor.py
+- [[.test_strips_boilerplate()]] - code - tests\test_context_compressor.py
+- [[.test_summarizes_instead_of_deleting()]] - code - tests\test_context_manager.py
+- [[.test_summarizes_older_turns()]] - code - tests\test_context_compressor.py
+- [[.test_summary_captures_decisions()]] - code - tests\test_context_compressor.py
+- [[.test_summary_includes_topic_extraction()]] - code - tests\test_context_compressor.py
+- [[.test_token_breakdown_populated()]] - code - tests\test_context_manager.py
+- [[.test_triggers_trim_when_over_limit()]] - code - tests\test_context_manager.py
+- [[.test_trims_memories_by_relevance()]] - code - tests\test_context_manager.py
+- [[.test_trims_tool_results_first()]] - code - tests\test_context_manager.py
+- [[.test_truncates_older_results()]] - code - tests\test_context_compressor.py
+- [[.test_unicode_content()]] - code - tests\test_context_compressor.py
+- [[.test_unknown_model_returns_default()]] - code - tests\test_context_manager.py
+- [[.test_update_model_changes_limits()]] - code - tests\test_context_manager.py
+- [[.test_update_model_unknown()]] - code - tests\test_context_manager.py
+- [[.test_very_short_content_not_longer()]] - code - tests\test_context_compressor.py
+- [[.trim_context()]] - code - modules\shadow\context_manager.py
+- [[.update_model()]] - code - modules\shadow\context_manager.py
+- [[All methods handle Noneempty gracefully.]] - rationale - tests\test_context_compressor.py
+- [[An input that exceeds the limit alone should return an error, not crash.]] - rationale - tests\test_context_manager.py
+- [[Assemble the full context and trim if necessary.          Args             s]] - rationale - modules\shadow\context_manager.py
+- [[Boilerplate phrases should be removed.]] - rationale - tests\test_context_compressor.py
+- [[Calibrate estimation ratios against actual token counts.          Run this aga]] - rationale - modules\shadow\context_manager.py
+- [[Check if adding a new turn would push context over limit.          Returns Tru]] - rationale - modules\shadow\context_manager.py
+- [[Code blocks must survive compression intact.]] - rationale - tests\test_context_compressor.py
+- [[Compress Grimoire search results while preserving code blocks.          Strategy]] - rationale - modules\shadow\context_compressor.py
+- [[Compress all context components.          Args             components dict wit]] - rationale - modules\shadow\context_compressor.py
+- [[Compress conversation history via ContextCompressor.]] - rationale - modules\shadow\context_orchestrator.py
+- [[Compress conversation history with rolling summary.          Strategy         1]] - rationale - modules\shadow\context_compressor.py
+- [[Compress failure patterns, keeping the most relevant.]] - rationale - modules\shadow\context_compressor.py
+- [[Compress system prompt (identity preservation).          Only compresses if max_]] - rationale - modules\shadow\context_compressor.py
+- [[Compress tool execution results.          Strategy         1. Keep most recent]] - rationale - modules\shadow\context_compressor.py
+- [[Compresses context components using rule-based strategies.      Reduces token us]] - rationale - modules\shadow\context_compressor.py
+- [[Compression must not make very short content longer.]] - rationale - tests\test_context_compressor.py
+- [[Compression should reduce total tokens.]] - rationale - tests\test_context_compressor.py
+- [[Context Compression Pipeline — Rule-Based Summarization ========================]] - rationale - modules\shadow\context_compressor.py
+- [[Context Window Manager — Token Estimation and Priority-Based Trimming =========]] - rationale - modules\shadow\context_manager.py
+- [[ContextCompressor]] - code - modules\shadow\context_compressor.py
+- [[ContextManager should call compressor.compress_all before trimming.]] - rationale - tests\test_context_compressor.py
+- [[Create a summary placeholder for removed history turns.]] - rationale - modules\shadow\context_manager.py
+- [[Current input must never be modified by trimming.]] - rationale - tests\test_context_manager.py
+- [[Default compressor instance.]] - rationale - tests\test_context_compressor.py
+- [[Default context manager with 128K limit.]] - rationale - tests\test_context_manager.py
+- [[Each compressed result has required metadata fields.]] - rationale - tests\test_context_compressor.py
+- [[Empty history returns empty list.]] - rationale - tests\test_context_compressor.py
+- [[Empty input returns empty output.]] - rationale - tests\test_context_compressor.py
+- [[Empty input returns empty output._1]] - rationale - tests\test_context_compressor.py
+- [[Empty prompt returns empty.]] - rationale - tests\test_context_compressor.py
+- [[Error results must keep full error message.]] - rationale - tests\test_context_compressor.py
+- [[Estimate should be within 20% of known real-world values.]] - rationale - tests\test_context_manager.py
+- [[Estimate token count without an external tokenizer.          Uses character-ba]] - rationale - modules\shadow\context_manager.py
+- [[Estimate tokens for a list of chat messages.          Each message has overhea]] - rationale - modules\shadow\context_manager.py
+- [[Estimate tokens for a list of context items.]] - rationale - modules\shadow\context_manager.py
+- [[Even with huge inputs, the assembled context must fit.]] - rationale - tests\test_context_manager.py
+- [[Extract fenced code blocks from text.]] - rationale - modules\shadow\context_compressor.py
+- [[Extract the first N sentences from text.]] - rationale - modules\shadow\context_compressor.py
+- [[Failure patterns should only be trimmed after tool_results, memories, and histor]] - rationale - tests\test_context_manager.py
+- [[Fast token estimation matching ContextManager's heuristic.]] - rationale - modules\shadow\context_compressor.py
+- [[Format failure patterns for inclusion in context.          Uses a clear label]] - rationale - modules\shadow\context_manager.py
+- [[Format memories for inclusion in context.]] - rationale - modules\shadow\context_manager.py
+- [[Format tool results for inclusion in context.]] - rationale - modules\shadow\context_manager.py
+- [[Grimoire results with varied content including code blocks.]] - rationale - tests\test_context_compressor.py
+- [[Heuristic does this text look like code]] - rationale - modules\shadow\context_manager.py
+- [[History trimming should keep at least 3 exchanges (6 messages).]] - rationale - tests\test_context_manager.py
+- [[If fewer turns than keep_recent, return all verbatim.]] - rationale - tests\test_context_compressor.py
+- [[Last keep_recent turns should be unmodified.]] - rationale - tests\test_context_compressor.py
+- [[Look up context window size for a model.          Checks config overrides firs]] - rationale - modules\shadow\context_manager.py
+- [[Manages context window usage with priority-based trimming.      Ensures Shadow]] - rationale - modules\shadow\context_manager.py
+- [[Maximum tokens for the model's context window.]] - rationale - modules\shadow\context_manager.py
+- [[Most recent tool result should be unchanged.]] - rationale - tests\test_context_compressor.py
+- [[Nonemissing inputs should not crash.]] - rationale - tests\test_context_compressor.py
+- [[Older successful results should be truncated with description.]] - rationale - tests\test_context_compressor.py
+- [[Older turns should be summarized into a single system message.]] - rationale - tests\test_context_compressor.py
+- [[Optional sections are removed when max_tokens is set.]] - rationale - tests\test_context_compressor.py
+- [[Output should be smaller than or equal to input.]] - rationale - tests\test_context_compressor.py
+- [[Remove common boilerplate phrases from text.]] - rationale - modules\shadow\context_compressor.py
+- [[Remove fenced code blocks from text, leaving a placeholder.]] - rationale - modules\shadow\context_compressor.py
+- [[Report before any context is built.]] - rationale - tests\test_context_manager.py
+- [[Report should have per-component and overall stats.]] - rationale - tests\test_context_compressor.py
+- [[Results with empty content don't crash.]] - rationale - tests\test_context_compressor.py
+- [[Return breakdown as a dictionary.]] - rationale - modules\shadow\context_manager.py
+- [[Return current context usage as percentage and breakdown.          Returns a h]] - rationale - modules\shadow\context_manager.py
+- [[Return stats from the last compress_all call.]] - rationale - modules\shadow\context_compressor.py
+- [[Sample conversation with multiple turns.]] - rationale - tests\test_context_compressor.py
+- [[Sample tool execution results.]] - rationale - tests\test_context_compressor.py
+- [[Short prompt stays the same even with max_tokens.]] - rationale - tests\test_context_compressor.py
+- [[Single result should be returned as-is.]] - rationale - tests\test_context_compressor.py
+- [[Small context manager for testing trimming (1000 token limit).]] - rationale - tests\test_context_manager.py
+- [[Sort memories by relevance_score (highest first).]] - rationale - modules\shadow\context_manager.py
+- [[Summarize a tool result to save tokens.]] - rationale - modules\shadow\context_manager.py
+- [[Summary should include topics from user messages.]] - rationale - tests\test_context_compressor.py
+- [[Summary should note key decisions when present.]] - rationale - tests\test_context_compressor.py
+- [[System prompt must never be modified by trimming.]] - rationale - tests\test_context_manager.py
+- [[Test calibration against actual token counts.]] - rationale - tests\test_context_manager.py
+- [[Test config-driven behavior.]] - rationale - tests\test_context_manager.py
+- [[Test context assembly.]] - rationale - tests\test_context_manager.py
+- [[Test model context limit lookup.]] - rationale - tests\test_context_manager.py
+- [[Test model switching.]] - rationale - tests\test_context_manager.py
+- [[Test priority-based trimming.]] - rationale - tests\test_context_manager.py
+- [[Test that output always fits within max_tokens.]] - rationale - tests\test_context_manager.py
+- [[Test token estimation accuracy.]] - rationale - tests\test_context_manager.py
+- [[Test usage reporting.]] - rationale - tests\test_context_manager.py
+- [[TestBuildContext]] - code - tests\test_context_manager.py
+- [[TestCalibration]] - code - tests\test_context_manager.py
+- [[TestCompressAll]] - code - tests\test_context_compressor.py
+- [[TestCompressConversationHistory]] - code - tests\test_context_compressor.py
+- [[TestCompressGrimoireResults]] - code - tests\test_context_compressor.py
+- [[TestCompressSystemPrompt]] - code - tests\test_context_compressor.py
+- [[TestCompressToolResults]] - code - tests\test_context_compressor.py
+- [[TestCompressionReport]] - code - tests\test_context_compressor.py
+- [[TestConfigIntegration]] - code - tests\test_context_manager.py
+- [[TestContextManagerIntegration]] - code - tests\test_context_compressor.py
+- [[TestEdgeCases_4]] - code - tests\test_context_compressor.py
+- [[TestEstimateTokens]] - code - tests\test_context_manager.py
+- [[TestGetModelContextLimit]] - code - tests\test_context_manager.py
+- [[TestGetUsageReport]] - code - tests\test_context_manager.py
+- [[TestOverflowPrevention]] - code - tests\test_context_manager.py
+- [[TestTrimContext]] - code - tests\test_context_manager.py
+- [[TestUpdateModel]] - code - tests\test_context_manager.py
+- [[Tests for Context Compression Pipeline =========================================]] - rationale - tests\test_context_compressor.py
+- [[Tests for Context Window Manager =================================== Validates t]] - rationale - tests\test_context_manager.py
+- [[Token usage breakdown for each context component.]] - rationale - modules\shadow\context_manager.py
+- [[TokenBreakdown]] - code - modules\shadow\context_manager.py
+- [[Tokens reserved for the response.]] - rationale - modules\shadow\context_manager.py
+- [[Tool results should be summarized, not just deleted, when possible.]] - rationale - tests\test_context_manager.py
+- [[Tool results should be trimmed before memories or history.]] - rationale - tests\test_context_manager.py
+- [[Trim context components to fit within target_tokens.          Priority order (]] - rationale - modules\shadow\context_manager.py
+- [[Unicode content should be handled correctly.]] - rationale - tests\test_context_compressor.py
+- [[Update the context manager for a different model.          Looks up the model']] - rationale - modules\shadow\context_manager.py
+- [[Usable tokens (max - reserve).]] - rationale - modules\shadow\context_manager.py
+- [[When over max_tokens, keep highest relevance entries.]] - rationale - tests\test_context_compressor.py
+- [[When trimming memories, keep highest relevance_score.]] - rationale - tests\test_context_manager.py
+- [[With a 500 token limit, a big history should trigger trimming.]] - rationale - tests\test_context_manager.py
+- [[Without max_tokens, prompt is returned as-is.]] - rationale - tests\test_context_compressor.py
+- [[_estimate_tokens()_1]] - code - modules\shadow\context_compressor.py
+- [[_extract_code_blocks()]] - code - modules\shadow\context_compressor.py
+- [[_extract_first_sentences()]] - code - modules\shadow\context_compressor.py
+- [[_remove_code_blocks()]] - code - modules\shadow\context_compressor.py
+- [[_strip_boilerplate()]] - code - modules\shadow\context_compressor.py
+- [[check_history_overflow should correctly detect when adding a turn would overflow]] - rationale - tests\test_context_manager.py
+- [[cm()]] - code - tests\test_context_manager.py
+- [[compress_all should handle all component types.]] - rationale - tests\test_context_compressor.py
+- [[compressor()]] - code - tests\test_context_compressor.py
+- [[context_compressor.py]] - code - modules\shadow\context_compressor.py
+- [[context_manager.py]] - code - modules\shadow\context_manager.py
+- [[conversation_history()]] - code - tests\test_context_compressor.py
+- [[effective_limit()]] - code - modules\shadow\context_manager.py
+- [[long_grimoire_results()]] - code - tests\test_context_compressor.py
+- [[max_tokens()]] - code - modules\shadow\context_manager.py
+- [[reserve_tokens()]] - code - modules\shadow\context_manager.py
+- [[sample_failure_patterns()]] - code - tests\test_context_manager.py
+- [[sample_history()]] - code - tests\test_context_manager.py
+- [[sample_memories()]] - code - tests\test_context_manager.py
+- [[sample_tool_results()]] - code - tests\test_context_manager.py
+- [[small_cm()]] - code - tests\test_context_manager.py
+- [[system_prompt()]] - code - tests\test_context_manager.py
+- [[test_context_compressor.py]] - code - tests\test_context_compressor.py
+- [[test_context_manager.py]] - code - tests\test_context_manager.py
+- [[tool_results()]] - code - tests\test_context_compressor.py
+
+## Live Query (requires Dataview plugin)
+
+```dataview
+TABLE source_file, type FROM #community/Context_Compression
+SORT file.name ASC
+```
+
+## Connections to other communities
+- 115 edges to [[_COMMUNITY_Async Task Queue]]
+- 4 edges to [[_COMMUNITY_Base Module & Apex API]]
+- 4 edges to [[_COMMUNITY_Context Orchestrator]]
+- 3 edges to [[_COMMUNITY_Module Lifecycle]]
+- 2 edges to [[_COMMUNITY_Adversarial Sparring]]
+- 2 edges to [[_COMMUNITY_Confidence Calibration]]
+
+## Top bridge nodes
+- [[.update_model()]] - degree 9, connects to 4 communities
+- [[.build_context()]] - degree 25, connects to 3 communities
+- [[.calibrate()_1]] - degree 10, connects to 3 communities
+- [[.estimate_tokens()_1]] - degree 10, connects to 2 communities
+- [[._is_code()]] - degree 5, connects to 2 communities

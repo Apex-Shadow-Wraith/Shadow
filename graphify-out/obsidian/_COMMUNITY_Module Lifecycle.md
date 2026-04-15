@@ -1,0 +1,443 @@
+---
+type: community
+cohesion: 0.01
+members: 379
+---
+
+# Module Lifecycle
+
+**Cohesion:** 0.01 - loosely connected
+**Members:** 379 nodes
+
+## Members
+- [[.__init__()_68]] - code - modules\shadow\growth_engine.py
+- [[.__init__()_70]] - code - modules\shadow\lora_manager.py
+- [[.__init__()_22]] - code - modules\grimoire\query_optimizer.py
+- [[.__init__()_42]] - code - modules\omen\sandbox.py
+- [[.__init__()_45]] - code - modules\omen\tool_creator.py
+- [[._call_generate_with_retry()]] - code - modules\shadow\self_teaching.py
+- [[._check_code_safety()]] - code - modules\omen\tool_creator.py
+- [[._compute_signature()]] - code - modules\omen\tool_creator.py
+- [[._create_tables()_6]] - code - modules\shadow\growth_engine.py
+- [[._ensure_staging_dir()]] - code - modules\omen\tool_creator.py
+- [[._init_db()_2]] - code - modules\grimoire\query_optimizer.py
+- [[._load_reminders()]] - code - modules\wraith\wraith.py
+- [[._load_state()_1]] - code - modules\shadow\task_queue.py
+- [[._normalize_code()]] - code - modules\omen\tool_creator.py
+- [[._record_snapshot()]] - code - modules\cerberus\reversibility.py
+- [[._register_defaults()]] - code - modules\shadow\lora_manager.py
+- [[._snapshot_config()]] - code - modules\cerberus\reversibility.py
+- [[._snapshot_database()]] - code - modules\cerberus\reversibility.py
+- [[._snapshot_external()]] - code - modules\cerberus\reversibility.py
+- [[._snapshot_file()]] - code - modules\cerberus\reversibility.py
+- [[.analyze_relevance()]] - code - modules\grimoire\query_optimizer.py
+- [[.apply_optimizations()]] - code - modules\grimoire\query_optimizer.py
+- [[.approve_tool()]] - code - modules\omen\tool_creator.py
+- [[.cleanup_expired()]] - code - modules\cerberus\reversibility.py
+- [[.close()_12]] - code - modules\shadow\growth_engine.py
+- [[.close()]] - code - modules\cerberus\reversibility.py
+- [[.close()_19]] - code - modules\wraith\wraith.py
+- [[.copy_to_production()]] - code - modules\omen\sandbox.py
+- [[.detect_pattern()]] - code - modules\omen\tool_creator.py
+- [[.find_co_retrieved_documents()]] - code - modules\grimoire\query_optimizer.py
+- [[.find_never_used_results()]] - code - modules\grimoire\query_optimizer.py
+- [[.generate_optimization_plan()]] - code - modules\grimoire\query_optimizer.py
+- [[.get_calibration_stats()]] - code - modules\cerberus\cerberus.py
+- [[.get_creation_stats()]] - code - modules\omen\tool_creator.py
+- [[.get_optimal_n_results()]] - code - modules\grimoire\query_optimizer.py
+- [[.get_query_stats()]] - code - modules\grimoire\query_optimizer.py
+- [[.get_similarity_threshold_recommendation()]] - code - modules\grimoire\query_optimizer.py
+- [[.get_snapshot()]] - code - modules\cerberus\reversibility.py
+- [[.get_staged_tools()]] - code - modules\omen\tool_creator.py
+- [[.initialize()_2]] - code - modules\cipher\cipher.py
+- [[.initialize()_6]] - code - modules\nova\nova.py
+- [[.initialize()_13]] - code - modules\shadow\task_queue.py
+- [[.initialize()_14]] - code - modules\shadow\task_tracker.py
+- [[.initialize()_17]] - code - modules\wraith\wraith.py
+- [[.list_snapshots()]] - code - modules\cerberus\reversibility.py
+- [[.log_false_positive()]] - code - modules\cerberus\cerberus.py
+- [[.log_query()]] - code - modules\grimoire\query_optimizer.py
+- [[.propose_tool()]] - code - modules\omen\tool_creator.py
+- [[.reject_tool()]] - code - modules\omen\tool_creator.py
+- [[.rollback()_1]] - code - modules\shadow\prompt_evolver.py
+- [[.rollback()]] - code - modules\cerberus\reversibility.py
+- [[.shutdown()_1]] - code - modules\cerberus\cerberus.py
+- [[.shutdown()_2]] - code - modules\cipher\cipher.py
+- [[.shutdown()_3]] - code - modules\grimoire\grimoire_module.py
+- [[.shutdown()_4]] - code - modules\harbinger\harbinger.py
+- [[.shutdown()_10]] - code - modules\shadow\message_bus.py
+- [[.shutdown()_5]] - code - modules\morpheus\morpheus.py
+- [[.shutdown()_6]] - code - modules\nova\nova.py
+- [[.shutdown()_7]] - code - modules\omen\omen.py
+- [[.shutdown()_8]] - code - modules\reaper\reaper_module.py
+- [[.shutdown()_12]] - code - modules\shadow\shadow_module.py
+- [[.shutdown()_13]] - code - modules\void\void.py
+- [[.shutdown()_14]] - code - modules\wraith\wraith.py
+- [[.snapshot_before_action()]] - code - modules\cerberus\reversibility.py
+- [[.stage_tool()]] - code - modules\omen\tool_creator.py
+- [[.store_benchmark()]] - code - modules\grimoire\embedding_evaluator.py
+- [[.test_apply_with_mock_grimoire()]] - code - tests\test_query_optimizer.py
+- [[.test_apply_without_approval_skips()]] - code - tests\test_query_optimizer.py
+- [[.test_approve_moves_to_production()]] - code - tests\test_tool_creator.py
+- [[.test_approve_nonexistent_returns_false()]] - code - tests\test_tool_creator.py
+- [[.test_approve_registers_with_cerberus()]] - code - tests\test_tool_creator.py
+- [[.test_avg_3_used_recommends_around_5()]] - code - tests\test_query_optimizer.py
+- [[.test_calculates_fp_rate()]] - code - tests\test_false_positive.py
+- [[.test_candidate_has_all_fields()]] - code - tests\test_tool_creator.py
+- [[.test_category_breakdown_accurate()]] - code - tests\test_false_positive.py
+- [[.test_cerberus_classifies_risk()]] - code - tests\test_tool_creator.py
+- [[.test_close_cleans_up()]] - code - tests\test_grimoire_reader.py
+- [[.test_co_retrieved_above_threshold()]] - code - tests\test_query_optimizer.py
+- [[.test_co_retrieved_below_threshold_excluded()]] - code - tests\test_query_optimizer.py
+- [[.test_confidence_scales_with_sample_size()]] - code - tests\test_query_optimizer.py
+- [[.test_creates_copy_and_records()]] - code - tests\test_reversibility.py
+- [[.test_custom_min_occurrences()]] - code - tests\test_tool_creator.py
+- [[.test_date_filtering()]] - code - tests\test_false_positive.py
+- [[.test_deletes_high_risk_when_disabled()]] - code - tests\test_reversibility.py
+- [[.test_deletes_old_snapshots()]] - code - tests\test_reversibility.py
+- [[.test_details_json_stored()]] - code - tests\test_false_positive.py
+- [[.test_different_code_no_pattern()]] - code - tests\test_tool_creator.py
+- [[.test_double_close_safe()]] - code - tests\test_grimoire_reader.py
+- [[.test_double_rollback_fails()]] - code - tests\test_reversibility.py
+- [[.test_empty_category_fails()]] - code - tests\test_false_positive.py
+- [[.test_empty_check_id_fails()]] - code - tests\test_false_positive.py
+- [[.test_empty_executions()]] - code - tests\test_tool_creator.py
+- [[.test_empty_log()]] - code - tests\test_query_optimizer.py
+- [[.test_empty_log()_1]] - code - tests\test_query_optimizer.py
+- [[.test_empty_log_plan()]] - code - tests\test_query_optimizer.py
+- [[.test_empty_log_returns_default()]] - code - tests\test_query_optimizer.py
+- [[.test_empty_log_returns_default()_1]] - code - tests\test_query_optimizer.py
+- [[.test_empty_log_returns_zeros()]] - code - tests\test_query_optimizer.py
+- [[.test_estimated_token_savings_positive()]] - code - tests\test_query_optimizer.py
+- [[.test_false_positive_counter_increments()]] - code - tests\test_false_positive.py
+- [[.test_filters_by_action_type()]] - code - tests\test_reversibility.py
+- [[.test_get_creation_stats_valid()]] - code - tests\test_tool_creator.py
+- [[.test_get_query_stats()]] - code - tests\test_query_optimizer.py
+- [[.test_get_staged_tools()]] - code - tests\test_tool_creator.py
+- [[.test_good_usage_moderate_threshold()]] - code - tests\test_query_optimizer.py
+- [[.test_graceful_without_grimoire()]] - code - tests\test_query_optimizer.py
+- [[.test_high_fp_rate_triggers_calibration()]] - code - tests\test_false_positive.py
+- [[.test_high_waste_raises_threshold()]] - code - tests\test_query_optimizer.py
+- [[.test_load_missing_state_starts_fresh()]] - code - tests\test_orchestrator.py
+- [[.test_log_false_positive_in_db()]] - code - tests\test_false_positive.py
+- [[.test_log_query_returns_log_id()]] - code - tests\test_query_optimizer.py
+- [[.test_log_query_stores_all_fields()]] - code - tests\test_query_optimizer.py
+- [[.test_low_fp_rate_no_calibration()]] - code - tests\test_false_positive.py
+- [[.test_minimum_is_1()]] - code - tests\test_query_optimizer.py
+- [[.test_missing_file_raises()_1]] - code - tests\test_reversibility.py
+- [[.test_multiple_categories_independent()]] - code - tests\test_false_positive.py
+- [[.test_multiple_queries_accumulate()]] - code - tests\test_query_optimizer.py
+- [[.test_multiple_queries_averaged()]] - code - tests\test_query_optimizer.py
+- [[.test_never_used_detection()]] - code - tests\test_query_optimizer.py
+- [[.test_no_cerberus_skips_classification()]] - code - tests\test_tool_creator.py
+- [[.test_no_data_returns_zeros()]] - code - tests\test_false_positive.py
+- [[.test_no_db_path_returns_zeros()]] - code - tests\test_false_positive.py
+- [[.test_no_notifier_stages_without_notification()]] - code - tests\test_tool_creator.py
+- [[.test_no_sandbox_skips_testing()]] - code - tests\test_tool_creator.py
+- [[.test_per_collection()]] - code - tests\test_query_optimizer.py
+- [[.test_plan_has_valid_structure()]] - code - tests\test_query_optimizer.py
+- [[.test_plan_includes_all_recommendation_types()]] - code - tests\test_query_optimizer.py
+- [[.test_preserves_high_risk()]] - code - tests\test_reversibility.py
+- [[.test_propose_generates_tests()]] - code - tests\test_tool_creator.py
+- [[.test_propose_increments_stats()]] - code - tests\test_tool_creator.py
+- [[.test_propose_with_generate_fn()]] - code - tests\test_tool_creator.py
+- [[.test_propose_without_generate_fn()]] - code - tests\test_tool_creator.py
+- [[.test_records_but_rollback_fails()]] - code - tests\test_reversibility.py
+- [[.test_reject_marks_rejected_with_reason()]] - code - tests\test_tool_creator.py
+- [[.test_reject_nonexistent_returns_false()]] - code - tests\test_tool_creator.py
+- [[.test_rejected_tools_kept_in_staging()]] - code - tests\test_tool_creator.py
+- [[.test_respects_limit()_3]] - code - tests\test_reversibility.py
+- [[.test_returns_snapshots_newest_first()]] - code - tests\test_reversibility.py
+- [[.test_rollback_nonexistent_id()]] - code - tests\test_reversibility.py
+- [[.test_rollback_restores_config()]] - code - tests\test_reversibility.py
+- [[.test_rollback_restores_deleted_file()]] - code - tests\test_reversibility.py
+- [[.test_rollback_restores_file()]] - code - tests\test_reversibility.py
+- [[.test_rollback_restores_rows()]] - code - tests\test_reversibility.py
+- [[.test_sandbox_fail_stays_proposed()]] - code - tests\test_tool_creator.py
+- [[.test_sandbox_pass_stages_tool()]] - code - tests\test_tool_creator.py
+- [[.test_sandbox_runs_tests()]] - code - tests\test_tool_creator.py
+- [[.test_save_and_load_state()]] - code - tests\test_orchestrator.py
+- [[.test_saves_rows_and_records()]] - code - tests\test_reversibility.py
+- [[.test_saves_state_and_records()]] - code - tests\test_reversibility.py
+- [[.test_single_query_low_confidence()]] - code - tests\test_query_optimizer.py
+- [[.test_snapshots_persist_across_instances()]] - code - tests\test_reversibility.py
+- [[.test_sqlite_db_created_on_init()_2]] - code - tests\test_query_optimizer.py
+- [[.test_stage_sends_notification()]] - code - tests\test_tool_creator.py
+- [[.test_stage_writes_metadata()]] - code - tests\test_tool_creator.py
+- [[.test_stage_writes_to_directory()]] - code - tests\test_tool_creator.py
+- [[.test_staging_dir_created_if_not_exists()]] - code - tests\test_tool_creator.py
+- [[.test_three_similar_executions_detected()]] - code - tests\test_tool_creator.py
+- [[.test_two_similar_below_threshold()]] - code - tests\test_tool_creator.py
+- [[.test_unknown_type_raises()]] - code - tests\test_reversibility.py
+- [[.test_usage_rate_calculation()]] - code - tests\test_query_optimizer.py
+- [[.test_used_doc_excluded()]] - code - tests\test_query_optimizer.py
+- [[.to_dict()]] - code - modules\omen\tool_creator.py
+- [[.validate_tool()]] - code - modules\omen\tool_creator.py
+- [[2 similar executions → no pattern (below default threshold of 3).]] - rationale - tests\test_tool_creator.py
+- [[3 similar executions → pattern detected.]] - rationale - tests\test_tool_creator.py
+- [[5 returned, 2 used → 40% usage, 60% waste.]] - rationale - tests\test_query_optimizer.py
+- [[A tool proposed by the autonomous creation pipeline.]] - rationale - modules\omen\tool_creator.py
+- [[ABC]] - code
+- [[All logged fields should be retrievable from SQLite.]] - rationale - tests\test_query_optimizer.py
+- [[Analyze recent code executions for repeated patterns.          Args]] - rationale - modules\omen\tool_creator.py
+- [[Analyze what percentage of returned results are actually used.          Args]] - rationale - modules\grimoire\query_optimizer.py
+- [[Apply an optimization plan to Grimoire.          IMPORTANT Requires Patrick's a]] - rationale - modules\grimoire\query_optimizer.py
+- [[Apply optimizations to a mock grimoire object.]] - rationale - tests\test_query_optimizer.py
+- [[Approve a staged tool and move to production.          Args             candida]] - rationale - modules\omen\tool_creator.py
+- [[Approve unknown candidate_id → False.]] - rationale - tests\test_tool_creator.py
+- [[Auto-tune Grimoire retrieval based on query pattern analysis.]] - rationale - modules\grimoire\query_optimizer.py
+- [[Autonomous Tool Creation Pipeline ==================================== Omen iden]] - rationale - modules\omen\tool_creator.py
+- [[Autonomous tool creation pipeline with approval staging.      Detects repeated c]] - rationale - modules\omen\tool_creator.py
+- [[Average across multiple queries.]] - rationale - tests\test_query_optimizer.py
+- [[Based on usage patterns, determine the optimal n_results for queries.          I]] - rationale - modules\grimoire\query_optimizer.py
+- [[Call generate_fn with one retry using a simpler fallback prompt.]] - rationale - modules\shadow\self_teaching.py
+- [[Categories with fp_rate  0.15 flagged for calibration.]] - rationale - tests\test_false_positive.py
+- [[Categories with low fp_rate not flagged.]] - rationale - tests\test_false_positive.py
+- [[Cerberus mock classifies risk level.]] - rationale - tests\test_tool_creator.py
+- [[Cerberus without db_path returns empty calibration stats.]] - rationale - tests\test_false_positive.py
+- [[Check generated code for dangerous operations.          Returns (is_safe, list_o]] - rationale - modules\omen\tool_creator.py
+- [[Clean shutdown — close SQLite connection.]] - rationale - modules\shadow\message_bus.py
+- [[Close should clean up connections.]] - rationale - tests\test_grimoire_reader.py
+- [[Close the database connection._7]] - rationale - modules\shadow\growth_engine.py
+- [[Close the database connection.]] - rationale - modules\cerberus\reversibility.py
+- [[Closing twice should not raise.]] - rationale - tests\test_grimoire_reader.py
+- [[Collection-specific optimal n.]] - rationale - tests\test_query_optimizer.py
+- [[Combine all analyses into actionable recommendations.          Returns]] - rationale - modules\grimoire\query_optimizer.py
+- [[Compute a structural signature hash for code.]] - rationale - modules\omen\tool_creator.py
+- [[Copy a file before modification.]] - rationale - modules\cerberus\reversibility.py
+- [[Copy a file from sandbox to production codebase.          This is how sandbox co]] - rationale - modules\omen\sandbox.py
+- [[Correctly calculates false positive rate.]] - rationale - tests\test_false_positive.py
+- [[Create SQLite tables and return connection._1]] - rationale - scripts\esv_ingestion.py
+- [[Create a ReversibilityEngine with temp directories.]] - rationale - tests\test_reversibility.py
+- [[Create a sample SQLite database with test data.]] - rationale - tests\test_reversibility.py
+- [[Create a sample file to snapshot.]] - rationale - tests\test_reversibility.py
+- [[Create growth tracking tables if they don't exist.]] - rationale - modules\shadow\growth_engine.py
+- [[Create query log tables if they don't exist.]] - rationale - modules\grimoire\query_optimizer.py
+- [[Create staging directory if it doesn't exist.]] - rationale - modules\omen\tool_creator.py
+- [[Custom threshold of 4 → 3 occurrences not enough.]] - rationale - tests\test_tool_creator.py
+- [[Database file should exist after initialization.]] - rationale - tests\test_query_optimizer.py
+- [[Delete snapshots older than retention_days.          Args             retention]] - rationale - modules\cerberus\reversibility.py
+- [[Different code structures → no shared pattern.]] - rationale - tests\test_tool_creator.py
+- [[Doc returned 10 times via response_referenced but with 0 actual use is tricky.]] - rationale - tests\test_query_optimizer.py
+- [[Doc returned 10 times, used 8+ times → not in results.]] - rationale - tests\test_query_optimizer.py
+- [[Docs A+B returned together 5 times → in results.]] - rationale - tests\test_query_optimizer.py
+- [[Docs that only co-occur once → not in results with min=3.]] - rationale - tests\test_query_optimizer.py
+- [[ESV Study Bible Ingestion Script Loads parsed ESV JSON files into Grimoire's SQL]] - rationale - scripts\esv_ingestion.py
+- [[Embed and insert pericopes into ChromaDB._1]] - rationale - scripts\esv_ingestion.py
+- [[Embed and insert study notes into ChromaDB._1]] - rationale - scripts\esv_ingestion.py
+- [[Empty audit log returns zero stats.]] - rationale - tests\test_false_positive.py
+- [[Empty category raises ValueError.]] - rationale - tests\test_false_positive.py
+- [[Empty check_id raises ValueError.]] - rationale - tests\test_false_positive.py
+- [[Empty list → empty result.]] - rationale - tests\test_tool_creator.py
+- [[Empty query log → valid plan with 0 confidence.]] - rationale - tests\test_query_optimizer.py
+- [[Even with 0 usage, minimum recommendation is 1.]] - rationale - tests\test_query_optimizer.py
+- [[Fallback propose_tool wraps code without generate_fn.]] - rationale - tests\test_tool_creator.py
+- [[Find documents that are frequently retrieved together.          If doc A and doc]] - rationale - modules\grimoire\query_optimizer.py
+- [[Find documents that get returned but are never referenced in responses.]] - rationale - modules\grimoire\query_optimizer.py
+- [[Generate a reusable tool function from a repeated pattern.          Args]] - rationale - modules\omen\tool_creator.py
+- [[Get a single snapshot's metadata.]] - rationale - modules\cerberus\reversibility.py
+- [[Get embedding vector from Ollama, matching Grimoire's pattern.     Truncates to]] - rationale - scripts\esv_ingestion.py
+- [[Get summary statistics for the Growth Engine.          Returns             Dict]] - rationale - modules\grimoire\query_optimizer.py
+- [[Grimoire Query Optimizer — Auto-Tune Retrieval Performance =====================]] - rationale - modules\grimoire\query_optimizer.py
+- [[GrimoireQueryOptimizer]] - code - modules\grimoire\query_optimizer.py
+- [[Helper to insert a check row into the audit log.]] - rationale - tests\test_false_positive.py
+- [[If avg 3 results used, recommend ~5 (with buffer).]] - rationale - tests\test_query_optimizer.py
+- [[Initialize ChromaDB client and createrecreate collections._1]] - rationale - scripts\esv_ingestion.py
+- [[Initialize the query optimizer.          Args             grimoire Reference t]] - rationale - modules\grimoire\query_optimizer.py
+- [[Initialize the sandbox.          Args             sandbox_root Root directory]] - rationale - modules\omen\sandbox.py
+- [[Insert a snapshot record into the tracking database.]] - rationale - modules\cerberus\reversibility.py
+- [[Insert all records into SQLite tables._1]] - rationale - scripts\esv_ingestion.py
+- [[Internal counter increments with each false positive logged.]] - rationale - tests\test_false_positive.py
+- [[List snapshot metadata, newest first.          Args             limit Max numb]] - rationale - modules\cerberus\reversibility.py
+- [[Load persisted queue state if available.]] - rationale - modules\shadow\task_queue.py
+- [[Load queue state from JSON file.]] - rationale - modules\shadow\task_queue.py
+- [[Log a false positive and verify it's stored in the database.]] - rationale - tests\test_false_positive.py
+- [[Many results returned but few used → higher threshold.]] - rationale - tests\test_query_optimizer.py
+- [[More queries → higher confidence.]] - rationale - tests\test_query_optimizer.py
+- [[Most results used → moderatelower threshold.]] - rationale - tests\test_query_optimizer.py
+- [[Multiple categories tracked independently.]] - rationale - tests\test_false_positive.py
+- [[Multiple log_query calls should create multiple rows.]] - rationale - tests\test_query_optimizer.py
+- [[No cerberus → skip classification, can still stage.]] - rationale - tests\test_tool_creator.py
+- [[No data → default 0.5.]] - rationale - tests\test_query_optimizer.py
+- [[No data → default of 5.]] - rationale - tests\test_query_optimizer.py
+- [[No notifier → tool staged, no crash.]] - rationale - tests\test_tool_creator.py
+- [[No queries → all zeros.]] - rationale - tests\test_query_optimizer.py
+- [[No queries → no co-retrieved docs.]] - rationale - tests\test_query_optimizer.py
+- [[No queries → no never-used docs.]] - rationale - tests\test_query_optimizer.py
+- [[No sandbox → skip testing, stage with warning.]] - rationale - tests\test_tool_creator.py
+- [[Normalize code for pattern comparison.          Strip variable names and whitesp]] - rationale - modules\omen\tool_creator.py
+- [[Only includes entries within the specified day range.]] - rationale - tests\test_false_positive.py
+- [[Open database and create schema._1]] - rationale - modules\shadow\task_tracker.py
+- [[Optimizer works fine without a grimoire reference.]] - rationale - tests\test_query_optimizer.py
+- [[Per-category breakdown is correct.]] - rationale - tests\test_false_positive.py
+- [[Plan recommendations list should have at least one entry.]] - rationale - tests\test_query_optimizer.py
+- [[Plan should contain all required keys.]] - rationale - tests\test_query_optimizer.py
+- [[Provide a fresh GrimoireQueryOptimizer with a temp database.]] - rationale - tests\test_query_optimizer.py
+- [[Provide a temporary database path._1]] - rationale - tests\test_query_optimizer.py
+- [[Recommend a similarity threshold based on relevance patterns.          If many l]] - rationale - modules\grimoire\query_optimizer.py
+- [[Record a Grimoire query and its outcome.          Args             query The s]] - rationale - modules\grimoire\query_optimizer.py
+- [[Record an external action (cannot undo, stored for reference).          Used for]] - rationale - modules\cerberus\reversibility.py
+- [[Register pre-configured adapters if their paths exist.]] - rationale - modules\shadow\lora_manager.py
+- [[Reject a staged tool with optional reason.          Tool is kept in staging for]] - rationale - modules\omen\tool_creator.py
+- [[Reject unknown candidate_id → False.]] - rationale - tests\test_tool_creator.py
+- [[Rejected tools remain in candidates for reference.]] - rationale - tests\test_tool_creator.py
+- [[Restore from a snapshot.          - file copies snapshot back to original locat]] - rationale - modules\cerberus\reversibility.py
+- [[Return all tools waiting for approval.          Returns             List of Too]] - rationale - modules\omen\tool_creator.py
+- [[Return pipeline statistics for Growth Engine  daily briefing.          Returns]] - rationale - modules\omen\tool_creator.py
+- [[Revert to previous version if current is performing worse.          Sets current]] - rationale - modules\shadow\prompt_evolver.py
+- [[Sandbox mock runs generated tests.]] - rationale - tests\test_tool_creator.py
+- [[Save affected database rows before modification.          Metadata must include]] - rationale - modules\cerberus\reversibility.py
+- [[Save config state as JSON before modification.]] - rationale - modules\cerberus\reversibility.py
+- [[Serialize to dictionary.]] - rationale - modules\omen\tool_creator.py
+- [[Single query → valid but low confidence.]] - rationale - tests\test_query_optimizer.py
+- [[Stats return valid data after operations.]] - rationale - tests\test_tool_creator.py
+- [[Stats should reflect logged queries.]] - rationale - tests\test_query_optimizer.py
+- [[Stats updated on proposal.]] - rationale - tests\test_tool_creator.py
+- [[Store eval results in Grimoire for tracking over time.          Args]] - rationale - modules\grimoire\embedding_evaluator.py
+- [[Take a snapshot before any write operation.          Args             action_ty]] - rationale - modules\cerberus\reversibility.py
+- [[Test co-retrieval detection.]] - rationale - tests\test_query_optimizer.py
+- [[Test detection of documents returned but never used.]] - rationale - tests\test_query_optimizer.py
+- [[Test edge cases and robustness.]] - rationale - tests\test_query_optimizer.py
+- [[Test fail → status stays 'proposed'.]] - rationale - tests\test_tool_creator.py
+- [[Test optimal n_results recommendation.]] - rationale - tests\test_query_optimizer.py
+- [[Test optimization plan application.]] - rationale - tests\test_query_optimizer.py
+- [[Test optimization plan generation.]] - rationale - tests\test_query_optimizer.py
+- [[Test pass → status 'staged'.]] - rationale - tests\test_tool_creator.py
+- [[Test query logging stores all fields correctly.]] - rationale - tests\test_query_optimizer.py
+- [[Test relevance analysis calculations.]] - rationale - tests\test_query_optimizer.py
+- [[Test similarity threshold recommendations.]] - rationale - tests\test_query_optimizer.py
+- [[TestAnalyzeRelevance]] - code - tests\test_query_optimizer.py
+- [[TestApplyOptimizations]] - code - tests\test_query_optimizer.py
+- [[TestApproveReject_1]] - code - tests\test_tool_creator.py
+- [[TestCalibrationStats]] - code - tests\test_false_positive.py
+- [[TestCleanupExpired]] - code - tests\test_reversibility.py
+- [[TestClose]] - code - tests\test_grimoire_reader.py
+- [[TestCoRetrievedDocuments]] - code - tests\test_query_optimizer.py
+- [[TestConfigSnapshot]] - code - tests\test_reversibility.py
+- [[TestDatabaseSnapshot]] - code - tests\test_reversibility.py
+- [[TestDetectPattern]] - code - tests\test_tool_creator.py
+- [[TestEdgeCases_17]] - code - tests\test_query_optimizer.py
+- [[TestEdgeCases_21]] - code - tests\test_tool_creator.py
+- [[TestExternalSnapshot]] - code - tests\test_reversibility.py
+- [[TestFileSnapshot]] - code - tests\test_reversibility.py
+- [[TestInvalidActionType]] - code - tests\test_reversibility.py
+- [[TestListSnapshots]] - code - tests\test_reversibility.py
+- [[TestLogFalsePositive]] - code - tests\test_false_positive.py
+- [[TestNeverUsedResults]] - code - tests\test_query_optimizer.py
+- [[TestOptimalNResults]] - code - tests\test_query_optimizer.py
+- [[TestOptimizationPlan]] - code - tests\test_query_optimizer.py
+- [[TestProposeTool]] - code - tests\test_tool_creator.py
+- [[TestQueryLogging]] - code - tests\test_query_optimizer.py
+- [[TestSQLitePersistence]] - code - tests\test_reversibility.py
+- [[TestSimilarityThreshold]] - code - tests\test_query_optimizer.py
+- [[TestStageTool]] - code - tests\test_tool_creator.py
+- [[TestValidateTool]] - code - tests\test_tool_creator.py
+- [[Tests for Autonomous Tool Creation Pipeline ====================================]] - rationale - tests\test_tool_creator.py
+- [[Tests for Cerberus Reversibility Engine ========================================]] - rationale - tests\test_reversibility.py
+- [[Tests for Grimoire Query Optimizer ==================================== Validate]] - rationale - tests\test_query_optimizer.py
+- [[Tests for get_calibration_stats method.]] - rationale - tests\test_false_positive.py
+- [[Tests for log_false_positive method.]] - rationale - tests\test_false_positive.py
+- [[Three similar code executions (same structure).]] - rationale - tests\test_tool_creator.py
+- [[Token savings should be non-negative.]] - rationale - tests\test_query_optimizer.py
+- [[ToolCandidate]] - code - modules\omen\tool_creator.py
+- [[ToolCandidate has all required dataclass fields.]] - rationale - tests\test_tool_creator.py
+- [[ToolCreator]] - code - modules\omen\tool_creator.py
+- [[Validate a proposed tool through Cerberus and sandbox.          Pipeline]] - rationale - modules\omen\tool_creator.py
+- [[Verify check_id, category, and notes are stored in details JSON.]] - rationale - tests\test_false_positive.py
+- [[Without approval flag → all changes skipped.]] - rationale - tests\test_query_optimizer.py
+- [[Write tool to staging directory and notify Patrick.          Args             c]] - rationale - modules\omen\tool_creator.py
+- [[_insert_check()]] - code - tests\test_false_positive.py
+- [[approve_tool calls cerberus.register_tool.]] - rationale - tests\test_tool_creator.py
+- [[approve_tool sets status to 'approved'.]] - rationale - tests\test_tool_creator.py
+- [[base.py]] - code - modules\base.py
+- [[creator()]] - code - tests\test_tool_creator.py
+- [[engine()_4]] - code - tests\test_reversibility.py
+- [[esv_ingestion.py]] - code - scripts\esv_ingestion.py
+- [[execute()]] - code - modules\base.py
+- [[from_dict()]] - code - modules\omen\tool_creator.py
+- [[get_embedding()_1]] - code - scripts\esv_ingestion.py
+- [[get_staged_tools returns staged candidates.]] - rationale - tests\test_tool_creator.py
+- [[info()]] - code - modules\base.py
+- [[ingest_chromadb_pericopes()_1]] - code - scripts\esv_ingestion.py
+- [[ingest_chromadb_studynotes()_1]] - code - scripts\esv_ingestion.py
+- [[ingest_sqlite()_1]] - code - scripts\esv_ingestion.py
+- [[initialize()]] - code - modules\base.py
+- [[log_query should return a non-empty string ID.]] - rationale - tests\test_query_optimizer.py
+- [[main()_4]] - code - scripts\esv_ingestion.py
+- [[mock_generate_fn()_1]] - code - tests\test_tool_creator.py
+- [[online_modules()]] - code - modules\base.py
+- [[optimizer()]] - code - tests\test_query_optimizer.py
+- [[propose_tool generates tests via generate_fn.]] - rationale - tests\test_tool_creator.py
+- [[propose_tool uses generate_fn to create code.]] - rationale - tests\test_tool_creator.py
+- [[query_optimizer.py]] - code - modules\grimoire\query_optimizer.py
+- [[reject_tool marks as rejected with reason.]] - rationale - tests\test_tool_creator.py
+- [[sample_db()]] - code - tests\test_reversibility.py
+- [[sample_executions()]] - code - tests\test_tool_creator.py
+- [[sample_file()_1]] - code - tests\test_reversibility.py
+- [[sample_pattern()]] - code - tests\test_tool_creator.py
+- [[setup_chromadb()_1]] - code - scripts\esv_ingestion.py
+- [[setup_sqlite()_1]] - code - scripts\esv_ingestion.py
+- [[shutdown()]] - code - modules\base.py
+- [[stage_tool sends Telegram notification via notifier.]] - rationale - tests\test_tool_creator.py
+- [[stage_tool writes .meta.json alongside tool file.]] - rationale - tests\test_tool_creator.py
+- [[stage_tool writes .py file to staging directory.]] - rationale - tests\test_tool_creator.py
+- [[staging_dir auto-created.]] - rationale - tests\test_tool_creator.py
+- [[staging_dir()]] - code - tests\test_tool_creator.py
+- [[success_rate()]] - code - modules\base.py
+- [[test_query_optimizer.py]] - code - tests\test_query_optimizer.py
+- [[test_reversibility.py]] - code - tests\test_reversibility.py
+- [[test_tool_creator.py]] - code - tests\test_tool_creator.py
+- [[tmp_db()_5]] - code - tests\test_query_optimizer.py
+- [[tool_creator.py]] - code - modules\omen\tool_creator.py
+
+## Live Query (requires Dataview plugin)
+
+```dataview
+TABLE source_file, type FROM #community/Module_Lifecycle
+SORT file.name ASC
+```
+
+## Connections to other communities
+- 97 edges to [[_COMMUNITY_Base Module & Apex API]]
+- 66 edges to [[_COMMUNITY_Async Task Queue]]
+- 41 edges to [[_COMMUNITY_Data Pipeline & Embeddings]]
+- 32 edges to [[_COMMUNITY_Module Registry & Tools]]
+- 30 edges to [[_COMMUNITY_Code Analyzer (Omen)]]
+- 18 edges to [[_COMMUNITY_Cross-Reference & Security]]
+- 14 edges to [[_COMMUNITY_Ethics Engine (Cerberus)]]
+- 13 edges to [[_COMMUNITY_Confidence Calibration]]
+- 12 edges to [[_COMMUNITY_Introspection Dashboard]]
+- 12 edges to [[_COMMUNITY_Prompt Evolution]]
+- 11 edges to [[_COMMUNITY_Morpheus Creative Pipeline]]
+- 9 edges to [[_COMMUNITY_Apex API Providers]]
+- 8 edges to [[_COMMUNITY_Workflow Store]]
+- 7 edges to [[_COMMUNITY_Ethical Topics & Watchdog]]
+- 7 edges to [[_COMMUNITY_Predictive Escalation]]
+- 6 edges to [[_COMMUNITY_CLAUDE.md Generator]]
+- 6 edges to [[_COMMUNITY_Proactive Engine]]
+- 5 edges to [[_COMMUNITY_Conversation Ingestor]]
+- 4 edges to [[_COMMUNITY_Synthetic Data Generator]]
+- 4 edges to [[_COMMUNITY_Benchmark Generator]]
+- 4 edges to [[_COMMUNITY_Experiment Store]]
+- 3 edges to [[_COMMUNITY_Emergency Shutdown]]
+- 3 edges to [[_COMMUNITY_Embedding Evaluator]]
+- 3 edges to [[_COMMUNITY_Context Compression]]
+- 3 edges to [[_COMMUNITY_Retry Engine]]
+- 2 edges to [[_COMMUNITY_Creator Override]]
+- 2 edges to [[_COMMUNITY_Adversarial Sparring]]
+- 2 edges to [[_COMMUNITY_ESV Bible Processor]]
+- 2 edges to [[_COMMUNITY_Grimoire Reader]]
+- 1 edge to [[_COMMUNITY_Cerberus Auto-Registration]]
+- 1 edge to [[_COMMUNITY_Injection Detector]]
+- 1 edge to [[_COMMUNITY_Security Analyzer Rationale]]
+- 1 edge to [[_COMMUNITY_Chain of Thought]]
+- 1 edge to [[_COMMUNITY_Context Orchestrator]]
+- 1 edge to [[_COMMUNITY_Drift Detector]]
+- 1 edge to [[_COMMUNITY_Module State Manager]]
+
+## Top bridge nodes
+- [[info()]] - degree 227, connects to 33 communities
+- [[.close()_19]] - degree 113, connects to 18 communities
+- [[.rollback()_1]] - degree 18, connects to 4 communities
+- [[base.py]] - degree 14, connects to 4 communities
+- [[.get_snapshot()]] - degree 12, connects to 2 communities

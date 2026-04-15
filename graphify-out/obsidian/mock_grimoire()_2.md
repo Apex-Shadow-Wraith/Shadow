@@ -1,0 +1,18 @@
+---
+source_file: "tests\test_context_orchestrator.py"
+type: "code"
+community: "Context Orchestrator"
+location: "L102"
+tags:
+  - graphify/code
+  - graphify/EXTRACTED
+  - community/Context_Orchestrator
+---
+
+# mock_grimoire()
+
+## Connections
+- [[Mock Grimoire module.]] - `rationale_for` [EXTRACTED]
+- [[test_context_orchestrator.py]] - `contains` [EXTRACTED]
+
+#graphify/code #graphify/EXTRACTED #community/Context_Orchestrator

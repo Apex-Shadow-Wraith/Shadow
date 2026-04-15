@@ -35,6 +35,15 @@ Always use the existing venv at `C:\Shadow\shadow_env` — **never create a new 
 ```
 If `shadow_env` is not active, activate it before running any commands. Never install packages to system Python or create an `env` folder.
 
+## Codebase Architecture Reference
+Before making multi-file changes, read graphify-out/GRAPH_REPORT.md for 
+codebase structure, god nodes, and module communities. This file maps all 
+import relationships and dependency chains across 112+ files.
+
+Key architectural constraint: ToolResult (1,815 edges, 0.310 betweenness 
+centrality) bridges all 13 modules. Any changes to ToolResult fields 
+affect the entire system. Treat ToolResult modifications as high-risk.
+
 ## Project Structure
 ```
 C:\Shadow/

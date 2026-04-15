@@ -1,0 +1,17 @@
+---
+source_file: "README.md"
+type: "document"
+community: "Future Tech Stack"
+location: "line 65"
+tags:
+  - graphify/document
+  - graphify/EXTRACTED
+  - community/Future_Tech_Stack
+---
+
+# A2A Agent-to-Agent Communication Protocol
+
+## Connections
+- [[Shadow Tech Stack (Python 3.14, Ollama, Gemma 4, SQLite, ChromaDB, LangGraph, MCP, A2A)]] - `references` [EXTRACTED]
+
+#graphify/document #graphify/EXTRACTED #community/Future_Tech_Stack

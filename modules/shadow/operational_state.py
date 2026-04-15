@@ -186,6 +186,9 @@ class OperationalState:
         """Return current state values, applying time-based fatigue decay.
 
         If no state exists, returns defaults (all 0.0 except overall_health = 1.0).
+        Fatigue decays continuously using exponential decay based on elapsed time.
+        The decay_cooldown config (default 0.5) is the multiplier at the cooldown
+        threshold (default 30 min), giving a half-life of 30 minutes.
         """
         snapshot = self._get_latest_snapshot()
         if snapshot is None:
@@ -198,13 +201,18 @@ class OperationalState:
                 overall_health=1.0,
             )
 
-        # Apply time-based fatigue decay (cooldown effect for idle time)
+        # Apply continuous time-based fatigue decay (exponential)
+        # fatigue *= decay_factor ^ (elapsed / threshold)
+        # At threshold minutes: fatigue *= decay_factor (e.g. 0.5 at 30 min)
+        # At 1 minute: fatigue *= 0.5^(1/30) ≈ 0.977 (small but real decay)
         now = time.time()
         elapsed_minutes = (now - snapshot.timestamp) / 60.0
-        cooldown_threshold = self._config["cooldown_threshold_minutes"]
 
-        if elapsed_minutes >= cooldown_threshold:
-            fatigue = snapshot.fatigue * self._config["fatigue_decay_cooldown"]
+        if elapsed_minutes > 0 and snapshot.fatigue > 0:
+            decay_factor = self._config["fatigue_decay_cooldown"]
+            threshold = self._config["cooldown_threshold_minutes"]
+            fatigue = snapshot.fatigue * (decay_factor ** (elapsed_minutes / threshold))
+            fatigue = _clamp(fatigue)
             health = _compute_health(
                 snapshot.frustration, fatigue,
                 snapshot.confidence_momentum, snapshot.curiosity,
@@ -214,7 +222,7 @@ class OperationalState:
                 frustration=snapshot.frustration,
                 confidence_momentum=snapshot.confidence_momentum,
                 curiosity=snapshot.curiosity,
-                fatigue=_clamp(fatigue),
+                fatigue=fatigue,
                 overall_health=health,
             )
 

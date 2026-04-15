@@ -1,0 +1,18 @@
+---
+source_file: "tests\test_cross_module_dreaming.py"
+type: "rationale"
+community: "Cross-Module Dreaming"
+location: "L311"
+tags:
+  - graphify/rationale
+  - graphify/INFERRED
+  - community/Cross-Module_Dreaming
+---
+
+# Should not return more dreams than limit.
+
+## Connections
+- [[.test_respects_limit()]] - `rationale_for` [EXTRACTED]
+- [[CrossModuleDreamer]] - `uses` [INFERRED]
+
+#graphify/rationale #graphify/INFERRED #community/Cross-Module_Dreaming

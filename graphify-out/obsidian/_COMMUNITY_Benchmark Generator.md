@@ -1,0 +1,257 @@
+---
+type: community
+cohesion: 0.01
+members: 223
+---
+
+# Benchmark Generator
+
+**Cohesion:** 0.01 - loosely connected
+**Members:** 223 nodes
+
+## Members
+- [[.__init__()_54]] - code - modules\shadow\benchmark_generator.py
+- [[._call_generate()]] - code - modules\shadow\benchmark_generator.py
+- [[._init_db()_3]] - code - modules\shadow\benchmark_generator.py
+- [[._load_benchmark()]] - code - modules\shadow\benchmark_generator.py
+- [[._make_benchmark()]] - code - modules\shadow\benchmark_generator.py
+- [[._save_benchmark()]] - code - modules\shadow\benchmark_generator.py
+- [[._score()]] - code - modules\shadow\self_review.py
+- [[.generate_from_discovery()]] - code - modules\shadow\benchmark_generator.py
+- [[.generate_from_mastery()]] - code - modules\shadow\benchmark_generator.py
+- [[.generate_from_weakness()]] - code - modules\shadow\benchmark_generator.py
+- [[.get_active_benchmarks()]] - code - modules\shadow\benchmark_generator.py
+- [[.get_benchmark_by_id()]] - code - modules\shadow\benchmark_generator.py
+- [[.get_generator_stats()]] - code - modules\shadow\benchmark_generator.py
+- [[.get_scoring_history()]] - code - modules\shadow\confidence_scorer.py
+- [[.get_task_type_averages()]] - code - modules\shadow\confidence_scorer.py
+- [[.load_benchmark_set()]] - code - modules\shadow\benchmark_suite.py
+- [[.retire_benchmark()]] - code - modules\shadow\benchmark_generator.py
+- [[.run_benchmark()]] - code - modules\shadow\benchmark_generator.py
+- [[.run_benchmark()_1]] - code - modules\shadow\benchmark_suite.py
+- [[.score_improvement()]] - code - modules\shadow\confidence_scorer.py
+- [[.score_response()_3]] - code - tests\test_self_review.py
+- [[.test_all_fields_present()]] - code - tests\test_benchmark_generator.py
+- [[.test_all_tasks_have_required_fields()]] - code - tests\test_benchmark_suite.py
+- [[.test_answer_embedded_in_text()]] - code - tests\test_benchmark_suite.py
+- [[.test_catches_hedging_phrases()]] - code - tests\test_benchmark_suite.py
+- [[.test_code_only_response()]] - code - tests\test_confidence_scorer.py
+- [[.test_code_scoring_with_valid_code()]] - code - tests\test_benchmark_suite.py
+- [[.test_code_scoring_without_code_structure()]] - code - tests\test_benchmark_suite.py
+- [[.test_confabulation_apex_claim_without_api()]] - code - tests\test_confidence_scorer.py
+- [[.test_confabulation_caps_overall()]] - code - tests\test_confidence_scorer.py
+- [[.test_confabulation_fake_async()]] - code - tests\test_confidence_scorer.py
+- [[.test_confabulation_tool_claim_without_execution()]] - code - tests\test_confidence_scorer.py
+- [[.test_confident_response()]] - code - tests\test_confidence_scorer.py
+- [[.test_correct_numeric_answer()]] - code - tests\test_benchmark_suite.py
+- [[.test_creates_benchmark_from_discovery()]] - code - tests\test_benchmark_generator.py
+- [[.test_creates_targeted_benchmark()]] - code - tests\test_benchmark_generator.py
+- [[.test_creates_valid_benchmark()]] - code - tests\test_benchmark_generator.py
+- [[.test_defaults_for_missing_fields()]] - code - tests\test_benchmark_generator.py
+- [[.test_degradation_detected()]] - code - tests\test_confidence_scorer.py
+- [[.test_difficulty_capped_at_10()]] - code - tests\test_benchmark_generator.py
+- [[.test_difficulty_in_range()]] - code - tests\test_benchmark_suite.py
+- [[.test_difficulty_scales_with_failure_count()]] - code - tests\test_benchmark_generator.py
+- [[.test_empty_patterns_graceful()]] - code - tests\test_benchmark_generator.py
+- [[.test_empty_stats()]] - code - tests\test_benchmark_generator.py
+- [[.test_empty_string()_1]] - code - tests\test_confidence_scorer.py
+- [[.test_empty_task()]] - code - tests\test_confidence_scorer.py
+- [[.test_exact_answer_case_insensitive()]] - code - tests\test_benchmark_suite.py
+- [[.test_exact_answer_correct()]] - code - tests\test_benchmark_suite.py
+- [[.test_exact_answer_incorrect()]] - code - tests\test_benchmark_suite.py
+- [[.test_executes_and_scores()]] - code - tests\test_benchmark_generator.py
+- [[.test_failed_execution_returns_zero()]] - code - tests\test_benchmark_generator.py
+- [[.test_fallback_without_prefix_detected()]] - code - tests\test_confidence_scorer.py
+- [[.test_filter_by_domain()]] - code - tests\test_benchmark_generator.py
+- [[.test_generate_fn_returns_string()]] - code - tests\test_benchmark_generator.py
+- [[.test_good_question_response()]] - code - tests\test_confidence_scorer.py
+- [[.test_good_research_response()]] - code - tests\test_confidence_scorer.py
+- [[.test_grounded_response_high_score()]] - code - tests\test_confidence_scorer.py
+- [[.test_heavy_hedging()]] - code - tests\test_confidence_scorer.py
+- [[.test_high_confidence_respond()]] - code - tests\test_confidence_scorer.py
+- [[.test_honest_apex_response()]] - code - tests\test_confidence_scorer.py
+- [[.test_improvement_detected()]] - code - tests\test_confidence_scorer.py
+- [[.test_incorrect_numeric_answer()]] - code - tests\test_benchmark_suite.py
+- [[.test_irrelevant_response()]] - code - tests\test_confidence_scorer.py
+- [[.test_keyword_all_present()]] - code - tests\test_benchmark_suite.py
+- [[.test_keyword_none_present()]] - code - tests\test_benchmark_suite.py
+- [[.test_load_returns_50_tasks()]] - code - tests\test_benchmark_suite.py
+- [[.test_low_confidence_escalate()]] - code - tests\test_confidence_scorer.py
+- [[.test_marginal_improvement()]] - code - tests\test_confidence_scorer.py
+- [[.test_math_with_number()]] - code - tests\test_confidence_scorer.py
+- [[.test_math_without_number()]] - code - tests\test_confidence_scorer.py
+- [[.test_medium_confidence_retry()]] - code - tests\test_confidence_scorer.py
+- [[.test_metadata_missing_graceful()]] - code - tests\test_confidence_scorer.py
+- [[.test_missing_file_raises()]] - code - tests\test_benchmark_suite.py
+- [[.test_no_change()]] - code - tests\test_confidence_scorer.py
+- [[.test_no_generate_fn_returns_placeholder()]] - code - tests\test_benchmark_generator.py
+- [[.test_no_repetition()]] - code - tests\test_confidence_scorer.py
+- [[.test_none_like()]] - code - tests\test_confidence_scorer.py
+- [[.test_normal_fallback_with_prefix_ok()]] - code - tests\test_confidence_scorer.py
+- [[.test_persisted_to_db()]] - code - tests\test_benchmark_generator.py
+- [[.test_personality_all_banned_present()]] - code - tests\test_benchmark_suite.py
+- [[.test_personality_with_desired_keywords()]] - code - tests\test_benchmark_suite.py
+- [[.test_repeated_paragraphs()]] - code - tests\test_confidence_scorer.py
+- [[.test_retire_active_benchmark()]] - code - tests\test_benchmark_generator.py
+- [[.test_retire_already_retired_returns_false()]] - code - tests\test_benchmark_generator.py
+- [[.test_retire_nonexistent_returns_false()]] - code - tests\test_benchmark_generator.py
+- [[.test_returns_active_only()]] - code - tests\test_benchmark_generator.py
+- [[.test_score_clamped_to_0_1()]] - code - tests\test_benchmark_generator.py
+- [[.test_score_returns_float_in_range()]] - code - tests\test_benchmark_suite.py
+- [[.test_scoring_history()]] - code - tests\test_confidence_scorer.py
+- [[.test_scoring_history_limit()]] - code - tests\test_confidence_scorer.py
+- [[.test_scoring_speed()]] - code - tests\test_confidence_scorer.py
+- [[.test_special_characters()]] - code - tests\test_confidence_scorer.py
+- [[.test_stats_accurate()]] - code - tests\test_benchmark_generator.py
+- [[.test_syntax_error_no_bonus()]] - code - tests\test_confidence_scorer.py
+- [[.test_task_description_populated()]] - code - tests\test_benchmark_generator.py
+- [[.test_task_type_averages()]] - code - tests\test_confidence_scorer.py
+- [[.test_tasks_cover_all_categories()]] - code - tests\test_benchmark_suite.py
+- [[.test_tasks_have_unique_ids()]] - code - tests\test_benchmark_suite.py
+- [[.test_unicode_response()]] - code - tests\test_confidence_scorer.py
+- [[.test_updates_stats_after_run()]] - code - tests\test_benchmark_generator.py
+- [[.test_valid_python_gets_bonus()]] - code - tests\test_confidence_scorer.py
+- [[.test_very_long_response()]] - code - tests\test_confidence_scorer.py
+- [[.test_very_short_response_low_confidence()]] - code - tests\test_confidence_scorer.py
+- [[.test_whitespace_only()_1]] - code - tests\test_confidence_scorer.py
+- [[A single auto-generated benchmark task.]] - rationale - modules\shadow\benchmark_generator.py
+- [[All required keywords present should get high score.]] - rationale - tests\test_benchmark_suite.py
+- [[All task IDs must be unique.]] - rationale - tests\test_benchmark_suite.py
+- [[Answer within longer text should still match.]] - rationale - tests\test_benchmark_suite.py
+- [[Autonomous Benchmark Generator ================================ Shadow generates]] - rationale - modules\shadow\benchmark_generator.py
+- [[Average confidence by task type.          Identifies weak areas for targeted imp]] - rationale - modules\shadow\confidence_scorer.py
+- [[Banned phrases like 'As an AI' should reduce score.]] - rationale - tests\test_benchmark_suite.py
+- [[Benchmark set should contain exactly 50 tasks.]] - rationale - tests\test_benchmark_suite.py
+- [[BenchmarkGenerator]] - code - modules\shadow\benchmark_generator.py
+- [[BenchmarkGenerator with a mock generate_fn.]] - rationale - tests\test_benchmark_generator.py
+- [[BenchmarkGenerator with no generate_fn (graceful degradation).]] - rationale - tests\test_benchmark_generator.py
+- [[Build a GeneratedBenchmark from parsed generation output.]] - rationale - modules\shadow\benchmark_generator.py
+- [[Call generate_fn and parse the JSON response.          Returns a dict with task_]] - rationale - modules\shadow\benchmark_generator.py
+- [[Code response scoring with syntax validation.]] - rationale - tests\test_confidence_scorer.py
+- [[Code response with defclass and keywords should score high.]] - rationale - tests\test_benchmark_suite.py
+- [[Compare two scores to evaluate retry effectiveness.          Args             p]] - rationale - modules\shadow\confidence_scorer.py
+- [[Complete, relevant responses score 0.8+.]] - rationale - tests\test_confidence_scorer.py
+- [[Convert a database row to a GeneratedBenchmark.]] - rationale - modules\shadow\benchmark_generator.py
+- [[Correct mapping from confidence to recommendation.]] - rationale - tests\test_confidence_scorer.py
+- [[Correct numeric answer should score 1.0.]] - rationale - tests\test_benchmark_suite.py
+- [[Create a ConfidenceScorer with a temporary database.]] - rationale - tests\test_confidence_scorer.py
+- [[Create a mock orchestrator that returns canned responses.]] - rationale - tests\test_benchmark_suite.py
+- [[Create the benchmarks table if it doesn't exist.]] - rationale - modules\shadow\benchmark_generator.py
+- [[Desired keywords should provide bonus points.]] - rationale - tests\test_benchmark_suite.py
+- [[Difficulty must be between 1 and 10.]] - rationale - tests\test_benchmark_suite.py
+- [[Edge cases that shouldn't crash.]] - rationale - tests\test_confidence_scorer.py
+- [[Empty response scores 0.0.]] - rationale - tests\test_confidence_scorer.py
+- [[Every task must have id, input, expected_output_keywords, category, difficulty,]] - rationale - tests\test_benchmark_suite.py
+- [[Exact answer match should score 1.0.]] - rationale - tests\test_benchmark_suite.py
+- [[Exact answer matching should be case-insensitive.]] - rationale - tests\test_benchmark_suite.py
+- [[Excessive hedging lowers confidence.]] - rationale - tests\test_confidence_scorer.py
+- [[Execute a benchmark and evaluate the result.          Args             benchmar]] - rationale - modules\shadow\benchmark_generator.py
+- [[Factual grounding catches false claims about actions that never happened.]] - rationale - tests\test_confidence_scorer.py
+- [[Generate a benchmark to track a new capability from Morpheus.          Args]] - rationale - modules\shadow\benchmark_generator.py
+- [[Generate a harder benchmark after mastering a domain level.          Args]] - rationale - modules\shadow\benchmark_generator.py
+- [[Generate a targeted benchmark from observed failure patterns.          Args]] - rationale - modules\shadow\benchmark_generator.py
+- [[GeneratedBenchmark]] - code - modules\shadow\benchmark_generator.py
+- [[Generates, runs, and manages evolving benchmarks for Shadow.]] - rationale - modules\shadow\benchmark_generator.py
+- [[If metadata is None, factual_grounding defaults to 1.0.]] - rationale - tests\test_confidence_scorer.py
+- [[Insert or replace a benchmark in the database.]] - rationale - modules\shadow\benchmark_generator.py
+- [[Load the deterministic benchmark tasks from JSON.          Returns]] - rationale - modules\shadow\benchmark_suite.py
+- [[Loading from a nonexistent path should raise FileNotFoundError.]] - rationale - tests\test_benchmark_suite.py
+- [[Mark a benchmark as retired (too easy, no longer informative).          Args]] - rationale - modules\shadow\benchmark_generator.py
+- [[Math responses must contain numbers.]] - rationale - tests\test_confidence_scorer.py
+- [[No keywords present should score 0.0.]] - rationale - tests\test_benchmark_suite.py
+- [[Normal response with no false claims → factual_grounding = 1.0.]] - rationale - tests\test_confidence_scorer.py
+- [[Provide a temporary benchmarks directory.]] - rationale - tests\test_benchmark_suite.py
+- [[Repeated paragraphssentences get penalized.]] - rationale - tests\test_confidence_scorer.py
+- [[Response about wrong topic scores low on relevance.]] - rationale - tests\test_confidence_scorer.py
+- [[Response claims 'ran this through Omen' but no tools ran → low score.]] - rationale - tests\test_confidence_scorer.py
+- [[Response claims 'waiting for payload to clear the buffer' → low score.]] - rationale - tests\test_confidence_scorer.py
+- [[Response claims Apex generated it, and source IS claude_api → 1.0.]] - rationale - tests\test_confidence_scorer.py
+- [[Response claims Apex generated it, but source is fallback → 0.0.]] - rationale - tests\test_confidence_scorer.py
+- [[Response from fallback missing Fallback prefix → score reduced.]] - rationale - tests\test_confidence_scorer.py
+- [[Response full of banned phrases should score very low.]] - rationale - tests\test_benchmark_suite.py
+- [[Response with Fallback prefix, no false claims → normal score.]] - rationale - tests\test_confidence_scorer.py
+- [[Retrieve a single benchmark by ID.]] - rationale - modules\shadow\benchmark_generator.py
+- [[Return all active benchmarks, optionally filtered by domain.          Args]] - rationale - modules\shadow\benchmark_generator.py
+- [[Return recent scores for analytics.          Feeds into Growth Engine 'average]] - rationale - modules\shadow\confidence_scorer.py
+- [[Return summary statistics for all generated benchmarks.          Returns]] - rationale - modules\shadow\benchmark_generator.py
+- [[Run all benchmark tasks through the orchestrator and score them.          Args]] - rationale - modules\shadow\benchmark_suite.py
+- [[Score a response using the confidence scorer. Returns 0.5 if unavailable.]] - rationale - modules\shadow\self_review.py
+- [[Score must be a float between 0.0 and 1.0.]] - rationale - tests\test_benchmark_suite.py
+- [[Scoring must be fast — under 10ms per response.]] - rationale - tests\test_confidence_scorer.py
+- [[Tasks should cover all 8 required categories.]] - rationale - tests\test_benchmark_suite.py
+- [[TestAnalytics]] - code - tests\test_confidence_scorer.py
+- [[TestCodeResponses]] - code - tests\test_confidence_scorer.py
+- [[TestCompleteResponse]] - code - tests\test_confidence_scorer.py
+- [[TestConfabulationDetection_1]] - code - tests\test_confidence_scorer.py
+- [[TestEdgeCases_3]] - code - tests\test_confidence_scorer.py
+- [[TestEmptyResponse]] - code - tests\test_confidence_scorer.py
+- [[TestGenerateFromDiscovery]] - code - tests\test_benchmark_generator.py
+- [[TestGenerateFromMastery]] - code - tests\test_benchmark_generator.py
+- [[TestGenerateFromWeakness]] - code - tests\test_benchmark_generator.py
+- [[TestGetActiveBenchmarks]] - code - tests\test_benchmark_generator.py
+- [[TestGetGeneratorStats]] - code - tests\test_benchmark_generator.py
+- [[TestGracefulDegradation]] - code - tests\test_benchmark_generator.py
+- [[TestHedgingLanguage]] - code - tests\test_confidence_scorer.py
+- [[TestLoadBenchmarkSet]] - code - tests\test_benchmark_suite.py
+- [[TestMathResponses]] - code - tests\test_confidence_scorer.py
+- [[TestMathScoring]] - code - tests\test_benchmark_suite.py
+- [[TestPerformance]] - code - tests\test_confidence_scorer.py
+- [[TestPersonalityScoring]] - code - tests\test_benchmark_suite.py
+- [[TestRecommendationThresholds]] - code - tests\test_confidence_scorer.py
+- [[TestRepeatedText]] - code - tests\test_confidence_scorer.py
+- [[TestRequiredFields]] - code - tests\test_benchmark_generator.py
+- [[TestRetireBenchmark]] - code - tests\test_benchmark_generator.py
+- [[TestRunBenchmark]] - code - tests\test_benchmark_generator.py
+- [[TestRunBenchmark_1]] - code - tests\test_benchmark_suite.py
+- [[TestScoreImprovement]] - code - tests\test_confidence_scorer.py
+- [[TestScoreResponse]] - code - tests\test_benchmark_suite.py
+- [[TestWrongTopic]] - code - tests\test_confidence_scorer.py
+- [[Tests for Autonomous Benchmark Generator =======================================]] - rationale - tests\test_benchmark_generator.py
+- [[Tests for ConfidenceScorer — Response Quality Evaluation =======================]] - rationale - tests\test_confidence_scorer.py
+- [[Tests for loading benchmark tasks.]] - rationale - tests\test_benchmark_suite.py
+- [[Tests for mathexact-answer scoring.]] - rationale - tests\test_benchmark_suite.py
+- [[Tests for personality consistency scoring.]] - rationale - tests\test_benchmark_suite.py
+- [[Tests for running benchmarks with a mock orchestrator.]] - rationale - tests\test_benchmark_suite.py
+- [[Tests for the Monthly Benchmark Suite.]] - rationale - tests\test_benchmark_suite.py
+- [[Tests for the scoring system.]] - rationale - tests\test_benchmark_suite.py
+- [[Text response for code task should lose structure points.]] - rationale - tests\test_benchmark_suite.py
+- [[Wrong exact answer should score 0.0.]] - rationale - tests\test_benchmark_suite.py
+- [[Wrong numeric answer should score 0.0.]] - rationale - tests\test_benchmark_suite.py
+- [[benchmark_generator.py]] - code - modules\shadow\benchmark_generator.py
+- [[factual_grounding=0.0 → overall confidence capped at 0.3.]] - rationale - tests\test_confidence_scorer.py
+- [[gen()]] - code - tests\test_benchmark_generator.py
+- [[gen_no_fn()]] - code - tests\test_benchmark_generator.py
+- [[get_task_type_averages and get_scoring_history work correctly.]] - rationale - tests\test_confidence_scorer.py
+- [[mock_orchestrator()]] - code - tests\test_benchmark_suite.py
+- [[score_improvement correctly detects changes.]] - rationale - tests\test_confidence_scorer.py
+- [[scorer()]] - code - tests\test_confidence_scorer.py
+- [[temp_benchmarks_dir()]] - code - tests\test_benchmark_suite.py
+- [[test_benchmark_generator.py]] - code - tests\test_benchmark_generator.py
+- [[test_benchmark_suite.py]] - code - tests\test_benchmark_suite.py
+- [[test_confidence_scorer.py]] - code - tests\test_confidence_scorer.py
+- [[test_run_handles_orchestrator_error()]] - code - tests\test_benchmark_suite.py
+- [[test_run_returns_all_fields()]] - code - tests\test_benchmark_suite.py
+- [[test_run_scores_correct_answer()]] - code - tests\test_benchmark_suite.py
+- [[test_run_with_multiple_categories()]] - code - tests\test_benchmark_suite.py
+
+## Live Query (requires Dataview plugin)
+
+```dataview
+TABLE source_file, type FROM #community/Benchmark_Generator
+SORT file.name ASC
+```
+
+## Connections to other communities
+- 92 edges to [[_COMMUNITY_Async Task Queue]]
+- 8 edges to [[_COMMUNITY_Data Pipeline & Embeddings]]
+- 4 edges to [[_COMMUNITY_Module Lifecycle]]
+- 1 edge to [[_COMMUNITY_Module Registry & Tools]]
+- 1 edge to [[_COMMUNITY_Introspection Dashboard]]
+- 1 edge to [[_COMMUNITY_ESV Bible Processor]]
+
+## Top bridge nodes
+- [[.get_scoring_history()]] - degree 6, connects to 3 communities
+- [[.score_response()_3]] - degree 54, connects to 2 communities
+- [[.run_benchmark()_1]] - degree 14, connects to 2 communities
+- [[.retire_benchmark()]] - degree 9, connects to 2 communities
+- [[.get_task_type_averages()]] - degree 4, connects to 2 communities
