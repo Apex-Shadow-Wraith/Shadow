@@ -483,21 +483,19 @@ class TestApiKey:
         )
         assert gen._get_api_key() == "sk-test-key"
 
-    def test_falls_back_to_env(self, tmp_path: Path):
+    def test_falls_back_to_config_singleton(self, tmp_path: Path, monkeypatch):
+        """Without init api_key, SyntheticDataGenerator reads from shadow.config."""
+        from pydantic import SecretStr
+        from shadow.config import config
+        monkeypatch.setattr(
+            config.apex, "anthropic_api_key", SecretStr("sk-from-singleton")
+        )
         gen = SyntheticDataGenerator(output_dir=str(tmp_path))
-        with patch.dict("os.environ", {"ANTHROPIC_API_KEY": "sk-env-key"}):
-            assert gen._get_api_key() == "sk-env-key"
+        assert gen._get_api_key() == "sk-from-singleton"
 
-    def test_raises_without_key(self, tmp_path: Path):
+    def test_raises_without_key(self, tmp_path: Path, monkeypatch):
+        from shadow.config import config
+        monkeypatch.setattr(config.apex, "anthropic_api_key", None)
         gen = SyntheticDataGenerator(output_dir=str(tmp_path))
-        with patch.dict("os.environ", {}, clear=True):
-            # Remove the key if it exists
-            import os
-            env_backup = os.environ.get("ANTHROPIC_API_KEY")
-            os.environ.pop("ANTHROPIC_API_KEY", None)
-            try:
-                with pytest.raises(RuntimeError, match="No Anthropic API key"):
-                    gen._get_api_key()
-            finally:
-                if env_backup:
-                    os.environ["ANTHROPIC_API_KEY"] = env_backup
+        with pytest.raises(RuntimeError, match="No Anthropic API key"):
+            gen._get_api_key()

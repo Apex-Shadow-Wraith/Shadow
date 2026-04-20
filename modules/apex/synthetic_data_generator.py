@@ -136,7 +136,7 @@ class SyntheticDataGenerator:
         self._examples_per_call = 3
 
     def _get_api_key(self) -> str:
-        """Resolve API key from init param or environment.
+        """Resolve API key from init param or the centralized config singleton.
 
         Returns:
             The API key string.
@@ -144,11 +144,15 @@ class SyntheticDataGenerator:
         Raises:
             RuntimeError: If no API key is available.
         """
-        import os
-        key = self._api_key or os.environ.get("ANTHROPIC_API_KEY")
+        key = self._api_key
+        if not key:
+            from shadow.config import config
+            if config.apex.anthropic_api_key:
+                key = config.apex.anthropic_api_key.get_secret_value()
         if not key:
             raise RuntimeError(
-                "No Anthropic API key available. Set ANTHROPIC_API_KEY or pass api_key."
+                "No Anthropic API key available. Set ANTHROPIC_API_KEY in .env "
+                "or pass api_key to SyntheticDataGenerator."
             )
         return key
 

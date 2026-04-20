@@ -21,13 +21,13 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 import sqlite3
 import time
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
+from modules.apex.config import ApexSettings
 from modules.base import BaseModule, ModuleStatus, ToolResult
 
 logger = logging.getLogger("shadow.apex")
@@ -299,40 +299,54 @@ class Apex(BaseModule):
         "openai": {"input": 0.01, "output": 0.03},
     }
 
-    def __init__(self, config: dict[str, Any] | None = None) -> None:
+    def __init__(
+        self, config: dict[str, Any] | ApexSettings | None = None
+    ) -> None:
         """Initialize Apex.
 
         Args:
-            config: Module configuration from shadow_config.yaml.
+            config: Module configuration. Accepts:
+                - `ApexSettings` instance (preferred — used by the singleton).
+                - Legacy dict (validated into ApexSettings internally).
+                - None (falls back to `shadow.config.config.apex`).
         """
         super().__init__(
             name="apex",
             description="API fallback — Claude/GPT with cost tracking and learning",
         )
-        self._config = config or {}
-        self._anthropic_key: str | None = None
-        self._openai_key: str | None = None
+
+        if isinstance(config, ApexSettings):
+            self._settings = config
+        elif config is None:
+            from shadow.config import config as _shadow_config
+            self._settings = _shadow_config.apex
+        else:
+            self._settings = ApexSettings.model_validate(config)
+
+        self._config: dict[str, Any] = self._settings.model_dump(mode="python")
+        self._anthropic_key: str | None = (
+            self._settings.anthropic_api_key.get_secret_value()
+            if self._settings.anthropic_api_key
+            else None
+        )
+        self._openai_key: str | None = (
+            self._settings.openai_api_key.get_secret_value()
+            if self._settings.openai_api_key
+            else None
+        )
         self._call_log: list[dict[str, Any]] = []
         self._total_cost: float = 0.0
         self._daily_cost: float = 0.0
         self._daily_cost_date: str = ""
-        self._log_file = Path(
-            self._config.get("log_file", "data/apex_log.json")
-        )
-        self._dry_run: bool = self._config.get("dry_run", False)
-        self._claude_model: str = self._config.get(
-            "claude_model", "claude-sonnet-4-20250514"
-        )
-        self._openai_model: str = self._config.get(
-            "openai_model", "gpt-4o"
-        )
-        self._max_response_tokens: int = self._config.get(
-            "max_response_tokens", 2048
-        )
+        self._log_file = Path(self._settings.log_file)
+        self._dry_run: bool = self._settings.dry_run
+        self._claude_model: str = self._settings.claude_model
+        self._openai_model: str = self._settings.openai_model
+        self._max_response_tokens: int = self._settings.max_response_tokens
 
         # Conversation history for multi-turn API interactions
         self._conversation_history: list[dict[str, str]] = []
-        self._max_turns: int = self._config.get("max_turns", 10)
+        self._max_turns: int = self._settings.max_turns
 
         # Escalation-learning infrastructure
         self._escalation_log: EscalationLog | None = None
@@ -341,43 +355,20 @@ class Apex(BaseModule):
         self._training_pipeline: TrainingDataPipeline | None = None
 
     async def initialize(self) -> None:
-        """Start Apex. Load API keys from environment and config/.env."""
+        """Start Apex. API keys were loaded by `shadow.config` at import time."""
         self.status = ModuleStatus.STARTING
         try:
-            # Load API keys from config/.env if not already in environment
-            try:
-                from dotenv import load_dotenv
-                env_path = Path("config/.env")
-                if env_path.exists():
-                    load_dotenv(dotenv_path=env_path, override=False)
-                    logger.info("Loaded API keys from %s", env_path)
-            except ImportError:
-                logger.warning("python-dotenv not installed — reading keys from environment only")
-
-            self._anthropic_key = os.environ.get("ANTHROPIC_API_KEY")
-            self._openai_key = os.environ.get("OPENAI_API_KEY")
-
-            if not self._anthropic_key and not self._openai_key:
-                logger.warning(
-                    "No API keys found. Apex will run in dry-run mode."
-                )
-
             self._load_log()
 
             # Initialize escalation-learning infrastructure
-            escalation_db = Path(
-                self._config.get(
-                    "escalation_db", "data/apex_escalation.db"
-                )
-            )
+            escalation_db = Path(self._settings.escalation_db)
             self._escalation_log = EscalationLog(escalation_db)
             self._teaching_extractor = TeachingExtractor()
 
             # Training data pipeline for LoRA dataset generation
-            training_dir = self._config.get(
-                "training_data_dir", "training_data/apex_sessions"
+            self._training_pipeline = TrainingDataPipeline(
+                self._settings.training_data_dir
             )
-            self._training_pipeline = TrainingDataPipeline(training_dir)
             logger.info("Escalation-learning cycle initialized.")
 
             self.status = ModuleStatus.ONLINE
@@ -388,7 +379,7 @@ class Apex(BaseModule):
                 api_status.append("OpenAI")
             logger.info(
                 "Apex online. APIs available: %s. Total cost to date: $%.4f",
-                ", ".join(api_status) or "none (dry-run)",
+                ", ".join(api_status) or "dry-run (no keys)",
                 self._total_cost,
             )
         except Exception as e:

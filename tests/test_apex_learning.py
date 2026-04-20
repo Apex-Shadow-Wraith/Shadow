@@ -14,6 +14,7 @@ from typing import Any
 from unittest.mock import MagicMock, patch
 
 from modules.apex.apex import Apex, EscalationLog, TeachingExtractor
+from modules.apex.config import ApexSettings
 
 
 # ===================================================================
@@ -34,19 +35,34 @@ def extractor() -> TeachingExtractor:
 
 @pytest.fixture
 def apex(tmp_path: Path) -> Apex:
-    """Create an Apex instance with temp paths."""
-    config = {
-        "log_file": str(tmp_path / "apex_log.json"),
-        "escalation_db": str(tmp_path / "escalation.db"),
-    }
-    return Apex(config)
+    """Create an Apex instance with temp paths (dry_run=True — no keys needed)."""
+    settings = ApexSettings(
+        log_file=str(tmp_path / "apex_log.json"),
+        escalation_db=str(tmp_path / "escalation.db"),
+        dry_run=True,
+    )
+    return Apex(settings)
 
 
 @pytest.fixture
 async def online_apex(apex: Apex) -> Apex:
-    """Create and initialize Apex."""
-    with patch("dotenv.load_dotenv"):
-        await apex.initialize()
+    """Create and initialize Apex (dry_run=True)."""
+    await apex.initialize()
+    return apex
+
+
+@pytest.fixture
+async def live_online_apex(tmp_path: Path) -> Apex:
+    """Initialized Apex with dry_run=False + fake key for live-dispatch escalation tests."""
+    from pydantic import SecretStr
+    settings = ApexSettings(
+        log_file=str(tmp_path / "apex_log.json"),
+        escalation_db=str(tmp_path / "escalation.db"),
+        dry_run=False,
+        anthropic_api_key=SecretStr("sk-fake-live"),
+    )
+    apex = Apex(settings)
+    await apex.initialize()
     return apex
 
 
@@ -388,42 +404,49 @@ class TestFullCycle:
         assert "binary search" in stored_signal["input_summary"].lower()
 
     @pytest.mark.asyncio
-    async def test_query_triggers_escalation_log(self, online_apex: Apex):
+    async def test_query_triggers_escalation_log(self, live_online_apex: Apex):
         """Apex query logs escalation in the SQLite escalation log."""
-        online_apex._anthropic_key = "sk-test"
-        with patch.object(online_apex, "_call_claude", return_value=("Quantum computing is...", 20, 50, "claude-sonnet-4-20250514")):
-            await online_apex.execute("apex_query", {
+        with patch.object(live_online_apex, "_call_claude", return_value=("Quantum computing is...", 20, 50, "claude-sonnet-4-20250514")):
+            await live_online_apex.execute("apex_query", {
                 "task": "Explain quantum computing",
                 "task_type": "explanation",
                 "reason": "too_complex",
             })
 
-        stats = online_apex._escalation_log.get_escalation_stats(days=1)
+        stats = live_online_apex._escalation_log.get_escalation_stats(days=1)
         assert stats["total_escalations"] == 1
         assert "explanation" in stats["by_task_type"]
 
     @pytest.mark.asyncio
-    async def test_record_escalation_with_grimoire(self, online_apex: Apex):
+    async def test_record_escalation_with_grimoire(self, live_online_apex: Apex):
         """Escalation stores teaching signal in Grimoire when available."""
         mock_grimoire = MagicMock()
         mock_grimoire.remember.return_value = "mem-uuid-456"
-        online_apex.set_grimoire(mock_grimoire)
+        live_online_apex.set_grimoire(mock_grimoire)
 
-        online_apex._anthropic_key = "sk-test"
-        with patch.object(online_apex, "_call_claude", return_value=("Complex answer", 30, 60, "claude-sonnet-4-20250514")):
-            await online_apex.execute("apex_query", {
+        with patch.object(live_online_apex, "_call_claude", return_value=("Complex answer", 30, 60, "claude-sonnet-4-20250514")):
+            await live_online_apex.execute("apex_query", {
                 "task": "Complex task needing API",
                 "task_type": "reasoning",
             })
 
-        # Grimoire.remember should have been called
-        mock_grimoire.remember.assert_called_once()
-        call_kwargs = mock_grimoire.remember.call_args
-        assert call_kwargs.kwargs["category"] == "apex_teaching"
+        # Apex now stores two memories per query: the transaction log and the
+        # teaching signal. Verify the teaching-signal call specifically (the
+        # one this test actually cares about) was made.
+        teaching_calls = [
+            call
+            for call in mock_grimoire.remember.call_args_list
+            if call.kwargs.get("category") == "apex_teaching"
+        ]
+        assert len(teaching_calls) == 1, (
+            f"Expected exactly one apex_teaching call, got {len(teaching_calls)} "
+            f"(all calls: {mock_grimoire.remember.call_args_list})"
+        )
+        call_kwargs = teaching_calls[0]
         assert call_kwargs.kwargs["source_module"] == "apex"
 
         # Escalation log should reference the grimoire memory ID
-        signals = online_apex._escalation_log.get_recent_teaching_signals(1)
+        signals = live_online_apex._escalation_log.get_recent_teaching_signals(1)
         assert len(signals) == 1
         assert signals[0]["grimoire_memory_id"] == "mem-uuid-456"
 
@@ -434,9 +457,9 @@ class TestFullCycle:
 
 class TestToolCount:
     def test_tools_include_learning_tools(self, apex: Apex):
-        """Apex now has 9 tools (4 original + 3 learning + 2 training)."""
+        """Apex has 10 tools (5 core + 3 learning + 2 training)."""
         tools = apex.get_tools()
-        assert len(tools) == 9
+        assert len(tools) == 10
         names = [t["name"] for t in tools]
         assert "escalation_stats" in names
         assert "escalation_frequent" in names

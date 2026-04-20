@@ -66,11 +66,16 @@ def _build_settings(
 
 
 def _minimal_yaml(tmp_path: Path, **overrides: Any) -> Path:
-    """Write a minimal config.yaml with optional overrides."""
+    """Write a minimal config.yaml with optional overrides.
+
+    Sets apex.dry_run=True by default so ApexSettings' key validator doesn't
+    fire when no .env fixture is present. Tests that want key-related
+    behavior pass dry_run=False explicitly via overrides.
+    """
     data: dict[str, Any] = {
         "system": {"timezone": "America/Chicago", "platform": "linux"},
         "modules": {
-            "apex": {"dry_run": False, "claude_model": "claude-sonnet-4-20250514"},
+            "apex": {"dry_run": True, "claude_model": "claude-sonnet-4-20250514"},
             "grimoire": {"db_path": "data/memory/shadow_memory.db"},
         },
     }
@@ -106,7 +111,7 @@ def test_reload_config_returns_fresh_instance():
 def test_env_overrides_dotenv_overrides_yaml(tmp_path, monkeypatch):
     yaml_path = _minimal_yaml(
         tmp_path,
-        modules={"apex": {"dry_run": False, "claude_model": "from-yaml"}},
+        modules={"apex": {"dry_run": True, "claude_model": "from-yaml"}},
     )
     env_file = tmp_path / ".env"
     env_file.write_text("APEX__CLAUDE_MODEL=from-dotenv\n", encoding="utf-8")
@@ -125,7 +130,7 @@ def test_env_overrides_dotenv_overrides_yaml(tmp_path, monkeypatch):
 def test_yaml_used_when_no_env(tmp_path, monkeypatch):
     yaml_path = _minimal_yaml(
         tmp_path,
-        modules={"apex": {"dry_run": False, "claude_model": "from-yaml"}},
+        modules={"apex": {"dry_run": True, "claude_model": "from-yaml"}},
     )
     monkeypatch.delenv("APEX__CLAUDE_MODEL", raising=False)
     s = _build_settings(yaml_base=yaml_path)
@@ -136,7 +141,7 @@ def test_local_yaml_overrides_base_yaml(tmp_path):
     base = tmp_path / "config.yaml"
     base.write_text(
         yaml.safe_dump(
-            {"modules": {"apex": {"claude_model": "base-yaml", "dry_run": False}}}
+            {"modules": {"apex": {"claude_model": "base-yaml", "dry_run": True}}}
         ),
         encoding="utf-8",
     )
@@ -148,7 +153,7 @@ def test_local_yaml_overrides_base_yaml(tmp_path):
     s = _build_settings(yaml_base=base, yaml_local=local)
     assert s.apex.claude_model == "local-yaml"
     # Non-overridden keys flow from base
-    assert s.apex.dry_run is False
+    assert s.apex.dry_run is True
 
 
 def test_deep_merge_preserves_untouched_subtrees():
@@ -179,14 +184,14 @@ def test_missing_dotenv_is_ok(tmp_path):
     yaml_path = _minimal_yaml(tmp_path)
     # No env file; construction should succeed with YAML + defaults only
     s = _build_settings(yaml_base=yaml_path)
-    assert s.apex.dry_run is False
+    assert s.apex.dry_run is True
 
 
 def test_missing_local_yaml_is_ok(tmp_path):
     yaml_path = _minimal_yaml(tmp_path)
     nonexistent_local = tmp_path / "absent.yaml"
     s = _build_settings(yaml_base=yaml_path, yaml_local=nonexistent_local)
-    assert s.apex.dry_run is False
+    assert s.apex.dry_run is True
 
 
 # ---------------------------------------------------------------------------

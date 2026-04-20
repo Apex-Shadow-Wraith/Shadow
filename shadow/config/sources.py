@@ -19,10 +19,12 @@ Precedence inside the YAML layer: local overrides base. Outer precedence
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from typing import Any
 
 import yaml
+from dotenv import dotenv_values
 from pydantic.fields import FieldInfo
 from pydantic_settings import BaseSettings, PydanticBaseSettingsSource
 
@@ -129,6 +131,77 @@ class YamlConfigSource(PydanticBaseSettingsSource):
                 _deep_merge(merged, local_data)
 
         return _hoist_modules(merged)
+
+    def get_field_value(
+        self, field: FieldInfo, field_name: str
+    ) -> tuple[Any, str, bool]:
+        value = self._data.get(field_name)
+        return value, field_name, value is not None and isinstance(value, (dict, list))
+
+    def __call__(self) -> dict[str, Any]:
+        return self._data
+
+
+# Map flat .env variable names to nested Settings paths. Pydantic-settings'
+# native env source requires nested env vars to use the delimiter
+# (APEX__ANTHROPIC_API_KEY=...), but Shadow's existing `.env` uses flat
+# names that predate the config system. This registry routes them.
+#
+# CRITICAL: only list modules that have DECLARED the target field as
+# `SecretStr | None`. Listing a flat name whose target module lacks a
+# typed declaration causes the raw secret to land as a plain `str` in
+# `extra=allow` storage — and then to leak through `model_dump_json()`.
+# Each commit in the migration series adds its own entries here when
+# the target module declares the field.
+FLAT_TO_PATH: dict[str, tuple[str, ...]] = {
+    # Commit 2 (apex):
+    "ANTHROPIC_API_KEY": ("apex", "anthropic_api_key"),
+    "OPENAI_API_KEY": ("apex", "openai_api_key"),
+    # Commit 3 (cerberus): CREATOR_AUTH_TOKEN
+    # Commit 4 (harbinger): TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, DISCORD_BOT_TOKEN
+    # Commit 5 (reaper):    REDDIT_CLIENT_ID, REDDIT_CLIENT_SECRET,
+    #                       REDDIT_USER_AGENT, BRAVE_SEARCH_API_KEY
+    # Commit 6 (observ.):   LANGFUSE_PUBLIC_KEY, LANGFUSE_SECRET_KEY, LANGFUSE_HOST
+}
+
+
+class FlatEnvSource(PydanticBaseSettingsSource):
+    """Routes known flat env var names (`.env` legacy format) to nested paths.
+
+    Reads both `.env` and `os.environ`, with os.environ winning on conflicts.
+    Produces a nested dict like `{"apex": {"anthropic_api_key": "sk-..."}}`
+    that pydantic-settings merges with other sources.
+
+    Sits in the source tuple AFTER the native env/dotenv sources so the
+    structured `APEX__ANTHROPIC_API_KEY=...` form still wins when present —
+    this source exists only for the legacy flat names.
+    """
+
+    def __init__(
+        self,
+        settings_cls: type[BaseSettings],
+        dotenv_path: Path | None = None,
+    ) -> None:
+        super().__init__(settings_cls)
+        self._data = self._build_nested(dotenv_path)
+
+    def _build_nested(self, dotenv_path: Path | None) -> dict[str, Any]:
+        env: dict[str, Any] = {}
+        if dotenv_path and dotenv_path.exists():
+            loaded = dotenv_values(dotenv_path) or {}
+            env.update({k: v for k, v in loaded.items() if v is not None})
+        env.update(os.environ)
+
+        nested: dict[str, Any] = {}
+        for flat_name, path in FLAT_TO_PATH.items():
+            value = env.get(flat_name)
+            if value in (None, ""):
+                continue
+            current = nested
+            for key in path[:-1]:
+                current = current.setdefault(key, {})
+            current[path[-1]] = value
+        return nested
 
     def get_field_value(
         self, field: FieldInfo, field_name: str

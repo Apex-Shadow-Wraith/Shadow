@@ -6,35 +6,49 @@ teaching cycle, persistence, dry-run gating, and live API dispatch.
 """
 
 import json
-import os
 import pytest
 from pathlib import Path
 from typing import Any
 from unittest.mock import patch, MagicMock
 
-from modules.base import ModuleStatus, ToolResult
+from pydantic import SecretStr
+
 from modules.apex.apex import Apex
+from modules.apex.config import ApexSettings
+from modules.base import ModuleStatus, ToolResult
 
 
 @pytest.fixture
 def apex(tmp_path: Path) -> Apex:
-    """Create an Apex instance with a temp log file (dry_run=False by default)."""
-    config = {"log_file": str(tmp_path / "apex_log.json")}
-    return Apex(config)
+    """Create an Apex instance with dry_run=False and a fixture API key.
+
+    dry_run=False matches the live-API-call path tests. Tests that want
+    an instance with no keys can mutate `apex._anthropic_key = None`
+    after construction (the validator only fires at settings construction).
+    Tests that want to verify dry-run behavior use the `dry_run_apex` fixture.
+    """
+    settings = ApexSettings(
+        log_file=str(tmp_path / "apex_log.json"),
+        dry_run=False,
+        anthropic_api_key=SecretStr("sk-test-fixture"),
+    )
+    return Apex(settings)
 
 
 @pytest.fixture
 def dry_run_apex(tmp_path: Path) -> Apex:
     """Create an Apex instance with dry_run explicitly enabled."""
-    config = {"log_file": str(tmp_path / "apex_log.json"), "dry_run": True}
-    return Apex(config)
+    settings = ApexSettings(
+        log_file=str(tmp_path / "apex_log.json"),
+        dry_run=True,
+    )
+    return Apex(settings)
 
 
 @pytest.fixture
 async def online_apex(apex: Apex) -> Apex:
     """Create and initialize Apex (no API keys)."""
-    with patch("dotenv.load_dotenv"):
-        await apex.initialize()
+    await apex.initialize()
     return apex
 
 
@@ -43,14 +57,12 @@ async def online_apex(apex: Apex) -> Apex:
 class TestApexLifecycle:
     @pytest.mark.asyncio
     async def test_initialize_sets_online(self, apex: Apex):
-        with patch("dotenv.load_dotenv"):
-            await apex.initialize()
+        await apex.initialize()
         assert apex.status == ModuleStatus.ONLINE
 
     @pytest.mark.asyncio
     async def test_shutdown_sets_offline(self, apex: Apex):
-        with patch("dotenv.load_dotenv"):
-            await apex.initialize()
+        await apex.initialize()
         await apex.shutdown()
         assert apex.status == ModuleStatus.OFFLINE
 
@@ -81,27 +93,59 @@ class TestApexLifecycle:
 
 class TestAPIKeys:
     @pytest.mark.asyncio
-    async def test_no_keys_warning(self, apex: Apex):
-        with patch.dict(os.environ, {}, clear=True), \
-             patch("dotenv.load_dotenv"):
-            await apex.initialize()
-            assert apex.status == ModuleStatus.ONLINE
-            assert apex._anthropic_key is None
-            assert apex._openai_key is None
+    async def test_dry_run_with_no_keys_ok(self, tmp_path: Path):
+        """With explicit dry_run=True, Apex goes online with no keys."""
+        settings = ApexSettings(
+            log_file=str(tmp_path / "apex_log.json"),
+            dry_run=True,
+        )
+        a = Apex(settings)
+        await a.initialize()
+        assert a.status == ModuleStatus.ONLINE
+        assert a._anthropic_key is None
+        assert a._openai_key is None
 
     @pytest.mark.asyncio
-    async def test_anthropic_key_loaded(self, apex: Apex):
-        with patch.dict(os.environ, {"ANTHROPIC_API_KEY": "sk-test-123"}), \
-             patch("dotenv.load_dotenv"):
-            await apex.initialize()
-            assert apex._anthropic_key == "sk-test-123"
+    async def test_anthropic_key_loaded(self, tmp_path: Path):
+        settings = ApexSettings(
+            log_file=str(tmp_path / "apex_log.json"),
+            dry_run=False,
+            anthropic_api_key=SecretStr("sk-test-123"),
+        )
+        a = Apex(settings)
+        await a.initialize()
+        assert a._anthropic_key == "sk-test-123"
 
     @pytest.mark.asyncio
-    async def test_openai_key_loaded(self, apex: Apex):
-        with patch.dict(os.environ, {"OPENAI_API_KEY": "sk-openai-test"}), \
-             patch("dotenv.load_dotenv"):
-            await apex.initialize()
-            assert apex._openai_key == "sk-openai-test"
+    async def test_openai_key_loaded(self, tmp_path: Path):
+        settings = ApexSettings(
+            log_file=str(tmp_path / "apex_log.json"),
+            dry_run=False,
+            openai_api_key=SecretStr("sk-openai-test"),
+        )
+        a = Apex(settings)
+        await a.initialize()
+        assert a._openai_key == "sk-openai-test"
+
+    def test_no_keys_without_dry_run_fails_at_settings_construction(self):
+        """Fail-loud: ApexSettings(dry_run=False) with no keys raises."""
+        import pydantic
+        with pytest.raises(
+            pydantic.ValidationError,
+            match="requires an API key",
+        ):
+            ApexSettings(
+                dry_run=False,
+                anthropic_api_key=None,
+                openai_api_key=None,
+            )
+
+    def test_settings_no_keys_with_dry_run_is_ok(self):
+        """Explicit dry_run=True permits no keys with no warning."""
+        s = ApexSettings(dry_run=True)
+        assert s.anthropic_api_key is None
+        assert s.openai_api_key is None
+        assert s.dry_run is True
 
 
 # --- API selection ---
@@ -170,8 +214,7 @@ class TestDryRunGating:
     @pytest.mark.asyncio
     async def test_dry_run_true_skips_api_call(self, dry_run_apex: Apex):
         """dry_run=True with a valid key should NOT call the API and returns failure."""
-        with patch("dotenv.load_dotenv"):
-            await dry_run_apex.initialize()
+        await dry_run_apex.initialize()
         dry_run_apex._anthropic_key = "sk-test"
         with patch.object(dry_run_apex, "_call_claude") as mock_call:
             result = await dry_run_apex.execute("apex_query", {"task": "Should be skipped"})
@@ -294,17 +337,18 @@ class TestCostTracking:
 class TestApexPersistence:
     @pytest.mark.asyncio
     async def test_log_persists(self, tmp_path: Path):
-        config = {"log_file": str(tmp_path / "apex_log.json")}
+        settings = ApexSettings(
+            log_file=str(tmp_path / "apex_log.json"),
+            dry_run=True,
+        )
 
-        a1 = Apex(config)
-        with patch("dotenv.load_dotenv"):
-            await a1.initialize()
+        a1 = Apex(settings)
+        await a1.initialize()
         await a1.execute("apex_log", {"entry": {"cost": 0.05, "api": "claude"}})
         await a1.shutdown()
 
-        a2 = Apex(config)
-        with patch("dotenv.load_dotenv"):
-            await a2.initialize()
+        a2 = Apex(settings)
+        await a2.initialize()
         assert a2._total_cost == pytest.approx(0.05)
         await a2.shutdown()
 
@@ -317,8 +361,7 @@ class TestConfabulationPrevention:
     @pytest.mark.asyncio
     async def test_dry_run_returns_failure(self, dry_run_apex: Apex):
         """When dry_run=True, execute returns success=False with 'dry-run' in message."""
-        with patch("dotenv.load_dotenv"):
-            await dry_run_apex.initialize()
+        await dry_run_apex.initialize()
         dry_run_apex._anthropic_key = "sk-test"
         result = await dry_run_apex.execute("apex_query", {"task": "Test query"})
         assert result.success is False

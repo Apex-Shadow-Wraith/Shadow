@@ -69,7 +69,7 @@ from modules.shadow.observability_config import ObservabilitySettings
 from modules.void.config import VoidSettings
 from modules.wraith.config import WraithSettings
 
-from .sources import YamlConfigSource
+from .sources import FlatEnvSource, YamlConfigSource
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 
@@ -240,10 +240,17 @@ class Settings(BaseSettings):
             base_path=REPO_ROOT / "config" / "config.yaml",
             local_path=REPO_ROOT / "config" / "config.local.yaml",
         )
+        flat_env_source = FlatEnvSource(
+            settings_cls, dotenv_path=REPO_ROOT / ".env"
+        )
+        # Precedence: init > env > dotenv > flat-env-alias > yaml > secret-files.
+        # flat_env_source handles the legacy flat names (ANTHROPIC_API_KEY,
+        # etc.) that predate the nested APEX__* convention.
         return (
             init_settings,
             env_settings,
             dotenv_settings,
+            flat_env_source,
             yaml_source,
             file_secret_settings,
         )

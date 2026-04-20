@@ -10,33 +10,37 @@ from pathlib import Path
 from typing import Any
 from unittest.mock import patch, MagicMock, call
 
-from modules.base import ModuleStatus, ToolResult
+from pydantic import SecretStr
+
 from modules.apex.apex import Apex
+from modules.apex.config import ApexSettings
+from modules.base import ModuleStatus, ToolResult
 
 
 @pytest.fixture
 def apex(tmp_path: Path) -> Apex:
-    """Create an Apex instance with a temp log file."""
-    config = {
-        "log_file": str(tmp_path / "apex_log.json"),
-        "escalation_db": str(tmp_path / "escalation.db"),
-        "max_turns": 3,
-    }
-    return Apex(config)
+    """Create an Apex instance (dry_run=True — no keys needed)."""
+    settings = ApexSettings(
+        log_file=str(tmp_path / "apex_log.json"),
+        escalation_db=str(tmp_path / "escalation.db"),
+        max_turns=3,
+        dry_run=True,
+    )
+    return Apex(settings)
 
 
 @pytest.fixture
 async def live_apex(tmp_path: Path) -> Apex:
     """Initialized Apex with a fake Anthropic key for live-mode dispatch."""
-    config = {
-        "log_file": str(tmp_path / "apex_log.json"),
-        "escalation_db": str(tmp_path / "escalation.db"),
-        "max_turns": 3,
-    }
-    apex = Apex(config)
-    with patch("dotenv.load_dotenv"):
-        with patch.dict("os.environ", {"ANTHROPIC_API_KEY": "sk-fake-key"}):
-            await apex.initialize()
+    settings = ApexSettings(
+        log_file=str(tmp_path / "apex_log.json"),
+        escalation_db=str(tmp_path / "escalation.db"),
+        max_turns=3,
+        dry_run=False,
+        anthropic_api_key=SecretStr("sk-fake-key"),
+    )
+    apex = Apex(settings)
+    await apex.initialize()
     return apex
 
 
@@ -104,15 +108,14 @@ class TestConversationHistory:
     @pytest.mark.asyncio
     async def test_history_not_added_in_dry_run(self, tmp_path: Path):
         """Dry-run mode does not append to conversation history."""
-        config = {
-            "log_file": str(tmp_path / "apex_log.json"),
-            "escalation_db": str(tmp_path / "escalation.db"),
-            "dry_run": True,
-        }
-        apex = Apex(config)
-        with patch("dotenv.load_dotenv"):
-            with patch.dict("os.environ", {"ANTHROPIC_API_KEY": "sk-fake"}):
-                await apex.initialize()
+        settings = ApexSettings(
+            log_file=str(tmp_path / "apex_log.json"),
+            escalation_db=str(tmp_path / "escalation.db"),
+            dry_run=True,
+            anthropic_api_key=SecretStr("sk-fake"),
+        )
+        apex = Apex(settings)
+        await apex.initialize()
 
         result = await apex.execute("apex_query", {"task": "dry run task"})
         assert len(apex._conversation_history) == 0
@@ -245,13 +248,17 @@ class TestGrimoireTransactionStorage:
 
 class TestConversationConfig:
     def test_default_max_turns(self, tmp_path: Path):
-        """Default max_turns is 10 when not specified in config."""
-        apex = Apex({"log_file": str(tmp_path / "log.json")})
+        """Default max_turns is 10 when not specified."""
+        settings = ApexSettings(log_file=str(tmp_path / "log.json"), dry_run=True)
+        apex = Apex(settings)
         assert apex._max_turns == 10
 
     def test_custom_max_turns(self, tmp_path: Path):
-        """max_turns can be set via config."""
-        apex = Apex({"log_file": str(tmp_path / "log.json"), "max_turns": 5})
+        """max_turns can be set via settings."""
+        settings = ApexSettings(
+            log_file=str(tmp_path / "log.json"), max_turns=5, dry_run=True,
+        )
+        apex = Apex(settings)
         assert apex._max_turns == 5
 
     def test_history_starts_empty(self, apex: Apex):

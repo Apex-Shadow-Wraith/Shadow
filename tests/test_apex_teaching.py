@@ -330,7 +330,8 @@ class TestEscalationTemplate:
     def test_apex_teach_includes_template(self):
         """Apex._apex_teach teaching request includes the template."""
         from modules.apex.apex import Apex
-        apex = Apex({"log_file": "/dev/null"})
+        from modules.apex.config import ApexSettings
+        apex = Apex(ApexSettings(log_file="/dev/null", dry_run=True))
         result = apex._apex_teach({
             "task": "test task",
             "failed_approaches": [],
