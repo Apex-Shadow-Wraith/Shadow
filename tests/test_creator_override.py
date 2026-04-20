@@ -9,12 +9,12 @@ authentication, and that safety invariants hold:
 - Authorizations permanently reclassify categories
 """
 
-import os
-import tempfile
 from pathlib import Path
 
 import pytest
+from pydantic import SecretStr
 
+from modules.cerberus.config import CerberusSettings
 from modules.cerberus.creator_override import (
     EXTERNAL_SOURCES,
     INTERNAL_MODULES,
@@ -30,27 +30,17 @@ TEST_TOKEN = "test-creator-token-12345"
 
 
 @pytest.fixture
-def env_file(tmp_path):
-    """Create a temp .env file with a known auth token."""
-    env = tmp_path / ".env"
-    env.write_text(f"CREATOR_AUTH_TOKEN={TEST_TOKEN}\n", encoding="utf-8")
-    return str(env)
-
-
-@pytest.fixture
-def override(env_file, monkeypatch):
+def override():
     """CreatorOverride with a known token."""
-    monkeypatch.delenv("CREATOR_AUTH_TOKEN", raising=False)
-    return CreatorOverride(env_path=env_file)
+    settings = CerberusSettings(creator_auth_token=SecretStr(TEST_TOKEN))
+    return CreatorOverride(settings=settings)
 
 
 @pytest.fixture
-def override_no_token(tmp_path, monkeypatch):
+def override_no_token():
     """CreatorOverride with no token configured."""
-    monkeypatch.delenv("CREATOR_AUTH_TOKEN", raising=False)
-    env = tmp_path / ".env"
-    env.write_text("OTHER_VAR=hello\n", encoding="utf-8")
-    return CreatorOverride(env_path=str(env))
+    settings = CerberusSettings(creator_auth_token=None)
+    return CreatorOverride(settings=settings)
 
 
 # --- creator_exception tests ---
@@ -309,14 +299,24 @@ class TestFalsePositiveReport:
 class TestAuthentication:
     """Tests for auth token verification."""
 
-    def test_no_token_configured_rejects_all(self, override_no_token):
-        """With no token configured, all overrides are rejected."""
-        result = override_no_token.creator_exception(
-            blocked_action_id="blocked-no-auth",
-            auth_token="anything",
-            action_category="test",
-        )
-        assert result.success is False
+    def test_no_token_configured_raises(self, override_no_token):
+        """With no token configured, override attempts raise loudly.
+
+        Fail-loud policy: a misconfigured override system must not silently
+        reject valid creator requests — the creator deserves a clear error
+        pointing at the missing CREATOR_AUTH_TOKEN setting.
+        """
+        with pytest.raises(RuntimeError, match="CREATOR_AUTH_TOKEN is not set"):
+            override_no_token.creator_exception(
+                blocked_action_id="blocked-no-auth",
+                auth_token="anything",
+                action_category="test",
+            )
+
+    def test_verify_hardware_auth_no_token_raises(self, override_no_token):
+        """verify_hardware_auth raises RuntimeError when no token is set."""
+        with pytest.raises(RuntimeError, match="CREATOR_AUTH_TOKEN is not set"):
+            override_no_token.verify_hardware_auth("any-token")
 
     def test_verify_hardware_auth_valid(self, override):
         """Valid token passes verification."""
@@ -326,16 +326,11 @@ class TestAuthentication:
         """Invalid token fails verification."""
         assert override.verify_hardware_auth("wrong") is False
 
-    def test_env_var_fallback(self, tmp_path):
-        """Token can be loaded from environment variable."""
-        env = tmp_path / ".env"
-        env.write_text("OTHER=value\n", encoding="utf-8")
-        os.environ["CREATOR_AUTH_TOKEN"] = "env-var-token"
-        try:
-            co = CreatorOverride(env_path=str(env))
-            assert co.verify_hardware_auth("env-var-token") is True
-        finally:
-            del os.environ["CREATOR_AUTH_TOKEN"]
+    def test_settings_injection(self):
+        """Token is injected via CerberusSettings."""
+        settings = CerberusSettings(creator_auth_token=SecretStr("injected-token"))
+        co = CreatorOverride(settings=settings)
+        assert co.verify_hardware_auth("injected-token") is True
 
 
 # --- Source validation tests ---

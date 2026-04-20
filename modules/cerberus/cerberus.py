@@ -147,10 +147,9 @@ class Cerberus(BaseModule):
             logger.warning("ReversibilityEngine unavailable: %s", e)
             self._reversibility_engine = None
 
-        # Initialize creator override system
-        self._creator_override = CreatorOverride(
-            env_path=config.get("env_path", "config/.env")
-        )
+        # Initialize creator override system. Reads the auth token from the
+        # centralized config singleton (set via CREATOR_AUTH_TOKEN in .env).
+        self._creator_override = CreatorOverride()
 
         # Initialize emergency shutdown protocol
         try:

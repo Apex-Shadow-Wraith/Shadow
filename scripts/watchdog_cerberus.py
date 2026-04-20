@@ -51,11 +51,14 @@ from pathlib import Path
 from urllib.request import Request, urlopen
 
 # --- Configuration ---
-HEARTBEAT_PATH = Path("C:/Shadow/data/cerberus_heartbeat.json")
-EMERGENCY_LOG = Path("C:/Shadow/EMERGENCY.log")
+# Paths resolve relative to the repo root (this script's parent parent)
+# so Windows/Ubuntu/macOS layouts all work without code changes.
+REPO_ROOT = Path(__file__).resolve().parent.parent
+HEARTBEAT_PATH = REPO_ROOT / "data" / "cerberus_heartbeat.json"
+EMERGENCY_LOG = REPO_ROOT / "EMERGENCY.log"
 CHECK_INTERVAL = 10  # seconds
 MAX_HEARTBEAT_AGE = 30  # seconds before Cerberus is presumed dead
-ENV_PATH = Path("C:/Shadow/config/.env")
+ENV_PATH = REPO_ROOT / ".env"
 
 # --- Logging Setup ---
 logging.basicConfig(

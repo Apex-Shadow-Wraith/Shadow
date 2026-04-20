@@ -256,12 +256,18 @@ class CerberusWatchdog:
             logger.info("No lockfile found — nothing to clear.")
 
     def _send_telegram_alert(self, message: str) -> bool:
-        """Send emergency alert via Telegram bot. Best-effort."""
+        """Send emergency alert via Telegram bot. Best-effort.
+
+        Telegram credentials come from `shadow.config.config.harbinger`
+        once commit 4 migrates Harbinger. Until then, the config system's
+        startup shim populates `os.environ` from `.env`, so the Telegram
+        values are visible via the shell env as before.
+        """
         try:
-            env_path = Path("C:/Shadow/config/.env")
-            env = _load_env(env_path)
-            token = env.get("TELEGRAM_BOT_TOKEN")
-            chat_id = env.get("TELEGRAM_CHAT_ID")
+            import os
+
+            token = os.environ.get("TELEGRAM_BOT_TOKEN")
+            chat_id = os.environ.get("TELEGRAM_CHAT_ID")
 
             if not token or not chat_id:
                 logger.warning("Telegram not configured — skipping alert")
@@ -279,15 +285,3 @@ class CerberusWatchdog:
         except Exception as e:
             logger.error("Failed to send Telegram alert: %s", e)
             return False
-
-
-def _load_env(env_path: Path) -> dict[str, str]:
-    """Load environment variables from .env file."""
-    env: dict[str, str] = {}
-    if env_path.exists():
-        for line in env_path.read_text(encoding="utf-8").splitlines():
-            line = line.strip()
-            if line and not line.startswith("#") and "=" in line:
-                key, _, value = line.partition("=")
-                env[key.strip()] = value.strip().strip('"').strip("'")
-    return env

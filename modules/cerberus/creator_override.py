@@ -19,12 +19,13 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import Any
+
+from modules.cerberus.config import CerberusSettings
 
 logger = logging.getLogger("shadow.cerberus.override")
 
@@ -66,48 +67,47 @@ class CreatorOverride:
     decisions. Internal modules cannot invoke overrides.
     """
 
-    def __init__(self, env_path: str | None = None) -> None:
-        self._auth_token: str = ""
+    def __init__(
+        self, settings: CerberusSettings | None = None
+    ) -> None:
+        """Initialize the creator override system.
+
+        Args:
+            settings: A CerberusSettings instance. If None, falls back to
+                `shadow.config.config.cerberus`.
+        """
+        if settings is None:
+            from shadow.config import config as _shadow_config
+            settings = _shadow_config.cerberus
+        self._settings = settings
+        self._auth_token: str | None = (
+            settings.creator_auth_token.get_secret_value()
+            if settings.creator_auth_token
+            else None
+        )
         self._exception_log: list[dict[str, Any]] = []
         self._authorize_log: list[dict[str, Any]] = []
         self._exception_counts: dict[str, int] = {}  # category -> count
         self._authorized_categories: set[str] = set()
-        self._load_auth_token(env_path)
-
-    def _load_auth_token(self, env_path: str | None = None) -> None:
-        """Load creator auth token from .env file."""
-        # Check environment variable first
-        token = os.environ.get("CREATOR_AUTH_TOKEN", "")
-        if token:
-            self._auth_token = token
-            return
-
-        # Fall back to .env file
-        if env_path:
-            env_file = Path(env_path)
-        else:
-            env_file = Path("config/.env")
-
-        if env_file.exists():
-            with open(env_file, "r", encoding="utf-8") as f:
-                for line in f:
-                    line = line.strip()
-                    if line.startswith("CREATOR_AUTH_TOKEN="):
-                        self._auth_token = line.split("=", 1)[1].strip()
-                        return
-
-        logger.warning("No CREATOR_AUTH_TOKEN found — override system inactive")
 
     def verify_hardware_auth(self, token: str) -> bool:
         """Verify creator authentication token.
 
-        Phase 1: Simple token comparison against .env value.
+        Phase 1: Simple token comparison against the configured value.
         # TODO: Phase 2 — add cryptographic device signatures
         # TODO: Phase 3 — add Face ID verification for creator_authorize
+
+        Raises:
+            RuntimeError: If no auth token is configured. The override system
+                cannot function without one, and silently returning False
+                would mask a misconfiguration.
         """
         if not self._auth_token:
-            logger.error("No auth token configured — all overrides rejected")
-            return False
+            raise RuntimeError(
+                "CREATOR_AUTH_TOKEN is not set. Creator override cannot "
+                "function without it. Set CREATOR_AUTH_TOKEN in .env, "
+                "or in config.yaml at modules.cerberus.creator_auth_token."
+            )
         return token == self._auth_token
 
     def _validate_source(self, source: str) -> bool:
