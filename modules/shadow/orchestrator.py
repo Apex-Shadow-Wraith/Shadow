@@ -1190,10 +1190,32 @@ class Orchestrator:
                 self._save_state()
                 return response
 
-            # Handle /benchmark commands directly (no LLM needed)
+            # Handle /benchmark commands directly (no LLM needed).
+            #
+            # A /benchmark run is a wrapper command, not a single interaction:
+            # it spawns N nested process_input() calls (one per benchmark
+            # task), each of which has its own loop_start and emits its own
+            # Step 7 log. If we also emitted the standard "Step 7 — Logged
+            # interaction #N (Xms)" line here, X would be the wall-clock
+            # duration of the entire benchmark run and N would be the
+            # interaction counter after 75+ nested bumps — misleading when
+            # read alongside the per-task lines. Emit a distinct
+            # wrapper-complete log instead.
             if classification.target_module == "benchmark":
+                interaction_before = self._state.interaction_count
                 response = await self._handle_benchmark_command(user_input)
-                await self._step7_log(user_input, classification, response, loop_start, source=source)
+                wrapper_elapsed_ms = (time.time() - loop_start) * 1000
+                interactions_spawned = (
+                    self._state.interaction_count - interaction_before
+                )
+                logger.info(
+                    "Benchmark command complete — %d nested interactions "
+                    "(#%d through #%d), wrapper elapsed %.1fms",
+                    interactions_spawned,
+                    interaction_before + 1 if interactions_spawned else interaction_before,
+                    self._state.interaction_count,
+                    wrapper_elapsed_ms,
+                )
                 self._save_state()
                 return response
 

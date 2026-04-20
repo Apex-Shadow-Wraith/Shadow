@@ -666,6 +666,56 @@ class TestRunBenchmark:
         assert "code_generation" in result["category_scores"]
         assert "math_logic" in result["category_scores"]
 
+    @pytest.mark.asyncio
+    async def test_per_task_durations_are_not_cumulative(self, mock_orchestrator):
+        """Each per_task_results[i].duration_seconds must reflect THAT task's
+        wall-clock duration, not the cumulative benchmark elapsed time
+        (Bug 5). Regression test for the Phase 0 Citadel log that showed
+        the final task with 939s even though it actually took 3.6s."""
+        # Make each call to process_input sleep a distinct amount so we can
+        # verify the per-task timer didn't get overwritten with total elapsed.
+        sleep_durations = [0.05, 0.10, 0.15]  # seconds
+
+        async def slow_process(user_input, source="benchmark"):
+            idx = int(user_input.split("#")[1])
+            await asyncio.sleep(sleep_durations[idx])
+            return "ok"
+
+        mock_orchestrator.process_input = AsyncMock(side_effect=slow_process)
+        suite = BenchmarkSuite(mock_orchestrator, {"model_name": "test"})
+
+        tasks = [
+            {
+                "id": f"slow_{i}",
+                "input": f"task#{i}",
+                "expected_output_keywords": ["ok"],
+                "category": "general_knowledge",
+                "difficulty": 1,
+                "rubric": {"type": "keyword", "required_keywords": ["ok"]},
+            }
+            for i in range(3)
+        ]
+
+        result = await suite.run_benchmark(tasks)
+
+        # Per-task durations must be close to each mocked sleep, not
+        # the cumulative total.
+        for i, expected_sleep in enumerate(sleep_durations):
+            actual = result["per_task_results"][i]["duration_seconds"]
+            assert actual == pytest.approx(expected_sleep, abs=0.1), (
+                f"Task {i} duration was {actual}s, expected ~{expected_sleep}s "
+                f"(run_duration={result['run_duration_seconds']}s). "
+                f"Bug 5: per-task timer must not capture cumulative time."
+            )
+
+        # Sanity check: the final task's duration must be MUCH less than the
+        # total run duration (proves no cumulative-overwrite bug).
+        final_task_duration = result["per_task_results"][-1]["duration_seconds"]
+        assert final_task_duration < result["run_duration_seconds"], (
+            f"Final task timer ({final_task_duration}s) >= total run time "
+            f"({result['run_duration_seconds']}s) — cumulative bug present"
+        )
+
 
 # ---------------------------------------------------------------------------
 # Test: trend_report

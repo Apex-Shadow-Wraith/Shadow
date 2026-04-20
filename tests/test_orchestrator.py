@@ -1882,6 +1882,56 @@ class TestDirectRouteBypassesToolLoader:
         orch._step5_execute.assert_not_called()
 
     @pytest.mark.asyncio
+    async def test_benchmark_command_wrapper_does_not_log_as_interaction(
+        self, config: dict, caplog,
+    ):
+        """The /benchmark run slash-command wrapper must NOT emit the
+        standard 'Step 7 — Logged interaction #N (Xms)' line with the
+        cumulative wall-clock duration of all nested tasks (Bug 5).
+        Instead it should emit a distinct 'Benchmark command complete'
+        log so the total-elapsed time isn't conflated with a per-task
+        timer."""
+        import logging as _stdlib_logging
+
+        orch = Orchestrator(config)
+
+        # Stub _handle_benchmark_command so the test doesn't run a real
+        # benchmark — simulate the "75 nested interactions bumped the
+        # counter" effect by bumping it ourselves, then sleep briefly so
+        # there's measurable wrapper-elapsed time.
+        async def fake_benchmark(_cmd):
+            orch._state.interaction_count += 75
+            return "Benchmark stub complete"
+
+        orch._handle_benchmark_command = fake_benchmark
+
+        caplog.set_level(_stdlib_logging.INFO, logger="shadow.orchestrator")
+        await orch.process_input("/benchmark run", source="user")
+
+        # Find log records emitted after the benchmark command fired.
+        wrapper_logs = [
+            r.message for r in caplog.records
+            if "Benchmark command complete" in r.message
+        ]
+        step7_logs = [
+            r.message for r in caplog.records
+            if r.message.startswith("Step 7 — Logged interaction")
+        ]
+
+        assert wrapper_logs, (
+            "Expected a distinct 'Benchmark command complete' log line; "
+            f"got only: {[r.message for r in caplog.records][:20]}"
+        )
+        # The outer wrapper must NOT have emitted the standard
+        # per-interaction Step 7 line.  (Nested process_input calls would
+        # each emit their own, but the fake_benchmark stub doesn't call
+        # process_input recursively, so step7_logs should be empty here.)
+        assert step7_logs == [], (
+            f"/benchmark wrapper emitted Step 7 interaction log (Bug 5): "
+            f"{step7_logs}"
+        )
+
+    @pytest.mark.asyncio
     async def test_step3_context_load_skips_tool_loader_for_direct(
         self, config: dict, caplog,
     ):
