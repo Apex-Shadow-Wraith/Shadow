@@ -7,6 +7,9 @@ config/ethical_topics.yaml
 
 # Databases
 *.db
+*.db-shm
+*.db-wal
+*.db-journal
 data/memory/
 data/esv/
 
@@ -24,6 +27,8 @@ venv/
 # IDE
 .vscode/
 .idea/
+*.swp
+*.swo
 
 # OS
 Thumbs.db
