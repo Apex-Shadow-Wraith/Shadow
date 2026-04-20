@@ -379,12 +379,22 @@ class RetryEngine:
                 self._record_session(session)
                 return self._session_to_dict(session)
 
-            # Early exit: infrastructure failure on first attempt — skip all retries
-            if (attempt_num == 1
-                    and attempt.failure_type == FailureType.INFRASTRUCTURE):
+            # Early exit: genuine infrastructure failure on first attempt — skip
+            # all retries.  "Genuine" means the caller explicitly signalled an
+            # empty tool-loader index (no modules online at all).  A specific
+            # module returning empty tools, a module's tools erroring, or a
+            # transient ollama/network hiccup all get marker-classified as
+            # INFRASTRUCTURE too — but those are recoverable by strategy
+            # rotation (alternative_tools, model_switch, etc.), so we let the
+            # retry loop continue rather than bailing on attempt 1.
+            result_signals_empty_loader = (
+                attempt.result is not None
+                and attempt.result.get("tool_loader_empty", False)
+            )
+            if attempt_num == 1 and result_signals_empty_loader:
                 logger.warning(
-                    "Tool loader empty — skipping retries "
-                    "(infrastructure issue, not model failure)"
+                    "Tool loader index is empty — no modules available, "
+                    "skipping retries (genuine infrastructure failure)"
                 )
                 session.status = "exhausted"
                 self._record_session(session)
@@ -393,6 +403,16 @@ class RetryEngine:
                 result_dict["ready_to_escalate"] = False
                 result_dict["infrastructure_failure"] = True
                 return result_dict
+
+            # Marker-classified infrastructure failure with a populated loader —
+            # log distinctly and let the next strategy attempt run.
+            if (attempt_num == 1
+                    and attempt.failure_type == FailureType.INFRASTRUCTURE):
+                logger.info(
+                    "Attempt %d failed with infrastructure-shaped error "
+                    "(%s), rotating strategy instead of bailing",
+                    attempt_num, attempt.error,
+                )
 
             # Progress notifications
             if notify_fn is not None:

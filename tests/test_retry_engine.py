@@ -757,6 +757,96 @@ async def test_early_exit_on_tool_loader_empty(engine):
     assert result.get("ready_to_escalate") is False
 
 
+# ── Test: Marker-classified infra failure with populated loader retries ──
+# Bug 3: if an error string matches _INFRASTRUCTURE_MARKERS but the loader
+# is NOT genuinely empty (no tool_loader_empty flag in result), the retry
+# engine must rotate strategies instead of bailing on attempt 1.
+
+@pytest.mark.asyncio
+async def test_marker_classified_infra_failure_does_not_bail(engine):
+    """Bug 3: a marker-matched 'infrastructure' error with no
+    tool_loader_empty signal must let the retry loop continue.
+    Regression for Phase 0 benchmark where single-module failures caused
+    immediate bail-out instead of strategy rotation."""
+    call_count = {"n": 0}
+
+    async def module_level_failure_execute(task, ctx):
+        # The loader is populated, but this module's tools happen to
+        # fail. The error text happens to match an infra marker.
+        call_count["n"] += 1
+        return {
+            "response": "",
+            "results": [],
+            # Notably: NO tool_loader_empty flag — loader is healthy,
+            # this is a single-module issue.
+        }
+
+    def marker_evaluate(result):
+        # "tool execution errors" is in _INFRASTRUCTURE_MARKERS, so
+        # classify_failure will return INFRASTRUCTURE even though
+        # tool_loader_empty is False.
+        return {
+            "success": False,
+            "confidence": 0.0,
+            "reason": "Tool execution errors on module 'nova'",
+        }
+
+    result = await engine.attempt_task(
+        task="Module-level failure",
+        module="nova",
+        context={"task_type": "content"},
+        evaluate_fn=marker_evaluate,
+        execute_fn=module_level_failure_execute,
+    )
+
+    # Must retry — not bail on attempt 1.
+    assert call_count["n"] > 1, (
+        f"Bug 3: retry engine bailed after {call_count['n']} attempt(s) "
+        f"when loader was populated but error looked like infrastructure; "
+        f"should have rotated strategies."
+    )
+    # Multiple attempt records should exist.
+    assert len(result["attempts"]) > 1
+
+
+@pytest.mark.asyncio
+async def test_empty_loader_still_bails_on_first_attempt(engine):
+    """Bug 3: preserves the existing bail-out for genuinely empty index.
+    When result explicitly signals tool_loader_empty=True, we must NOT
+    retry — that would waste 12 attempts on identical infrastructure
+    failures. This is the existing contract the fix must preserve."""
+    call_count = {"n": 0}
+
+    async def empty_loader_execute(task, ctx):
+        call_count["n"] += 1
+        return {
+            "response": "",
+            "results": [],
+            "tool_loader_empty": True,  # explicit signal from orchestrator
+            "infrastructure_error": True,
+        }
+
+    def evaluate(result):
+        return {
+            "success": False,
+            "confidence": 0.0,
+            "reason": "Tool loader empty — infrastructure issue",
+        }
+
+    result = await engine.attempt_task(
+        task="All modules offline",
+        module="wraith",
+        context={"task_type": "test"},
+        evaluate_fn=evaluate,
+        execute_fn=empty_loader_execute,
+    )
+
+    assert call_count["n"] == 1
+    assert result["status"] == "exhausted"
+    assert result.get("infrastructure_failure") is True
+    assert result.get("ready_to_escalate") is False
+
+
 # ── Test: /reset fatigue command works ───────────────────────────────
 
 @pytest.mark.asyncio
