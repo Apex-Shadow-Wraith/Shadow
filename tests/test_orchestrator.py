@@ -1882,6 +1882,49 @@ class TestDirectRouteBypassesToolLoader:
         orch._step5_execute.assert_not_called()
 
     @pytest.mark.asyncio
+    async def test_step3_context_load_skips_tool_loader_for_direct(
+        self, config: dict, caplog,
+    ):
+        """Step 3 context loading must not invoke the tool_loader for 'direct'
+        routing — this is where the `Module 'direct' not found in tool index`
+        warning leaked during the Phase 0 benchmark (Bug 2)."""
+        import logging as _stdlib_logging
+
+        orch = Orchestrator(config)
+
+        # Real-ish tool loader so we'd see the warning if called.
+        from modules.shadow.tool_loader import DynamicToolLoader
+        loader = DynamicToolLoader(orch.registry)
+        # Register a fake module in the index so is_populated is True.
+        loader._index = {"reaper": [{"name": "web_search"}]}
+        orch._tool_loader = loader
+
+        # Disable the ContextOrchestrator minimal path so we exercise the
+        # fallback branch where the tool_loader is consulted.
+        orch._context_orchestrator = None
+
+        classification = TaskClassification(
+            task_type=TaskType.CONVERSATION,
+            complexity="simple",
+            target_module="direct",
+            brain=BrainType.FAST,
+            safety_flag=False,
+            priority=1,
+        )
+
+        caplog.set_level(_stdlib_logging.WARNING, logger="shadow.tool_loader")
+        await orch._step3_load_context("Hey buddy", classification)
+
+        warning_msgs = [
+            r.message for r in caplog.records
+            if "not found in tool index" in r.message
+        ]
+        assert warning_msgs == [], (
+            f"Step 3 emitted tool-loader warnings for 'direct' routing: "
+            f"{warning_msgs}"
+        )
+
+    @pytest.mark.asyncio
     async def test_populated_loader_proceeds_to_retry_engine(self, config: dict):
         """A populated tool loader (is_populated=True) should let the retry
         engine proceed even if the specific module has no tools — that's a

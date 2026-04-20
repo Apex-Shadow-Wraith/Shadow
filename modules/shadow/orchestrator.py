@@ -41,6 +41,12 @@ from modules.shadow.task_tracker import TaskTracker
 
 logger = logging.getLogger("shadow.orchestrator")
 
+# Routing targets that are not real modules with tools.  Step 3 context
+# loading and Step 5 dispatch both need to short-circuit the tool_loader
+# lookup for these, otherwise the loader warns about missing modules on
+# every fast-path conversational query.
+NON_MODULE_TARGETS = {"direct", "conversation"}
+
 # Graceful import — orchestrator still starts if injection_detector is missing
 try:
     from modules.cerberus.injection_detector import PromptInjectionDetector, InjectionResult
@@ -3468,10 +3474,11 @@ User input: {user_input}"""
                 logger.info("Step 3 — Minimal context via ContextOrchestrator: %d tools", len(ctx.tool_schemas))
                 return context_items
 
-            if self._tool_loader:
-                tools = self._tool_loader.get_tools_for_task(
-                    module_name=getattr(classification, "target_module", None),
-                )
+            target = getattr(classification, "target_module", None)
+            if self._tool_loader and target not in NON_MODULE_TARGETS:
+                tools = self._tool_loader.get_tools_for_task(module_name=target)
+            elif target in NON_MODULE_TARGETS:
+                tools = []
             else:
                 tools = self.registry.list_tools()
             context_items.append({
@@ -3681,9 +3688,10 @@ User input: {user_input}"""
         )
 
         # 4. Tool availability (dynamic loading saves 2-4K tokens)
-        if self._tool_loader:
+        target = getattr(classification, "target_module", None)
+        if self._tool_loader and target not in NON_MODULE_TARGETS:
             available_tools = self._tool_loader.get_tools_for_task(
-                module_name=getattr(classification, "target_module", None),
+                module_name=target,
                 task={"input": user_input},
             )
             report = self._tool_loader.get_loading_report()
@@ -3693,6 +3701,8 @@ User input: {user_input}"""
                 report["tools_available"],
                 report["tokens_saved"],
             )
+        elif target in NON_MODULE_TARGETS:
+            available_tools = []
         else:
             available_tools = self.registry.list_tools()
         context_items.append({
@@ -4424,7 +4434,6 @@ User input: {user_input}"""
             # A specific module missing from the index is a routing mismatch,
             # NOT infrastructure failure — let the attempt proceed so the
             # retry engine can try alternative strategies.
-            NON_MODULE_TARGETS = {"direct", "conversation"}
             target = getattr(classification, "target_module", None)
             if target not in NON_MODULE_TARGETS:
                 if hasattr(self, '_tool_loader') and self._tool_loader is not None:
