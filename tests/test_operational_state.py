@@ -484,6 +484,93 @@ class TestFatigueDecay:
             f"Max fatigue during benchmark was {max_fatigue} — should stay < 1.0"
         )
 
+    def test_fatigue_stays_manageable_at_benchmark_cadence(
+        self, state_db, monkeypatch,
+    ):
+        """Bug 1 regression: at the actual Phase 0 benchmark cadence
+        (~12.5s/task, 75 tasks), fatigue must not saturate at 1.0.
+        The existing test_benchmark_scenario_fatigue_stays_manageable
+        uses 18s/task which happened to land in a regime where wall-clock
+        decay could keep up; the real benchmark runs faster and saturates
+        without activity-based decay-on-success."""
+        import modules.shadow.operational_state as os_mod
+        base_time = time.time()
+        current_time = base_time
+
+        ops = OperationalState(db_path=state_db)
+
+        max_fatigue = 0.0
+        for i in range(75):
+            current_time += 12.5  # match real benchmark cadence
+            t = current_time
+            monkeypatch.setattr(os_mod.time, "time", lambda _t=t: _t)
+
+            result = ops.update_after_task(
+                _task(success=True, confidence=0.85,
+                      task_type="benchmark", duration=10.0)
+            )
+            max_fatigue = max(max_fatigue, result.fatigue)
+
+        final = ops.get_current_state()
+        # The Phase 0 benchmark log showed fatigue pinning at 1.0 from
+        # interaction #60 onward; with fatigue_decay_on_success it must
+        # plateau well below 0.9.
+        assert final.fatigue < 0.9, (
+            f"Bug 1: fatigue hit {final.fatigue} during 75-task @12.5s "
+            f"benchmark — activity-based decay-on-success should prevent "
+            f"saturation"
+        )
+        assert max_fatigue < 0.95, (
+            f"Bug 1: max fatigue during benchmark was {max_fatigue} — "
+            f"should never approach 1.0"
+        )
+
+    def test_fatigue_decay_on_success_fires(self, state_db, monkeypatch):
+        """Bug 1 regression: verify the mechanism is engaged, not just
+        that the number happens to be low.  Build fatigue high via long
+        failed tasks at a fixed wall-clock time, then run successful
+        tasks also at the fixed wall-clock time.  With wall-clock decay
+        contributing zero, any fatigue drop must come from
+        fatigue_decay_on_success."""
+        import modules.shadow.operational_state as os_mod
+        base_time = time.time()
+        monkeypatch.setattr(os_mod.time, "time", lambda: base_time)
+
+        ops = OperationalState(db_path=state_db)
+
+        # Push fatigue well above the success-decay steady state (~0.4)
+        # using long failed tasks (each adds 0.02 + 0.05 = 0.07).
+        for i in range(15):
+            ops.update_after_task(
+                _task(success=False, confidence=0.2,
+                      task_type=f"fail_{i}", duration=120.0)
+            )
+        fatigue_high = ops.get_current_state().fatigue
+        assert fatigue_high >= 0.7, (
+            f"Precondition: long failed tasks should push fatigue high; "
+            f"got {fatigue_high:.3f}"
+        )
+
+        # Run a single successful task at the same wall-clock time.
+        # Wall-clock decay contributes zero, so any fatigue drop proves
+        # fatigue_decay_on_success fired.
+        ops.update_after_task(
+            _task(success=True, confidence=0.9,
+                  task_type="success_1", duration=5.0)
+        )
+        fatigue_after_one_success = ops.get_current_state().fatigue
+
+        # With decay=0.95 and inc=0.02 (no long-task bonus, short duration):
+        # fatigue_high * 0.95 + 0.02 — should be noticeably less than
+        # fatigue_high when starting from >= 0.7.
+        assert fatigue_after_one_success < fatigue_high, (
+            f"Bug 1: fatigue_decay_on_success did not fire. "
+            f"Before success: {fatigue_high:.3f}; "
+            f"after one success: {fatigue_after_one_success:.3f}. "
+            f"With zero wall-clock advance, a single success should "
+            f"have reduced fatigue via multiplicative decay."
+        )
+
     def test_fatigue_decreases_during_cooldown_period(self, state_db, monkeypatch):
         """After tasks stop, fatigue should continuously decrease over time."""
         import modules.shadow.operational_state as os_mod

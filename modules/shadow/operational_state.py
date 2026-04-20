@@ -64,6 +64,7 @@ class OperationalState:
         "fatigue_increment_task": 0.02,
         "fatigue_increment_long_task": 0.05,
         "fatigue_decay_cooldown": 0.5,
+        "fatigue_decay_on_success": 0.95,
         "fatigue_increment_quality_degradation": 0.1,
         "long_task_threshold_seconds": 60.0,
         "cooldown_threshold_minutes": 30.0,
@@ -286,6 +287,15 @@ class OperationalState:
                 curiosity *= cfg["curiosity_decay_routine"]
 
             # --- Fatigue ---
+            # Activity-based decay on success (mirrors frustration_decay_on_success
+            # at the top of this function).  Wall-clock decay alone is the wrong
+            # model for sustained work: at benchmark-speed cadence (~12s/task),
+            # the 30-min half-life is too long and fatigue saturates at 1.0.
+            # Decay prior fatigue BEFORE adding the new load so a fresh task
+            # still registers its full increment.
+            if success:
+                fatigue *= cfg["fatigue_decay_on_success"]
+
             fatigue += cfg["fatigue_increment_task"]
             if duration > cfg["long_task_threshold_seconds"]:
                 fatigue += cfg["fatigue_increment_long_task"]
