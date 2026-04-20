@@ -16,7 +16,6 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 import sqlite3
 import time
 from datetime import datetime, time as dtime, timedelta
@@ -24,6 +23,7 @@ from pathlib import Path
 from typing import Any
 
 from modules.base import BaseModule, ModuleStatus, ToolResult
+from modules.harbinger.config import HarbingerSettings
 from modules.harbinger.telegram import TelegramDelivery
 
 logger = logging.getLogger("shadow.harbinger")
@@ -42,51 +42,56 @@ class Harbinger(BaseModule):
     SEVERITY_AUDIBLE = 3  # Notification with sound
     SEVERITY_URGENT = 4   # Repeated alert, wake-up worthy
 
-    def __init__(self, config: dict[str, Any] | None = None) -> None:
+    def __init__(
+        self, config: dict[str, Any] | HarbingerSettings | None = None
+    ) -> None:
         """Initialize Harbinger.
 
         Args:
-            config: Module configuration from shadow_config.yaml.
+            config: HarbingerSettings | dict | None.
+                - HarbingerSettings instance: preferred, used by the singleton.
+                - dict: validated into HarbingerSettings (backward compat).
+                - None: falls back to `shadow.config.config.harbinger`.
         """
         super().__init__(
             name="harbinger",
             description="Communications director — briefings, alerts, decision queue",
         )
-        self._config = config or {}
+
+        if isinstance(config, HarbingerSettings):
+            self._settings = config
+        elif config is None:
+            from shadow.config import config as _shadow_config
+            self._settings = _shadow_config.harbinger
+        else:
+            self._settings = HarbingerSettings.model_validate(config)
+
+        self._config: dict[str, Any] = self._settings.model_dump(mode="python")
         self._queue: list[dict[str, Any]] = []
         self._notification_log: list[dict[str, Any]] = []
-        self._queue_file = Path(
-            self._config.get("queue_file", "data/harbinger_queue.json")
-        )
+        self._queue_file = Path(self._settings.queue_file)
         self._next_queue_id = 1
-        # Sleep window (default 10 PM - 6 AM)
-        self._sleep_start = dtime(
-            self._config.get("sleep_start_hour", 22), 0
-        )
-        self._sleep_end = dtime(
-            self._config.get("sleep_end_hour", 6), 0
-        )
+        self._sleep_start = dtime(self._settings.sleep_start_hour, 0)
+        self._sleep_end = dtime(self._settings.sleep_end_hour, 0)
 
         # Personalization DB
-        self._personalization_db_path = Path(
-            self._config.get(
-                "personalization_db", "data/harbinger_personalization.db"
-            )
-        )
+        self._personalization_db_path = Path(self._settings.personalization_db)
         self._personalization_conn: sqlite3.Connection | None = None
 
         # Telegram delivery
-        bot_token = self._config.get(
-            "telegram_bot_token",
-            os.environ.get("TELEGRAM_BOT_TOKEN", ""),
+        bot_token = (
+            self._settings.telegram_bot_token.get_secret_value()
+            if self._settings.telegram_bot_token
+            else ""
         )
-        chat_id = self._config.get(
-            "telegram_chat_id",
-            os.environ.get("TELEGRAM_CHAT_ID", ""),
+        chat_id = (
+            self._settings.telegram_chat_id.get_secret_value()
+            if self._settings.telegram_chat_id
+            else ""
         )
         self._telegram = TelegramDelivery(
-            bot_token=str(bot_token).strip(),
-            chat_id=str(chat_id).strip(),
+            bot_token=bot_token.strip(),
+            chat_id=chat_id.strip(),
         )
 
     async def initialize(self) -> None:

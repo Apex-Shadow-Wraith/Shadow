@@ -159,7 +159,10 @@ FLAT_TO_PATH: dict[str, tuple[str, ...]] = {
     "OPENAI_API_KEY": ("apex", "openai_api_key"),
     # Commit 3 (cerberus):
     "CREATOR_AUTH_TOKEN": ("cerberus", "creator_auth_token"),
-    # Commit 4 (harbinger): TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, DISCORD_BOT_TOKEN
+    # Commit 4 (harbinger):
+    "TELEGRAM_BOT_TOKEN": ("harbinger", "telegram_bot_token"),
+    "TELEGRAM_CHAT_ID": ("harbinger", "telegram_chat_id"),
+    "DISCORD_BOT_TOKEN": ("harbinger", "discord_bot_token"),
     # Commit 5 (reaper):    REDDIT_CLIENT_ID, REDDIT_CLIENT_SECRET,
     #                       REDDIT_USER_AGENT, BRAVE_SEARCH_API_KEY
     # Commit 6 (observ.):   LANGFUSE_PUBLIC_KEY, LANGFUSE_SECRET_KEY, LANGFUSE_HOST

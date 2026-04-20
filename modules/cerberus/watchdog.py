@@ -256,18 +256,21 @@ class CerberusWatchdog:
             logger.info("No lockfile found — nothing to clear.")
 
     def _send_telegram_alert(self, message: str) -> bool:
-        """Send emergency alert via Telegram bot. Best-effort.
-
-        Telegram credentials come from `shadow.config.config.harbinger`
-        once commit 4 migrates Harbinger. Until then, the config system's
-        startup shim populates `os.environ` from `.env`, so the Telegram
-        values are visible via the shell env as before.
-        """
+        """Send emergency alert via Telegram bot. Best-effort."""
         try:
-            import os
+            from shadow.config import config as _shadow_config
 
-            token = os.environ.get("TELEGRAM_BOT_TOKEN")
-            chat_id = os.environ.get("TELEGRAM_CHAT_ID")
+            h = _shadow_config.harbinger
+            token = (
+                h.telegram_bot_token.get_secret_value()
+                if h.telegram_bot_token
+                else None
+            )
+            chat_id = (
+                h.telegram_chat_id.get_secret_value()
+                if h.telegram_chat_id
+                else None
+            )
 
             if not token or not chat_id:
                 logger.warning("Telegram not configured — skipping alert")
