@@ -168,7 +168,10 @@ FLAT_TO_PATH: dict[str, tuple[str, ...]] = {
     "REDDIT_CLIENT_SECRET": ("reaper", "reddit_client_secret"),
     "REDDIT_USER_AGENT": ("reaper", "reddit_user_agent"),
     "BRAVE_SEARCH_API_KEY": ("reaper", "brave_search_api_key"),
-    # Commit 6 (observ.):   LANGFUSE_PUBLIC_KEY, LANGFUSE_SECRET_KEY, LANGFUSE_HOST
+    # Commit 6 (observability):
+    "LANGFUSE_PUBLIC_KEY": ("observability", "langfuse_public_key"),
+    "LANGFUSE_SECRET_KEY": ("observability", "langfuse_secret_key"),
+    "LANGFUSE_HOST": ("observability", "langfuse_host"),
 }
 
 

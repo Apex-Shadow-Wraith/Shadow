@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import functools
 import logging
-import os
 import time
 from typing import Any
 
@@ -31,19 +30,29 @@ def _get_langfuse_client() -> Any | None:
     if not _LANGFUSE_AVAILABLE:
         return None
 
-    public_key = os.environ.get("LANGFUSE_PUBLIC_KEY")
-    secret_key = os.environ.get("LANGFUSE_SECRET_KEY")
+    from shadow.config import config as _shadow_config
+
+    obs = _shadow_config.observability
+    public_key = (
+        obs.langfuse_public_key.get_secret_value()
+        if obs.langfuse_public_key
+        else None
+    )
+    secret_key = (
+        obs.langfuse_secret_key.get_secret_value()
+        if obs.langfuse_secret_key
+        else None
+    )
 
     if not public_key or not secret_key:
         logger.debug("Langfuse keys not set — tracing disabled")
         return None
 
     try:
-        host = os.environ.get("LANGFUSE_HOST", "https://cloud.langfuse.com")
         return Langfuse(
             public_key=public_key,
             secret_key=secret_key,
-            host=host,
+            host=obs.langfuse_host,
         )
     except Exception as e:
         logger.warning("Failed to initialize Langfuse client: %s", e)
