@@ -98,6 +98,42 @@ def load_config(config_path: str = "config/config.yaml") -> dict:
     return data
 
 
+def _check_training_backup_freshness(logger: logging.Logger) -> None:
+    """Warn at boot if the nightly training-data backup is stale.
+
+    A stale `current` symlink means the systemd timer hasn't fired in a
+    while — likely the timer is disabled, the HDD is unmounted, or
+    rsync has been failing silently. Does not raise; pure advisory.
+    """
+    import time
+    link = Path("/mnt/storage/backup/training-data/current")
+    if not link.is_symlink():
+        if link.parent.exists():
+            logger.warning(
+                "Training-data backup: 'current' symlink missing at %s — "
+                "has the nightly timer ever succeeded?",
+                link,
+            )
+        return
+    try:
+        target = link.resolve()
+        if not target.is_dir():
+            logger.warning(
+                "Training-data backup: current -> %s does not resolve to a directory.",
+                target,
+            )
+            return
+        age_hours = (time.time() - target.stat().st_mtime) / 3600
+        if age_hours > 48:
+            logger.warning(
+                "Training-data backup is STALE: last snapshot %s is %.1fh old "
+                "(>48h). Check `systemctl status shadow-training-backup.timer`.",
+                target.name, age_hours,
+            )
+    except OSError as e:
+        logger.warning("Training-data backup freshness check failed: %s", e)
+
+
 async def startup(config: dict, logger: logging.Logger) -> Orchestrator:
     """Create, wire, and initialize everything in the right order.
 
@@ -117,6 +153,9 @@ async def startup(config: dict, logger: logging.Logger) -> Orchestrator:
     # Log any import failures detected at module load time
     for mod_path, cls_name, err in _IMPORT_FAILURES:
         logger.warning("Import failed — %s.%s: %s", mod_path, cls_name, err)
+
+    # Advisory: warn if the nightly training-data backup looks stuck.
+    _check_training_backup_freshness(logger)
 
     # Step 1: Create module instances (skip any that failed to import)
     # Modules migrated to typed settings receive them directly; the rest
