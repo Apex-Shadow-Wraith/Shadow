@@ -23,6 +23,11 @@ from pathlib import Path
 
 import yaml
 
+# Import the centralized config singleton FIRST, before any module imports.
+# Importing this module triggers .env loading and YAML settings construction,
+# so every downstream module sees a fully-populated environment.
+from shadow.config import config as _shadow_config  # noqa: F401
+
 from modules.base import ModuleRegistry, ModuleStatus
 from modules.shadow.ollama_supervisor import OllamaSupervisor
 from modules.shadow.orchestrator import Orchestrator
@@ -72,23 +77,25 @@ def setup_logging(level: str = "INFO") -> None:
     )
 
 
-def load_config(config_path: str = "config/shadow_config.yaml") -> dict:
-    """Load master configuration."""
-    path = Path(config_path)
-    if not path.exists():
-        print(f"ERROR: Config file not found: {path}")
-        print("Run from the Shadow project root (C:\\Shadow)")
-        sys.exit(1)
+def load_config(config_path: str = "config/config.yaml") -> dict:
+    """Return a dict view of the centralized config for legacy module constructors.
 
-    with open(path, "r", encoding="utf-8") as f:
-        config = yaml.safe_load(f)
+    The typed singleton at `shadow.config.config` is the source of truth.
+    This dict-view bridges modules that haven't been migrated yet; commits
+    2-6 migrate them one at a time, and commit 7 removes this function.
 
-    # Resolve platform auto-detection
-    system_cfg = config.get("system", {})
+    `config_path` is kept for API compatibility but ignored — the singleton
+    always reads `config/config.yaml` (and optional `config/config.local.yaml`).
+    """
+    from shadow.config import _dump_for_legacy, config as _singleton
+    data = _dump_for_legacy(_singleton)
+
+    # Resolve platform auto-detection (mirrors pre-singleton behavior)
+    system_cfg = data.get("system", {})
     if system_cfg.get("platform", "").lower() == "auto":
-        system_cfg["platform"] = platform.system().lower()  # "windows" or "linux"
+        system_cfg["platform"] = platform.system().lower()
 
-    return config
+    return data
 
 
 async def startup(config: dict, logger: logging.Logger) -> Orchestrator:
@@ -526,7 +533,8 @@ async def main() -> None:
     print("=" * 60)
     print()
 
-    # Suppress Ollama GIN HTTP debug logs that corrupt the CLI
+    # OS env — NOT Shadow config. See shadow/config/README.md OS-env allowlist.
+    # These configure the Ollama child process; Shadow never reads them back.
     os.environ.setdefault("OLLAMA_LOG_LEVEL", "warn")
     os.environ.setdefault("GIN_MODE", "release")
     print("  Ollama log level set to:", os.environ["OLLAMA_LOG_LEVEL"])

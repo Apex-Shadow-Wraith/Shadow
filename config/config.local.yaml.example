@@ -1,0 +1,19 @@
+# Per-machine configuration overrides. Copy to config.local.yaml (gitignored).
+#
+# Only values that differ from config/config.yaml on THIS machine belong here.
+# Precedence: OS env > .env > config.local.yaml > config.yaml > pydantic defaults.
+#
+# Secrets do NOT belong here — use the .env file at the repo root.
+
+# Example: raise the log level just on this machine
+# system:
+#   log_level: "DEBUG"
+
+# Example: point at a local Ollama on a different port
+# models:
+#   ollama_base_url: "http://localhost:11435"
+
+# Example: temporarily put Apex in dry-run for offline dev
+# modules:
+#   apex:
+#     dry_run: true
