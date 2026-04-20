@@ -17,7 +17,7 @@ from pydantic_settings import (
 
 from shadow.config import (
     Settings,
-    _dump_for_legacy,
+    to_legacy_dict,
     config as live_config,
     reload_config,
 )
@@ -226,8 +226,8 @@ def test_secretstr_redaction_in_logs(caplog):
     assert "**" in caplog.text
 
 
-def test_dump_for_legacy_unwraps_secrets():
-    """_dump_for_legacy reveals SecretStr values so legacy dict consumers can use them."""
+def test_to_legacy_dict_unwraps_secrets():
+    """to_legacy_dict reveals SecretStr values so legacy dict consumers can use them."""
     from pydantic import BaseModel
 
     class HasSecret(BaseModel):
@@ -235,12 +235,12 @@ def test_dump_for_legacy_unwraps_secrets():
         public: str = "ok"
 
     m = HasSecret(token=SecretStr("abc123"))
-    dumped = _dump_for_legacy(m)
+    dumped = to_legacy_dict(m)
     assert dumped["token"] == "abc123"
     assert dumped["public"] == "ok"
 
 
-def test_dump_for_legacy_passes_through_non_secrets():
+def test_to_legacy_dict_passes_through_non_secrets():
     from pydantic import BaseModel
 
     class Inner(BaseModel):
@@ -251,7 +251,7 @@ def test_dump_for_legacy_passes_through_non_secrets():
         nested: Inner = Inner()
         items: list[str] = ["a", "b"]
 
-    dumped = _dump_for_legacy(Outer())
+    dumped = to_legacy_dict(Outer())
     assert dumped == {"name": "ok", "nested": {"value": 7}, "items": ["a", "b"]}
 
 

@@ -78,17 +78,17 @@ def setup_logging(level: str = "INFO") -> None:
 
 
 def load_config(config_path: str = "config/config.yaml") -> dict:
-    """Return a dict view of the centralized config for legacy module constructors.
+    """Return a dict view of the centralized config for the Orchestrator.
 
     The typed singleton at `shadow.config.config` is the source of truth.
-    This dict-view bridges modules that haven't been migrated yet; commits
-    2-6 migrate them one at a time, and commit 7 removes this function.
+    Orchestrator and a few unmigrated modules still access configuration
+    via dict paths — this helper serializes the singleton into that shape.
 
-    `config_path` is kept for API compatibility but ignored — the singleton
-    always reads `config/config.yaml` (and optional `config/config.local.yaml`).
+    `config_path` is kept for API compatibility but ignored; the singleton
+    always reads `config/config.yaml` and optional `config/config.local.yaml`.
     """
-    from shadow.config import _dump_for_legacy, config as _singleton
-    data = _dump_for_legacy(_singleton)
+    from shadow.config import config as _singleton, to_legacy_dict
+    data = to_legacy_dict(_singleton)
 
     # Resolve platform auto-detection (mirrors pre-singleton behavior)
     system_cfg = data.get("system", {})
@@ -110,6 +110,8 @@ async def startup(config: dict, logger: logging.Logger) -> Orchestrator:
     5. Register all modules with the orchestrator
     6. Load orchestrator state
     """
+    from shadow.config import config as _shadow_config
+
     module_configs = config.get("modules", {})
 
     # Log any import failures detected at module load time
@@ -117,19 +119,21 @@ async def startup(config: dict, logger: logging.Logger) -> Orchestrator:
         logger.warning("Import failed — %s.%s: %s", mod_path, cls_name, err)
 
     # Step 1: Create module instances (skip any that failed to import)
+    # Modules migrated to typed settings receive them directly; the rest
+    # receive dict slices from the legacy dict view.
     # --- Core (always running) ---
     grimoire = GrimoireModule(module_configs.get("grimoire", {})) if GrimoireModule else None
     cerberus = Cerberus(module_configs.get("cerberus", {})) if Cerberus else None
 
     # --- Operations ---
     wraith_config = dict(module_configs.get("wraith", {}))
-    wraith_config.setdefault("timezone", config.get("system", {}).get("timezone", "America/Chicago"))
+    wraith_config.setdefault("timezone", _shadow_config.system.timezone)
     wraith = Wraith(wraith_config) if Wraith else None
     reaper = ReaperModule(module_configs.get("reaper", {})) if ReaperModule else None
-    harbinger = Harbinger(module_configs.get("harbinger", {})) if Harbinger else None
+    harbinger = Harbinger(_shadow_config.harbinger) if Harbinger else None
 
     # --- Specialized ---
-    apex = Apex(module_configs.get("apex", {})) if Apex else None
+    apex = Apex(_shadow_config.apex) if Apex else None
     cipher = Cipher(module_configs.get("cipher", {})) if Cipher else None
     omen = Omen(module_configs.get("omen", {})) if Omen else None
     sentinel = Sentinel(module_configs.get("sentinel", {})) if Sentinel else None

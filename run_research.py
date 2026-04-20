@@ -30,16 +30,12 @@ from datetime import datetime
 project_root = Path(__file__).parent
 sys.path.insert(0, str(project_root))
 
+# Importing the centralized config singleton triggers .env loading and
+# YAML settings construction exactly once for the whole process.
+from shadow.config import config  # noqa: F401
+
 from modules.grimoire import Grimoire
 from modules.reaper import Reaper
-
-# Optional: load .env file for Reddit credentials
-try:
-    from dotenv import load_dotenv
-    load_dotenv("config/.env")
-    print("[Setup] Loaded config/.env")
-except ImportError:
-    print("[Setup] python-dotenv not available — using system environment")
 
 
 def main():

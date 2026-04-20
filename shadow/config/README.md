@@ -64,11 +64,23 @@ vars Shadow SETS to configure a child process:
 | Site | Variable | Purpose |
 |---|---|---|
 | [modules/omen/sandbox.py](../../modules/omen/sandbox.py) | `PATH`, `SystemRoot`, `SYSTEMDRIVE` | Copied into sandboxed subprocess `env=` dict so subprocesses inherit a minimal working shell. OS-level, not Shadow config. |
-| [modules/reaper/reaper.py](../../modules/reaper/reaper.py) (line ~1568) | `LOCALAPPDATA` | Windows-only path lookup for a stealth browser profile. OS-level. |
+| [modules/reaper/reaper.py](../../modules/reaper/reaper.py) (line ~1585) | `LOCALAPPDATA` | Windows-only path lookup for a stealth browser profile. OS-level. |
 | [main.py](../../main.py) (line ~530) | `OLLAMA_LOG_LEVEL`, `GIN_MODE` | `os.environ.setdefault` — configures the Ollama child process's own env. Not read by Shadow. |
 
 Adding to the allowlist: document the site here *and* add a one-line
 comment at the call site pointing at this file.
+
+## Legacy dict-bridge
+
+`to_legacy_dict(config)` serializes the typed singleton into the nested
+dict layout expected by the Orchestrator (which uses
+`config["modules"]["grimoire"]["db_path"]`-style access across 20+ call
+sites) and by the few module constructors that still accept a `dict`
+(Grimoire, Wraith, Nova, Omen, Sentinel, Void, Morpheus, Cipher). Once
+those components accept typed settings directly, the helper can go
+away. Apex, Cerberus, Harbinger, and Reaper already consume
+`ApexSettings`/`CerberusSettings`/etc. instances and do not need the
+bridge.
 
 ## Adding a new module slice
 

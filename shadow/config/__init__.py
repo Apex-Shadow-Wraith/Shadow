@@ -46,7 +46,6 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Type
 
-from dotenv import load_dotenv
 from pydantic import BaseModel, ConfigDict, Field, SecretStr
 from pydantic_settings import (
     BaseSettings,
@@ -72,12 +71,6 @@ from modules.wraith.config import WraithSettings
 from .sources import FlatEnvSource, YamlConfigSource
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
-
-# Transitional shim (removed in commit 7): populate os.environ from .env so
-# legacy modules that still call `os.environ.get(...)` during the migration
-# period see the same values as the typed singleton. pydantic-settings reads
-# .env into its own model via dotenv_values() but does NOT update os.environ.
-load_dotenv(dotenv_path=REPO_ROOT / ".env", override=False)
 
 
 # Module name → top-level attribute mapping. Most modules map 1:1; the
@@ -261,12 +254,23 @@ class Settings(BaseSettings):
 _MODULE_FIELD_NAMES = set(_MODULE_FIELD_MAP.values())
 
 
-def _dump_for_legacy(settings: BaseModel | BaseSettings) -> Any:
-    """Dump settings with SecretStr fields unwrapped to raw strings AND
-    module fields re-nested under `modules.<name>` to match the pre-migration
-    YAML layout that legacy module constructors expect.
+def to_legacy_dict(settings: BaseModel | BaseSettings) -> Any:
+    """Serialize settings to the legacy nested dict layout.
 
-    Transitional helper for commits 1-6. Deleted in commit 7.
+    The typed singleton is the source of truth for every module's config;
+    this helper exists because the Orchestrator and a few unmigrated modules
+    (Grimoire, Wraith, Nova, Omen, Sentinel, Void, Morpheus, Cipher) still
+    read configuration via `config["modules"]["<name>"][...]` dict paths.
+
+    Two transformations applied:
+    - SecretStr values are unwrapped to raw strings. Consumers of the dict
+      expect plain strings; leaving SecretStr in place would break
+      string-typed call sites.
+    - Top-level module fields (`apex`, `cerberus`, …) are re-nested under
+      a top-level `modules` key to match the YAML layout before flattening.
+
+    Once the Orchestrator and the remaining module constructors accept
+    typed settings directly, this helper can be deleted.
     """
 
     def _walk(value: Any) -> Any:
@@ -328,6 +332,6 @@ __all__ = [
     "ModelSpec",
     "config",
     "reload_config",
-    "_dump_for_legacy",
+    "to_legacy_dict",
     "REPO_ROOT",
 ]
