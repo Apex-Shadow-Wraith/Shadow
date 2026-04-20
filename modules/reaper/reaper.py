@@ -305,12 +305,19 @@ class Reaper:
         Path(QUARANTINE_DIR).mkdir(parents=True, exist_ok=True)
 
         # Check which search backends are available
+        from shadow.config import config as _shadow_config
+
+        self._settings = _shadow_config.reaper
         self.searxng_available = self._check_searxng()
         self.ddg_available = HAS_DDG
         self.bing_available = HAS_BS4  # Bing scraping only needs BeautifulSoup
-        self.brave_api_key = os.environ.get("BRAVE_SEARCH_API_KEY")
+        self.brave_api_key = (
+            self._settings.brave_search_api_key.get_secret_value()
+            if self._settings.brave_search_api_key
+            else None
+        )
         self.brave_available = bool(self.brave_api_key)
-        self.search_backend = "ddg"  # Default; set via shadow_config.yaml
+        self.search_backend = "ddg"  # Default; set via config.yaml
 
         print(f"[Reaper] Initialized")
         print(f"[Reaper] SearXNG: {'✅ Available' if self.searxng_available else '❌ Not running'}")
@@ -1314,9 +1321,17 @@ class Reaper:
         if not HAS_PRAW:
             return []
 
-        client_id = os.environ.get("REDDIT_CLIENT_ID")
-        client_secret = os.environ.get("REDDIT_CLIENT_SECRET")
-        user_agent = os.environ.get("REDDIT_USER_AGENT", "Shadow/1.0")
+        client_id = (
+            self._settings.reddit_client_id.get_secret_value()
+            if self._settings.reddit_client_id
+            else None
+        )
+        client_secret = (
+            self._settings.reddit_client_secret.get_secret_value()
+            if self._settings.reddit_client_secret
+            else None
+        )
+        user_agent = self._settings.reddit_user_agent
 
         if not client_id or not client_secret:
             return []
@@ -1565,6 +1580,8 @@ class Reaper:
     def read_chrome_history(self, limit=50, hours_back=24):
         """Read recent Chrome browsing history (read-only)."""
         if os.name == "nt":
+            # OS env — see shadow/config/README.md OS-env allowlist.
+            # LOCALAPPDATA is a Windows system variable, not Shadow config.
             chrome_path = Path(os.environ.get("LOCALAPPDATA", "")) / \
                 "Google" / "Chrome" / "User Data" / "Default" / "History"
         else:

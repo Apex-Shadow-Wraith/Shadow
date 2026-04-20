@@ -163,8 +163,11 @@ FLAT_TO_PATH: dict[str, tuple[str, ...]] = {
     "TELEGRAM_BOT_TOKEN": ("harbinger", "telegram_bot_token"),
     "TELEGRAM_CHAT_ID": ("harbinger", "telegram_chat_id"),
     "DISCORD_BOT_TOKEN": ("harbinger", "discord_bot_token"),
-    # Commit 5 (reaper):    REDDIT_CLIENT_ID, REDDIT_CLIENT_SECRET,
-    #                       REDDIT_USER_AGENT, BRAVE_SEARCH_API_KEY
+    # Commit 5 (reaper):
+    "REDDIT_CLIENT_ID": ("reaper", "reddit_client_id"),
+    "REDDIT_CLIENT_SECRET": ("reaper", "reddit_client_secret"),
+    "REDDIT_USER_AGENT": ("reaper", "reddit_user_agent"),
+    "BRAVE_SEARCH_API_KEY": ("reaper", "brave_search_api_key"),
     # Commit 6 (observ.):   LANGFUSE_PUBLIC_KEY, LANGFUSE_SECRET_KEY, LANGFUSE_HOST
 }
 

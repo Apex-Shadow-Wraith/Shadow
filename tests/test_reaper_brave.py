@@ -4,7 +4,6 @@ All web calls are mocked — no real API requests.
 """
 
 import json
-import os
 import tempfile
 from datetime import datetime
 from pathlib import Path
@@ -12,6 +11,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 import requests
+from pydantic import SecretStr
 
 from modules.reaper.reaper import Reaper
 
@@ -26,25 +26,28 @@ def mock_grimoire():
 
 
 @pytest.fixture
-def reaper(mock_grimoire, tmp_path):
-    """Create a Reaper instance with Brave API key set."""
-    with patch.dict(os.environ, {"BRAVE_SEARCH_API_KEY": "test-brave-key-123"}):
-        with patch.object(Reaper, "_check_searxng", return_value=False):
-            r = Reaper(grimoire=mock_grimoire, data_dir=str(tmp_path / "research"))
-            r.search_backend = "brave"
-            yield r
+def reaper(mock_grimoire, tmp_path, monkeypatch):
+    """Create a Reaper instance with Brave API key set via the config singleton."""
+    from shadow.config import config
+
+    monkeypatch.setattr(
+        config.reaper, "brave_search_api_key", SecretStr("test-brave-key-123")
+    )
+    with patch.object(Reaper, "_check_searxng", return_value=False):
+        r = Reaper(grimoire=mock_grimoire, data_dir=str(tmp_path / "research"))
+        r.search_backend = "brave"
+        yield r
 
 
 @pytest.fixture
-def reaper_no_brave(mock_grimoire, tmp_path):
-    """Create a Reaper instance without Brave API key."""
-    with patch.dict(os.environ, {}, clear=False):
-        env = os.environ.copy()
-        env.pop("BRAVE_SEARCH_API_KEY", None)
-        with patch.dict(os.environ, env, clear=True):
-            with patch.object(Reaper, "_check_searxng", return_value=False):
-                r = Reaper(grimoire=mock_grimoire, data_dir=str(tmp_path / "research"))
-                yield r
+def reaper_no_brave(mock_grimoire, tmp_path, monkeypatch):
+    """Create a Reaper instance without a Brave API key."""
+    from shadow.config import config
+
+    monkeypatch.setattr(config.reaper, "brave_search_api_key", None)
+    with patch.object(Reaper, "_check_searxng", return_value=False):
+        r = Reaper(grimoire=mock_grimoire, data_dir=str(tmp_path / "research"))
+        yield r
 
 
 BRAVE_RESPONSE = {
@@ -319,11 +322,12 @@ class TestBackendSelection:
                 mock_brave.assert_not_called()
 
     @patch("modules.reaper.reaper.time.sleep")
-    def test_default_backend_is_ddg(self, mock_sleep, mock_grimoire, tmp_path):
-        with patch.dict(os.environ, {"BRAVE_SEARCH_API_KEY": "key"}):
-            with patch.object(Reaper, "_check_searxng", return_value=False):
-                r = Reaper(grimoire=mock_grimoire, data_dir=str(tmp_path / "research"))
-                assert r.search_backend == "ddg"
+    def test_default_backend_is_ddg(self, mock_sleep, mock_grimoire, tmp_path, monkeypatch):
+        from shadow.config import config
+        monkeypatch.setattr(config.reaper, "brave_search_api_key", SecretStr("key"))
+        with patch.object(Reaper, "_check_searxng", return_value=False):
+            r = Reaper(grimoire=mock_grimoire, data_dir=str(tmp_path / "research"))
+            assert r.search_backend == "ddg"
 
 
 class TestBraveErrorHandling:
