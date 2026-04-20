@@ -21,6 +21,7 @@ from typing import Any
 import httpx
 
 from modules.base import BaseModule, ModuleStatus, ToolResult
+from modules.shadow.json_utils import extract_json_from_llm_response
 
 logger = logging.getLogger("shadow.nova")
 
@@ -325,16 +326,15 @@ class Nova(BaseModule):
         if not text.strip():
             raise ValueError("Ollama returned empty response")
 
-        text = text.strip()
-        # Strip markdown code fences if present
-        if text.startswith("```"):
-            lines = text.split("\n")
-            lines = lines[1:]  # remove opening fence
-            if lines and lines[-1].strip() == "```":
-                lines = lines[:-1]
-            text = "\n".join(lines)
-
-        return json.loads(text)
+        try:
+            return extract_json_from_llm_response(text)
+        except ValueError:
+            logger.error(
+                "Nova could not parse Ollama response as JSON. "
+                "Raw response (truncated to 500 chars): %r",
+                text[:500],
+            )
+            raise
 
     # ------------------------------------------------------------------
     # Raw-content generation (orchestrator sends {"content": user_input})

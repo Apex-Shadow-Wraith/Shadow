@@ -626,6 +626,113 @@ class TestRawContentGeneration:
         assert r.success is False
         assert "Content generation failed" in r.error
 
+    # --- Bug 4: robust JSON extraction from LLM responses ---------------
+
+    @staticmethod
+    def _mock_ollama_http(online_nova: Nova, llm_content: str) -> MagicMock:
+        """Patch online_nova's ollama_client.post to return a single LLM
+        response with the given raw content. Returns the mock so tests
+        can assert on it if needed."""
+        mock_resp = MagicMock()
+        mock_resp.raise_for_status.return_value = None
+        mock_resp.json.return_value = {
+            "message": {"content": llm_content},
+        }
+        mock_post = MagicMock(return_value=mock_resp)
+        online_nova._ollama_client.post = mock_post
+        return mock_post
+
+    @pytest.mark.asyncio
+    async def test_format_document_parses_raw_json(self, online_nova: Nova):
+        """Bug 4: LLM returns pure JSON (no fence, no prose) — must succeed."""
+        raw_json = json.dumps({
+            "title": "Photosynthesis",
+            "sections": [
+                {"heading": "What is it", "body": "Plants make food from sunlight."},
+            ],
+        })
+        self._mock_ollama_http(online_nova, raw_json)
+
+        r = await online_nova.execute(
+            "format_document", {"content": "Explain photosynthesis to a 10-year-old"},
+        )
+
+        assert r.success is True, f"Raw JSON should parse; error: {r.error}"
+        assert "Photosynthesis" in r.content["markdown"]
+
+    @pytest.mark.asyncio
+    async def test_format_document_parses_markdown_wrapped_json(
+        self, online_nova: Nova,
+    ):
+        """Bug 4: LLM wraps JSON in ```json ... ``` — must succeed.
+        This is the exact failure mode from the Phase 0 benchmark at
+        interaction #71 (Explain photosynthesis to a 10-year-old)."""
+        inner = json.dumps({
+            "title": "Photosynthesis for Kids",
+            "sections": [
+                {"heading": "The Basics", "body": "Plants eat sunshine."},
+            ],
+        })
+        wrapped = f"```json\n{inner}\n```"
+        self._mock_ollama_http(online_nova, wrapped)
+
+        r = await online_nova.execute(
+            "format_document", {"content": "Explain photosynthesis to a 10-year-old"},
+        )
+
+        assert r.success is True, (
+            f"Markdown-wrapped JSON should parse; error: {r.error}"
+        )
+        assert "Photosynthesis for Kids" in r.content["markdown"]
+
+    @pytest.mark.asyncio
+    async def test_format_document_parses_prose_plus_json(self, online_nova: Nova):
+        """Bug 4: LLM prepends prose then emits JSON — must succeed by
+        extracting the outermost {...} span."""
+        inner = json.dumps({
+            "title": "Gardening Guide",
+            "sections": [
+                {"heading": "Soil", "body": "Good soil matters."},
+            ],
+        })
+        prose_prefixed = f"Here is the document you requested:\n\n{inner}"
+        self._mock_ollama_http(online_nova, prose_prefixed)
+
+        r = await online_nova.execute(
+            "format_document", {"content": "write a gardening guide"},
+        )
+
+        assert r.success is True, f"Prose+JSON should parse; error: {r.error}"
+        assert "Gardening Guide" in r.content["markdown"]
+
+    @pytest.mark.asyncio
+    async def test_format_document_logs_raw_response_on_unparseable(
+        self, online_nova: Nova, caplog,
+    ):
+        """Bug 4: when extraction genuinely fails, the raw LLM response
+        must be logged (truncated) so future failures are diagnosable."""
+        import logging as _stdlib_logging
+
+        self._mock_ollama_http(
+            online_nova,
+            "I can't help with that request.",  # no JSON at all
+        )
+        caplog.set_level(_stdlib_logging.ERROR, logger="shadow.nova")
+
+        r = await online_nova.execute(
+            "format_document", {"content": "write something"},
+        )
+
+        assert r.success is False
+        # The raw response preview must appear in the error log.
+        assert any(
+            "I can't help with that request" in record.message
+            for record in caplog.records
+        ), (
+            f"Raw LLM response should be logged on parse failure; "
+            f"records: {[r.message for r in caplog.records]}"
+        )
+
     @pytest.mark.asyncio
     async def test_structured_params_bypass_ollama(self, online_nova: Nova):
         """Structured params still work without calling Ollama (regression check)."""
