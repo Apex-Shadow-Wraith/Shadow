@@ -35,7 +35,6 @@ _KNOWN_MODULES: dict[str, str] = {
     "cipher": "module",
     "omen": "module",
     "nova": "module",
-    "void": "module",
     "morpheus": "module",
 }
 

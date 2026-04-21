@@ -57,7 +57,6 @@ Nova = _try_import("modules.nova.nova", "Nova")
 Omen = _try_import("modules.omen.omen", "Omen")
 ReaperModule = _try_import("modules.reaper.reaper_module", "ReaperModule")
 Sentinel = _try_import("modules.sentinel.sentinel", "Sentinel")
-Void = _try_import("modules.void.void", "Void")
 Wraith = _try_import("modules.wraith.wraith", "Wraith")
 
 
@@ -176,9 +175,16 @@ async def startup(config: dict, logger: logging.Logger) -> Orchestrator:
     cipher = Cipher(module_configs.get("cipher", {})) if Cipher else None
     omen = Omen(module_configs.get("omen", {})) if Omen else None
     sentinel = Sentinel(module_configs.get("sentinel", {})) if Sentinel else None
-    void = Void(module_configs.get("void", {})) if Void else None
     nova = Nova(module_configs.get("nova", {})) if Nova else None
-    morpheus = Morpheus(module_configs.get("morpheus", {})) if Morpheus else None
+    # Morpheus is dormant by default (config.morpheus.enabled=False). Only
+    # instantiate when explicitly enabled — the router's is_routable()
+    # check then has nothing to skip because the module was never
+    # registered in the first place.
+    morpheus = (
+        Morpheus(module_configs.get("morpheus", {}))
+        if Morpheus and _shadow_config.morpheus.enabled
+        else None
+    )
 
     # Step 2: Initialize Grimoire first (Reaper depends on it)
     if grimoire is not None:
@@ -201,7 +207,7 @@ async def startup(config: dict, logger: logging.Logger) -> Orchestrator:
     all_modules = [
         m for m in [
             cerberus, wraith, reaper, harbinger,
-            apex, cipher, omen, sentinel, void, nova, morpheus,
+            apex, cipher, omen, sentinel, nova, morpheus,
         ] if m is not None
     ]
     for module in all_modules:

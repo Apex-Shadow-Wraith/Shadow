@@ -104,7 +104,7 @@ VALID_CONTENT_TYPES = {
 VALID_SOURCE_MODULES = {
     "apex", "omen", "reaper", "morpheus", "cipher", "manual", "ingestor",
     "grimoire", "wraith", "cerberus", "sentinel", "harbinger", "nova",
-    "void", "shadow"
+    "shadow"
 }
 
 VALID_PHASES = {

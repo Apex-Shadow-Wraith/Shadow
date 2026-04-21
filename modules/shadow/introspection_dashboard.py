@@ -17,7 +17,7 @@ logger = logging.getLogger("shadow.introspection_dashboard")
 MODULE_CODENAMES = [
     "shadow", "wraith", "cerberus", "apex", "grimoire",
     "sentinel", "harbinger", "reaper", "cipher", "omen",
-    "nova", "void", "morpheus",
+    "nova", "morpheus",
 ]
 
 
@@ -441,7 +441,7 @@ a{color:#d4af37}
 </div>
 
 <script>
-const MODULES = ["shadow","wraith","cerberus","apex","grimoire","sentinel","harbinger","reaper","cipher","omen","nova","void","morpheus"];
+const MODULES = ["shadow","wraith","cerberus","apex","grimoire","sentinel","harbinger","reaper","cipher","omen","nova","morpheus"];
 
 function healthColor(v){if(v>=0.75)return"#3a7";if(v>=0.45)return"#d4af37";return"#c44"}
 function pct(v){return Math.round(v*100)}

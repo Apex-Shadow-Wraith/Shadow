@@ -37,7 +37,6 @@ MODULE_DESCRIPTIONS = {
     "cipher": "Math, logic, unit conversion, financial, statistics",
     "omen": "Code execution, linting, review, git ops, pattern DB, failure learning, scaffolding",
     "nova": "Content creation, document generation, templates, business estimates",
-    "void": "24/7 passive monitoring, system health, trends, thresholds",
     "morpheus": "Creative discovery pipeline, controlled hallucination, experiment tracking",
 }
 

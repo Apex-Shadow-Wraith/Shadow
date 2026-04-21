@@ -47,7 +47,6 @@ MODULE_ROLES = {
     "omen": {"role": "code", "should_handle": ["code", "programming", "debugging", "compilation"]},
     "nova": {"role": "content", "should_handle": ["writing", "creative", "content_creation"]},
     "sentinel": {"role": "security", "should_handle": ["firewall", "threats", "monitoring"]},
-    "void": {"role": "passive_monitoring", "should_handle": ["background", "watching", "logging"]},
     "morpheus": {"role": "creative_discovery", "should_handle": ["exploration", "dreaming", "research"]},
 }
 

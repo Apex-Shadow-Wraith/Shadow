@@ -42,7 +42,6 @@ _MODULE_YAML_TO_FIELD: dict[str, str] = {
     "omen": "omen",
     "reaper": "reaper",
     "sentinel": "sentinel",
-    "void": "void",
     "wraith": "wraith",
     "observability": "observability",
     "shadow": "shadow_module",

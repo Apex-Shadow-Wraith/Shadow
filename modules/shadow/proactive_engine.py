@@ -737,47 +737,6 @@ class ProactiveEngine:
             ),
         ])
 
-        # --- Void ---
-        triggers.extend([
-            ProactiveTrigger(
-                module_name="void",
-                trigger_type="schedule",
-                description="Void checks system health every 5 minutes",
-                schedule="every 5 minutes",
-                action="Check system health — CPU, memory, disk, Ollama status",
-                priority=4,
-                max_frequency=300,
-            ),
-            ProactiveTrigger(
-                module_name="void",
-                trigger_type="condition",
-                description="Void alerts when disk usage exceeds 80%",
-                action="Alert creator about high disk usage and recommend cleanup",
-                priority=2,
-                max_frequency=3600,
-                condition=lambda: False,  # Replaced at runtime with real disk check
-            ),
-            ProactiveTrigger(
-                module_name="void",
-                trigger_type="condition",
-                description="Void alerts when Ollama is not responding",
-                action="Alert creator and attempt Ollama restart",
-                priority=2,
-                max_frequency=300,
-                condition=lambda: False,  # Replaced at runtime with real Ollama check
-            ),
-            ProactiveTrigger(
-                module_name="void",
-                trigger_type="event",
-                description="Void escalates critical health to Telegram",
-                event_name="SYSTEM_HEALTH_CRITICAL",
-                action="Escalate critical system health issue to creator via Telegram",
-                priority=1,
-                max_frequency=300,
-                requires_approval=False,  # Critical → auto-send
-            ),
-        ])
-
         # --- Harbinger ---
         triggers.extend([
             ProactiveTrigger(

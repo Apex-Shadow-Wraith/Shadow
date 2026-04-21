@@ -830,7 +830,16 @@ class Wraith(BaseModule):
         elif any(kw in lower for kw in ["security", "threat", "breach", "hack", "protect"]):
             suggestion = {"module": "sentinel", "task_type": "analysis", "confidence": 0.7}
         elif any(kw in lower for kw in ["system", "cpu", "memory", "disk", "health", "status"]):
-            suggestion = {"module": "void", "task_type": "system", "confidence": 0.7}
+            # System metrics are recorded by the Void daemon; the router
+            # has no module target for this, so fall through to direct
+            # with a hint for the caller.
+            suggestion = {
+                "module": "direct",
+                "task_type": "system",
+                "confidence": 0.6,
+                "note": "system metrics are recorded by the Void daemon; "
+                        "read data/void_metrics.db or data/void_latest.json",
+            }
         elif any(kw in lower for kw in ["write", "document", "report", "format", "template"]):
             suggestion = {"module": "nova", "task_type": "creation", "confidence": 0.7}
         elif any(kw in lower for kw in ["email", "calendar", "schedule", "remind"]):
