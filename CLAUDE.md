@@ -48,14 +48,15 @@ can proceed concurrently in separate sessions or worktrees):
 **Phase A non-negotiables:**
 - Each merge gets its own typed-settings migration. No dict-bridge band-aids.
 - Each merge generates pre-merge + post-merge tool inventories + diff
-  proving zero tool loss. For modules using `get_tools()`, inventory =
-  `ModuleClass.get_tools()` output serialized to JSON. For modules using
-  `mcp_manifest.json`, inventory = the manifest file contents. Sentinel
-  → Cerberus and Cipher → Omen are both `get_tools()` → `get_tools()`
-  merges (simplest diff). Void → daemons/void/ eliminates Void from the
-  module tool registry entirely; verify Void's 6 tools are either
-  migrated to the daemon's own interface or explicitly dropped with
-  reason documented.
+  proving zero tool loss. Inventory = `ModuleClass.get_tools()` output
+  serialized to JSON for every module touched by the merge. Sentinel →
+  Cerberus: pre = `Sentinel().get_tools() + Cerberus().get_tools()`,
+  post = `Cerberus().get_tools()`, diff asserts every pre-merge tool
+  name appears in post (exact schema match preferred, feature-parity
+  documentation required for any renames). Cipher → Omen: same pattern.
+  Void → daemons/void/: Void's 6 tools either migrate to the daemon's
+  own interface or are explicitly dropped with reason documented in the
+  merge commit.
 - Each merge lands as its own commit series.
 - Targeted regression tests written for each merge.
 - After Phase A: 25-task partial benchmark must confirm zero regression
@@ -232,36 +233,48 @@ state.
 4. **Apex** — Claude/GPT API fallback, cost tracking, teaching cycle
    (10 tools)
 5. **Grimoire** — Data storage, knowledge base, memory, vector DB,
-   block search (5 tools) (uses mcp_manifest.json — see dual-pattern
-   advisory below)
+   block search (9 tools)
 6. **Sentinel** — Security, firewall, network scanning, file integrity,
    quarantine (24 tools) — merging into Cerberus in Phase A
 7. **Harbinger** — Briefings, alerts, notifications, decision queue,
    safety reports, personalization (12 tools)
 8. **Reaper** — Research, web scraping, Reddit .json, YouTube
-   transcription (3 tools) (uses mcp_manifest.json — see dual-pattern
-   advisory below)
+   transcription (5 tools)
 9. **Cipher** — Math, logic, unit conversion, financial, statistics
    (7 tools) — merging into Omen in Phase A
 10. **Omen** — Code execution, linting, review, git ops, pattern DB,
-    failure learning, scaffolding, scoring (42 tools)
+    failure learning, scaffolding, scoring (40 tools)
 11. **Nova** — Content creation, document generation, templates, business
     estimates (6 tools)
 12. **Void** — 24/7 passive monitoring, system health, trends, thresholds
     (6 tools) — demoting to `daemons/void/` in Phase A
 13. **Morpheus** — Creative discovery pipeline (controlled hallucination)
     (11 tools)
+14. **ShadowModule** — Router-facing task-tracking and module-health
+    interface (4 tools: task_create, task_status, task_list,
+    module_health). Distinct from the Shadow orchestrator class itself
+    — the orchestrator IS the agent and is not registered as a module;
+    ShadowModule is a BaseModule peer that exposes task-persistence and
+    registry-health queries to the router like any other module.
 
 ## Current Status
 - **Git:** commits on `main`
 - **Tests:** 947 passing
-- **Tools:** ~153 tools across all modules (verified April 2026):
-  - 145 registered via `get_tools()` method on module classes
-  - 8 registered via `mcp_manifest.json` files (Grimoire: 5, Reaper: 3)
+- **Tools:** 161 tools across all modules (verified April 2026, AST-based
+  count from `get_tools()` method bodies):
+  - All 161 registered through the internal module registry via
+    `get_tools()` method on BaseModule subclasses.
   - Central registry: `modules/shadow/tool_loader.py` (DynamicToolLoader)
     consumes `module_registry.list_tools()` and builds a
     module → tool-schemas index. Loads only the routed module's tools
     per request to save context tokens.
+  - Grimoire and Reaper additionally expose a SEPARATE, EXTERNAL MCP HTTP
+    surface (FastAPI servers at `modules/grimoire/mcp_server.py` and
+    `modules/reaper/mcp_server.py`) governed by `mcp_manifest.json` files
+    in those module directories. This external surface is orthogonal to
+    the internal registry — different tool names, different dispatch path,
+    reachable only via HTTP. It exists so other MCP clients outside
+    Shadow can talk to Grimoire/Reaper.
 - **Observability:** Langfuse tracing on orchestrator (optional)
 - **Grimoire:** Fresh on Linux — RunPod Grimoire DB was intentionally NOT
   restored due to benchmark pollution. `training_data/` and `benchmarks/`
@@ -269,30 +282,36 @@ state.
 - **ESV Bible:** Processor tested (2,392 pericopes, 16,218 study notes
   extracted), ingestion ready to run.
 
-## Tool Registration: Dual Pattern Advisory
+## Tool Registration: Internal Registry and External MCP Servers
 
-Shadow currently uses two tool-registration patterns concurrently:
+Shadow exposes tools on two orthogonal surfaces:
 
-1. **`get_tools()` method pattern** — used by 11 of 13 modules. The module
-   class exposes `get_tools(self) -> list[dict[str, Any]]` which returns
-   a list of tool schema dicts. The module registry calls this at boot
-   to build the tool index.
+1. **Internal tool registry** (used by the router for all 14 modules).
+   Every module subclasses BaseModule and implements
+   `get_tools() -> list[dict]`. The module registry calls this method
+   at boot and builds an index that the router consumes when
+   dispatching a task. This is the ONLY surface the router sees and
+   the ONLY surface that matters for Phase A zero-tool-loss
+   verification.
 
-2. **`mcp_manifest.json` pattern** — used by Grimoire and Reaper only.
-   A static JSON file at `modules/<name>/mcp_manifest.json` declares
-   tools in MCP-compatible format.
+2. **External MCP HTTP servers** (optional, Grimoire and Reaper only).
+   `modules/grimoire/mcp_server.py` and `modules/reaper/mcp_server.py`
+   are standalone FastAPI servers that expose a separate MCP-compatible
+   HTTP endpoint governed by `modules/grimoire/mcp_manifest.json` and
+   `modules/reaper/mcp_manifest.json`. Tool names in these manifests
+   (e.g. `grimoire_recall`, `grimoire_remember`) are deliberately
+   distinct from internal-registry names (`memory_search`,
+   `memory_store`) to keep the two surfaces non-overlapping. External
+   clients use the HTTP surface; the router uses the internal surface;
+   they do not interfere.
 
-**Status as of April 2026:** this inconsistency has not caused bugs in
-practice — `tool_loader.py` appears to handle both through the registry
-abstraction layer. However, future structural work (LangGraph cutover
-in Phase B, module consolidation in Phases A–D) must be aware of the
-split and not assume a single registration pattern.
-
-**Phase A scope decision:** Sentinel → Cerberus merge uses `get_tools()`
-on both sides, so dual-pattern normalization is NOT in Phase A scope.
-Dual-pattern investigation will be scoped and scheduled separately
-before Phase B begins. Until then, treat Grimoire and Reaper as
-manifest-driven modules for any refactor that touches their tool surface.
+**Phase A scope:** all three Phase A merges operate on the internal
+registry surface only. No interaction with the external MCP HTTP
+surface is required or expected. Grimoire and Reaper are not involved
+in any Phase A merge. The prior "dual-pattern investigation scheduled
+before Phase B" item is retired — see
+`docs/dual_pattern_investigation.md` (commit `0b9a441`) for the full
+finding.
 
 ## Testing
 
