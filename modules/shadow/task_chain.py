@@ -63,7 +63,7 @@ class ChainStatus(Enum):
 
 VALID_MODULES = {
     "shadow", "wraith", "cerberus", "apex", "grimoire", "sentinel",
-    "harbinger", "reaper", "cipher", "omen", "nova", "void", "morpheus",
+    "harbinger", "reaper", "cipher", "omen", "nova", "morpheus",
 }
 
 
@@ -1008,7 +1008,6 @@ JSON array:"""
             "wraith": ["remind", "schedule", "timer", "alarm", "task"],
             "harbinger": ["brief", "alert", "notify", "report", "status"],
             "cerberus": ["ethics", "moral", "bible", "safe", "approve"],
-            "void": ["monitor", "health", "system", "trend", "threshold"],
             "morpheus": ["creative", "imagine", "brainstorm", "discover"],
         }
         for module, keywords in keyword_map.items():
