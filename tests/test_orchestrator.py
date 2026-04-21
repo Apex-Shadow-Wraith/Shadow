@@ -128,6 +128,25 @@ def config(tmp_path: Path) -> dict:
     return cfg
 
 
+@pytest.fixture
+def enabled_morpheus(monkeypatch):
+    """Make ``is_routable('morpheus')`` return True for this test.
+
+    Phase A made Morpheus dormant by default. Tests that exercise
+    Morpheus routing must force-enable it; the production routing code
+    otherwise correctly skips the Priority-7 fast-path block.
+    """
+    from modules.base import ModuleRegistry
+    _orig = ModuleRegistry.is_routable
+
+    def _patched(self, name):
+        if name == "morpheus":
+            return True
+        return _orig(self, name)
+
+    monkeypatch.setattr(ModuleRegistry, "is_routable", _patched)
+
+
 # --- Fallback Classification Tests ---
 
 class TestFallbackClassifier:
@@ -336,37 +355,9 @@ class TestFastPathClassifier:
         assert result is not None
         assert result.target_module == "sentinel"
 
-    # --- BUG 7: System metrics → Void ---
-
-    def test_void_system_metrics(self, config: dict):
-        orch = Orchestrator(config)
-        result = orch._fast_path_classify("Show me your system metrics")
-        assert result is not None
-        assert result.target_module == "void"
-
-    def test_void_system_health_phrase(self, config: dict):
-        orch = Orchestrator(config)
-        result = orch._fast_path_classify("how is your system health")
-        assert result is not None
-        assert result.target_module == "void"
-
-    def test_void_cpu_usage_phrase(self, config: dict):
-        orch = Orchestrator(config)
-        result = orch._fast_path_classify("show me the cpu usage")
-        assert result is not None
-        assert result.target_module == "void"
-
-    def test_void_monitoring_keyword(self, config: dict):
-        orch = Orchestrator(config)
-        result = orch._fast_path_classify("monitoring dashboard status")
-        assert result is not None
-        assert result.target_module == "void"
-
-    def test_void_diagnostics_keyword(self, config: dict):
-        orch = Orchestrator(config)
-        result = orch._fast_path_classify("run diagnostics on the system")
-        assert result is not None
-        assert result.target_module == "void"
+    # Void-routing tests deleted in Phase A (Void demoted to daemon).
+    # Metric/monitoring phrases now fall through to the LLM router or
+    # direct conversation; coverage moved to tests/test_void_daemon.py.
 
     # --- BUG 8: Content creation → Nova ---
 
@@ -417,25 +408,25 @@ class TestFastPathClassifier:
 
     # --- BUG 9: Discovery → Morpheus ---
 
-    def test_morpheus_discover(self, config: dict):
+    def test_morpheus_discover(self, config: dict, enabled_morpheus):
         orch = Orchestrator(config)
         result = orch._fast_path_classify("Discover something interesting about neural network architecture")
         assert result is not None
         assert result.target_module == "morpheus"
 
-    def test_morpheus_brainstorm(self, config: dict):
+    def test_morpheus_brainstorm(self, config: dict, enabled_morpheus):
         orch = Orchestrator(config)
         result = orch._fast_path_classify("brainstorm ideas for a new feature")
         assert result is not None
         assert result.target_module == "morpheus"
 
-    def test_morpheus_what_if_phrase(self, config: dict):
+    def test_morpheus_what_if_phrase(self, config: dict, enabled_morpheus):
         orch = Orchestrator(config)
         result = orch._fast_path_classify("what if we combined neural networks with scheduling")
         assert result is not None
         assert result.target_module == "morpheus"
 
-    def test_morpheus_explore_keyword(self, config: dict):
+    def test_morpheus_explore_keyword(self, config: dict, enabled_morpheus):
         orch = Orchestrator(config)
         result = orch._fast_path_classify("explore connections between AI and landscaping")
         assert result is not None
@@ -685,21 +676,21 @@ class TestIntrospectionRouting:
         assert result is not None
         assert result.target_module == "direct"
 
-    def test_morpheus_still_routes_correctly(self, config: dict):
+    def test_morpheus_still_routes_correctly(self, config: dict, enabled_morpheus):
         """Ensure real Morpheus queries are NOT intercepted."""
         orch = Orchestrator(config)
         result = orch._fast_path_classify("brainstorm ideas for a new feature")
         assert result is not None
         assert result.target_module == "morpheus"
 
-    def test_explore_not_intercepted(self, config: dict):
+    def test_explore_not_intercepted(self, config: dict, enabled_morpheus):
         """'explore X' is Morpheus, not introspection."""
         orch = Orchestrator(config)
         result = orch._fast_path_classify("explore connections between AI and biology")
         assert result is not None
         assert result.target_module == "morpheus"
 
-    def test_what_if_not_intercepted(self, config: dict):
+    def test_what_if_not_intercepted(self, config: dict, enabled_morpheus):
         """'what if' is Morpheus, not introspection."""
         orch = Orchestrator(config)
         result = orch._fast_path_classify("what if we used transformers for scheduling")
@@ -1488,7 +1479,7 @@ class TestPersonalitySystemPrompt:
         prompt = orch._build_system_prompt([])
         modules = [
             "Shadow", "Wraith", "Cerberus", "Grimoire", "Reaper",
-            "Apex", "Cipher", "Omen", "Sentinel", "Void",
+            "Apex", "Cipher", "Omen", "Sentinel",
             "Nova", "Harbinger", "Morpheus",
         ]
         for module in modules:
@@ -2446,10 +2437,6 @@ class TestStep4PlanModuleDispatch:
             "format_document", "format_report", "format_email",
             "format_briefing_section", "template_list", "template_apply",
         },
-        "void": {
-            "system_snapshot", "health_check", "metric_history",
-            "service_check", "set_threshold", "void_report",
-        },
         "wraith": {
             "quick_answer", "reminder_create", "reminder_list",
             "reminder_dismiss", "reminder_kill", "classify_task",
@@ -2559,28 +2546,7 @@ class TestStep4PlanModuleDispatch:
                 f"Nova plan used '{tool}' — expected a nova tool"
             )
 
-    @pytest.mark.asyncio
-    async def test_void_plan_uses_void_tool(self, config: dict):
-        """Void-routed task must plan a void tool."""
-        orch = Orchestrator(config)
-        classification = TaskClassification(
-            task_type=TaskType.SYSTEM,
-            complexity="simple",
-            target_module="void",
-            brain=BrainType.FAST,
-            safety_flag=False,
-            priority=1,
-        )
-        plan = await orch._step4_plan(
-            "How is the system doing? Give me a health check",
-            classification, [],
-        )
-        tool_names = [s.get("tool") for s in plan.steps if s.get("tool")]
-        assert len(tool_names) >= 1
-        for tool in tool_names:
-            assert tool in self.MODULE_TOOLS["void"], (
-                f"Void plan used '{tool}' — expected a void tool"
-            )
+    # test_void_plan_uses_void_tool deleted in Phase A — Void demoted to daemon.
 
     @pytest.mark.asyncio
     async def test_wraith_plan_uses_wraith_tool(self, config: dict):
@@ -2682,7 +2648,6 @@ class TestStep4PlanModuleDispatch:
             "morpheus": ("Come up with a creative idea", TaskType.RESEARCH),
             "harbinger": ("Give me a briefing", TaskType.ACTION),
             "nova": ("Create a document for me", TaskType.CREATION),
-            "void": ("Check the system", TaskType.SYSTEM),
             "wraith": ("Set a reminder for tomorrow", TaskType.ACTION),
             "sentinel": ("Scan for threats", TaskType.ACTION),
             "cipher": ("Calculate 100 divided by 7", TaskType.QUESTION),
