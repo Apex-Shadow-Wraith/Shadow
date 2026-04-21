@@ -1,0 +1,1305 @@
+{
+  "cerberus": [
+    {
+      "description": "Evaluate an action plan against safety rules",
+      "name": "safety_check",
+      "parameters": {
+        "action_params": "dict \u2014 parameters for the tool",
+        "action_tool": "str \u2014 tool being called",
+        "requesting_module": "str \u2014 which module is calling"
+      },
+      "permission_level": "autonomous"
+    },
+    {
+      "description": "Pre-execution safety hook for tool calls",
+      "name": "hook_pre_tool",
+      "parameters": {
+        "tool_name": "str \u2014 tool about to execute",
+        "tool_params": "dict \u2014 parameters being passed"
+      },
+      "permission_level": "autonomous"
+    },
+    {
+      "description": "Post-execution safety hook for tool results",
+      "name": "hook_post_tool",
+      "parameters": {
+        "execution_time_ms": "float \u2014 how long it took",
+        "tool_name": "str \u2014 tool that just executed",
+        "tool_result": "dict \u2014 result from the tool"
+      },
+      "permission_level": "autonomous"
+    },
+    {
+      "description": "Scan a model response for confabulation phrases (e.g. claiming background work). Logs warnings but does not block.",
+      "name": "validate_response",
+      "parameters": {
+        "has_async_task": "bool \u2014 True if an async task was actually submitted (suppresses false positives for legitimate background phrases)",
+        "response_text": "str \u2014 the full model response text"
+      },
+      "permission_level": "autonomous"
+    },
+    {
+      "description": "Write to immutable audit trail",
+      "name": "audit_log",
+      "parameters": {
+        "entry": "dict \u2014 audit entry data"
+      },
+      "permission_level": "autonomous"
+    },
+    {
+      "description": "Verify Cerberus config has not been tampered with",
+      "name": "config_integrity_check",
+      "parameters": {},
+      "permission_level": "autonomous"
+    },
+    {
+      "description": "Look up biblical ethical guidance for a concept",
+      "name": "ethical_guidance",
+      "parameters": {
+        "concept": "str \u2014 the ethical concept to look up"
+      },
+      "permission_level": "autonomous"
+    },
+    {
+      "description": "Record a false positive safety check for rule tuning",
+      "name": "false_positive_log",
+      "parameters": {
+        "category": "str \u2014 category of the false positive",
+        "check_id": "str \u2014 ID of the check that was a false positive",
+        "notes": "str \u2014 explanation of why this was a false positive"
+      },
+      "permission_level": "autonomous"
+    },
+    {
+      "description": "Get false positive calibration stats per category",
+      "name": "calibration_stats",
+      "parameters": {
+        "days": "int \u2014 number of days to look back (default: 30)"
+      },
+      "permission_level": "autonomous"
+    },
+    {
+      "description": "Evaluate an action against biblical ethics using ESV Scripture passages and study notes. Returns ethical category, relevant passages, assessment, and recommendation.",
+      "name": "ethics_lookup",
+      "parameters": {
+        "action": "str \u2014 the action or tool being evaluated",
+        "plan": "str \u2014 description of what the action does"
+      },
+      "permission_level": "autonomous"
+    },
+    {
+      "description": "List available rollback snapshots",
+      "name": "rollback_snapshot",
+      "parameters": {
+        "action_type": "str \u2014 filter by type (file/config/database/external)",
+        "limit": "int \u2014 max results (default 20)"
+      },
+      "permission_level": "autonomous"
+    },
+    {
+      "description": "Roll back to a previous snapshot",
+      "name": "rollback_execute",
+      "parameters": {
+        "snapshot_id": "str \u2014 snapshot ID to restore"
+      },
+      "permission_level": "approval_required"
+    },
+    {
+      "description": "One-time override for a blocked action. Does not change rules. Only callable by external input sources (user, Telegram).",
+      "name": "creator_exception",
+      "parameters": {
+        "action_category": "str \u2014 category of the blocked action",
+        "action_details": "dict \u2014 optional details about the action",
+        "auth_token": "str \u2014 creator authentication token",
+        "blocked_action_id": "str \u2014 ID from the blocked safety_check result",
+        "source": "str \u2014 input source (user_input, telegram)"
+      },
+      "permission_level": "approval_required"
+    },
+    {
+      "description": "Permanently reclassify a blocked category. Cerberus learns from this. Only callable by external input sources (user, Telegram).",
+      "name": "creator_authorize",
+      "parameters": {
+        "action_category": "str \u2014 category of the blocked action",
+        "action_details": "dict \u2014 optional details about the action",
+        "auth_token": "str \u2014 creator authentication token",
+        "blocked_action_id": "str \u2014 ID from the blocked safety_check result",
+        "reasoning": "str \u2014 creator's reasoning (required, stored permanently)",
+        "source": "str \u2014 input source (user_input, telegram)"
+      },
+      "permission_level": "approval_required"
+    },
+    {
+      "description": "Get report on categories with frequent creator exceptions. Feeds into Harbinger daily safety report.",
+      "name": "false_positive_report",
+      "parameters": {},
+      "permission_level": "autonomous"
+    }
+  ],
+  "cipher": [
+    {
+      "description": "Evaluate mathematical expressions safely (AST-based, no eval). Supports arithmetic, math functions, returns result + steps",
+      "name": "calculate",
+      "parameters": {
+        "expression": "str \u2014 math expression to evaluate"
+      },
+      "permission_level": "autonomous"
+    },
+    {
+      "description": "Convert between units: length, weight, volume, temperature, area, digital, time, speed",
+      "name": "unit_convert",
+      "parameters": {
+        "from_unit": "str \u2014 source unit",
+        "to_unit": "str \u2014 target unit",
+        "value": "float \u2014 numeric value to convert"
+      },
+      "permission_level": "autonomous"
+    },
+    {
+      "description": "Date calculations: add/subtract time, difference between dates, day of week, business days",
+      "name": "date_math",
+      "parameters": {
+        "date": "str \u2014 ISO date (YYYY-MM-DD) for add/subtract/day_of_week",
+        "date1": "str \u2014 first date for diff/business_days",
+        "date2": "str \u2014 second date for diff/business_days",
+        "days": "int \u2014 days to add/subtract",
+        "months": "int \u2014 months to add/subtract",
+        "operation": "str \u2014 add, subtract, diff, day_of_week, business_days",
+        "weeks": "int \u2014 weeks to add/subtract",
+        "years": "int \u2014 years to add/subtract"
+      },
+      "permission_level": "autonomous"
+    },
+    {
+      "description": "Percentage operations: X% of Y, what percent, percent change, markup, margin",
+      "name": "percentage",
+      "parameters": {
+        "cost": "float",
+        "new_value": "float",
+        "old_value": "float",
+        "operation": "str \u2014 of, what_percent, change, markup, margin",
+        "percent": "float",
+        "selling_price": "float",
+        "total": "float",
+        "value": "float"
+      },
+      "permission_level": "autonomous"
+    },
+    {
+      "description": "Financial math: compound interest, loan payment (PMT), ROI, break-even, profit/loss. Not financial advice \u2014 just math",
+      "name": "financial",
+      "parameters": {
+        "annual_rate": "float",
+        "compounds_per_year": "int",
+        "cost": "float",
+        "expenses": "float",
+        "fixed_costs": "float",
+        "gain": "float",
+        "operation": "str \u2014 compound_interest, pmt, roi, break_even, profit_loss",
+        "price_per_unit": "float",
+        "principal": "float",
+        "rate": "float",
+        "revenue": "float",
+        "variable_cost_per_unit": "float",
+        "years": "int"
+      },
+      "permission_level": "autonomous"
+    },
+    {
+      "description": "Descriptive statistics on a list of numbers: mean, median, mode, std_dev, min, max, range, sum, count, percentiles",
+      "name": "statistics",
+      "parameters": {
+        "data": "list[float] \u2014 numbers to analyze",
+        "operations": "list[str] \u2014 which stats to compute (default: all)"
+      },
+      "permission_level": "autonomous"
+    },
+    {
+      "description": "Boolean logic: truth tables for 2-3 variables, structural analysis of premises/conclusions. Full reasoning in Phase 2+",
+      "name": "logic_check",
+      "parameters": {
+        "conclusion": "str \u2014 conclusion for structural analysis",
+        "expression": "str \u2014 boolean expression for truth table",
+        "premises": "list[str] \u2014 premises for structural analysis",
+        "variables": "list[str] \u2014 variable names for truth table"
+      },
+      "permission_level": "autonomous"
+    }
+  ],
+  "grimoire": [
+    {
+      "description": "Save a new memory with metadata and trust level",
+      "name": "memory_store",
+      "parameters": {
+        "content": "str \u2014 what to remember",
+        "metadata": "dict \u2014 category, source, trust_level, tags"
+      },
+      "permission_level": "autonomous"
+    },
+    {
+      "description": "Semantic search across active memory (ChromaDB)",
+      "name": "memory_search",
+      "parameters": {
+        "n_results": "int \u2014 max results (default 5)",
+        "query": "str \u2014 what to search for"
+      },
+      "permission_level": "autonomous"
+    },
+    {
+      "description": "Retrieve specific memory by ID or exact match",
+      "name": "memory_recall",
+      "parameters": {
+        "query": "str \u2014 what to recall"
+      },
+      "permission_level": "autonomous"
+    },
+    {
+      "description": "Explicit delete from both ChromaDB and SQLite",
+      "name": "memory_forget",
+      "parameters": {
+        "memory_id": "int \u2014 ID of memory to delete"
+      },
+      "permission_level": "autonomous"
+    },
+    {
+      "description": "Soft-archive old low-access memories to reduce search noise",
+      "name": "memory_compact",
+      "parameters": {
+        "older_than_days": "int \u2014 archive memories older than N days (default 30)"
+      },
+      "permission_level": "approval_required"
+    },
+    {
+      "description": "Search memories by content block type (code, error, plan, etc.)",
+      "name": "memory_block_search",
+      "parameters": {
+        "block_type": "str \u2014 block type to search for",
+        "limit": "int \u2014 max results (default 10)"
+      },
+      "permission_level": "autonomous"
+    },
+    {
+      "description": "Store a failure pattern so Shadow learns from mistakes",
+      "name": "store_failure_pattern",
+      "parameters": {
+        "correct_approach": "str \u2014 what actually worked",
+        "mistake": "str \u2014 what approach was wrong",
+        "source": "str \u2014 retry_engine or apex_learning",
+        "task": "str \u2014 the original task that failed",
+        "task_type": "str \u2014 classification (code, math, research, ethics)",
+        "trust_level": "float \u2014 0.7 for Apex, 0.5 for self-discovery"
+      },
+      "permission_level": "autonomous"
+    },
+    {
+      "description": "Return most frequently matched failure patterns for growth tracking",
+      "name": "get_common_failures",
+      "parameters": {
+        "limit": "int \u2014 max results (default 10)"
+      },
+      "permission_level": "autonomous"
+    },
+    {
+      "description": "Analyze failure pattern trends \u2014 is Shadow learning or stagnating?",
+      "name": "get_failure_trend",
+      "parameters": {
+        "days": "int \u2014 number of days to analyze (default 7)"
+      },
+      "permission_level": "autonomous"
+    }
+  ],
+  "harbinger": [
+    {
+      "description": "Compile morning/evening briefing from module data",
+      "name": "briefing_compile",
+      "parameters": {
+        "briefing_type": "str",
+        "sections": "list"
+      },
+      "permission_level": "autonomous"
+    },
+    {
+      "description": "Send notification at assigned severity level via Telegram (or log fallback)",
+      "name": "notification_send",
+      "parameters": {
+        "category": "str",
+        "importance": "int",
+        "message": "str",
+        "severity": "int"
+      },
+      "permission_level": "autonomous"
+    },
+    {
+      "description": "Determine severity level (1-4) for an event",
+      "name": "notification_severity_assign",
+      "parameters": {
+        "category": "str",
+        "event": "str"
+      },
+      "permission_level": "autonomous"
+    },
+    {
+      "description": "Add a deferred decision to the queue",
+      "name": "decision_queue_add",
+      "parameters": {
+        "context": "str",
+        "description": "str",
+        "importance": "int",
+        "recommendation": "str",
+        "source_module": "str"
+      },
+      "permission_level": "autonomous"
+    },
+    {
+      "description": "Get pending decisions for user review",
+      "name": "decision_queue_read",
+      "parameters": {},
+      "permission_level": "autonomous"
+    },
+    {
+      "description": "Mark a decision as resolved after user input",
+      "name": "decision_queue_resolve",
+      "parameters": {
+        "decision_id": "str",
+        "resolution": "str"
+      },
+      "permission_level": "autonomous"
+    },
+    {
+      "description": "Structure data into report format with sections",
+      "name": "report_compile",
+      "parameters": {
+        "sections": "list",
+        "title": "str"
+      },
+      "permission_level": "autonomous"
+    },
+    {
+      "description": "Switch to next delivery channel if primary fails",
+      "name": "channel_fallback",
+      "parameters": {
+        "failed_channel": "str"
+      },
+      "permission_level": "autonomous"
+    },
+    {
+      "description": "Scan upcoming tasks for actions needing user approval",
+      "name": "preemptive_approval_scan",
+      "parameters": {},
+      "permission_level": "autonomous"
+    },
+    {
+      "description": "Deliver a compiled briefing through the active channel",
+      "name": "briefing_deliver",
+      "parameters": {
+        "briefing": "dict",
+        "channel": "str"
+      },
+      "permission_level": "autonomous"
+    },
+    {
+      "description": "Record user interaction with a briefing section",
+      "name": "personalization_update",
+      "parameters": {
+        "action": "str",
+        "section_name": "str"
+      },
+      "permission_level": "autonomous"
+    },
+    {
+      "description": "Get current section engagement weights",
+      "name": "personalization_weights",
+      "parameters": {},
+      "permission_level": "autonomous"
+    }
+  ],
+  "morpheus": [
+    {
+      "description": "Propose a new experiment for the discovery pipeline",
+      "name": "experiment_propose",
+      "parameters": {
+        "category": "str \u2014 optimization|exploration|comparison|validation (required)",
+        "hypothesis": "str \u2014 what we expect to learn (required)",
+        "input_data": "dict \u2014 input parameters for the experiment",
+        "parent_experiment_id": "str \u2014 UUID of parent experiment for follow-ups",
+        "priority": "int \u2014 1-5, 1=highest (default 3)",
+        "title": "str \u2014 experiment title (required)"
+      },
+      "permission_level": "autonomous"
+    },
+    {
+      "description": "Move a proposed experiment to running status",
+      "name": "experiment_start",
+      "parameters": {
+        "experiment_id": "str \u2014 UUID of experiment to start (required)"
+      },
+      "permission_level": "autonomous"
+    },
+    {
+      "description": "Record results for a running experiment",
+      "name": "experiment_complete",
+      "parameters": {
+        "experiment_id": "str \u2014 UUID of experiment (required)",
+        "failed": "bool \u2014 mark as failed instead of completed (default false)",
+        "result_data": "dict \u2014 experiment results (required)"
+      },
+      "permission_level": "autonomous"
+    },
+    {
+      "description": "Score and tier a completed experiment",
+      "name": "experiment_evaluate",
+      "parameters": {
+        "experiment_id": "str \u2014 UUID of experiment (required)",
+        "notes": "str \u2014 evaluation notes",
+        "score": "float \u2014 0.0-1.0 evaluation score (required)",
+        "tier": "int \u2014 1=breakthrough, 2=useful, 3=incremental, 4=noise (required)"
+      },
+      "permission_level": "autonomous"
+    },
+    {
+      "description": "List experiments with optional filters",
+      "name": "experiment_list",
+      "parameters": {
+        "category": "str \u2014 filter by category",
+        "status": "str \u2014 filter by status"
+      },
+      "permission_level": "autonomous"
+    },
+    {
+      "description": "Get overnight experiment queue (proposed, sorted by priority)",
+      "name": "experiment_queue",
+      "parameters": {
+        "max_items": "int \u2014 max items to return (default from config)"
+      },
+      "permission_level": "autonomous"
+    },
+    {
+      "description": "Compile experiment report for morning briefing",
+      "name": "morpheus_report",
+      "parameters": {},
+      "permission_level": "autonomous"
+    },
+    {
+      "description": "Run an evolution cycle on prompt templates based on performance data",
+      "name": "prompt_evolve",
+      "parameters": {
+        "min_experiments": "int \u2014 minimum experiments since last evolution (default 10)"
+      },
+      "permission_level": "autonomous"
+    },
+    {
+      "description": "Show template performance stats \u2014 which templates produce the best ideas",
+      "name": "prompt_stats",
+      "parameters": {
+        "template_id": "str \u2014 specific template ID for single-template stats (optional)"
+      },
+      "permission_level": "autonomous"
+    },
+    {
+      "description": "Analyze a Shadow module for improvement opportunities",
+      "name": "self_improve_analyze",
+      "parameters": {
+        "module_name": "str \u2014 module codename (required)",
+        "source_path": "str \u2014 path to source file (default: modules/{module_name}/{module_name}.py)"
+      },
+      "permission_level": "autonomous"
+    },
+    {
+      "description": "List/filter improvement proposals",
+      "name": "self_improve_proposals",
+      "parameters": {
+        "module": "str \u2014 filter by module name",
+        "status": "str \u2014 filter by status"
+      },
+      "permission_level": "autonomous"
+    }
+  ],
+  "nova": [
+    {
+      "description": "Format structured data into a Markdown document",
+      "name": "format_document",
+      "parameters": {
+        "metadata": "dict",
+        "sections": "list",
+        "title": "str"
+      },
+      "permission_level": "autonomous"
+    },
+    {
+      "description": "Format findings into a structured Markdown report",
+      "name": "format_report",
+      "parameters": {
+        "conclusion": "str",
+        "date": "str",
+        "executive_summary": "str",
+        "findings": "list",
+        "recommendations": "list",
+        "title": "str"
+      },
+      "permission_level": "autonomous"
+    },
+    {
+      "description": "Format a tone-appropriate email (does not send)",
+      "name": "format_email",
+      "parameters": {
+        "body": "str",
+        "subject": "str",
+        "to": "str",
+        "tone": "str"
+      },
+      "permission_level": "autonomous"
+    },
+    {
+      "description": "Compress content into a scannable briefing section",
+      "name": "format_briefing_section",
+      "parameters": {
+        "content": "str",
+        "priority": "int",
+        "title": "str"
+      },
+      "permission_level": "autonomous"
+    },
+    {
+      "description": "List all available formatting templates",
+      "name": "template_list",
+      "parameters": {},
+      "permission_level": "autonomous"
+    },
+    {
+      "description": "Apply a named template to provided data",
+      "name": "template_apply",
+      "parameters": {
+        "data": "dict",
+        "template_name": "str"
+      },
+      "permission_level": "autonomous"
+    }
+  ],
+  "omen": [
+    {
+      "description": "Run code in sandboxed subprocess with timeout",
+      "name": "code_execute",
+      "parameters": {
+        "code": "str",
+        "timeout": "int"
+      },
+      "permission_level": "autonomous"
+    },
+    {
+      "description": "Check code for syntax errors and style violations",
+      "name": "code_lint",
+      "parameters": {
+        "code": "str",
+        "file_path": "str"
+      },
+      "permission_level": "autonomous"
+    },
+    {
+      "description": "Run test suite against code",
+      "name": "code_test",
+      "parameters": {
+        "test_path": "str",
+        "timeout": "int"
+      },
+      "permission_level": "autonomous"
+    },
+    {
+      "description": "Review code for issues (stub \u2014 needs LLM in Phase 2+)",
+      "name": "code_review",
+      "parameters": {
+        "code": "str",
+        "file_path": "str"
+      },
+      "permission_level": "autonomous"
+    },
+    {
+      "description": "Check git repository state",
+      "name": "git_status",
+      "parameters": {},
+      "permission_level": "autonomous"
+    },
+    {
+      "description": "Commit changes to repository",
+      "name": "git_commit",
+      "parameters": {
+        "files": "list",
+        "message": "str"
+      },
+      "permission_level": "approval_required"
+    },
+    {
+      "description": "Scan for outdated or vulnerable dependencies",
+      "name": "dependency_check",
+      "parameters": {},
+      "permission_level": "autonomous"
+    },
+    {
+      "description": "Find files matching a glob pattern",
+      "name": "code_glob",
+      "parameters": {
+        "pattern": "str",
+        "root_dir": "str"
+      },
+      "permission_level": "autonomous"
+    },
+    {
+      "description": "Search for text/regex in code files",
+      "name": "code_grep",
+      "parameters": {
+        "file_glob": "str",
+        "max_results": "int",
+        "pattern": "str",
+        "root_dir": "str"
+      },
+      "permission_level": "autonomous"
+    },
+    {
+      "description": "Apply a find-and-replace edit to a file",
+      "name": "code_edit",
+      "parameters": {
+        "file_path": "str",
+        "new_text": "str",
+        "old_text": "str"
+      },
+      "permission_level": "autonomous"
+    },
+    {
+      "description": "Read a file with line numbers",
+      "name": "code_read",
+      "parameters": {
+        "end_line": "int",
+        "file_path": "str",
+        "start_line": "int"
+      },
+      "permission_level": "autonomous"
+    },
+    {
+      "description": "Store a reusable code pattern in the pattern database",
+      "name": "pattern_store",
+      "parameters": {
+        "category": "str",
+        "code_template": "str",
+        "description": "str",
+        "language": "str",
+        "name": "str",
+        "tags": "str"
+      },
+      "permission_level": "autonomous"
+    },
+    {
+      "description": "Search stored code patterns by category, tags, or keyword",
+      "name": "pattern_search",
+      "parameters": {
+        "category": "str",
+        "keyword": "str",
+        "tags": "str"
+      },
+      "permission_level": "autonomous"
+    },
+    {
+      "description": "Apply a stored pattern with placeholder substitutions",
+      "name": "pattern_apply",
+      "parameters": {
+        "name": "str",
+        "substitutions": "dict"
+      },
+      "permission_level": "autonomous"
+    },
+    {
+      "description": "Log a code failure for learning and prevention",
+      "name": "failure_log",
+      "parameters": {
+        "code_context": "str",
+        "error_message": "str",
+        "error_type": "str",
+        "file_path": "str",
+        "fix_applied": "str",
+        "fix_worked": "bool",
+        "prevention_rule": "str"
+      },
+      "permission_level": "autonomous"
+    },
+    {
+      "description": "Search logged failures by type or keyword",
+      "name": "failure_search",
+      "parameters": {
+        "error_type": "str",
+        "keyword": "str"
+      },
+      "permission_level": "autonomous"
+    },
+    {
+      "description": "Get aggregate statistics on logged failures",
+      "name": "failure_stats",
+      "parameters": {},
+      "permission_level": "autonomous"
+    },
+    {
+      "description": "Generate boilerplate code for a new Shadow module",
+      "name": "scaffold_module",
+      "parameters": {
+        "description": "str",
+        "module_name": "str",
+        "tools": "list"
+      },
+      "permission_level": "autonomous"
+    },
+    {
+      "description": "Generate test skeleton for a Shadow module",
+      "name": "scaffold_test",
+      "parameters": {
+        "module_name": "str"
+      },
+      "permission_level": "autonomous"
+    },
+    {
+      "description": "Score a Python file on code quality (0-100)",
+      "name": "code_score",
+      "parameters": {
+        "file_path": "str"
+      },
+      "permission_level": "autonomous"
+    },
+    {
+      "description": "Populate pattern database with Shadow codebase patterns",
+      "name": "seed_patterns",
+      "parameters": {},
+      "permission_level": "autonomous"
+    },
+    {
+      "description": "Analyze inline code for structure, patterns, quality, and vulnerabilities without generating new code",
+      "name": "code_analyze",
+      "parameters": {
+        "code": "str",
+        "language": "str"
+      },
+      "permission_level": "autonomous"
+    },
+    {
+      "description": "Analyze a Python file for structure, patterns, and quality",
+      "name": "code_analyze_file",
+      "parameters": {
+        "file_path": "str"
+      },
+      "permission_level": "autonomous"
+    },
+    {
+      "description": "Analyze all Python files in a directory",
+      "name": "code_analyze_dir",
+      "parameters": {
+        "dir_path": "str",
+        "pattern": "str"
+      },
+      "permission_level": "autonomous"
+    },
+    {
+      "description": "Analyze Shadow's own codebase (modules/) for structure, patterns, quality, and metrics",
+      "name": "code_analyze_self",
+      "parameters": {},
+      "permission_level": "autonomous"
+    },
+    {
+      "description": "Download and analyze a single Python file from a URL",
+      "name": "code_analyze_url",
+      "parameters": {
+        "url": "str"
+      },
+      "permission_level": "autonomous"
+    },
+    {
+      "description": "Extract learnings from analysis and store in Grimoire",
+      "name": "code_learn",
+      "parameters": {
+        "file_path": "str"
+      },
+      "permission_level": "autonomous"
+    },
+    {
+      "description": "Compare external code patterns against Shadow's codebase",
+      "name": "code_compare",
+      "parameters": {
+        "file_path": "str"
+      },
+      "permission_level": "autonomous"
+    },
+    {
+      "description": "Generate code via LLM with fallback extraction when tool calls fail",
+      "name": "code_generate",
+      "parameters": {
+        "language": "str",
+        "model": "str",
+        "prompt": "str"
+      },
+      "permission_level": "autonomous"
+    },
+    {
+      "description": "List all installed Ollama models with size and quantization",
+      "name": "model_list",
+      "parameters": {},
+      "permission_level": "autonomous"
+    },
+    {
+      "description": "Download an Ollama model (consumes disk space)",
+      "name": "model_pull",
+      "parameters": {
+        "model_name": "str"
+      },
+      "permission_level": "approval_required"
+    },
+    {
+      "description": "Run standardized benchmark suite against an Ollama model",
+      "name": "model_benchmark",
+      "parameters": {
+        "model_name": "str",
+        "warmup": "bool"
+      },
+      "permission_level": "autonomous"
+    },
+    {
+      "description": "Score benchmark results on quality (1-5 scale, rule-based)",
+      "name": "model_evaluate",
+      "parameters": {
+        "benchmark_results": "dict"
+      },
+      "permission_level": "autonomous"
+    },
+    {
+      "description": "Benchmark and compare multiple Ollama models side by side",
+      "name": "model_compare",
+      "parameters": {
+        "model_names": "list"
+      },
+      "permission_level": "autonomous"
+    },
+    {
+      "description": "Get model details with alignment/censorship warnings",
+      "name": "model_info",
+      "parameters": {
+        "model_name": "str"
+      },
+      "permission_level": "autonomous"
+    },
+    {
+      "description": "Recommend best models for a role based on stored benchmarks",
+      "name": "model_recommend",
+      "parameters": {
+        "role": "str"
+      },
+      "permission_level": "autonomous"
+    },
+    {
+      "description": "Execute code in isolated sandbox with safety validation",
+      "name": "sandbox_execute",
+      "parameters": {
+        "allow_imports": "list[str]",
+        "code": "str",
+        "input_files": "dict[str, str]",
+        "max_memory_mb": "int",
+        "preserve": "bool",
+        "timeout_seconds": "int"
+      },
+      "permission_level": "autonomous"
+    },
+    {
+      "description": "Validate code safety without executing (static analysis)",
+      "name": "sandbox_validate",
+      "parameters": {
+        "allow_imports": "list[str]",
+        "code": "str"
+      },
+      "permission_level": "autonomous"
+    },
+    {
+      "description": "Copy sandbox file to production codebase (requires approval)",
+      "name": "sandbox_to_production",
+      "parameters": {
+        "production_path": "str",
+        "require_tests_pass": "bool",
+        "sandbox_path": "str"
+      },
+      "permission_level": "approval_required"
+    },
+    {
+      "description": "Remove old sandbox directories",
+      "name": "sandbox_cleanup",
+      "parameters": {
+        "max_age_hours": "int"
+      },
+      "permission_level": "autonomous"
+    }
+  ],
+  "reaper": [
+    {
+      "description": "Search via SearXNG/DDG/Bing fallback chain",
+      "name": "web_search",
+      "parameters": {
+        "max_results": "int \u2014 max results (default 5)",
+        "query": "str \u2014 search query"
+      },
+      "permission_level": "autonomous"
+    },
+    {
+      "description": "Retrieve full page content from URL",
+      "name": "web_fetch",
+      "parameters": {
+        "url": "str \u2014 URL to fetch"
+      },
+      "permission_level": "autonomous"
+    },
+    {
+      "description": "Download and process YouTube subtitles via yt-dlp",
+      "name": "youtube_transcribe",
+      "parameters": {
+        "url": "str \u2014 YouTube URL"
+      },
+      "permission_level": "autonomous"
+    },
+    {
+      "description": "Search a subreddit via Reddit .json endpoint (no auth required)",
+      "name": "reddit_search_json",
+      "parameters": {
+        "limit": "int \u2014 max results (default 10)",
+        "query": "str \u2014 search query",
+        "subreddit": "str \u2014 subreddit name (without r/ prefix)"
+      },
+      "permission_level": "autonomous"
+    },
+    {
+      "description": "Fetch posts from a subreddit via Reddit .json endpoint",
+      "name": "reddit_monitor",
+      "parameters": {
+        "limit": "int \u2014 max results (default 25)",
+        "sort": "str \u2014 hot/new/top/rising (default hot)",
+        "subreddit": "str \u2014 subreddit name (without r/ prefix)"
+      },
+      "permission_level": "autonomous"
+    }
+  ],
+  "sentinel": [
+    {
+      "description": "Check current network connections and open ports",
+      "name": "network_scan",
+      "parameters": {},
+      "permission_level": "autonomous"
+    },
+    {
+      "description": "Hash comparison on critical files against baseline",
+      "name": "file_integrity_check",
+      "parameters": {
+        "file_paths": "list"
+      },
+      "permission_level": "autonomous"
+    },
+    {
+      "description": "Check email against known breaches (stub)",
+      "name": "breach_check",
+      "parameters": {
+        "email": "str"
+      },
+      "permission_level": "autonomous"
+    },
+    {
+      "description": "Check host firewall status and active rules",
+      "name": "firewall_status",
+      "parameters": {},
+      "permission_level": "autonomous"
+    },
+    {
+      "description": "Run active threat detection scan on the system",
+      "name": "threat_scan",
+      "parameters": {
+        "scan_type": "str"
+      },
+      "permission_level": "autonomous"
+    },
+    {
+      "description": "Monitor network traffic for anomalies in real time",
+      "name": "network_monitor",
+      "parameters": {
+        "duration_seconds": "int"
+      },
+      "permission_level": "autonomous"
+    },
+    {
+      "description": "Scan system for known vulnerabilities",
+      "name": "vulnerability_scan",
+      "parameters": {
+        "target": "str"
+      },
+      "permission_level": "autonomous"
+    },
+    {
+      "description": "Analyze system and security logs for suspicious patterns",
+      "name": "log_analysis",
+      "parameters": {
+        "log_source": "str"
+      },
+      "permission_level": "autonomous"
+    },
+    {
+      "description": "Generate a security alert for Harbinger",
+      "name": "security_alert",
+      "parameters": {
+        "message": "str",
+        "severity": "str",
+        "source": "str"
+      },
+      "permission_level": "autonomous"
+    },
+    {
+      "description": "Assess threat level of an event",
+      "name": "threat_assess",
+      "parameters": {
+        "event": "str",
+        "indicators": "list"
+      },
+      "permission_level": "autonomous"
+    },
+    {
+      "description": "Move suspicious file to quarantine directory",
+      "name": "quarantine_file",
+      "parameters": {
+        "file_path": "str",
+        "reason": "str"
+      },
+      "permission_level": "autonomous"
+    },
+    {
+      "description": "Parse and analyze a firewall configuration file",
+      "name": "firewall_analyze",
+      "parameters": {
+        "config_text": "str",
+        "firewall_type": "str"
+      },
+      "permission_level": "autonomous"
+    },
+    {
+      "description": "Score a firewall config on security best practices",
+      "name": "firewall_evaluate",
+      "parameters": {
+        "analysis": "dict"
+      },
+      "permission_level": "autonomous"
+    },
+    {
+      "description": "Compare multiple firewall configs side by side",
+      "name": "firewall_compare",
+      "parameters": {
+        "configs": "list"
+      },
+      "permission_level": "autonomous"
+    },
+    {
+      "description": "Explain a single firewall rule in plain English with equivalents",
+      "name": "firewall_explain_rule",
+      "parameters": {
+        "firewall_type": "str",
+        "rule_text": "str"
+      },
+      "permission_level": "autonomous"
+    },
+    {
+      "description": "Generate a complete firewall config from requirements",
+      "name": "firewall_generate",
+      "parameters": {
+        "requirements": "dict"
+      },
+      "permission_level": "autonomous"
+    },
+    {
+      "description": "Study firewall concepts and store in Grimoire",
+      "name": "security_learn",
+      "parameters": {
+        "topic": "str"
+      },
+      "permission_level": "autonomous"
+    },
+    {
+      "description": "Study a known attack pattern for defensive understanding",
+      "name": "threat_analyze",
+      "parameters": {
+        "pattern_name": "str"
+      },
+      "permission_level": "autonomous"
+    },
+    {
+      "description": "Analyze log entries for signs of attack or suspicious activity",
+      "name": "threat_log_analyze",
+      "parameters": {
+        "log_text": "str",
+        "log_type": "str"
+      },
+      "permission_level": "autonomous"
+    },
+    {
+      "description": "Build a complete defense profile for a list of threats",
+      "name": "threat_defense_profile",
+      "parameters": {
+        "threat_list": "list"
+      },
+      "permission_level": "autonomous"
+    },
+    {
+      "description": "Study a known malware family for defensive understanding",
+      "name": "threat_malware_study",
+      "parameters": {
+        "family_name": "str"
+      },
+      "permission_level": "autonomous"
+    },
+    {
+      "description": "Generate a detection rule for a specific threat",
+      "name": "threat_detection_rule",
+      "parameters": {
+        "rule_format": "str",
+        "threat_type": "str"
+      },
+      "permission_level": "autonomous"
+    },
+    {
+      "description": "Assess Shadow's specific threat surface",
+      "name": "threat_shadow_assessment",
+      "parameters": {},
+      "permission_level": "autonomous"
+    },
+    {
+      "description": "Store threat intelligence in Grimoire",
+      "name": "threat_knowledge_store",
+      "parameters": {
+        "knowledge": "dict",
+        "source": "str"
+      },
+      "permission_level": "autonomous"
+    }
+  ],
+  "shadow": [
+    {
+      "description": "Create a tracked task assigned to a module",
+      "name": "task_create",
+      "parameters": {
+        "assigned_module": "str \u2014 which module handles this task",
+        "description": "str \u2014 what needs to be done",
+        "priority": "int \u2014 1 (highest) to 5 (lowest), default 3"
+      },
+      "permission_level": "autonomous"
+    },
+    {
+      "description": "Get the current status of a tracked task",
+      "name": "task_status",
+      "parameters": {
+        "task_id": "str \u2014 UUID of the task to check"
+      },
+      "permission_level": "autonomous"
+    },
+    {
+      "description": "List tracked tasks, optionally filtered by status",
+      "name": "task_list",
+      "parameters": {
+        "status_filter": "str | None \u2014 pending, in_progress, completed, failed, cancelled"
+      },
+      "permission_level": "autonomous"
+    },
+    {
+      "description": "Check if a module is online and get its health metrics",
+      "name": "module_health",
+      "parameters": {
+        "module_name": "str \u2014 name of the module to check"
+      },
+      "permission_level": "autonomous"
+    }
+  ],
+  "wraith": [
+    {
+      "description": "Answer a question using loaded context and memory",
+      "name": "quick_answer",
+      "parameters": {
+        "context": "str",
+        "query": "str"
+      },
+      "permission_level": "autonomous"
+    },
+    {
+      "description": "Create a timed reminder. Fires when due_time passes.",
+      "name": "reminder_create",
+      "parameters": {
+        "content": "str \u2014 reminder message",
+        "delay_minutes": "int | float | None \u2014 minutes from now until due",
+        "due_time": "str | None \u2014 ISO datetime when reminder is due",
+        "importance": "int (1-5, default 3)"
+      },
+      "permission_level": "autonomous"
+    },
+    {
+      "description": "List all active reminders sorted by importance",
+      "name": "reminder_list",
+      "parameters": {},
+      "permission_level": "autonomous"
+    },
+    {
+      "description": "Dismiss a reminder (re-surfaces on escalating schedule)",
+      "name": "reminder_dismiss",
+      "parameters": {
+        "reminder_id": "str"
+      },
+      "permission_level": "autonomous"
+    },
+    {
+      "description": "Permanently remove a reminder",
+      "name": "reminder_kill",
+      "parameters": {
+        "reminder_id": "str"
+      },
+      "permission_level": "autonomous"
+    },
+    {
+      "description": "Classify and suggest routing for a user task",
+      "name": "classify_task",
+      "parameters": {
+        "input_text": "str"
+      },
+      "permission_level": "autonomous"
+    },
+    {
+      "description": "Check for proactive suggestions based on patterns",
+      "name": "proactive_check",
+      "parameters": {},
+      "permission_level": "autonomous"
+    },
+    {
+      "description": "Prompt user for clarification with optional choices",
+      "name": "ask_user",
+      "parameters": {
+        "options": "list[str] | None \u2014 optional multiple-choice options",
+        "question": "str \u2014 the question to ask the user"
+      },
+      "permission_level": "autonomous"
+    },
+    {
+      "description": "Record an event for temporal pattern tracking",
+      "name": "temporal_record",
+      "parameters": {
+        "event_type": "str \u2014 category of the event",
+        "metadata": "dict | None \u2014 optional additional data"
+      },
+      "permission_level": "autonomous"
+    },
+    {
+      "description": "Get detected temporal patterns from event history",
+      "name": "temporal_patterns",
+      "parameters": {},
+      "permission_level": "autonomous"
+    },
+    {
+      "description": "Check for neglected tasks and decisions",
+      "name": "neglect_check",
+      "parameters": {},
+      "permission_level": "autonomous"
+    },
+    {
+      "description": "Get proactive suggestions based on patterns and neglect detection",
+      "name": "proactive_suggestions",
+      "parameters": {},
+      "permission_level": "autonomous"
+    }
+  ]
+}
