@@ -463,6 +463,28 @@ class ModuleRegistry:
             if m.status == ModuleStatus.ONLINE
         ]
 
+    def is_routable(self, name: str) -> bool:
+        """True iff the module is registered, ONLINE, and not config-disabled.
+
+        The router consults this before considering a module as a
+        dispatch target. Modules whose settings class lacks an `enabled`
+        attribute are treated as enabled (backward-compat — the default
+        is opt-out, not opt-in).
+        """
+        module = self._modules.get(name)
+        if module is None or module.status != ModuleStatus.ONLINE:
+            return False
+        try:
+            # Lazy import to avoid a bootstrap cycle (shadow.config imports
+            # several module settings classes that themselves import base).
+            from shadow.config import config as _config
+            settings = getattr(_config, name, None)
+            if settings is not None and hasattr(settings, "enabled"):
+                return bool(settings.enabled)
+        except Exception:
+            pass
+        return True
+
     def __contains__(self, name: str) -> bool:
         return name in self._modules
 

@@ -65,7 +65,7 @@ from modules.reaper.reaper_settings import ReaperSettings
 from modules.sentinel.config import SentinelSettings
 from modules.shadow.config import ShadowModuleSettings
 from modules.shadow.observability_config import ObservabilitySettings
-from modules.void.config import VoidSettings
+from daemons.void.config import VoidDaemonSettings
 from modules.wraith.config import WraithSettings
 
 from .sources import FlatEnvSource, YamlConfigSource
@@ -87,9 +87,7 @@ _MODULE_FIELD_MAP: dict[str, str] = {
     "omen": "omen",
     "reaper": "reaper",
     "sentinel": "sentinel",
-    "void": "void",
     "wraith": "wraith",
-    "morpheus": "morpheus",
     "observability": "observability",
     "shadow": "shadow_module",
 }
@@ -213,7 +211,7 @@ class Settings(BaseSettings):
     reaper: ReaperSettings = Field(default_factory=ReaperSettings)
     sentinel: SentinelSettings = Field(default_factory=SentinelSettings)
     shadow_module: ShadowModuleSettings = Field(default_factory=ShadowModuleSettings)
-    void: VoidSettings = Field(default_factory=VoidSettings)
+    void: VoidDaemonSettings = Field(default_factory=VoidDaemonSettings)
     wraith: WraithSettings = Field(default_factory=WraithSettings)
 
     # Module load-order list (from YAML modules.load_on_startup)

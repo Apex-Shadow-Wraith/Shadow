@@ -178,7 +178,15 @@ async def startup(config: dict, logger: logging.Logger) -> Orchestrator:
     sentinel = Sentinel(module_configs.get("sentinel", {})) if Sentinel else None
     void = Void(module_configs.get("void", {})) if Void else None
     nova = Nova(module_configs.get("nova", {})) if Nova else None
-    morpheus = Morpheus(module_configs.get("morpheus", {})) if Morpheus else None
+    # Morpheus is dormant by default (config.morpheus.enabled=False). Only
+    # instantiate when explicitly enabled — the router's is_routable()
+    # check then has nothing to skip because the module was never
+    # registered in the first place.
+    morpheus = (
+        Morpheus(module_configs.get("morpheus", {}))
+        if Morpheus and _shadow_config.morpheus.enabled
+        else None
+    )
 
     # Step 2: Initialize Grimoire first (Reaper depends on it)
     if grimoire is not None:
