@@ -42,11 +42,17 @@ class TestOmenLifecycle:
 
     def test_get_tools(self, omen: Omen):
         tools = omen.get_tools()
-        assert len(tools) == 39
+        # 40 Omen-native + 7 absorbed Cipher tools (Phase A merge)
+        assert len(tools) == 47
         names = [t["name"] for t in tools]
         assert "code_execute" in names
         assert "code_lint" in names
         assert "git_commit" in names
+        # Absorbed Cipher tools
+        for cipher_tool in ("calculate", "unit_convert", "date_math",
+                            "percentage", "financial", "statistics",
+                            "logic_check"):
+            assert cipher_tool in names, f"{cipher_tool} missing from Omen.get_tools()"
 
     def test_git_commit_requires_approval(self, omen: Omen):
         tools = omen.get_tools()
