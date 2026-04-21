@@ -1821,7 +1821,6 @@ Module capabilities (use the MOST specific module — avoid "direct" unless it's
 - cipher: Math, calculations, unit conversions, financial estimates, statistics, logic puzzles, data analysis. ANY math or numbers task.
 - omen: Code writing, debugging, programming, scripts, functions, technical implementation, linting, code review.
 - nova: Creative writing, content creation, paragraphs, articles, blog posts, essays, stories, copywriting, newsletters. NOT code.
-- void: System metrics, monitoring, performance stats, resource usage, health checks, uptime, diagnostics, CPU/memory/GPU/disk usage.
 - morpheus: Discovery, exploration, creative connections, brainstorming, speculation, "what if" scenarios, cross-pollination of ideas. NOT for personality/introspection questions about Shadow's own thoughts, feelings, or uncertainties.
 - direct: Simple conversation, greetings, AND introspection/personality questions (e.g. "tell me something you're not sure about", "what do you believe", "what are your thoughts on X"). Questions asking Shadow about its own inner state, opinions, or identity are CONVERSATION, not research.
 
@@ -1944,14 +1943,6 @@ User input: {user_input}"""
             return TaskClassification(
                 task_type=TaskType.RESEARCH, complexity="moderate",
                 target_module="reaper", brain=BrainType.FAST,
-                safety_flag=False, priority=1, confidence=0.50,
-            )
-
-        # Metrics / monitoring
-        if any(kw in lower for kw in ["metrics", "monitoring", "uptime", "diagnostics", "system health", "cpu usage"]):
-            return TaskClassification(
-                task_type=TaskType.ANALYSIS, complexity="moderate",
-                target_module="void", brain=BrainType.FAST,
                 safety_flag=False, priority=1, confidence=0.50,
             )
 
@@ -2347,7 +2338,7 @@ User input: {user_input}"""
         # can't resolve these — hand them to the LLM router which does.
         _MODULE_NAMES = {
             "apex", "grimoire", "reaper", "sentinel", "morpheus",
-            "cipher", "omen", "nova", "void", "harbinger", "wraith",
+            "cipher", "omen", "nova", "harbinger", "wraith",
             "cerberus", "shadow",
         }
         # Strong keywords that should still fast-path even in short inputs.
@@ -2376,8 +2367,6 @@ User input: {user_input}"""
             # Morpheus (discovery)
             "discover", "explor", "experiment", "brainstorm", "imagin",
             "speculat", "serendip", "unconventional",
-            # Void (monitoring)
-            "metric", "monitor", "uptim", "diagnostic",
             # Harbinger (briefings)
             "briefing", "alert", "notif",
             # Cerberus (ethics)
@@ -2387,8 +2376,6 @@ User input: {user_input}"""
         }
         # Phrases that also indicate clear intent (checked separately)
         _STRONG_PHRASES = [
-            "system health", "health check", "cpu usage", "memory usage",
-            "gpu usage", "disk usage", "system metrics", "resource usage",
             "status report", "safety report", "daily briefing",
             "morning briefing", "security check", "security scan",
             "threat assessment", "vulnerability scan",
@@ -2468,7 +2455,6 @@ User input: {user_input}"""
             "cipher": TaskType.ANALYSIS,
             "omen": TaskType.CREATION,
             "nova": TaskType.CREATION,
-            "void": TaskType.ANALYSIS,
             "harbinger": TaskType.ACTION,
             "wraith": TaskType.ACTION,
             "cerberus": TaskType.QUESTION,
@@ -2496,7 +2482,7 @@ User input: {user_input}"""
             )
 
         # Check bare module names as whole words first (most common case).
-        # Excludes "void", "nova", "shadow" — too common as English words.
+        # Excludes "nova", "shadow" — too common as English words.
         _BARE_MODULE_WORDS = {
             "apex", "grimoire", "reaper", "sentinel", "morpheus",
             "cipher", "omen", "harbinger", "wraith", "cerberus",
@@ -2517,7 +2503,6 @@ User input: {user_input}"""
             ("ask cipher", "cipher"),
             ("ask omen", "omen"),
             ("ask nova", "nova"),
-            ("ask void", "void"),
             ("ask harbinger", "harbinger"),
             ("ask wraith", "wraith"),
             ("ask cerberus", "cerberus"),
@@ -2643,8 +2628,14 @@ User input: {user_input}"""
         # ── Priority 3: Wraith — reminders / scheduling ──
         # Morpheus phrases ("what if") checked early so hypothetical
         # sentences containing scheduling words don't hijack to wraith.
+        # Skip the Morpheus-phrase guard when Morpheus is not routable —
+        # "what if" phrasing in a scheduling task should land on Wraith
+        # rather than being held out for a dormant module.
         _morpheus_phrases_early = ["what if", "cross-pollinate", "creative connection"]
-        _has_morpheus_phrase = any(p in lower for p in _morpheus_phrases_early)
+        _has_morpheus_phrase = (
+            self.registry.is_routable("morpheus")
+            and any(p in lower for p in _morpheus_phrases_early)
+        )
         _wraith_stems = {
             "remind", "timer", "schedul", "alarm",
             "appoint", "deadlin", "calendar", "todo",
@@ -2747,24 +2738,28 @@ User input: {user_input}"""
             )
 
         # ── Priority 7: Morpheus — discovery / exploration ──
-        _morpheus_stems = {
-            "discover", "explor", "experiment", "brainstorm",
-            "imagin", "speculat", "serendip", "unconventional",
-        }
-        morpheus_phrases = [
-            "what if", "cross-pollinate", "creative connection",
-        ]
-        if _stem_matches(_morpheus_stems) or any(p in lower for p in morpheus_phrases):
-            logger.info("Fast-path keyword → morpheus")
-            return TaskClassification(
-                task_type=TaskType.RESEARCH,
-                complexity="moderate",
-                target_module="morpheus",
-                brain=BrainType.SMART,
-                safety_flag=False,
-                priority=1,
-                confidence=0.85,
-            )
+        # Gated by is_routable: when `config.morpheus.enabled` is False
+        # the module isn't instantiated, isn't in the registry, and
+        # must not be surfaced as a routing target.
+        if self.registry.is_routable("morpheus"):
+            _morpheus_stems = {
+                "discover", "explor", "experiment", "brainstorm",
+                "imagin", "speculat", "serendip", "unconventional",
+            }
+            morpheus_phrases = [
+                "what if", "cross-pollinate", "creative connection",
+            ]
+            if _stem_matches(_morpheus_stems) or any(p in lower for p in morpheus_phrases):
+                logger.info("Fast-path keyword → morpheus")
+                return TaskClassification(
+                    task_type=TaskType.RESEARCH,
+                    complexity="moderate",
+                    target_module="morpheus",
+                    brain=BrainType.SMART,
+                    safety_flag=False,
+                    priority=1,
+                    confidence=0.85,
+                )
 
         # ── Priority 8: Reaper — research / web search ──
         _reaper_stems = {"research", "search"}
@@ -2782,25 +2777,6 @@ User input: {user_input}"""
                 task_type=TaskType.RESEARCH,
                 complexity="moderate",
                 target_module="reaper",
-                brain=BrainType.FAST,
-                safety_flag=False,
-                priority=1,
-                confidence=0.85,
-            )
-
-        # ── Priority 9: Void — metrics / monitoring ──
-        _void_stems = {"metric", "monitor", "uptim", "diagnostic"}
-        void_phrases = [
-            "system status", "system health", "health check",
-            "resource usage", "cpu usage", "memory usage",
-            "gpu usage", "disk usage", "system metrics",
-        ]
-        if _stem_matches(_void_stems) or any(p in lower for p in void_phrases):
-            logger.info("Fast-path keyword → void")
-            return TaskClassification(
-                task_type=TaskType.ANALYSIS,
-                complexity="moderate",
-                target_module="void",
                 brain=BrainType.FAST,
                 safety_flag=False,
                 priority=1,
@@ -3956,74 +3932,6 @@ User input: {user_input}"""
                     {
                         "step": 2,
                         "description": "Present generated content",
-                        "tool": None,
-                        "params": {},
-                    },
-                ]
-
-        elif classification.target_module == "void":
-            # Void — 24/7 passive monitoring, system health, metrics.
-            lower_input = user_input.lower()
-            if any(kw in lower_input for kw in [
-                "health", "check", "status",
-            ]):
-                steps = [
-                    {
-                        "step": 1,
-                        "description": "Run system health check via Void",
-                        "tool": "health_check",
-                        "params": {},
-                    },
-                    {
-                        "step": 2,
-                        "description": "Present health status",
-                        "tool": None,
-                        "params": {},
-                    },
-                ]
-            elif any(kw in lower_input for kw in [
-                "report", "summary", "overview",
-            ]):
-                steps = [
-                    {
-                        "step": 1,
-                        "description": "Generate Void system report",
-                        "tool": "void_report",
-                        "params": {},
-                    },
-                    {
-                        "step": 2,
-                        "description": "Present system report",
-                        "tool": None,
-                        "params": {},
-                    },
-                ]
-            elif any(kw in lower_input for kw in ["history", "trend", "metric"]):
-                steps = [
-                    {
-                        "step": 1,
-                        "description": "Retrieve metric history via Void",
-                        "tool": "metric_history",
-                        "params": {"query": user_input},
-                    },
-                    {
-                        "step": 2,
-                        "description": "Present metric trends",
-                        "tool": None,
-                        "params": {},
-                    },
-                ]
-            else:
-                steps = [
-                    {
-                        "step": 1,
-                        "description": "Take system snapshot via Void",
-                        "tool": "system_snapshot",
-                        "params": {},
-                    },
-                    {
-                        "step": 2,
-                        "description": "Present system snapshot",
                         "tool": None,
                         "params": {},
                     },
@@ -5464,7 +5372,6 @@ You have 13 specialized modules:
 - Cipher: Math, calculations, logic, statistics
 - Omen: Code writing, debugging, analysis, review, execution
 - Sentinel: Security scanning, vulnerability checks, system integrity
-- Void: System monitoring, metrics, resource usage
 - Nova: Content creation, documents, writing
 - Harbinger: Briefings, alerts, notifications
 - Morpheus: Creative discovery, experimentation, brainstorming, "what if" exploration
