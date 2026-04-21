@@ -1,0 +1,16 @@
+[Unit]
+Description=Shadow Void - passive system monitor
+After=default.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/patrick/dev/Shadow
+ExecStart=/home/patrick/dev/Shadow/shadow_env/bin/python -m daemons.void
+Restart=on-failure
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+MemoryMax=512M
+
+[Install]
+WantedBy=default.target
