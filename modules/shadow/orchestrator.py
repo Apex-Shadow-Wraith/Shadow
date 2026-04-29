@@ -47,6 +47,25 @@ logger = logging.getLogger("shadow.orchestrator")
 # every fast-path conversational query.
 NON_MODULE_TARGETS = {"direct", "conversation"}
 
+# One-line capability blurbs for the LLM router prompt. Keyed by module
+# name; the prompt is assembled by filtering this dict through
+# ModuleRegistry.is_routable() so dormant modules (e.g. Morpheus when
+# `config.morpheus.enabled` is False) never appear as routing targets.
+# `direct` is not a module but is always offered as a fallback target.
+_MODULE_ROUTER_DESCRIPTIONS: dict[str, str] = {
+    "shadow": "Meta-tasks about Shadow itself, orchestration, system-level commands.",
+    "wraith": "Reminders, timers, calendar, daily tasks, scheduling, appointments, deadlines, to-do lists.",
+    "cerberus": "Ethics, safety, approvals, security scans, vulnerability checks, system integrity, threat assessment, firewall, intrusion detection, audits. Both the conscience and the security surface.",
+    "apex": "Cloud API fallback (Claude/GPT). Only when explicitly requested or after local model failure.",
+    "grimoire": "Memory storage, recall, knowledge retrieval, \"remember this\", \"what do you know about\", Bible verse lookup.",
+    "harbinger": "Briefings, daily reports, alerts, notifications, status summaries, safety reports.",
+    "reaper": "Web search, research, current events, news, looking things up online, YouTube transcription.",
+    "omen": "Code writing, debugging, programming, scripts, functions, technical implementation, linting, code review. Also math, calculations, unit conversions, financial estimates, statistics, logic puzzles, data analysis — ANY math or numbers task (absorbed from Cipher in Phase A).",
+    "nova": "Creative writing, content creation, paragraphs, articles, blog posts, essays, stories, copywriting, newsletters. NOT code.",
+    "morpheus": "Discovery, exploration, creative connections, brainstorming, speculation, \"what if\" scenarios, cross-pollination of ideas. NOT for personality/introspection questions about Shadow's own thoughts, feelings, or uncertainties.",
+}
+_DIRECT_ROUTER_DESCRIPTION: str = "Simple conversation, greetings, AND introspection/personality questions (e.g. \"tell me something you're not sure about\", \"what do you believe\", \"what are your thoughts on X\"). Questions asking Shadow about its own inner state, opinions, or identity are CONVERSATION, not research."
+
 # Graceful import — orchestrator still starts if injection_detector is missing
 try:
     from modules.cerberus.injection_detector import PromptInjectionDetector, InjectionResult
@@ -1802,25 +1821,26 @@ class Orchestrator:
             )
             return fast
 
-        # Build available modules list for the router
-        available_modules = self.registry.online_modules
+        # Build available modules list for the router. Filter through
+        # is_routable() so dormant/disabled modules never appear as
+        # routing targets in the prompt.
+        routable_modules = [
+            name for name in _MODULE_ROUTER_DESCRIPTIONS
+            if self.registry.is_routable(name)
+        ]
+        capability_lines = [
+            f"- {name}: {_MODULE_ROUTER_DESCRIPTIONS[name]}"
+            for name in routable_modules
+        ]
+        capability_lines.append(f"- direct: {_DIRECT_ROUTER_DESCRIPTION}")
+        capabilities_block = "\n".join(capability_lines)
 
         prompt = f"""You are Shadow's router. Classify this user input and decide which module handles it.
 
-Available modules: {', '.join(available_modules)}
+Available modules: {', '.join(routable_modules)}
 
 Module capabilities (use the MOST specific module — avoid "direct" unless it's truly casual conversation):
-- shadow: Meta-tasks about Shadow itself, orchestration, system-level commands.
-- wraith: Reminders, timers, calendar, daily tasks, scheduling, appointments, deadlines, to-do lists.
-- cerberus: Ethics, safety, approvals, security scans, vulnerability checks, system integrity, threat assessment, firewall, intrusion detection, audits. Both the conscience and the security surface.
-- apex: Cloud API fallback (Claude/GPT). Only when explicitly requested or after local model failure.
-- grimoire: Memory storage, recall, knowledge retrieval, "remember this", "what do you know about", Bible verse lookup.
-- harbinger: Briefings, daily reports, alerts, notifications, status summaries, safety reports.
-- reaper: Web search, research, current events, news, looking things up online, YouTube transcription.
-- omen: Code writing, debugging, programming, scripts, functions, technical implementation, linting, code review. Also math, calculations, unit conversions, financial estimates, statistics, logic puzzles, data analysis — ANY math or numbers task (absorbed from Cipher in Phase A).
-- nova: Creative writing, content creation, paragraphs, articles, blog posts, essays, stories, copywriting, newsletters. NOT code.
-- morpheus: Discovery, exploration, creative connections, brainstorming, speculation, "what if" scenarios, cross-pollination of ideas. NOT for personality/introspection questions about Shadow's own thoughts, feelings, or uncertainties.
-- direct: Simple conversation, greetings, AND introspection/personality questions (e.g. "tell me something you're not sure about", "what do you believe", "what are your thoughts on X"). Questions asking Shadow about its own inner state, opinions, or identity are CONVERSATION, not research.
+{capabilities_block}
 
 Classify the input and respond with ONLY valid JSON (no markdown, no explanation):
 {{
