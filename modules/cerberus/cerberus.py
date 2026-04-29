@@ -1606,7 +1606,7 @@ class Cerberus(BaseModule):
     # Internal modules that are NOT external integrations
     _INTERNAL_MODULES: set[str] = {
         "shadow", "wraith", "cerberus", "apex", "grimoire",
-        "harbinger", "reaper", "omen", "nova", "void", "morpheus",
+        "harbinger", "reaper", "omen", "nova", "morpheus",
     }
 
     def classify_new_tool(
