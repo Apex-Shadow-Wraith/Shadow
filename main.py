@@ -49,7 +49,6 @@ def _try_import(module_path: str, class_name: str):
 
 Apex = _try_import("modules.apex.apex", "Apex")
 Cerberus = _try_import("modules.cerberus.cerberus", "Cerberus")
-Cipher = _try_import("modules.cipher.cipher", "Cipher")
 GrimoireModule = _try_import("modules.grimoire.grimoire_module", "GrimoireModule")
 Harbinger = _try_import("modules.harbinger.harbinger", "Harbinger")
 Morpheus = _try_import("modules.morpheus.morpheus", "Morpheus")
@@ -171,7 +170,6 @@ async def startup(config: dict, logger: logging.Logger) -> Orchestrator:
 
     # --- Specialized ---
     apex = Apex(_shadow_config.apex) if Apex else None
-    cipher = Cipher(module_configs.get("cipher", {})) if Cipher else None
     omen = Omen(module_configs.get("omen", {})) if Omen else None
     nova = Nova(module_configs.get("nova", {})) if Nova else None
     # Morpheus is dormant by default (config.morpheus.enabled=False). Only
@@ -205,7 +203,7 @@ async def startup(config: dict, logger: logging.Logger) -> Orchestrator:
     all_modules = [
         m for m in [
             cerberus, wraith, reaper, harbinger,
-            apex, cipher, omen, nova, morpheus,
+            apex, omen, nova, morpheus,
         ] if m is not None
     ]
     for module in all_modules:

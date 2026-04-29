@@ -1817,8 +1817,7 @@ Module capabilities (use the MOST specific module — avoid "direct" unless it's
 - grimoire: Memory storage, recall, knowledge retrieval, "remember this", "what do you know about", Bible verse lookup.
 - harbinger: Briefings, daily reports, alerts, notifications, status summaries, safety reports.
 - reaper: Web search, research, current events, news, looking things up online, YouTube transcription.
-- cipher: Math, calculations, unit conversions, financial estimates, statistics, logic puzzles, data analysis. ANY math or numbers task.
-- omen: Code writing, debugging, programming, scripts, functions, technical implementation, linting, code review.
+- omen: Code writing, debugging, programming, scripts, functions, technical implementation, linting, code review. Also math, calculations, unit conversions, financial estimates, statistics, logic puzzles, data analysis — ANY math or numbers task (absorbed from Cipher in Phase A).
 - nova: Creative writing, content creation, paragraphs, articles, blog posts, essays, stories, copywriting, newsletters. NOT code.
 - morpheus: Discovery, exploration, creative connections, brainstorming, speculation, "what if" scenarios, cross-pollination of ideas. NOT for personality/introspection questions about Shadow's own thoughts, feelings, or uncertainties.
 - direct: Simple conversation, greetings, AND introspection/personality questions (e.g. "tell me something you're not sure about", "what do you believe", "what are your thoughts on X"). Questions asking Shadow about its own inner state, opinions, or identity are CONVERSATION, not research.
@@ -1878,11 +1877,11 @@ User input: {user_input}"""
         """
         lower = user_input.lower()
 
-        # Math patterns (digits + operators)
+        # Math patterns (digits + operators) — Cipher absorbed into Omen (Phase A)
         if re.search(r'\d+\s*[+\-*/×÷^%]\s*\d+', lower) or any(c in lower for c in "×÷±√²³"):
             return TaskClassification(
                 task_type=TaskType.ANALYSIS, complexity="moderate",
-                target_module="cipher", brain=BrainType.FAST,
+                target_module="omen", brain=BrainType.FAST,
                 safety_flag=False, priority=1, confidence=0.50,
             )
 
@@ -1902,11 +1901,11 @@ User input: {user_input}"""
                 safety_flag=False, priority=1, confidence=0.50,
             )
 
-        # Math / financial words
+        # Math / financial words — Cipher absorbed into Omen (Phase A)
         if any(kw in lower for kw in ["calculate", "compute", "solve", "math", "equation", "price", "cost", "total"]):
             return TaskClassification(
                 task_type=TaskType.ANALYSIS, complexity="moderate",
-                target_module="cipher", brain=BrainType.FAST,
+                target_module="omen", brain=BrainType.FAST,
                 safety_flag=False, priority=1, confidence=0.50,
             )
 
@@ -2337,7 +2336,7 @@ User input: {user_input}"""
         # can't resolve these — hand them to the LLM router which does.
         _MODULE_NAMES = {
             "apex", "grimoire", "reaper", "morpheus",
-            "cipher", "omen", "nova", "harbinger", "wraith",
+            "omen", "nova", "harbinger", "wraith",
             "cerberus", "shadow",
         }
         # Strong keywords that should still fast-path even in short inputs.
@@ -2354,11 +2353,10 @@ User input: {user_input}"""
             # Cerberus security surface (absorbed from Sentinel, Phase A)
             "secur", "vulnerab", "threat", "intrus", "firewall",
             "breach", "audit",
-            # Cipher (math / logic)
-            "calculat", "compute", "solv", "math", "equation", "multipl",
-            "divid", "subtract", "factorial", "logarithm", "derivativ",
-            "integral", "price", "cost", "estimat", "total",
-            "percentag", "puzzle", "riddle", "logic",
+            # Cipher's math/logic stems were deleted in Phase A.  They are NOT
+            # migrated to Omen — that would recreate the over-matching bug
+            # ("difference"/"price"/"total" hijacking knowledge questions).
+            # Math-keyword prose now flows through the LLM classifier.
             # Nova (content)
             "draft", "compos", "blog", "articl", "essay", "paragraph",
             "story", "creativ", "content", "post", "copywrit",
@@ -2450,7 +2448,6 @@ User input: {user_input}"""
             "grimoire": TaskType.MEMORY,
             "reaper": TaskType.RESEARCH,
             "morpheus": TaskType.RESEARCH,
-            "cipher": TaskType.ANALYSIS,
             "omen": TaskType.CREATION,
             "nova": TaskType.CREATION,
             "harbinger": TaskType.ACTION,
@@ -2483,7 +2480,7 @@ User input: {user_input}"""
         # Excludes "nova", "shadow" — too common as English words.
         _BARE_MODULE_WORDS = {
             "apex", "grimoire", "reaper", "morpheus",
-            "cipher", "omen", "harbinger", "wraith", "cerberus",
+            "omen", "harbinger", "wraith", "cerberus",
         }
         bare_match = words & _BARE_MODULE_WORDS
         if bare_match:
@@ -2497,7 +2494,6 @@ User input: {user_input}"""
             ("ask grimoire", "grimoire"),
             ("ask reaper", "reaper"),
             ("ask morpheus", "morpheus"),
-            ("ask cipher", "cipher"),
             ("ask omen", "omen"),
             ("ask nova", "nova"),
             ("ask harbinger", "harbinger"),
@@ -2517,8 +2513,10 @@ User input: {user_input}"""
             "lint", "refactor", "syntax", "algorithm", "snippet", "coding",
         }
 
-        # ── Priority 1: Cipher math PATTERNS (digits + operators) ──
-        # Must be checked FIRST so "347 × 892" never falls through to Reaper/Omen
+        # ── Priority 1: math PATTERNS (digits + operators) — routes to Omen ──
+        # Must be checked FIRST so "347 × 892" never falls through to Reaper/Omen-text-paths.
+        # Cipher absorbed into Omen in Phase A; pattern detection unchanged,
+        # only target_module retargeted.
         _MATH_SYMBOLS = {"×", "÷", "±", "√", "²", "³"}
         has_math_symbol = bool(set(lower) & _MATH_SYMBOLS)
         has_numeric_expr = bool(re.search(
@@ -2533,12 +2531,12 @@ User input: {user_input}"""
         ):
             has_numeric_expr = False
         if has_math_symbol or has_numeric_expr:
-            logger.info("Fast-path pattern → cipher (math_symbol=%s, numeric_expr=%s)",
+            logger.info("Fast-path pattern → omen (math_symbol=%s, numeric_expr=%s)",
                         has_math_symbol, has_numeric_expr)
             return TaskClassification(
                 task_type=TaskType.ANALYSIS,
                 complexity="moderate",
-                target_module="cipher",
+                target_module="omen",
                 brain=BrainType.FAST,
                 safety_flag=False,
                 priority=1,
@@ -2673,46 +2671,19 @@ User input: {user_input}"""
                 confidence=0.85,
             )
 
-        # ── Priority 5: Cipher — math / logic / financial WORDS ──
-        _cipher_stems = {
-            "calculat", "solv", "math", "equation",
-            "multipl", "divid", "subtract",
-            "differenc", "quotient",
-            "price", "estimat", "total", "percentag",
-            "factorial", "logarithm", "derivativ", "integral",
-            "puzzle", "riddle", "logic",
-        }
-        # Short/ambiguous words kept as exact matches to avoid false positives
-        _cipher_exact = {"sum", "product", "quote", "compute"}
-        # Stems that are ambiguous — they appear in knowledge questions
-        # ("what is the difference between X and Y") as often as in math
-        # requests.  When _is_informational is True AND only these stems
-        # matched, let the LLM router decide instead of fast-pathing.
-        _cipher_ambiguous_stems = {
-            "differenc", "price", "cost", "compar",
-            "estimat", "total", "percentag",
-            "logic", "puzzle", "riddle",
-        }
-        cipher_stem_hits = _stem_matches(_cipher_stems)
-        cipher_exact_hits = bool(words & _cipher_exact)
-        cipher_hit = bool(cipher_stem_hits) or cipher_exact_hits
-        # Skip when informational and only ambiguous stems matched
-        _skip_cipher = (
-            _is_informational
-            and cipher_stem_hits <= _cipher_ambiguous_stems
-            and not cipher_exact_hits
-        )
-        if cipher_hit and not _skip_cipher:
-            logger.info("Fast-path keyword → cipher (stem matched: %s)", cipher_stem_hits)
-            return TaskClassification(
-                task_type=TaskType.ANALYSIS,
-                complexity="moderate",
-                target_module="cipher",
-                brain=BrainType.FAST,
-                safety_flag=False,
-                priority=1,
-                confidence=0.85,
-            )
+        # ── (Priority 5 deleted in Phase A) ──
+        # The Cipher math/logic/financial WORD-STEM fast-path was removed
+        # when Cipher was absorbed into Omen.  The block matched stems like
+        # "differenc"/"price"/"total"/"logic" which over-matched on
+        # knowledge questions ("what is the difference between X and Y") —
+        # the S41 over-matching bug.  Per Master's standing decision, the
+        # block was deleted, not migrated to Omen, because moving the same
+        # ambiguous stems to a new target_module would recreate the same
+        # bug class.  Math-keyword prose now flows through the LLM router;
+        # Priority 1 still fast-paths unambiguous numeric expressions to
+        # Omen.  Cipher's tools (calculate, unit_convert, date_math,
+        # percentage, financial, statistics, logic_check) remain callable
+        # via Omen.execute() — they are exposed in Omen.get_tools().
 
         # ── Priority 6: Nova — content creation (only if NO code indicators) ──
         _nova_stems = {
@@ -4033,65 +4004,6 @@ User input: {user_input}"""
                     "params": {},
                 }]
 
-        elif classification.target_module == "cipher":
-            # Cipher — math, logic, unit conversion, financial, statistics.
-            lower_input = user_input.lower()
-            if any(kw in lower_input for kw in ["convert", "conversion"]):
-                steps = [{
-                    "step": 1,
-                    "description": "Convert units via Cipher",
-                    "tool": "unit_convert",
-                    "params": {"expression": user_input},
-                }]
-            elif any(kw in lower_input for kw in [
-                "percentage", "percent", "%",
-            ]):
-                steps = [{
-                    "step": 1,
-                    "description": "Calculate percentage via Cipher",
-                    "tool": "percentage",
-                    "params": {"expression": user_input},
-                }]
-            elif any(kw in lower_input for kw in [
-                "finance", "loan", "interest", "mortgage",
-            ]):
-                steps = [{
-                    "step": 1,
-                    "description": "Financial calculation via Cipher",
-                    "tool": "financial",
-                    "params": {"expression": user_input},
-                }]
-            elif any(kw in lower_input for kw in [
-                "statistics", "average", "mean", "median", "std",
-            ]):
-                steps = [{
-                    "step": 1,
-                    "description": "Statistical analysis via Cipher",
-                    "tool": "statistics",
-                    "params": {"expression": user_input},
-                }]
-            elif any(kw in lower_input for kw in ["logic", "true", "false", "valid"]):
-                steps = [{
-                    "step": 1,
-                    "description": "Logic check via Cipher",
-                    "tool": "logic_check",
-                    "params": {"expression": user_input},
-                }]
-            elif any(kw in lower_input for kw in ["date", "days", "weeks"]):
-                steps = [{
-                    "step": 1,
-                    "description": "Date math via Cipher",
-                    "tool": "date_math",
-                    "params": {"expression": user_input},
-                }]
-            else:
-                steps = [{
-                    "step": 1,
-                    "description": "Calculate via Cipher",
-                    "tool": "calculate",
-                    "params": {"expression": user_input},
-                }]
-
         elif classification.target_module == "grimoire":
             # Grimoire — memory storage and retrieval.
             lower_input = user_input.lower()
@@ -4178,6 +4090,71 @@ User input: {user_input}"""
             # ACTION    → code_execute  (run code in sandbox) if input has code
             # QUESTION  → code_generate (explain/discuss code via LLM)
             lower_input = user_input.lower()
+
+            # ── Math/stats/finance/date/logic sub-router (absorbed from
+            # Cipher in Phase A).  Checked FIRST so unambiguous math input
+            # arriving via Priority 1 fast-path or LLM-classified math prose
+            # doesn't fall through to code_analyze.  All targets are
+            # absorbed Cipher tools exposed via Omen.execute().
+            _math_pattern = re.search(
+                r'\d+\s*[+\-*/×÷xX^%]\s*\d+', lower_input
+            ) or any(c in lower_input for c in "×÷±√²³")
+            if any(kw in lower_input for kw in ["convert ", "conversion"]):
+                steps = [{
+                    "step": 1,
+                    "description": "Convert units via Omen (absorbed Cipher)",
+                    "tool": "unit_convert",
+                    "params": {"expression": user_input},
+                }]
+            elif any(kw in lower_input for kw in ["percentage", "percent", "%"]):
+                steps = [{
+                    "step": 1,
+                    "description": "Calculate percentage via Omen (absorbed Cipher)",
+                    "tool": "percentage",
+                    "params": {"expression": user_input},
+                }]
+            elif any(kw in lower_input for kw in [
+                "finance", "loan", "interest", "mortgage",
+            ]):
+                steps = [{
+                    "step": 1,
+                    "description": "Financial calculation via Omen (absorbed Cipher)",
+                    "tool": "financial",
+                    "params": {"expression": user_input},
+                }]
+            elif any(kw in lower_input for kw in [
+                "statistics", "average", "mean", "median", "std",
+            ]):
+                steps = [{
+                    "step": 1,
+                    "description": "Statistical analysis via Omen (absorbed Cipher)",
+                    "tool": "statistics",
+                    "params": {"expression": user_input},
+                }]
+            elif any(kw in lower_input for kw in ["true", "false", "valid"]) and "logic" in lower_input:
+                steps = [{
+                    "step": 1,
+                    "description": "Logic check via Omen (absorbed Cipher)",
+                    "tool": "logic_check",
+                    "params": {"expression": user_input},
+                }]
+            elif any(kw in lower_input for kw in ["date diff", "days between", "weeks between", "business days"]):
+                steps = [{
+                    "step": 1,
+                    "description": "Date math via Omen (absorbed Cipher)",
+                    "tool": "date_math",
+                    "params": {"expression": user_input},
+                }]
+            elif _math_pattern:
+                steps = [{
+                    "step": 1,
+                    "description": "Calculate via Omen (absorbed Cipher)",
+                    "tool": "calculate",
+                    "params": {"expression": user_input},
+                }]
+            else:
+                steps = None  # fall through to code-task planning below
+
             has_runnable_code = any(
                 kw in lower_input
                 for kw in ["run this", "execute this", "run the following"]
@@ -4196,73 +4173,75 @@ User input: {user_input}"""
                 or bool(_lower_words & _self_ref_words)
             )
 
-            if classification.task_type == TaskType.ANALYSIS and is_self_analysis:
-                steps = [
-                    {
-                        "step": 1,
-                        "description": "Analyze Shadow's own codebase via Omen",
-                        "tool": "code_analyze_self",
-                        "params": {},
-                    },
-                    {
-                        "step": 2,
-                        "description": "Generate response from self-analysis results",
-                        "tool": None,
-                        "params": {},
-                    },
-                ]
-            elif classification.task_type == TaskType.ANALYSIS:
-                steps = [
-                    {
-                        "step": 1,
-                        "description": "Analyze code via Omen",
-                        "tool": "code_analyze",
-                        "params": {
-                            "code": user_input,
-                            "language": "python",
+            # Only run code-task planning if the math sub-router didn't claim it.
+            if steps is None:
+                if classification.task_type == TaskType.ANALYSIS and is_self_analysis:
+                    steps = [
+                        {
+                            "step": 1,
+                            "description": "Analyze Shadow's own codebase via Omen",
+                            "tool": "code_analyze_self",
+                            "params": {},
                         },
-                    },
-                    {
-                        "step": 2,
-                        "description": "Generate response from analysis results",
-                        "tool": None,
-                        "params": {},
-                    },
-                ]
-            elif has_runnable_code and classification.task_type == TaskType.ACTION:
-                steps = [
-                    {
-                        "step": 1,
-                        "description": "Execute code via Omen sandbox",
-                        "tool": "code_execute",
-                        "params": {"code": user_input, "timeout": 30},
-                    },
-                    {
-                        "step": 2,
-                        "description": "Generate response from execution results",
-                        "tool": None,
-                        "params": {},
-                    },
-                ]
-            else:
-                steps = [
-                    {
-                        "step": 1,
-                        "description": "Generate code via Omen LLM",
-                        "tool": "code_generate",
-                        "params": {
-                            "prompt": user_input,
-                            "language": "python",
-                            "model": self._smart_brain,
+                        {
+                            "step": 2,
+                            "description": "Generate response from self-analysis results",
+                            "tool": None,
+                            "params": {},
                         },
-                    },
-                    {
-                        "step": 2,
-                        "description": "Generate response from Omen results",
-                        "tool": None,
-                        "params": {},
-                    },
-                ]
+                    ]
+                elif classification.task_type == TaskType.ANALYSIS:
+                    steps = [
+                        {
+                            "step": 1,
+                            "description": "Analyze code via Omen",
+                            "tool": "code_analyze",
+                            "params": {
+                                "code": user_input,
+                                "language": "python",
+                            },
+                        },
+                        {
+                            "step": 2,
+                            "description": "Generate response from analysis results",
+                            "tool": None,
+                            "params": {},
+                        },
+                    ]
+                elif has_runnable_code and classification.task_type == TaskType.ACTION:
+                    steps = [
+                        {
+                            "step": 1,
+                            "description": "Execute code via Omen sandbox",
+                            "tool": "code_execute",
+                            "params": {"code": user_input, "timeout": 30},
+                        },
+                        {
+                            "step": 2,
+                            "description": "Generate response from execution results",
+                            "tool": None,
+                            "params": {},
+                        },
+                    ]
+                else:
+                    steps = [
+                        {
+                            "step": 1,
+                            "description": "Generate code via Omen LLM",
+                            "tool": "code_generate",
+                            "params": {
+                                "prompt": user_input,
+                                "language": "python",
+                                "model": self._smart_brain,
+                            },
+                        },
+                        {
+                            "step": 2,
+                            "description": "Generate response from Omen results",
+                            "tool": None,
+                            "params": {},
+                        },
+                    ]
 
         else:
             # Default: single-step plan
@@ -5367,15 +5346,14 @@ Current time: {current_time}
 
 YOU ARE SHADOW — MODULE AWARENESS:
 You run locally on an RTX 5090 using Gemma 4 26B as your primary brain. You are private, autonomous, and built on biblical values.
-You have 11 specialized modules:
+You have 10 specialized modules:
 - Shadow: Master orchestrator, routes tasks to the right module
 - Wraith: Fast brain for daily tasks, reminders, scheduling
 - Cerberus: Ethics, safety, approval gates, plus security scanning, vulnerability checks, system integrity, threat assessment, firewall and audit
 - Grimoire: Memory and knowledge storage, recall
 - Reaper: Web search and research
 - Apex: Cloud API fallback to Claude and OpenAI for tasks beyond local capability
-- Cipher: Math, calculations, logic, statistics
-- Omen: Code writing, debugging, analysis, review, execution
+- Omen: Code writing, debugging, analysis, review, execution, plus math, calculations, unit conversions, financial estimates, statistics, logic puzzles, date math (absorbed Cipher in Phase A)
 - Nova: Content creation, documents, writing
 - Harbinger: Briefings, alerts, notifications
 - Morpheus: Creative discovery, experimentation, brainstorming, "what if" exploration
