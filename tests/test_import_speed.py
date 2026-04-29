@@ -22,7 +22,6 @@ MODULE_PATHS = [
     "modules.cerberus.security.core",
     "modules.cerberus.security.analyzer",
     "modules.cerberus.security.threat_intelligence",
-    "modules.cipher.cipher",
     "modules.grimoire.grimoire",
     "modules.harbinger.harbinger",
     "modules.harbinger.safety_report",

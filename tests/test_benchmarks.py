@@ -99,21 +99,22 @@ class TestCerberusBenchmark:
 
 
 # ---------------------------------------------------------------------------
-# Cipher benchmark
+# Absorbed Cipher (Omen) benchmark
 # ---------------------------------------------------------------------------
 
-class TestCipherBenchmark:
-    """Benchmark Cipher calculate tool."""
+class TestOmenAbsorbedCipherBenchmark:
+    """Benchmark the absorbed Cipher calculate tool through Omen
+    (Phase A merge: Cipher tools live on Omen.execute() now)."""
 
     @pytest.fixture
-    def cipher(self):
-        from modules.cipher.cipher import Cipher
-        return Cipher()
+    def omen(self, tmp_path):
+        from modules.omen.omen import Omen
+        return Omen({"project_root": str(tmp_path)})
 
     @pytest.mark.asyncio
-    async def test_calculate_speed(self, cipher):
-        await cipher.initialize()
-        avg_ms, _ = await _bench_tool(cipher, "calculate", {
+    async def test_calculate_speed(self, omen):
+        await omen.initialize()
+        avg_ms, _ = await _bench_tool(omen, "calculate", {
             "expression": "2 + 2 * 10",
         })
         assert avg_ms < 100, f"calculate averaged {avg_ms:.1f}ms (threshold: 100ms)"

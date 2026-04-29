@@ -81,11 +81,14 @@ class TestContextualRouting:
         assert result is not None
         assert result.target_module == "sentinel"
 
-    def test_continue_after_cipher_routes_to_cipher(self, orch: Orchestrator):
-        orch._last_route = _make_classification("cipher", TaskType.ANALYSIS)
+    def test_continue_after_omen_math_routes_to_omen(self, orch: Orchestrator):
+        """Post Cipher→Omen merge: math context lives on omen.  A
+        contextual continuation after a math-classified turn stays on
+        omen instead of resurrecting cipher."""
+        orch._last_route = _make_classification("omen", TaskType.ANALYSIS)
         result = orch._fast_path_classify("continue with that calculation")
         assert result is not None
-        assert result.target_module == "cipher"
+        assert result.target_module == "omen"
 
     def test_proceed_after_nova_routes_to_nova(self, orch: Orchestrator):
         orch._last_route = _make_classification("nova", TaskType.CREATION)
@@ -132,11 +135,15 @@ class TestNonContextualStillKeywordMatches:
         assert result.target_module == "omen"
 
     def test_math_keyword_ignores_last_route(self, orch: Orchestrator):
-        """'calculate 5 + 3' should route to cipher even if last route was reaper."""
+        """Pre-merge: 'calculate 15% of 2400' fast-pathed to cipher via
+        Priority 5 stem block.  Post-merge: stem block deleted, no
+        operator-between-digits in '15%', so no fast-path.  Last-route
+        contextual fallback also doesn't fire because the input has
+        explicit content (the calculation itself).  This now returns
+        None or a non-cipher/non-reaper target."""
         orch._last_route = _make_classification("reaper", TaskType.RESEARCH)
         result = orch._fast_path_classify("calculate 15% of 2400")
-        assert result is not None
-        assert result.target_module == "cipher"
+        assert result is None or result.target_module not in ("cipher", "reaper")
 
     def test_greeting_ignores_last_route(self, orch: Orchestrator):
         """'hello' is a greeting, not a contextual reference, even if last route was omen."""

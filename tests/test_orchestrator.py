@@ -244,16 +244,23 @@ class TestFastPathClassifier:
         assert result is not None
         assert result.target_module == "omen"
 
-    def test_cipher_calculate_keyword(self, config: dict):
+    def test_calculate_keyword_no_fastpath_post_merge(self, config: dict):
+        """Post Cipher→Omen merge: math-keyword stems (calculate, math,
+        solve, price, total, etc.) NO LONGER fast-path.  The Priority 5
+        Cipher stem block was deleted to fix the S41 over-matching bug;
+        moving the same stems to Omen would recreate the bug class.
+        These now flow through the LLM router."""
         orch = Orchestrator(config)
         result = orch._fast_path_classify("calculate the cost of 3 yards of mulch at $45 each")
-        assert result is not None
-        assert result.target_module == "cipher"
-        assert result.task_type == TaskType.ANALYSIS
+        assert result is None or result.target_module != "cipher"
+        # Specifically: not fast-pathed to omen on stem alone.
+        # (Numeric expressions still fast-path to omen via Priority 1.)
 
-    def test_cipher_price_keyword(self, config: dict):
+    def test_total_price_no_fastpath_to_cipher(self, config: dict):
         orch = Orchestrator(config)
-        # "what is" + ambiguous stems ('price', 'total') → informational, skip fast-path
+        # Knowledge question with ambiguous stems ("price", "total") —
+        # post-merge there's no Cipher target at all and the stem block
+        # is gone, so this never fast-paths to cipher (or anything).
         result = orch._fast_path_classify("what is the total price for the job")
         assert result is None or result.target_module != "cipher"
 
@@ -296,13 +303,16 @@ class TestFastPathClassifier:
         assert result is not None
         assert result.target_module == "grimoire"
 
-    def test_logic_puzzle_fast_paths_to_cipher(self, config: dict):
+    def test_logic_puzzle_no_fastpath_post_merge(self, config: dict):
+        """Post Cipher→Omen merge: 'logic'/'puzzle'/'solve' stems were
+        deleted with the Priority 5 block.  Logic puzzle prose now flows
+        through the LLM router instead of fast-pathing."""
         orch = Orchestrator(config)
         result = orch._fast_path_classify(
             "solve this logic puzzle about 8 balls and a balance scale"
         )
-        assert result is not None
-        assert result.target_module == "cipher"
+        # No fast-path target — must not claim cipher (gone) or hijack to omen.
+        assert result is None or result.target_module not in ("cipher", "omen")
 
     def test_cerberus_ethical_keyword(self, config: dict):
         orch = Orchestrator(config)
@@ -432,47 +442,50 @@ class TestFastPathClassifier:
         assert result is not None
         assert result.target_module == "morpheus"
 
-    # --- BUG 10: Math with × → Cipher (not Reaper) ---
+    # --- BUG 10 (post-merge): Math patterns → Omen (Cipher absorbed Phase A) ---
 
-    def test_cipher_multiply_symbol(self, config: dict):
+    def test_math_multiply_symbol_routes_to_omen(self, config: dict):
         orch = Orchestrator(config)
         result = orch._fast_path_classify("What is 347 × 892?")
         assert result is not None
-        assert result.target_module == "cipher"
+        assert result.target_module == "omen"
         assert result.task_type == TaskType.ANALYSIS
 
-    def test_cipher_asterisk_multiply(self, config: dict):
+    def test_math_asterisk_multiply_routes_to_omen(self, config: dict):
         orch = Orchestrator(config)
         result = orch._fast_path_classify("347 * 892")
         assert result is not None
-        assert result.target_module == "cipher"
+        assert result.target_module == "omen"
 
-    def test_cipher_addition(self, config: dict):
+    def test_math_addition_routes_to_omen(self, config: dict):
         orch = Orchestrator(config)
         result = orch._fast_path_classify("5 + 3")
         assert result is not None
-        assert result.target_module == "cipher"
+        assert result.target_module == "omen"
 
-    def test_cipher_division_symbol(self, config: dict):
+    def test_math_division_symbol_routes_to_omen(self, config: dict):
         orch = Orchestrator(config)
         result = orch._fast_path_classify("100 ÷ 4")
         assert result is not None
-        assert result.target_module == "cipher"
+        assert result.target_module == "omen"
 
-    def test_cipher_math_before_omen(self, config: dict):
-        """Math patterns must be checked before code keywords."""
+    def test_math_pattern_priority_before_omen_code(self, config: dict):
+        """Numeric math patterns are Priority 1 — checked before Omen code stems."""
         orch = Orchestrator(config)
         result = orch._fast_path_classify("10 + 20")
         assert result is not None
-        assert result.target_module == "cipher"
+        assert result.target_module == "omen"
 
     # --- Priority conflict tests ---
 
-    def test_cipher_beats_reaper_calculate(self, config: dict):
+    def test_calculate_15pct_no_longer_fast_paths(self, config: dict):
+        """'calculate 15% of 2400' has no operator-between-digits, so the
+        Priority 1 math regex doesn't match.  Post-merge the Priority 5
+        stem block is gone, so this no longer fast-paths to cipher.
+        Returns None (LLM router decides)."""
         orch = Orchestrator(config)
         result = orch._fast_path_classify("calculate 15% of 2400")
-        assert result is not None
-        assert result.target_module == "cipher"
+        assert result is None or result.target_module != "cipher"
 
     # --- Harbinger tests ---
 
@@ -1091,7 +1104,7 @@ class TestPriorLearningCheck:
         classification = TaskClassification(
             task_type=TaskType.ANALYSIS,
             complexity="complex",
-            target_module="cipher",
+            target_module="omen",
             brain=BrainType.SMART,
             safety_flag=False,
             priority=1,
@@ -1126,7 +1139,7 @@ class TestPriorLearningCheck:
         classification = TaskClassification(
             task_type=TaskType.ANALYSIS,
             complexity="complex",
-            target_module="cipher",
+            target_module="omen",
             brain=BrainType.SMART,
             safety_flag=False,
             priority=1,
@@ -1473,13 +1486,15 @@ class TestPersonalitySystemPrompt:
         assert "biblical values" in prompt, "Missing biblical values reference"
 
     def test_system_prompt_contains_all_modules(self, tmp_path: Path):
-        """System prompt must list all 13 module names."""
+        """System prompt lists the post-Phase-A active module names.
+        Phase A absorbed Sentinel into Cerberus, Cipher into Omen, and
+        demoted Void to a daemon — those names are intentionally absent."""
         cfg = self._make_config(tmp_path)
         orch = Orchestrator(cfg)
         prompt = orch._build_system_prompt([])
         modules = [
             "Shadow", "Wraith", "Cerberus", "Grimoire", "Reaper",
-            "Apex", "Cipher", "Omen", "Sentinel",
+            "Apex", "Omen",
             "Nova", "Harbinger", "Morpheus",
         ]
         for module in modules:
@@ -1567,11 +1582,11 @@ class TestRouterConfidence:
         assert result.confidence == 0.85
 
     def test_fast_path_math_pattern_confidence_085(self, config: dict):
-        """Math regex pattern should have 0.85 confidence."""
+        """Math regex pattern should have 0.85 confidence (target=omen post Phase A)."""
         orch = Orchestrator(config)
         result = orch._fast_path_classify("what is 347 + 892")
         assert result is not None
-        assert result.target_module == "cipher"
+        assert result.target_module == "omen"
         assert result.confidence == 0.85
 
     def test_fast_path_wraith_keyword_confidence_085(self, config: dict):
@@ -2293,11 +2308,12 @@ class TestShortAmbiguousBypass:
         assert result.target_module == "omen"
 
     def test_short_math_expression_fast_paths(self, config: dict):
-        """'2 + 2' → still uses fast-path (math expression detected)."""
+        """'2 + 2' → still uses fast-path (math expression detected).
+        Target is omen post Cipher→Omen merge."""
         orch = Orchestrator(config)
         result = orch._fast_path_classify("2 + 2")
         assert result is not None
-        assert result.target_module == "cipher"
+        assert result.target_module == "omen"
 
     def test_say_that_again_bypasses(self, config: dict):
         """'say that again' → None (follow-up, LLM decides)."""
@@ -2452,18 +2468,17 @@ class TestStep4PlanModuleDispatch:
             "threat_malware_study", "threat_detection_rule",
             "threat_shadow_assessment", "threat_knowledge_store",
         },
-        "cipher": {
-            "calculate", "unit_convert", "date_math", "percentage",
-            "financial", "statistics", "logic_check",
-        },
         "grimoire": {
             "memory_store", "memory_search", "memory_recall",
             "memory_forget", "memory_compact", "memory_block_search",
             "store_failure_pattern", "get_common_failures",
             "get_failure_trend",
         },
+        # Omen absorbed Cipher's 7 math/stats/finance/date/logic tools in Phase A.
         "omen": {
             "code_generate", "code_execute",
+            "calculate", "unit_convert", "date_math", "percentage",
+            "financial", "statistics", "logic_check",
         },
         "reaper": {
             "web_search", "web_fetch", "youtube_transcribe",
@@ -2593,13 +2608,16 @@ class TestStep4PlanModuleDispatch:
             )
 
     @pytest.mark.asyncio
-    async def test_cipher_plan_uses_cipher_tool(self, config: dict):
-        """Cipher-routed task must plan a cipher tool."""
+    async def test_omen_math_plan_uses_absorbed_cipher_tool(self, config: dict):
+        """Omen-routed math task plans an absorbed Cipher tool (Phase A).
+        Math/percentage/finance/etc. inputs hit Omen's math sub-router
+        before code-task planning, dispatching to calculate /
+        unit_convert / percentage / etc."""
         orch = Orchestrator(config)
         classification = TaskClassification(
             task_type=TaskType.QUESTION,
             complexity="simple",
-            target_module="cipher",
+            target_module="omen",
             brain=BrainType.FAST,
             safety_flag=False,
             priority=1,
@@ -2609,9 +2627,18 @@ class TestStep4PlanModuleDispatch:
         )
         tool_names = [s.get("tool") for s in plan.steps if s.get("tool")]
         assert len(tool_names) >= 1
+        absorbed_cipher_tools = {
+            "calculate", "unit_convert", "date_math", "percentage",
+            "financial", "statistics", "logic_check",
+        }
+        # The percentage keyword should pick the percentage tool specifically
+        assert "percentage" in tool_names, (
+            f"Omen math sub-router for '15% of' should pick 'percentage', got {tool_names}"
+        )
         for tool in tool_names:
-            assert tool in self.MODULE_TOOLS["cipher"], (
-                f"Cipher plan used '{tool}' — expected a cipher tool"
+            assert tool in self.MODULE_TOOLS["omen"], (
+                f"Omen math plan used '{tool}' — expected one of the absorbed "
+                f"Cipher tools ({absorbed_cipher_tools}) or a code tool"
             )
 
     @pytest.mark.asyncio
@@ -2642,15 +2669,16 @@ class TestStep4PlanModuleDispatch:
         """Every module must produce a plan with its own tools, not a default."""
         orch = Orchestrator(config)
 
-        # Test inputs that should trigger each module's branch
+        # Test inputs that should trigger each module's branch.
+        # Cipher absorbed into Omen in Phase A; Sentinel absorbed into
+        # Cerberus.  No "cipher" / "sentinel" entries here.  Math input
+        # routed to omen exercises the absorbed-Cipher sub-router.
         module_inputs = {
             "apex": ("What is quantum physics?", TaskType.QUESTION),
             "morpheus": ("Come up with a creative idea", TaskType.RESEARCH),
             "harbinger": ("Give me a briefing", TaskType.ACTION),
             "nova": ("Create a document for me", TaskType.CREATION),
             "wraith": ("Set a reminder for tomorrow", TaskType.ACTION),
-            "sentinel": ("Scan for threats", TaskType.ACTION),
-            "cipher": ("Calculate 100 divided by 7", TaskType.QUESTION),
             "grimoire": ("Remember this fact", TaskType.MEMORY),
             "omen": ("Write a Python function to sort a list", TaskType.CREATION),
             "reaper": ("Search for latest AI news", TaskType.RESEARCH),
