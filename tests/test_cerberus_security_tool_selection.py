@@ -1,9 +1,14 @@
 """
-Tests for Sentinel tool selection in Step 4 (Plan).
-
-Validates that security opinion/advice questions (no actionable input like
-email/IP) skip tool dispatch and go to LLM response, while inputs with
-emails or breach-related keywords correctly dispatch to breach_check.
+Tests for security-tool selection in Step 4 (Plan) — post-merge.
+==================================================================
+Mirrors the pre-merge tests/test_sentinel_tool_selection.py but
+target_module is now "cerberus" (the absorbing module) and the
+build-steps branch fires when classification.target_module ==
+"cerberus" AND user input contains a security keyword. Behavior is
+preserved: opinion/advice questions skip tool dispatch and go to
+LLM response; inputs with email/breach keywords dispatch
+breach_check; scan/integrity/threat keywords dispatch their
+matching tools.
 """
 
 import pytest
@@ -38,19 +43,19 @@ def config(tmp_path: Path) -> dict:
     return cfg
 
 
-def _sentinel_classification(task_type: TaskType = TaskType.QUESTION) -> TaskClassification:
-    """Helper: build a Sentinel-targeted classification."""
+def _security_classification(task_type: TaskType = TaskType.QUESTION) -> TaskClassification:
+    """Helper: classification targeting the Cerberus security surface."""
     return TaskClassification(
         task_type=task_type,
         complexity="simple",
-        target_module="sentinel",
+        target_module="cerberus",
         brain=BrainType.FAST,
         safety_flag=False,
         priority=1,
     )
 
 
-class TestSentinelOpinionQuestions:
+class TestSecurityOpinionQuestions:
     """Security opinion/advice questions must NOT dispatch breach_check."""
 
     @pytest.mark.asyncio
@@ -59,7 +64,7 @@ class TestSentinelOpinionQuestions:
         orch = Orchestrator(config)
         plan = await orch._step4_plan(
             "I think we should store all passwords in plain text for easy access. What do you think?",
-            _sentinel_classification(),
+            _security_classification(),
             [],
         )
         tools = [s.get("tool") for s in plan.steps if s.get("tool")]
@@ -73,7 +78,7 @@ class TestSentinelOpinionQuestions:
         orch = Orchestrator(config)
         plan = await orch._step4_plan(
             "What are the best practices for securing a REST API?",
-            _sentinel_classification(),
+            _security_classification(),
             [],
         )
         tools = [s.get("tool") for s in plan.steps if s.get("tool")]
@@ -87,7 +92,7 @@ class TestSentinelOpinionQuestions:
         orch = Orchestrator(config)
         plan = await orch._step4_plan(
             "Should I use AES-256 or ChaCha20 for encrypting files at rest?",
-            _sentinel_classification(),
+            _security_classification(),
             [],
         )
         tools = [s.get("tool") for s in plan.steps if s.get("tool")]
@@ -101,7 +106,7 @@ class TestSentinelOpinionQuestions:
         orch = Orchestrator(config)
         plan = await orch._step4_plan(
             "Is it safe to leave port 22 open on a public server?",
-            _sentinel_classification(),
+            _security_classification(),
             [],
         )
         tools = [s.get("tool") for s in plan.steps if s.get("tool")]
@@ -115,7 +120,7 @@ class TestSentinelOpinionQuestions:
         orch = Orchestrator(config)
         plan = await orch._step4_plan(
             "How do I protect my home network from hackers?",
-            _sentinel_classification(),
+            _security_classification(),
             [],
         )
         tool_names = [s.get("tool") for s in plan.steps if s.get("tool")]
@@ -124,7 +129,7 @@ class TestSentinelOpinionQuestions:
         )
 
 
-class TestSentinelBreachCheckDispatch:
+class TestBreachCheckDispatch:
     """breach_check SHOULD fire when the input contains an email or breach keywords."""
 
     @pytest.mark.asyncio
@@ -133,7 +138,7 @@ class TestSentinelBreachCheckDispatch:
         orch = Orchestrator(config)
         plan = await orch._step4_plan(
             "Has john.doe@example.com been in any data breaches?",
-            _sentinel_classification(),
+            _security_classification(),
             [],
         )
         tool_names = [s.get("tool") for s in plan.steps if s.get("tool")]
@@ -147,7 +152,7 @@ class TestSentinelBreachCheckDispatch:
         orch = Orchestrator(config)
         plan = await orch._step4_plan(
             "Check if my account was in a breach",
-            _sentinel_classification(),
+            _security_classification(),
             [],
         )
         tool_names = [s.get("tool") for s in plan.steps if s.get("tool")]
@@ -161,7 +166,7 @@ class TestSentinelBreachCheckDispatch:
         orch = Orchestrator(config)
         plan = await orch._step4_plan(
             "Have I been pwned?",
-            _sentinel_classification(),
+            _security_classification(),
             [],
         )
         tool_names = [s.get("tool") for s in plan.steps if s.get("tool")]
@@ -175,7 +180,7 @@ class TestSentinelBreachCheckDispatch:
         orch = Orchestrator(config)
         plan = await orch._step4_plan(
             "Was my email compromised in the latest leak?",
-            _sentinel_classification(),
+            _security_classification(),
             [],
         )
         tool_names = [s.get("tool") for s in plan.steps if s.get("tool")]
@@ -184,7 +189,7 @@ class TestSentinelBreachCheckDispatch:
         )
 
 
-class TestSentinelExistingToolKeywords:
+class TestExistingToolKeywords:
     """Existing keyword-based tool selection must still work."""
 
     @pytest.mark.asyncio
@@ -192,7 +197,7 @@ class TestSentinelExistingToolKeywords:
         orch = Orchestrator(config)
         plan = await orch._step4_plan(
             "Scan the network for open ports",
-            _sentinel_classification(TaskType.ACTION),
+            _security_classification(TaskType.ACTION),
             [],
         )
         tool_names = [s.get("tool") for s in plan.steps if s.get("tool")]
@@ -203,7 +208,7 @@ class TestSentinelExistingToolKeywords:
         orch = Orchestrator(config)
         plan = await orch._step4_plan(
             "Check file integrity of the config directory",
-            _sentinel_classification(TaskType.ACTION),
+            _security_classification(TaskType.ACTION),
             [],
         )
         tool_names = [s.get("tool") for s in plan.steps if s.get("tool")]
@@ -214,7 +219,7 @@ class TestSentinelExistingToolKeywords:
         orch = Orchestrator(config)
         plan = await orch._step4_plan(
             "Assess the threat level of this suspicious process",
-            _sentinel_classification(TaskType.ACTION),
+            _security_classification(TaskType.ACTION),
             [],
         )
         tool_names = [s.get("tool") for s in plan.steps if s.get("tool")]

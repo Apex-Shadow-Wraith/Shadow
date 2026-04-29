@@ -128,9 +128,12 @@ class TestClassifyNewTool:
     @pytest.mark.asyncio
     async def test_credential_access_approval_required(self, cerberus: Cerberus):
         """Tool that accesses credentials classifies as approval_required."""
+        # Post-Phase-A: security tools now register under module="cerberus"
+        # (Sentinel was absorbed into Cerberus). The classification result
+        # is unchanged — credential keywords still force approval_required.
         result = cerberus.classify_new_tool(
             "key_rotate",
-            {"description": "Rotate API key and update credential store", "module": "sentinel"},
+            {"description": "Rotate API key and update credential store", "module": "cerberus"},
         )
         assert result == "approval_required"
 
@@ -164,9 +167,12 @@ class TestClassifyNewTool:
     @pytest.mark.asyncio
     async def test_security_read_tool_autonomous(self, cerberus: Cerberus):
         """Security tool that only reads/analyzes stays autonomous."""
+        # Post-Phase-A: security tools register under module="cerberus"
+        # (Sentinel was absorbed). Cerberus is internal so Rule 1 passes;
+        # the security-read keywords still classify as autonomous.
         result = cerberus.classify_new_tool(
             "security_audit_check",
-            {"description": "Check and analyze security configuration status", "module": "sentinel"},
+            {"description": "Check and analyze security configuration status", "module": "cerberus"},
         )
         assert result == "autonomous"
 

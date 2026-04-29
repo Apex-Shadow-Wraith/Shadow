@@ -1,11 +1,11 @@
-"""Tests for Sentinel Security Analyzer."""
+"""Tests for Cerberus Security Analyzer (absorbed from Sentinel, Phase A)."""
 
 from __future__ import annotations
 
 import pytest
 from unittest.mock import MagicMock
 
-from modules.sentinel.security_analyzer import SecurityAnalyzer
+from modules.cerberus.security.analyzer import SecurityAnalyzer
 
 
 # ---------------------------------------------------------------------------
@@ -548,7 +548,7 @@ class TestStoreSecurityKnowledge:
         assert count == 1
         analyzer_with_grimoire._grimoire.remember.assert_called_once()
         call_kwargs = analyzer_with_grimoire._grimoire.remember.call_args
-        assert call_kwargs[1]["source_module"] == "sentinel"
+        assert call_kwargs[1]["source_module"] == "cerberus.security"
         assert call_kwargs[1]["category"] == "security_knowledge"
         assert "firewall" in call_kwargs[1]["tags"]
 
