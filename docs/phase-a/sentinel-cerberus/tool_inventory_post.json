@@ -1,0 +1,332 @@
+[
+  {
+    "description": "Evaluate an action plan against safety rules",
+    "name": "safety_check",
+    "parameters": {
+      "action_params": "dict \u2014 parameters for the tool",
+      "action_tool": "str \u2014 tool being called",
+      "requesting_module": "str \u2014 which module is calling"
+    },
+    "permission_level": "autonomous"
+  },
+  {
+    "description": "Pre-execution safety hook for tool calls",
+    "name": "hook_pre_tool",
+    "parameters": {
+      "tool_name": "str \u2014 tool about to execute",
+      "tool_params": "dict \u2014 parameters being passed"
+    },
+    "permission_level": "autonomous"
+  },
+  {
+    "description": "Post-execution safety hook for tool results",
+    "name": "hook_post_tool",
+    "parameters": {
+      "execution_time_ms": "float \u2014 how long it took",
+      "tool_name": "str \u2014 tool that just executed",
+      "tool_result": "dict \u2014 result from the tool"
+    },
+    "permission_level": "autonomous"
+  },
+  {
+    "description": "Scan a model response for confabulation phrases (e.g. claiming background work). Logs warnings but does not block.",
+    "name": "validate_response",
+    "parameters": {
+      "has_async_task": "bool \u2014 True if an async task was actually submitted (suppresses false positives for legitimate background phrases)",
+      "response_text": "str \u2014 the full model response text"
+    },
+    "permission_level": "autonomous"
+  },
+  {
+    "description": "Write to immutable audit trail",
+    "name": "audit_log",
+    "parameters": {
+      "entry": "dict \u2014 audit entry data"
+    },
+    "permission_level": "autonomous"
+  },
+  {
+    "description": "Verify Cerberus config has not been tampered with",
+    "name": "config_integrity_check",
+    "parameters": {},
+    "permission_level": "autonomous"
+  },
+  {
+    "description": "Look up biblical ethical guidance for a concept",
+    "name": "ethical_guidance",
+    "parameters": {
+      "concept": "str \u2014 the ethical concept to look up"
+    },
+    "permission_level": "autonomous"
+  },
+  {
+    "description": "Record a false positive safety check for rule tuning",
+    "name": "false_positive_log",
+    "parameters": {
+      "category": "str \u2014 category of the false positive",
+      "check_id": "str \u2014 ID of the check that was a false positive",
+      "notes": "str \u2014 explanation of why this was a false positive"
+    },
+    "permission_level": "autonomous"
+  },
+  {
+    "description": "Get false positive calibration stats per category",
+    "name": "calibration_stats",
+    "parameters": {
+      "days": "int \u2014 number of days to look back (default: 30)"
+    },
+    "permission_level": "autonomous"
+  },
+  {
+    "description": "Evaluate an action against biblical ethics using ESV Scripture passages and study notes. Returns ethical category, relevant passages, assessment, and recommendation.",
+    "name": "ethics_lookup",
+    "parameters": {
+      "action": "str \u2014 the action or tool being evaluated",
+      "plan": "str \u2014 description of what the action does"
+    },
+    "permission_level": "autonomous"
+  },
+  {
+    "description": "List available rollback snapshots",
+    "name": "rollback_snapshot",
+    "parameters": {
+      "action_type": "str \u2014 filter by type (file/config/database/external)",
+      "limit": "int \u2014 max results (default 20)"
+    },
+    "permission_level": "autonomous"
+  },
+  {
+    "description": "Roll back to a previous snapshot",
+    "name": "rollback_execute",
+    "parameters": {
+      "snapshot_id": "str \u2014 snapshot ID to restore"
+    },
+    "permission_level": "approval_required"
+  },
+  {
+    "description": "One-time override for a blocked action. Does not change rules. Only callable by external input sources (user, Telegram).",
+    "name": "creator_exception",
+    "parameters": {
+      "action_category": "str \u2014 category of the blocked action",
+      "action_details": "dict \u2014 optional details about the action",
+      "auth_token": "str \u2014 creator authentication token",
+      "blocked_action_id": "str \u2014 ID from the blocked safety_check result",
+      "source": "str \u2014 input source (user_input, telegram)"
+    },
+    "permission_level": "approval_required"
+  },
+  {
+    "description": "Permanently reclassify a blocked category. Cerberus learns from this. Only callable by external input sources (user, Telegram).",
+    "name": "creator_authorize",
+    "parameters": {
+      "action_category": "str \u2014 category of the blocked action",
+      "action_details": "dict \u2014 optional details about the action",
+      "auth_token": "str \u2014 creator authentication token",
+      "blocked_action_id": "str \u2014 ID from the blocked safety_check result",
+      "reasoning": "str \u2014 creator's reasoning (required, stored permanently)",
+      "source": "str \u2014 input source (user_input, telegram)"
+    },
+    "permission_level": "approval_required"
+  },
+  {
+    "description": "Get report on categories with frequent creator exceptions. Feeds into Harbinger daily safety report.",
+    "name": "false_positive_report",
+    "parameters": {},
+    "permission_level": "autonomous"
+  },
+  {
+    "description": "Check current network connections and open ports",
+    "name": "network_scan",
+    "parameters": {},
+    "permission_level": "autonomous"
+  },
+  {
+    "description": "Hash comparison on critical files against baseline",
+    "name": "file_integrity_check",
+    "parameters": {
+      "file_paths": "list"
+    },
+    "permission_level": "autonomous"
+  },
+  {
+    "description": "Check email against known breaches (stub)",
+    "name": "breach_check",
+    "parameters": {
+      "email": "str"
+    },
+    "permission_level": "autonomous"
+  },
+  {
+    "description": "Check host firewall status and active rules",
+    "name": "firewall_status",
+    "parameters": {},
+    "permission_level": "autonomous"
+  },
+  {
+    "description": "Run active threat detection scan on the system",
+    "name": "threat_scan",
+    "parameters": {
+      "scan_type": "str"
+    },
+    "permission_level": "autonomous"
+  },
+  {
+    "description": "Monitor network traffic for anomalies in real time",
+    "name": "network_monitor",
+    "parameters": {
+      "duration_seconds": "int"
+    },
+    "permission_level": "autonomous"
+  },
+  {
+    "description": "Scan system for known vulnerabilities",
+    "name": "vulnerability_scan",
+    "parameters": {
+      "target": "str"
+    },
+    "permission_level": "autonomous"
+  },
+  {
+    "description": "Analyze system and security logs for suspicious patterns",
+    "name": "log_analysis",
+    "parameters": {
+      "log_source": "str"
+    },
+    "permission_level": "autonomous"
+  },
+  {
+    "description": "Generate a security alert for Harbinger",
+    "name": "security_alert",
+    "parameters": {
+      "message": "str",
+      "severity": "str",
+      "source": "str"
+    },
+    "permission_level": "autonomous"
+  },
+  {
+    "description": "Assess threat level of an event",
+    "name": "threat_assess",
+    "parameters": {
+      "event": "str",
+      "indicators": "list"
+    },
+    "permission_level": "autonomous"
+  },
+  {
+    "description": "Move suspicious file to quarantine directory",
+    "name": "quarantine_file",
+    "parameters": {
+      "file_path": "str",
+      "reason": "str"
+    },
+    "permission_level": "autonomous"
+  },
+  {
+    "description": "Parse and analyze a firewall configuration file",
+    "name": "firewall_analyze",
+    "parameters": {
+      "config_text": "str",
+      "firewall_type": "str"
+    },
+    "permission_level": "autonomous"
+  },
+  {
+    "description": "Score a firewall config on security best practices",
+    "name": "firewall_evaluate",
+    "parameters": {
+      "analysis": "dict"
+    },
+    "permission_level": "autonomous"
+  },
+  {
+    "description": "Compare multiple firewall configs side by side",
+    "name": "firewall_compare",
+    "parameters": {
+      "configs": "list"
+    },
+    "permission_level": "autonomous"
+  },
+  {
+    "description": "Explain a single firewall rule in plain English with equivalents",
+    "name": "firewall_explain_rule",
+    "parameters": {
+      "firewall_type": "str",
+      "rule_text": "str"
+    },
+    "permission_level": "autonomous"
+  },
+  {
+    "description": "Generate a complete firewall config from requirements",
+    "name": "firewall_generate",
+    "parameters": {
+      "requirements": "dict"
+    },
+    "permission_level": "autonomous"
+  },
+  {
+    "description": "Study firewall concepts and store in Grimoire",
+    "name": "security_learn",
+    "parameters": {
+      "topic": "str"
+    },
+    "permission_level": "autonomous"
+  },
+  {
+    "description": "Study a known attack pattern for defensive understanding",
+    "name": "threat_analyze",
+    "parameters": {
+      "pattern_name": "str"
+    },
+    "permission_level": "autonomous"
+  },
+  {
+    "description": "Analyze log entries for signs of attack or suspicious activity",
+    "name": "threat_log_analyze",
+    "parameters": {
+      "log_text": "str",
+      "log_type": "str"
+    },
+    "permission_level": "autonomous"
+  },
+  {
+    "description": "Build a complete defense profile for a list of threats",
+    "name": "threat_defense_profile",
+    "parameters": {
+      "threat_list": "list"
+    },
+    "permission_level": "autonomous"
+  },
+  {
+    "description": "Study a known malware family for defensive understanding",
+    "name": "threat_malware_study",
+    "parameters": {
+      "family_name": "str"
+    },
+    "permission_level": "autonomous"
+  },
+  {
+    "description": "Generate a detection rule for a specific threat",
+    "name": "threat_detection_rule",
+    "parameters": {
+      "rule_format": "str",
+      "threat_type": "str"
+    },
+    "permission_level": "autonomous"
+  },
+  {
+    "description": "Assess Shadow's specific threat surface",
+    "name": "threat_shadow_assessment",
+    "parameters": {},
+    "permission_level": "autonomous"
+  },
+  {
+    "description": "Store threat intelligence in Grimoire",
+    "name": "threat_knowledge_store",
+    "parameters": {
+      "knowledge": "dict",
+      "source": "str"
+    },
+    "permission_level": "autonomous"
+  }
+]
