@@ -12,7 +12,7 @@ Each module gets its own GrimoireReader instance with the module name
 tracked for audit logging (which module searched for what).
 
 Usage:
-    reader = GrimoireReader("sentinel")
+    reader = GrimoireReader("cerberus")
     results = reader.search("firewall configuration patterns")
     exists = reader.check_knowledge_exists("port scanning detection")
     reader.close()
@@ -391,7 +391,7 @@ class GrimoireReader:
     ) -> list[dict[str, Any]]:
         """Return all knowledge stored by a specific module.
 
-        Answers: "What has Omen learned?" or "What does Sentinel know?"
+        Answers: "What has Omen learned?" or "What does Cerberus know?"
 
         Args:
             module_name: Module whose knowledge to retrieve.

@@ -242,14 +242,14 @@ autonomous_tools:
   - "model_compare"
   - "model_info"
   - "model_recommend"
-  # --- Sentinel security analyzer ---
+  # --- Cerberus security analyzer (absorbed Sentinel, Phase A) ---
   - "firewall_analyze"
   - "firewall_evaluate"
   - "firewall_compare"
   - "firewall_explain_rule"
   - "firewall_generate"
   - "security_learn"
-  # --- Sentinel threat intelligence ---
+  # --- Cerberus threat intelligence (absorbed Sentinel, Phase A) ---
   - "threat_analyze"
   - "threat_log_analyze"
   - "threat_defense_profile"

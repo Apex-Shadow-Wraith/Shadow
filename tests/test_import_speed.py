@@ -18,6 +18,10 @@ MODULE_PATHS = [
     "modules.cerberus.injection_detector",
     "modules.cerberus.reversibility",
     "modules.cerberus.watchdog",
+    # Phase A: absorbed Sentinel security surface lives under cerberus.
+    "modules.cerberus.security.core",
+    "modules.cerberus.security.analyzer",
+    "modules.cerberus.security.threat_intelligence",
     "modules.cipher.cipher",
     "modules.grimoire.grimoire",
     "modules.harbinger.harbinger",
@@ -26,20 +30,19 @@ MODULE_PATHS = [
     "modules.nova.nova",
     "modules.omen.omen",
     "modules.reaper.reaper_module",
-    "modules.sentinel.sentinel",
     "modules.shadow.shadow_module",
     "modules.shadow.orchestrator",
     "modules.shadow.task_tracker",
     "modules.shadow.growth_engine",
-    "modules.void.void",
     "modules.wraith.wraith",
 ]
 
 # Modules known to have heavy deps (chromadb, psutil)
 KNOWN_HEAVY = {
     "modules.grimoire.grimoire",
-    "modules.void.void",
-    "modules.sentinel.sentinel",
+    # The absorbed security surface pulls in the firewall analyzer +
+    # threat-intelligence modules through SecuritySurface composition.
+    "modules.cerberus.security.core",
     "modules.shadow.orchestrator",
 }
 

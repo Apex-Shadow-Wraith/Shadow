@@ -35,7 +35,6 @@ KNOWN_MODULES: list[tuple[str, str, str]] = [
     ("nova", "modules.nova.nova", "Nova"),
     ("omen", "modules.omen.omen", "Omen"),
     ("reaper", "modules.reaper.reaper_module", "ReaperModule"),
-    ("sentinel", "modules.sentinel.sentinel", "Sentinel"),
     ("shadow", "modules.shadow.shadow_module", "ShadowModule"),
     ("wraith", "modules.wraith.wraith", "Wraith"),
 ]

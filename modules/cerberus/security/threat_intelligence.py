@@ -2523,7 +2523,7 @@ _DETECTION_RULES: dict[str, dict[str, dict[str, str]]] = {
                 "rule ssh_brute_force_log {\n"
                 "    meta:\n"
                 '        description = "Detects SSH brute force patterns in log files"\n'
-                '        author = "Shadow Sentinel"\n'
+                '        author = "Shadow Cerberus"\n'
                 "    strings:\n"
                 '        $fail1 = "Failed password" nocase\n'
                 '        $fail2 = "authentication failure" nocase\n'
