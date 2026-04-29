@@ -104,7 +104,11 @@ VALID_CONTENT_TYPES = {
 VALID_SOURCE_MODULES = {
     "apex", "omen", "reaper", "morpheus", "cipher", "manual", "ingestor",
     "grimoire", "wraith", "cerberus", "sentinel", "harbinger", "nova",
-    "shadow"
+    "shadow",
+    # Phase A merge: absorbed Sentinel surface tags new writes
+    # "cerberus.security". "sentinel" retained above for queryable
+    # historical entries — addendum 2 decision (b).
+    "cerberus.security",
 }
 
 VALID_PHASES = {

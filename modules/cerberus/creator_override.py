@@ -42,7 +42,7 @@ TIER_4_FORBIDDEN = [
 
 # Modules that are considered internal — they cannot call override commands
 INTERNAL_MODULES = [
-    "shadow", "wraith", "cerberus", "apex", "grimoire", "sentinel",
+    "shadow", "wraith", "cerberus", "apex", "grimoire",
     "harbinger", "reaper", "cipher", "omen", "nova", "void", "morpheus",
 ]
 

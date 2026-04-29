@@ -76,7 +76,7 @@ comment at the call site pointing at this file.
 dict layout expected by the Orchestrator (which uses
 `config["modules"]["grimoire"]["db_path"]`-style access across 20+ call
 sites) and by the few module constructors that still accept a `dict`
-(Grimoire, Wraith, Nova, Omen, Sentinel, Void, Morpheus, Cipher). Once
+(Grimoire, Wraith, Nova, Omen, Morpheus, Cipher). Once
 those components accept typed settings directly, the helper can go
 away. Apex, Cerberus, Harbinger, and Reaper already consume
 `ApexSettings`/`CerberusSettings`/etc. instances and do not need the

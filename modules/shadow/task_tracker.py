@@ -30,7 +30,7 @@ logger = logging.getLogger("shadow.task_tracker")
 VALID_STATUSES = {"queued", "running", "completed", "failed", "cancelled"}
 
 VALID_MODULES = {
-    "shadow", "wraith", "cerberus", "apex", "grimoire", "sentinel",
+    "shadow", "wraith", "cerberus", "apex", "grimoire",
     "harbinger", "reaper", "cipher", "omen", "nova", "morpheus",
 }
 

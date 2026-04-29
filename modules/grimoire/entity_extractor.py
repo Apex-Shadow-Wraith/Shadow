@@ -29,7 +29,6 @@ _KNOWN_MODULES: dict[str, str] = {
     "cerberus": "module",
     "apex": "module",
     "grimoire": "module",
-    "sentinel": "module",
     "harbinger": "module",
     "reaper": "module",
     "cipher": "module",

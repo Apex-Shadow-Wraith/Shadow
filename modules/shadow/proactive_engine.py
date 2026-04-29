@@ -367,7 +367,7 @@ class ProactiveEngine:
         1. Pending module-to-module requests
         2. Growth Engine daily goals
         3. Omen code improvements
-        4. Sentinel security scans
+        4. Cerberus security scans (absorbed Sentinel surface)
         5. Reaper technology watch
         6. Morpheus experiments
         7. Grimoire memory maintenance
@@ -379,7 +379,7 @@ class ProactiveEngine:
             ("shadow", "Check for pending module-to-module requests"),
             ("shadow", "Review and work on today's growth goals"),
             ("omen", "Scan codebase for improvement opportunities"),
-            ("sentinel", "Run scheduled security scan"),
+            ("cerberus", "Run scheduled security scan"),
             ("reaper", "Check technology watch list for updates"),
             ("morpheus", "Run queued creative experiments"),
             ("grimoire", "Compact old memories and merge duplicates"),
@@ -586,39 +586,39 @@ class ProactiveEngine:
         """Build the full set of default triggers for all 13 modules."""
         triggers: list[ProactiveTrigger] = []
 
-        # --- Sentinel ---
+        # --- Cerberus security surface (absorbed Sentinel, Phase A) ---
         triggers.extend([
             ProactiveTrigger(
-                module_name="sentinel",
+                module_name="cerberus",
                 trigger_type="event",
-                description="Sentinel investigates when security alert fires",
+                description="Cerberus security surface investigates when security alert fires",
                 event_name="SECURITY_ALERT",
                 action="Investigate threat, build defense profile, notify creator",
                 priority=2,
                 max_frequency=60,
             ),
             ProactiveTrigger(
-                module_name="sentinel",
+                module_name="cerberus",
                 trigger_type="schedule",
-                description="Sentinel scans log files for suspicious patterns",
+                description="Cerberus security surface scans log files for suspicious patterns",
                 schedule="every 6 hours",
                 action="Scan Shadow's log files for suspicious patterns",
                 priority=4,
                 max_frequency=21600,
             ),
             ProactiveTrigger(
-                module_name="sentinel",
+                module_name="cerberus",
                 trigger_type="schedule",
-                description="Sentinel reviews firewall rules daily",
+                description="Cerberus security surface reviews firewall rules daily",
                 schedule="cron 09:00",
                 action="Review firewall rules and recommend updates",
                 priority=4,
                 max_frequency=86400,
             ),
             ProactiveTrigger(
-                module_name="sentinel",
+                module_name="cerberus",
                 trigger_type="event",
-                description="Sentinel emergency audit on heartbeat miss",
+                description="Cerberus security surface emergency audit on heartbeat miss",
                 event_name="CERBERUS_HEARTBEAT_MISSED",
                 action="Emergency security audit — Cerberus heartbeat missed",
                 priority=1,

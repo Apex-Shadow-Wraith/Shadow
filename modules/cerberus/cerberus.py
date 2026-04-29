@@ -33,6 +33,7 @@ import yaml
 from modules.base import BaseModule, ModuleStatus, ToolResult
 from modules.cerberus.creator_override import CreatorOverride
 from modules.cerberus.emergency_shutdown import EmergencyShutdown
+from modules.cerberus.security import SECURITY_TOOLS, SecuritySurface
 
 logger = logging.getLogger("shadow.cerberus")
 
@@ -168,6 +169,17 @@ class Cerberus(BaseModule):
         )
         self._last_check_id: str = ""
 
+        # Absorbed Sentinel security surface (Phase A merge). Owns the
+        # file-integrity baseline, quarantine directory, firewall
+        # analyzer, and threat intelligence engine. Cerberus delegates
+        # the 24 absorbed security tools through execute() below.
+        # SecuritySurface holds no lockfile of its own — addendum 1 (a):
+        # CerberusWatchdog retains sole ownership.
+        self._security = SecuritySurface(
+            config=config.get("security", {}),
+            grimoire=config.get("grimoire"),
+        )
+
     async def initialize(self) -> None:
         """Load hard limits from protected config file."""
         self.status = ModuleStatus.STARTING
@@ -195,6 +207,11 @@ class Cerberus(BaseModule):
                 logger.info("Loaded %d ethical topics", len(self._ethical_topics))
             else:
                 logger.warning("Ethical topics file not found: %s", ethics_path)
+
+            # Initialize the absorbed security surface: load file
+            # integrity baseline + ensure quarantine dir exists.
+            # Synchronous helper called from inside the async wrapper.
+            self._security.initialize()
 
             logger.info(
                 "Cerberus initialized. Config hash: %s", self._config_hash[:16]
@@ -464,6 +481,14 @@ class Cerberus(BaseModule):
                     execution_time_ms=(time.time() - start) * 1000,
                 )
 
+            elif tool_name in SECURITY_TOOLS:
+                # Dispatch the 24 absorbed Sentinel security tools through
+                # the SecuritySurface helper. handle() is synchronous and
+                # stamps execution_time_ms internally.
+                result = self._security.handle(tool_name, params)
+                self._record_call(result.success)
+                return result
+
             else:
                 self._record_call(False)
                 return ToolResult(
@@ -495,6 +520,8 @@ class Cerberus(BaseModule):
             self._deny_count,
             self._false_positive_count,
         )
+        # Persist the absorbed security surface's integrity baseline.
+        self._security.shutdown()
         if self._reversibility_engine:
             self._reversibility_engine.close()
         self.status = ModuleStatus.OFFLINE
@@ -650,6 +677,155 @@ class Cerberus(BaseModule):
                     "Feeds into Harbinger daily safety report."
                 ),
                 "parameters": {},
+                "permission_level": "autonomous",
+            },
+            # --- Absorbed Sentinel security surface (Phase A merge). ---
+            # 24 tools dispatched through SecuritySurface.handle() in
+            # execute() above. Schemas preserved verbatim from the
+            # pre-merge Sentinel.get_tools() — zero name changes, zero
+            # parameter changes, zero permission_level changes.
+            {
+                "name": "network_scan",
+                "description": "Check current network connections and open ports",
+                "parameters": {},
+                "permission_level": "autonomous",
+            },
+            {
+                "name": "file_integrity_check",
+                "description": "Hash comparison on critical files against baseline",
+                "parameters": {"file_paths": "list"},
+                "permission_level": "autonomous",
+            },
+            {
+                "name": "breach_check",
+                "description": "Check email against known breaches (stub)",
+                "parameters": {"email": "str"},
+                "permission_level": "autonomous",
+            },
+            {
+                "name": "firewall_status",
+                "description": "Check host firewall status and active rules",
+                "parameters": {},
+                "permission_level": "autonomous",
+            },
+            {
+                "name": "threat_scan",
+                "description": "Run active threat detection scan on the system",
+                "parameters": {"scan_type": "str"},
+                "permission_level": "autonomous",
+            },
+            {
+                "name": "network_monitor",
+                "description": "Monitor network traffic for anomalies in real time",
+                "parameters": {"duration_seconds": "int"},
+                "permission_level": "autonomous",
+            },
+            {
+                "name": "vulnerability_scan",
+                "description": "Scan system for known vulnerabilities",
+                "parameters": {"target": "str"},
+                "permission_level": "autonomous",
+            },
+            {
+                "name": "log_analysis",
+                "description": "Analyze system and security logs for suspicious patterns",
+                "parameters": {"log_source": "str"},
+                "permission_level": "autonomous",
+            },
+            {
+                "name": "security_alert",
+                "description": "Generate a security alert for Harbinger",
+                "parameters": {"message": "str", "severity": "str", "source": "str"},
+                "permission_level": "autonomous",
+            },
+            {
+                "name": "threat_assess",
+                "description": "Assess threat level of an event",
+                "parameters": {"event": "str", "indicators": "list"},
+                "permission_level": "autonomous",
+            },
+            {
+                "name": "quarantine_file",
+                "description": "Move suspicious file to quarantine directory",
+                "parameters": {"file_path": "str", "reason": "str"},
+                "permission_level": "autonomous",
+            },
+            {
+                "name": "firewall_analyze",
+                "description": "Parse and analyze a firewall configuration file",
+                "parameters": {"config_text": "str", "firewall_type": "str"},
+                "permission_level": "autonomous",
+            },
+            {
+                "name": "firewall_evaluate",
+                "description": "Score a firewall config on security best practices",
+                "parameters": {"analysis": "dict"},
+                "permission_level": "autonomous",
+            },
+            {
+                "name": "firewall_compare",
+                "description": "Compare multiple firewall configs side by side",
+                "parameters": {"configs": "list"},
+                "permission_level": "autonomous",
+            },
+            {
+                "name": "firewall_explain_rule",
+                "description": "Explain a single firewall rule in plain English with equivalents",
+                "parameters": {"rule_text": "str", "firewall_type": "str"},
+                "permission_level": "autonomous",
+            },
+            {
+                "name": "firewall_generate",
+                "description": "Generate a complete firewall config from requirements",
+                "parameters": {"requirements": "dict"},
+                "permission_level": "autonomous",
+            },
+            {
+                "name": "security_learn",
+                "description": "Study firewall concepts and store in Grimoire",
+                "parameters": {"topic": "str"},
+                "permission_level": "autonomous",
+            },
+            {
+                "name": "threat_analyze",
+                "description": "Study a known attack pattern for defensive understanding",
+                "parameters": {"pattern_name": "str"},
+                "permission_level": "autonomous",
+            },
+            {
+                "name": "threat_log_analyze",
+                "description": "Analyze log entries for signs of attack or suspicious activity",
+                "parameters": {"log_text": "str", "log_type": "str"},
+                "permission_level": "autonomous",
+            },
+            {
+                "name": "threat_defense_profile",
+                "description": "Build a complete defense profile for a list of threats",
+                "parameters": {"threat_list": "list"},
+                "permission_level": "autonomous",
+            },
+            {
+                "name": "threat_malware_study",
+                "description": "Study a known malware family for defensive understanding",
+                "parameters": {"family_name": "str"},
+                "permission_level": "autonomous",
+            },
+            {
+                "name": "threat_detection_rule",
+                "description": "Generate a detection rule for a specific threat",
+                "parameters": {"threat_type": "str", "rule_format": "str"},
+                "permission_level": "autonomous",
+            },
+            {
+                "name": "threat_shadow_assessment",
+                "description": "Assess Shadow's specific threat surface",
+                "parameters": {},
+                "permission_level": "autonomous",
+            },
+            {
+                "name": "threat_knowledge_store",
+                "description": "Store threat intelligence in Grimoire",
+                "parameters": {"knowledge": "dict", "source": "str"},
                 "permission_level": "autonomous",
             },
         ]
@@ -1429,7 +1605,7 @@ class Cerberus(BaseModule):
 
     # Internal modules that are NOT external integrations
     _INTERNAL_MODULES: set[str] = {
-        "shadow", "wraith", "cerberus", "apex", "grimoire", "sentinel",
+        "shadow", "wraith", "cerberus", "apex", "grimoire",
         "harbinger", "reaper", "cipher", "omen", "nova", "void", "morpheus",
     }
 

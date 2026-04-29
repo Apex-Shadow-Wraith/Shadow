@@ -429,12 +429,19 @@ class TestFalsePositiveLog:
 
     @pytest.mark.asyncio
     async def test_tool_count(self, cerberus: Cerberus):
+        # Phase A merge: 15 original Cerberus tools + 24 absorbed Sentinel tools
         tools = cerberus.get_tools()
-        assert len(tools) == 15
+        assert len(tools) == 39
         tool_names = [t["name"] for t in tools]
+        # Original Cerberus tools
         assert "false_positive_log" in tool_names
         assert "calibration_stats" in tool_names
         assert "validate_response" in tool_names
+        # Spot-checks for absorbed Sentinel security surface
+        assert "network_scan" in tool_names
+        assert "file_integrity_check" in tool_names
+        assert "firewall_analyze" in tool_names
+        assert "threat_assess" in tool_names
 
 
 # =============================================================

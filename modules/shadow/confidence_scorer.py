@@ -73,7 +73,7 @@ _APEX_CLAIM_PHRASES = [
 _TOOL_CLAIM_PHRASES = [
     "executed the code", "ran the script", "test results show",
     "benchmark results", "scan complete", "analysis complete",
-    "ran this through omen", "ran this through sentinel",
+    "ran this through omen", "ran this through cerberus",
 ]
 
 # Phrases that claim async waiting / processing

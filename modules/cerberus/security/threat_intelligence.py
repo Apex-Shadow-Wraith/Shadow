@@ -1,11 +1,16 @@
-"""Sentinel Threat Intelligence — attack pattern analysis and defense profiling.
+"""Cerberus Security Threat Intelligence — attack pattern analysis and defense profiling.
 
 WHITE HAT ONLY. Studies attack patterns to build defenses. Never generates
 executable exploit code, shellcode, or offensive payloads. This is purely
 educational and defensive documentation.
 
 HARD CONSTRAINT: All content is for DETECTION and DEFENSE. Nothing here
-can be used to attack systems. Sentinel defends only.
+can be used to attack systems. The Cerberus security surface defends only.
+
+Absorbed from modules/sentinel/threat_intelligence.py during Phase A
+consolidation. Behavior preserved verbatim. New Grimoire writes tag
+source_module="cerberus.security"; historical "sentinel"-tagged
+entries remain queryable via the writer-side validator allowlist.
 """
 
 from __future__ import annotations
@@ -1776,7 +1781,7 @@ _MALWARE_FAMILIES: dict[str, dict[str, Any]] = {
 # ThreatIntelligence class
 # ---------------------------------------------------------------------------
 class ThreatIntelligence:
-    """White-hat threat intelligence engine for Sentinel.
+    """White-hat threat intelligence engine (Cerberus security surface).
 
     Studies attack patterns, analyzes logs, builds defense profiles, and
     generates detection rules. All content is for DEFENSE ONLY — never
@@ -2204,7 +2209,7 @@ class ThreatIntelligence:
             mem_id = self._grimoire.remember(
                 content=content,
                 source="research",
-                source_module="sentinel",
+                source_module="cerberus.security",
                 category="threat_intelligence",
                 trust_level=0.7,
                 confidence=0.8,
@@ -2518,7 +2523,7 @@ _DETECTION_RULES: dict[str, dict[str, dict[str, str]]] = {
                 "rule ssh_brute_force_log {\n"
                 "    meta:\n"
                 '        description = "Detects SSH brute force patterns in log files"\n'
-                '        author = "Shadow Sentinel"\n'
+                '        author = "Shadow Cerberus"\n'
                 "    strings:\n"
                 '        $fail1 = "Failed password" nocase\n'
                 '        $fail2 = "authentication failure" nocase\n'

@@ -1,14 +1,37 @@
-"""
-Sentinel — White Hat Security Architecture
-=============================================
-Detection, analysis, and defensive response.
+"""Cerberus security surface — absorbed Sentinel logic.
 
-HARD CONSTRAINT: Sentinel defends only. Never retaliates, never
-launches offensive attacks, never probes systems it does not own.
-That is the permanent, non-negotiable line between white hat and illegal.
+White hat security: detection, analysis, defensive response.
+
+HARD CONSTRAINT: Defensive only. Never retaliates, never launches
+offensive attacks, never probes systems it does not own. That is the
+permanent, non-negotiable line between white hat and illegal.
 
 Phase 1: psutil-based network monitoring, file integrity hashing,
 threat assessment stubs. No Suricata/Zeek yet (Ubuntu).
+
+Absorbed from modules/sentinel/sentinel.py during Phase A
+consolidation. Behavior preserved verbatim. Differences from the
+old Sentinel module:
+
+- No longer a BaseModule. SecuritySurface is a plain helper held
+  by Cerberus; lifecycle (initialize/shutdown) is driven from
+  Cerberus's own async methods. No registry presence, no
+  independent status tracking.
+- async execute() lifted to synchronous handle(tool_name, params)
+  -> ToolResult. Cerberus's existing execute() branch awaits
+  nothing here; the handler bodies were already pure-sync.
+- ToolResult.module is stamped "cerberus" (the absorbing module)
+  rather than "sentinel" so the registry sees the surface as
+  part of Cerberus.
+- get_tools() removed; the 24 tool schemas now live in
+  Cerberus.get_tools() (see commit 5).
+- _record_call removed; Cerberus's own BaseModule call-tracking
+  records the dispatch.
+- Watchdog lockfile contract: SecuritySurface holds none. Per
+  addendum 1 decision (a), CerberusWatchdog retains sole
+  ownership of the lockfile.
+- Grimoire writes inside SecurityAnalyzer / ThreatIntelligence
+  tag source_module="cerberus.security" per addendum 2 (b).
 """
 
 from __future__ import annotations
@@ -22,30 +45,81 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from modules.base import BaseModule, ModuleStatus, ToolResult
-from modules.sentinel.security_analyzer import SecurityAnalyzer
-from modules.sentinel.threat_intelligence import ThreatIntelligence
+from modules.base import ToolResult
+from modules.cerberus.security.analyzer import SecurityAnalyzer
+from modules.cerberus.security.threat_intelligence import ThreatIntelligence
 
-logger = logging.getLogger("shadow.sentinel")
+logger = logging.getLogger("shadow.cerberus.security")
 
 
-class Sentinel(BaseModule):
-    """White hat security module. Detect, analyze, defend.
+# Tools dispatched by SecuritySurface.handle(). Mirrors the schemas
+# that Cerberus.get_tools() exposes for the absorbed surface.
+SECURITY_TOOLS: frozenset[str] = frozenset({
+    "network_scan",
+    "file_integrity_check",
+    "breach_check",
+    "firewall_status",
+    "threat_scan",
+    "network_monitor",
+    "vulnerability_scan",
+    "log_analysis",
+    "security_alert",
+    "threat_assess",
+    "quarantine_file",
+    "firewall_analyze",
+    "firewall_evaluate",
+    "firewall_compare",
+    "firewall_explain_rule",
+    "firewall_generate",
+    "security_learn",
+    "threat_analyze",
+    "threat_log_analyze",
+    "threat_defense_profile",
+    "threat_malware_study",
+    "threat_detection_rule",
+    "threat_shadow_assessment",
+    "threat_knowledge_store",
+})
 
-    All responses go through Cerberus. Sentinel proposes, Cerberus checks.
-    Defense only — never retaliates or probes external systems.
+
+class SecuritySurface:
+    """Cerberus's absorbed security surface.
+
+    Holds the integrity baseline, quarantine directory, firewall
+    analyzer, and threat intelligence engine. Cerberus delegates the
+    24 absorbed tool calls to handle().
     """
 
-    def __init__(self, config: dict[str, Any] | None = None) -> None:
-        """Initialize Sentinel.
+    # ToolResult.module value stamped on every result returned by this
+    # surface. Set to "cerberus" because the absorbing module owns the
+    # surface post-merge; the registry indexes by this name.
+    MODULE_NAME: str = "cerberus"
+
+    def __init__(
+        self,
+        config: dict[str, Any] | None = None,
+        grimoire: Any | None = None,
+    ) -> None:
+        """Initialize SecuritySurface.
 
         Args:
-            config: Module configuration.
+            config: Configuration dict. Recognized keys:
+                baseline_file: path for file-integrity baseline JSON
+                    (default "data/sentinel_baseline.json" — kept as-is
+                    to preserve any existing baseline data; the
+                    "sentinel" filename is a historical provenance
+                    marker, not a scope indicator).
+                quarantine_dir: directory for quarantined files
+                    (default "data/research/quarantine").
+                grimoire: optional Grimoire instance (also accepted as
+                    a separate kwarg for symmetry with the Reaper
+                    wiring pattern; either route works).
+            grimoire: Optional Grimoire instance for the analyzer +
+                threat intelligence engines. May be None — both
+                store_*_knowledge methods no-op gracefully when
+                Grimoire is unavailable, matching the pre-merge
+                Sentinel behavior on this codebase.
         """
-        super().__init__(
-            name="sentinel",
-            description="White hat security — detection, analysis, defense",
-        )
         self._config = config or {}
         self._baseline_file = Path(
             self._config.get("baseline_file", "data/sentinel_baseline.json")
@@ -55,31 +129,40 @@ class Sentinel(BaseModule):
         )
         self._baseline: dict[str, str] = {}
         self._alerts: list[dict[str, Any]] = []
-        self._analyzer = SecurityAnalyzer(
-            grimoire=self._config.get("grimoire"),
-        )
-        self._threat_intel = ThreatIntelligence(
-            grimoire=self._config.get("grimoire"),
+
+        # Grimoire wiring: prefer explicit kwarg over config-dict slot.
+        grim = grimoire if grimoire is not None else self._config.get("grimoire")
+        self._analyzer = SecurityAnalyzer(grimoire=grim)
+        self._threat_intel = ThreatIntelligence(grimoire=grim)
+
+    def initialize(self) -> None:
+        """Load file integrity baseline and ensure quarantine dir exists.
+
+        Synchronous — Cerberus calls this from its own async initialize().
+        Raises on filesystem errors so Cerberus can fail loud.
+        """
+        self._load_baseline()
+        self._quarantine_dir.mkdir(parents=True, exist_ok=True)
+        logger.info(
+            "SecuritySurface online. %d files in integrity baseline.",
+            len(self._baseline),
         )
 
-    async def initialize(self) -> None:
-        """Start Sentinel. Load file integrity baseline."""
-        self.status = ModuleStatus.STARTING
-        try:
-            self._load_baseline()
-            self._quarantine_dir.mkdir(parents=True, exist_ok=True)
-            self.status = ModuleStatus.ONLINE
-            logger.info(
-                "Sentinel online. %d files in integrity baseline.",
-                len(self._baseline),
-            )
-        except Exception as e:
-            self.status = ModuleStatus.ERROR
-            logger.error("Sentinel failed to initialize: %s", e)
-            raise
+    def shutdown(self) -> None:
+        """Persist the integrity baseline to disk.
 
-    async def execute(self, tool_name: str, params: dict[str, Any]) -> ToolResult:
-        """Execute a Sentinel tool."""
+        Synchronous — Cerberus calls this from its own async shutdown().
+        """
+        self._save_baseline()
+        logger.info("SecuritySurface offline.")
+
+    def handle(self, tool_name: str, params: dict[str, Any]) -> ToolResult:
+        """Dispatch one of the 24 absorbed security tools.
+
+        Synchronous; all handler bodies are pure-sync and were already
+        called synchronously inside the old async Sentinel.execute()
+        wrapper. Cerberus's own execute() branch awaits nothing here.
+        """
         start = time.time()
         try:
             handlers = {
@@ -113,179 +196,21 @@ class Sentinel(BaseModule):
             if handler is None:
                 result = ToolResult(
                     success=False, content=None, tool_name=tool_name,
-                    module=self.name, error=f"Unknown tool: {tool_name}",
+                    module=self.MODULE_NAME, error=f"Unknown security tool: {tool_name}",
                 )
             else:
                 result = handler(params)
 
             result.execution_time_ms = (time.time() - start) * 1000
-            self._record_call(result.success)
             return result
 
         except Exception as e:
             elapsed = (time.time() - start) * 1000
-            self._record_call(False)
-            logger.error("Sentinel tool '%s' failed: %s", tool_name, e)
+            logger.error("Security tool '%s' failed: %s", tool_name, e)
             return ToolResult(
                 success=False, content=None, tool_name=tool_name,
-                module=self.name, error=str(e), execution_time_ms=elapsed,
+                module=self.MODULE_NAME, error=str(e), execution_time_ms=elapsed,
             )
-
-    async def shutdown(self) -> None:
-        """Shut down Sentinel. Save baseline."""
-        self._save_baseline()
-        self.status = ModuleStatus.OFFLINE
-        logger.info("Sentinel offline.")
-
-    def get_tools(self) -> list[dict[str, Any]]:
-        """Return Sentinel's tool definitions."""
-        return [
-            {
-                "name": "network_scan",
-                "description": "Check current network connections and open ports",
-                "parameters": {},
-                "permission_level": "autonomous",
-            },
-            {
-                "name": "file_integrity_check",
-                "description": "Hash comparison on critical files against baseline",
-                "parameters": {"file_paths": "list"},
-                "permission_level": "autonomous",
-            },
-            {
-                "name": "breach_check",
-                "description": "Check email against known breaches (stub)",
-                "parameters": {"email": "str"},
-                "permission_level": "autonomous",
-            },
-            {
-                "name": "firewall_status",
-                "description": "Check host firewall status and active rules",
-                "parameters": {},
-                "permission_level": "autonomous",
-            },
-            {
-                "name": "threat_scan",
-                "description": "Run active threat detection scan on the system",
-                "parameters": {"scan_type": "str"},
-                "permission_level": "autonomous",
-            },
-            {
-                "name": "network_monitor",
-                "description": "Monitor network traffic for anomalies in real time",
-                "parameters": {"duration_seconds": "int"},
-                "permission_level": "autonomous",
-            },
-            {
-                "name": "vulnerability_scan",
-                "description": "Scan system for known vulnerabilities",
-                "parameters": {"target": "str"},
-                "permission_level": "autonomous",
-            },
-            {
-                "name": "log_analysis",
-                "description": "Analyze system and security logs for suspicious patterns",
-                "parameters": {"log_source": "str"},
-                "permission_level": "autonomous",
-            },
-            {
-                "name": "security_alert",
-                "description": "Generate a security alert for Harbinger",
-                "parameters": {"message": "str", "severity": "str", "source": "str"},
-                "permission_level": "autonomous",
-            },
-            {
-                "name": "threat_assess",
-                "description": "Assess threat level of an event",
-                "parameters": {"event": "str", "indicators": "list"},
-                "permission_level": "autonomous",
-            },
-            {
-                "name": "quarantine_file",
-                "description": "Move suspicious file to quarantine directory",
-                "parameters": {"file_path": "str", "reason": "str"},
-                "permission_level": "autonomous",
-            },
-            {
-                "name": "firewall_analyze",
-                "description": "Parse and analyze a firewall configuration file",
-                "parameters": {"config_text": "str", "firewall_type": "str"},
-                "permission_level": "autonomous",
-            },
-            {
-                "name": "firewall_evaluate",
-                "description": "Score a firewall config on security best practices",
-                "parameters": {"analysis": "dict"},
-                "permission_level": "autonomous",
-            },
-            {
-                "name": "firewall_compare",
-                "description": "Compare multiple firewall configs side by side",
-                "parameters": {"configs": "list"},
-                "permission_level": "autonomous",
-            },
-            {
-                "name": "firewall_explain_rule",
-                "description": "Explain a single firewall rule in plain English with equivalents",
-                "parameters": {"rule_text": "str", "firewall_type": "str"},
-                "permission_level": "autonomous",
-            },
-            {
-                "name": "firewall_generate",
-                "description": "Generate a complete firewall config from requirements",
-                "parameters": {"requirements": "dict"},
-                "permission_level": "autonomous",
-            },
-            {
-                "name": "security_learn",
-                "description": "Study firewall concepts and store in Grimoire",
-                "parameters": {"topic": "str"},
-                "permission_level": "autonomous",
-            },
-            # --- Threat Intelligence tools ---
-            {
-                "name": "threat_analyze",
-                "description": "Study a known attack pattern for defensive understanding",
-                "parameters": {"pattern_name": "str"},
-                "permission_level": "autonomous",
-            },
-            {
-                "name": "threat_log_analyze",
-                "description": "Analyze log entries for signs of attack or suspicious activity",
-                "parameters": {"log_text": "str", "log_type": "str"},
-                "permission_level": "autonomous",
-            },
-            {
-                "name": "threat_defense_profile",
-                "description": "Build a complete defense profile for a list of threats",
-                "parameters": {"threat_list": "list"},
-                "permission_level": "autonomous",
-            },
-            {
-                "name": "threat_malware_study",
-                "description": "Study a known malware family for defensive understanding",
-                "parameters": {"family_name": "str"},
-                "permission_level": "autonomous",
-            },
-            {
-                "name": "threat_detection_rule",
-                "description": "Generate a detection rule for a specific threat",
-                "parameters": {"threat_type": "str", "rule_format": "str"},
-                "permission_level": "autonomous",
-            },
-            {
-                "name": "threat_shadow_assessment",
-                "description": "Assess Shadow's specific threat surface",
-                "parameters": {},
-                "permission_level": "autonomous",
-            },
-            {
-                "name": "threat_knowledge_store",
-                "description": "Store threat intelligence in Grimoire",
-                "parameters": {"knowledge": "dict", "source": "str"},
-                "permission_level": "autonomous",
-            },
-        ]
 
     # --- Tool implementations ---
 
@@ -300,7 +225,7 @@ class Sentinel(BaseModule):
         except ImportError:
             return ToolResult(
                 success=False, content=None, tool_name="network_scan",
-                module=self.name, error="psutil not installed",
+                module=self.MODULE_NAME, error="psutil not installed",
             )
 
         connections = []
@@ -323,7 +248,7 @@ class Sentinel(BaseModule):
                 "scanned_at": datetime.now().isoformat(),
             },
             tool_name="network_scan",
-            module=self.name,
+            module=self.MODULE_NAME,
         )
 
     def _file_integrity_check(self, params: dict[str, Any]) -> ToolResult:
@@ -339,7 +264,7 @@ class Sentinel(BaseModule):
         if not file_paths:
             return ToolResult(
                 success=False, content=None, tool_name="file_integrity_check",
-                module=self.name, error="file_paths list is required",
+                module=self.MODULE_NAME, error="file_paths list is required",
             )
 
         results: list[dict[str, Any]] = []
@@ -383,7 +308,7 @@ class Sentinel(BaseModule):
                 "results": results,
             },
             tool_name="file_integrity_check",
-            module=self.name,
+            module=self.MODULE_NAME,
         )
 
     def _breach_check(self, params: dict[str, Any]) -> ToolResult:
@@ -398,7 +323,7 @@ class Sentinel(BaseModule):
         if not email:
             return ToolResult(
                 success=False, content="Email address is required", tool_name="breach_check",
-                module=self.name, error="Email address is required",
+                module=self.MODULE_NAME, error="Email address is required",
             )
 
         return ToolResult(
@@ -411,7 +336,7 @@ class Sentinel(BaseModule):
                 "breaches_found": 0,
             },
             tool_name="breach_check",
-            module=self.name,
+            module=self.MODULE_NAME,
         )
 
     def _firewall_status(self, params: dict[str, Any]) -> ToolResult:
@@ -430,7 +355,7 @@ class Sentinel(BaseModule):
                            "with iptables/nftables for host firewall inspection.",
             },
             tool_name="firewall_status",
-            module=self.name,
+            module=self.MODULE_NAME,
         )
 
     def _threat_scan(self, params: dict[str, Any]) -> ToolResult:
@@ -449,7 +374,7 @@ class Sentinel(BaseModule):
                            "with Suricata IDS for active threat detection.",
             },
             tool_name="threat_scan",
-            module=self.name,
+            module=self.MODULE_NAME,
         )
 
     def _network_monitor(self, params: dict[str, Any]) -> ToolResult:
@@ -468,7 +393,7 @@ class Sentinel(BaseModule):
                            "with Zeek network analyzer for traffic monitoring.",
             },
             tool_name="network_monitor",
-            module=self.name,
+            module=self.MODULE_NAME,
         )
 
     def _vulnerability_scan(self, params: dict[str, Any]) -> ToolResult:
@@ -487,7 +412,7 @@ class Sentinel(BaseModule):
                            "with OpenVAS/GVM for vulnerability scanning.",
             },
             tool_name="vulnerability_scan",
-            module=self.name,
+            module=self.MODULE_NAME,
         )
 
     def _log_analysis(self, params: dict[str, Any]) -> ToolResult:
@@ -506,7 +431,7 @@ class Sentinel(BaseModule):
                            "with auditd for system log analysis.",
             },
             tool_name="log_analysis",
-            module=self.name,
+            module=self.MODULE_NAME,
         )
 
     def _security_alert(self, params: dict[str, Any]) -> ToolResult:
@@ -519,7 +444,7 @@ class Sentinel(BaseModule):
         if not message:
             return ToolResult(
                 success=False, content=None, tool_name="security_alert",
-                module=self.name, error="Alert message is required",
+                module=self.MODULE_NAME, error="Alert message is required",
             )
 
         severity = params.get("severity", "medium")
@@ -527,14 +452,14 @@ class Sentinel(BaseModule):
         if severity not in valid_severities:
             return ToolResult(
                 success=False, content=None, tool_name="security_alert",
-                module=self.name,
+                module=self.MODULE_NAME,
                 error=f"Severity must be one of: {', '.join(valid_severities)}",
             )
 
         alert = {
             "message": message,
             "severity": severity,
-            "source": params.get("source", "sentinel"),
+            "source": params.get("source", "cerberus.security"),
             "timestamp": datetime.now().isoformat(),
             "status": "active",
         }
@@ -545,7 +470,7 @@ class Sentinel(BaseModule):
             success=True,
             content=alert,
             tool_name="security_alert",
-            module=self.name,
+            module=self.MODULE_NAME,
         )
 
     def _threat_assess(self, params: dict[str, Any]) -> ToolResult:
@@ -562,7 +487,7 @@ class Sentinel(BaseModule):
         if not event:
             return ToolResult(
                 success=False, content=None, tool_name="threat_assess",
-                module=self.name, error="Event description is required",
+                module=self.MODULE_NAME, error="Event description is required",
             )
 
         lower = event.lower()
@@ -612,7 +537,7 @@ class Sentinel(BaseModule):
                 "indicators_count": len(indicators),
             },
             tool_name="threat_assess",
-            module=self.name,
+            module=self.MODULE_NAME,
         )
 
     def _quarantine_file(self, params: dict[str, Any]) -> ToolResult:
@@ -627,14 +552,14 @@ class Sentinel(BaseModule):
         if not file_path:
             return ToolResult(
                 success=False, content=None, tool_name="quarantine_file",
-                module=self.name, error="file_path is required",
+                module=self.MODULE_NAME, error="file_path is required",
             )
 
         source = Path(file_path)
         if not source.exists():
             return ToolResult(
                 success=False, content=None, tool_name="quarantine_file",
-                module=self.name, error=f"File not found: {file_path}",
+                module=self.MODULE_NAME, error=f"File not found: {file_path}",
             )
 
         # Move to quarantine with timestamp
@@ -663,13 +588,13 @@ class Sentinel(BaseModule):
                 success=True,
                 content=meta,
                 tool_name="quarantine_file",
-                module=self.name,
+                module=self.MODULE_NAME,
             )
 
         except OSError as e:
             return ToolResult(
                 success=False, content=None, tool_name="quarantine_file",
-                module=self.name, error=f"Failed to quarantine: {e}",
+                module=self.MODULE_NAME, error=f"Failed to quarantine: {e}",
             )
 
     # --- Security Analyzer tool handlers ---
@@ -680,13 +605,13 @@ class Sentinel(BaseModule):
         if not config_text:
             return ToolResult(
                 success=False, content=None, tool_name="firewall_analyze",
-                module=self.name, error="config_text is required",
+                module=self.MODULE_NAME, error="config_text is required",
             )
         firewall_type = params.get("firewall_type", "auto")
         result = self._analyzer.analyze_firewall_config(config_text, firewall_type)
         return ToolResult(
             success="error" not in result, content=result,
-            tool_name="firewall_analyze", module=self.name,
+            tool_name="firewall_analyze", module=self.MODULE_NAME,
             error=result.get("error"),
         )
 
@@ -696,12 +621,12 @@ class Sentinel(BaseModule):
         if not analysis:
             return ToolResult(
                 success=False, content=None, tool_name="firewall_evaluate",
-                module=self.name, error="analysis dict is required",
+                module=self.MODULE_NAME, error="analysis dict is required",
             )
         result = self._analyzer.evaluate_firewall(analysis)
         return ToolResult(
             success="error" not in result, content=result,
-            tool_name="firewall_evaluate", module=self.name,
+            tool_name="firewall_evaluate", module=self.MODULE_NAME,
             error=result.get("error"),
         )
 
@@ -711,12 +636,12 @@ class Sentinel(BaseModule):
         if len(configs) < 2:
             return ToolResult(
                 success=False, content=None, tool_name="firewall_compare",
-                module=self.name, error="Need at least 2 configs to compare",
+                module=self.MODULE_NAME, error="Need at least 2 configs to compare",
             )
         result = self._analyzer.compare_firewalls(configs)
         return ToolResult(
             success="error" not in result, content=result,
-            tool_name="firewall_compare", module=self.name,
+            tool_name="firewall_compare", module=self.MODULE_NAME,
             error=result.get("error"),
         )
 
@@ -727,12 +652,12 @@ class Sentinel(BaseModule):
         if not rule_text or not firewall_type:
             return ToolResult(
                 success=False, content=None, tool_name="firewall_explain_rule",
-                module=self.name, error="rule_text and firewall_type are required",
+                module=self.MODULE_NAME, error="rule_text and firewall_type are required",
             )
         result = self._analyzer.explain_rule(rule_text, firewall_type)
         return ToolResult(
             success=True, content=result,
-            tool_name="firewall_explain_rule", module=self.name,
+            tool_name="firewall_explain_rule", module=self.MODULE_NAME,
         )
 
     def _firewall_generate(self, params: dict[str, Any]) -> ToolResult:
@@ -741,12 +666,12 @@ class Sentinel(BaseModule):
         if not requirements:
             return ToolResult(
                 success=False, content=None, tool_name="firewall_generate",
-                module=self.name, error="requirements dict is required",
+                module=self.MODULE_NAME, error="requirements dict is required",
             )
         result = self._analyzer.generate_firewall(requirements)
         return ToolResult(
             success=True, content=result,
-            tool_name="firewall_generate", module=self.name,
+            tool_name="firewall_generate", module=self.MODULE_NAME,
         )
 
     def _security_learn(self, params: dict[str, Any]) -> ToolResult:
@@ -755,20 +680,20 @@ class Sentinel(BaseModule):
         if not topic:
             return ToolResult(
                 success=False, content=None, tool_name="security_learn",
-                module=self.name, error="topic is required",
+                module=self.MODULE_NAME, error="topic is required",
             )
         knowledge = self._analyzer.learn_firewall_concepts(topic)
         if "error" in knowledge:
             return ToolResult(
                 success=False, content=knowledge,
-                tool_name="security_learn", module=self.name,
+                tool_name="security_learn", module=self.MODULE_NAME,
                 error=knowledge["error"],
             )
         stored = self._analyzer.store_security_knowledge(knowledge, source="security_analyzer")
         knowledge["stored_in_grimoire"] = stored > 0
         return ToolResult(
             success=True, content=knowledge,
-            tool_name="security_learn", module=self.name,
+            tool_name="security_learn", module=self.MODULE_NAME,
         )
 
     # --- Threat Intelligence tool handlers ---
@@ -779,12 +704,12 @@ class Sentinel(BaseModule):
         if not pattern_name:
             return ToolResult(
                 success=False, content=None, tool_name="threat_analyze",
-                module=self.name, error="pattern_name is required",
+                module=self.MODULE_NAME, error="pattern_name is required",
             )
         result = self._threat_intel.analyze_attack_pattern(pattern_name)
         return ToolResult(
             success="error" not in result, content=result,
-            tool_name="threat_analyze", module=self.name,
+            tool_name="threat_analyze", module=self.MODULE_NAME,
             error=result.get("error"),
         )
 
@@ -794,13 +719,13 @@ class Sentinel(BaseModule):
         if not log_text:
             return ToolResult(
                 success=False, content=None, tool_name="threat_log_analyze",
-                module=self.name, error="log_text is required",
+                module=self.MODULE_NAME, error="log_text is required",
             )
         log_type = params.get("log_type", "auto")
         result = self._threat_intel.analyze_log_pattern(log_text, log_type)
         return ToolResult(
             success=True, content=result,
-            tool_name="threat_log_analyze", module=self.name,
+            tool_name="threat_log_analyze", module=self.MODULE_NAME,
         )
 
     def _threat_defense_profile(self, params: dict[str, Any]) -> ToolResult:
@@ -809,12 +734,12 @@ class Sentinel(BaseModule):
         if not threat_list:
             return ToolResult(
                 success=False, content=None, tool_name="threat_defense_profile",
-                module=self.name, error="threat_list is required",
+                module=self.MODULE_NAME, error="threat_list is required",
             )
         result = self._threat_intel.build_defense_profile(threat_list)
         return ToolResult(
             success="error" not in result, content=result,
-            tool_name="threat_defense_profile", module=self.name,
+            tool_name="threat_defense_profile", module=self.MODULE_NAME,
             error=result.get("error"),
         )
 
@@ -824,12 +749,12 @@ class Sentinel(BaseModule):
         if not family_name:
             return ToolResult(
                 success=False, content=None, tool_name="threat_malware_study",
-                module=self.name, error="family_name is required",
+                module=self.MODULE_NAME, error="family_name is required",
             )
         result = self._threat_intel.study_malware_family(family_name)
         return ToolResult(
             success="error" not in result, content=result,
-            tool_name="threat_malware_study", module=self.name,
+            tool_name="threat_malware_study", module=self.MODULE_NAME,
             error=result.get("error"),
         )
 
@@ -839,13 +764,13 @@ class Sentinel(BaseModule):
         if not threat_type:
             return ToolResult(
                 success=False, content=None, tool_name="threat_detection_rule",
-                module=self.name, error="threat_type is required",
+                module=self.MODULE_NAME, error="threat_type is required",
             )
         rule_format = params.get("rule_format", "suricata")
         result = self._threat_intel.generate_detection_rule(threat_type, rule_format)
         return ToolResult(
             success="error" not in result, content=result,
-            tool_name="threat_detection_rule", module=self.name,
+            tool_name="threat_detection_rule", module=self.MODULE_NAME,
             error=result.get("error"),
         )
 
@@ -854,7 +779,7 @@ class Sentinel(BaseModule):
         result = self._threat_intel.assess_shadow_threat_surface()
         return ToolResult(
             success=True, content=result,
-            tool_name="threat_shadow_assessment", module=self.name,
+            tool_name="threat_shadow_assessment", module=self.MODULE_NAME,
         )
 
     def _threat_knowledge_store(self, params: dict[str, Any]) -> ToolResult:
@@ -864,12 +789,12 @@ class Sentinel(BaseModule):
         if not knowledge or not source:
             return ToolResult(
                 success=False, content=None, tool_name="threat_knowledge_store",
-                module=self.name, error="knowledge dict and source are required",
+                module=self.MODULE_NAME, error="knowledge dict and source are required",
             )
         count = self._threat_intel.store_threat_knowledge(knowledge, source)
         return ToolResult(
             success=True, content={"stored_count": count},
-            tool_name="threat_knowledge_store", module=self.name,
+            tool_name="threat_knowledge_store", module=self.MODULE_NAME,
         )
 
     # --- Internal helpers ---

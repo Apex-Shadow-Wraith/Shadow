@@ -1,8 +1,13 @@
-"""Sentinel Security Analyzer — firewall configuration analysis and learning pipeline.
+"""Cerberus Security Analyzer — firewall configuration analysis and learning pipeline.
 
 Parses, evaluates, compares, and generates firewall configurations across
 iptables, nftables, ufw, and pf syntaxes.  Stores learned knowledge in
 Grimoire for long-term reference.
+
+Absorbed from modules/sentinel/security_analyzer.py during Phase A
+consolidation. Behavior preserved verbatim. New Grimoire writes tag
+source_module="cerberus.security"; historical "sentinel"-tagged
+entries remain queryable via the writer-side validator allowlist.
 """
 
 from __future__ import annotations
@@ -344,7 +349,7 @@ _SERVICE_PORTS: dict[str, dict[str, Any]] = {
 
 
 class SecurityAnalyzer:
-    """Firewall configuration analyzer and learning engine for Sentinel."""
+    """Firewall configuration analyzer and learning engine (Cerberus security surface)."""
 
     def __init__(self, grimoire: Any | None = None) -> None:
         self._grimoire = grimoire
@@ -833,7 +838,7 @@ class SecurityAnalyzer:
             mem_id = self._grimoire.remember(
                 content=content,
                 source="research",
-                source_module="sentinel",
+                source_module="cerberus.security",
                 category=category,
                 trust_level=0.7,  # TRUST_OFFICIAL_SOURCE / reference level
                 confidence=0.8,

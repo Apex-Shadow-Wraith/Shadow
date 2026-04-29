@@ -79,10 +79,13 @@ Do NOT commit if tests are failing."""
 _MODULE_DESCRIPTIONS: dict[str, str] = {
     "shadow": "Master orchestrator/router, 7-step decision loop, Langfuse observability",
     "wraith": "Fast brain, daily tasks, reminders, task classification, temporal patterns",
-    "cerberus": "Ethics, safety, approvals, injection detection, reversibility, watchdog",
+    "cerberus": (
+        "Ethics, safety, approvals, injection detection, reversibility, watchdog, "
+        "and security surface (firewall, network scanning, file integrity, "
+        "quarantine — absorbed Sentinel in Phase A)"
+    ),
     "apex": "Claude/GPT API fallback with cost tracking and teaching cycle",
     "grimoire": "Data storage, knowledge base, memory, vector DB, block search",
-    "sentinel": "Security, firewall, network scanning, file integrity, quarantine",
     "harbinger": "Briefings, alerts, notifications, decision queue, safety reports, personalization",
     "reaper": "Research, web scraping, Reddit .json, YouTube transcription",
     "cipher": "Math, logic, unit conversion, financial, statistics",

@@ -41,18 +41,21 @@ Every tool call goes through [MCP](https://modelcontextprotocol.io/) (Model Cont
 |---|--------|------|:-----:|
 | 🎯 | **Shadow** | Master orchestrator, task tracking, system health | 4 |
 | ⚡ | **Wraith** | Fast brain — handles 80% of daily tasks, reminders, routing | 12 |
-| 🛡️ | **Cerberus** | Ethics gate, safety approvals, injection detection | 8 |
+| 🛡️ | **Cerberus** | Ethics gate, safety approvals, injection detection, plus the absorbed security surface (firewall, network scanning, file integrity, threat intel — Phase A merge) | 39 |
 | 🌐 | **Apex** | Claude/GPT API fallback with cost tracking & escalation learning | 7 |
 | 📚 | **Grimoire** | Three-layer memory — SQLite + ChromaDB vector store | 6 |
-| 🔒 | **Sentinel** | White-hat security, network scanning, file integrity, threat intel | 6 |
 | 📡 | **Harbinger** | Morning/evening briefings, alerts, Telegram notifications | 12 |
 | 🔍 | **Reaper** | Web research, scraping, Reddit, YouTube transcript analysis | 5 |
 | 🧮 | **Cipher** | Math, logic, unit conversion, data analysis | 7 |
 | 💻 | **Omen** | Code execution sandbox, linting, review, git ops, model eval | 21 |
 | ✍️ | **Nova** | Content creation, document generation, templates | 6 |
-| 👁️ | **Void** | 24/7 passive monitoring, system health trends | 6 |
-| 🧪 | **Morpheus** | Creative discovery pipeline, experiment tracking | 7 |
-| | **Total** | | **138** |
+| | **Total (10 active modules)** | | **119** |
+
+> Phase A consolidation also moved Void to a daemon (`daemons/void/`)
+> for 24/7 monitoring outside the registry, and Morpheus
+> (creative-discovery pipeline) is now opt-in via
+> `config.morpheus.enabled` — both intentionally absent from the
+> active module table above.
 
 > All modules communicate via a multi-agent backbone: MessageBus, EventSystem (20 event types), priority queue with preemption, and shared read-only Grimoire access.
 
@@ -64,7 +67,7 @@ AI Models       Gemma 4 26B (primary) · nomic-embed-text (embeddings)
 Database        SQLite (WAL mode) + ChromaDB (768d vectors)
 Orchestration   LangGraph · MCP (tools) · A2A (agent comms)
 Search          SearXNG · DuckDuckGo · Bing · Reddit .json
-Security        Cerberus ethics gate · Sentinel SOAR · injection detection
+Security        Cerberus (ethics gate · security surface · injection detection)
 Notifications   Telegram Bot · Discord Bot · severity-gated alerting
 Observability   Langfuse (self-hosted) · structured logging
 Fallback APIs   Anthropic Claude · OpenAI GPT (cost-tracked)
@@ -75,20 +78,21 @@ Frontend        React + Tailwind · Electron desktop · PWA mobile
 
 ```
 Shadow/
-├── modules/                  # 13 specialized modules
+├── modules/                  # 10 active modules (post-Phase-A)
 │   ├── shadow/               # Orchestrator, task tracker, growth engine
 │   ├── wraith/               # Fast brain, temporal tracking
-│   ├── cerberus/             # Safety gate, injection detector
+│   ├── cerberus/             # Safety gate + injection detector + absorbed
+│   │   └── security/         #   security surface (Sentinel, Phase A)
 │   ├── apex/                 # API fallback, escalation logging
 │   ├── grimoire/             # Memory (SQLite + ChromaDB)
-│   ├── sentinel/             # Security scanning, threat intel
 │   ├── harbinger/            # Briefings, alerts, notifications
 │   ├── reaper/               # Web research, scraping
 │   ├── cipher/               # Math and logic
 │   ├── omen/                 # Code tools, sandbox, model eval
 │   ├── nova/                 # Content creation
-│   ├── void/                 # System monitoring
-│   └── morpheus/             # Discovery pipeline
+│   └── morpheus/             # Discovery pipeline (opt-in, dormant by default)
+├── daemons/
+│   └── void/                 # 24/7 monitoring (demoted from module, Phase A)
 ├── tests/                    # 1,422 tests
 ├── config/                   # Configuration & environment
 ├── data/                     # Runtime data (DBs, vectors, logs)

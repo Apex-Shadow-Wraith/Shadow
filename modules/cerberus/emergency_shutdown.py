@@ -81,7 +81,7 @@ SAFE_TOOL_NAMES = frozenset({
 SAFE_MODULES = frozenset({
     "omen", "grimoire", "reaper", "wraith", "nova",
     "cipher", "harbinger", "void", "morpheus", "shadow",
-    "sentinel", "apex",
+    "apex",
 })
 
 SAFE_OPERATION_TYPES = frozenset({

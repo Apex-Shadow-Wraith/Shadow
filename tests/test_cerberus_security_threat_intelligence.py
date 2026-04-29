@@ -1,10 +1,10 @@
-"""Tests for Sentinel Threat Intelligence module."""
+"""Tests for Cerberus Security Threat Intelligence (absorbed from Sentinel, Phase A)."""
 
 from __future__ import annotations
 
 import pytest
 
-from modules.sentinel.threat_intelligence import ThreatIntelligence
+from modules.cerberus.security.threat_intelligence import ThreatIntelligence
 
 
 @pytest.fixture
