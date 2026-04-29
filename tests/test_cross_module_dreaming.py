@@ -132,14 +132,18 @@ class TestDream:
 class TestGetModuleDescriptions:
     """Tests for get_module_descriptions()."""
 
-    def test_returns_all_13_modules(self, dreamer_no_generate):
-        """Should return descriptions for all 13 Shadow modules."""
+    def test_returns_post_phase_a_modules(self, dreamer_no_generate):
+        """Should return descriptions for all post-Phase-A modules.
+
+        Phase A consolidation: Sentinel → Cerberus, Cipher → Omen,
+        Void → daemon.  MODULE_DESCRIPTIONS now has 10 entries
+        (active modules + dormant Morpheus)."""
         descriptions = dreamer_no_generate.get_module_descriptions()
-        assert len(descriptions) == 13
+        assert len(descriptions) == 10
         expected_modules = {
             "shadow", "wraith", "cerberus", "apex", "grimoire",
-            "sentinel", "harbinger", "reaper", "cipher", "omen",
-            "nova", "void", "morpheus",
+            "harbinger", "reaper", "omen",
+            "nova", "morpheus",
         }
         assert set(descriptions.keys()) == expected_modules
 
@@ -193,7 +197,7 @@ class TestEvaluateDream:
     def test_empty_hypothesis_not_worth_it(self, dreamer_no_generate):
         """Empty hypothesis should not be worth investigating."""
         dream = {
-            "module_a": "cipher",
+            "module_a": "omen",
             "module_b": "nova",
             "hypothesis": "",
             "description": "",
@@ -204,10 +208,11 @@ class TestEvaluateDream:
         assert result["worth_investigating"] is False
 
     def test_restated_capability_not_worth_it(self, dreamer_no_generate):
-        """A hypothesis that just restates a module's description isn't novel."""
-        desc = MODULE_DESCRIPTIONS["cipher"]
+        """A hypothesis that just restates a module's description isn't novel.
+        Phase A: cipher absorbed into omen; use omen's description here."""
+        desc = MODULE_DESCRIPTIONS["omen"]
         dream = {
-            "module_a": "cipher",
+            "module_a": "omen",
             "module_b": "nova",
             "hypothesis": desc,
             "description": desc,
@@ -267,9 +272,9 @@ class TestGetUnexploredCombinations:
     """Tests for get_unexplored_combinations()."""
 
     def test_returns_untried_pairs(self, dreamer_no_generate):
-        """Should return all 78 pairs initially (13 choose 2)."""
+        """Should return all 45 pairs initially (10 choose 2, post-Phase-A)."""
         unexplored = dreamer_no_generate.get_unexplored_combinations()
-        assert len(unexplored) == 78  # 13 * 12 / 2
+        assert len(unexplored) == 45  # 10 * 9 / 2 (post-Phase-A)
 
     def test_shrinks_as_combinations_explored(self):
         """Explored pairs should be excluded from unexplored list."""
@@ -337,15 +342,16 @@ class TestGetDreamingStats:
         assert "unexplored_pairs" in stats
         assert stats["combinations_explored"] == 2
         assert stats["total_dreams"] >= 2
-        assert stats["unexplored_pairs"] == 76  # 78 - 2
+        assert stats["unexplored_pairs"] == 43  # 45 - 2 (post-Phase-A)
 
     def test_initial_stats(self, dreamer_no_generate):
-        """Initial stats should show zero explored, 78 unexplored."""
+        """Initial stats should show zero explored, 45 unexplored
+        (post-Phase-A: 10 modules → C(10,2) = 45 pairs)."""
         stats = dreamer_no_generate.get_dreaming_stats()
         assert stats["combinations_explored"] == 0
         assert stats["total_dreams"] == 0
         assert stats["validated_dreams"] == 0
-        assert stats["unexplored_pairs"] == 78
+        assert stats["unexplored_pairs"] == 45
 
 
 # --- Edge cases ---

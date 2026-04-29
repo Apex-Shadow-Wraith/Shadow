@@ -58,7 +58,7 @@ class TestLogRouting:
     def test_logs_accumulate(self, detector):
         """Multiple logs are stored."""
         detector.log_routing("code", "omen")
-        detector.log_routing("math", "cipher")
+        detector.log_routing("math", "omen")  # math absorbed into omen (Phase A)
         detector.log_routing("ethics", "cerberus")
         with sqlite3.connect(str(detector.db_path)) as conn:
             count = conn.execute("SELECT COUNT(*) FROM routing_logs").fetchone()[0]
@@ -75,8 +75,13 @@ class TestLogRouting:
         assert desc == "Fix the login bug"
 
     def test_log_marks_violation(self, detector):
-        """Violations are flagged at log time."""
-        log_id = detector.log_routing("math", "omen")  # math → omen is wrong
+        """Violations are flagged at log time.
+
+        Phase A (Cipher → Omen): math IS omen's role now (role
+        "code_and_math"), so math → omen is correct.  The off-role
+        case picks a violation that's still wrong post-merge:
+        math task routed to reaper (research module)."""
+        log_id = detector.log_routing("math", "reaper")  # math → reaper is wrong
         with sqlite3.connect(str(detector.db_path)) as conn:
             row = conn.execute(
                 "SELECT is_violation, violation_reason FROM routing_logs WHERE log_id = ?",
@@ -100,12 +105,13 @@ class TestLogRouting:
 
 class TestDetectViolations:
     def test_wrong_module_returns_violation(self, detector):
-        """Math task to Omen = violation."""
-        result = detector.detect_violations("math", "omen")
+        """Math task to Reaper = violation; suggestion should include omen
+        (which absorbed Cipher's math role in Phase A)."""
+        result = detector.detect_violations("math", "reaper")
         assert result is not None
         assert result["task_type"] == "math"
-        assert result["routed_to"] == "omen"
-        assert "cipher" in [m for m in result["suggested_modules"]]
+        assert result["routed_to"] == "reaper"
+        assert "omen" in [m for m in result["suggested_modules"]]
 
     def test_correct_module_returns_none(self, detector):
         """Code task to Omen = correct, returns None."""
@@ -142,8 +148,9 @@ class TestAnalyzeDrift:
         assert analysis["underused"] == []
 
     def test_violation_detected(self, detector):
-        """Math task → Omen is a violation."""
-        detector.log_routing("math", "omen", "Calculate profit margin")
+        """Phase A: math → omen is now correct (omen absorbed Cipher).
+        Math → reaper is the new violation case."""
+        detector.log_routing("math", "reaper", "Calculate profit margin")
         analysis = detector.analyze_drift()
         assert len(analysis["violations"]) == 1
         assert analysis["violations"][0]["task_type"] == "math"
@@ -175,14 +182,18 @@ class TestAnalyzeDrift:
         assert len(underused_modules) > 5
 
     def test_drift_score_reflects_violations(self, detector):
-        """drift_score increases with more violations."""
-        # 3 correct, 3 violations
+        """drift_score increases with more violations.
+
+        Phase A: math → omen is correct (omen absorbed Cipher), not a
+        violation.  Updated fixture: 3 correct (code/math/ethics →
+        right module), 3 violations (math/ethics/web_search → reaper,
+        which is the wrong module for all three)."""
         detector.log_routing("code", "omen")
-        detector.log_routing("math", "cipher")
+        detector.log_routing("math", "omen")     # correct (post-merge)
         detector.log_routing("ethics", "cerberus")
-        detector.log_routing("math", "omen")       # violation
-        detector.log_routing("ethics", "omen")      # violation
-        detector.log_routing("web_search", "omen")  # violation
+        detector.log_routing("math", "reaper")     # violation
+        detector.log_routing("ethics", "reaper")   # violation
+        detector.log_routing("web_search", "omen") # violation
         analysis = detector.analyze_drift()
         assert analysis["drift_score"] == 0.5
 
@@ -198,23 +209,30 @@ class TestAnalyzeDrift:
 
 class TestModuleProfile:
     def test_empty_profile(self, detector):
-        """Module with no tasks has clean profile."""
-        profile = detector.get_module_profile("cipher")
-        assert profile["module"] == "cipher"
-        assert profile["designed_role"] == "math_logic"
+        """Module with no tasks has clean profile.
+
+        Phase A: 'cipher' is no longer a known role (absorbed into
+        omen).  Reaper is a clean stand-in here — known role,
+        unrelated to math."""
+        profile = detector.get_module_profile("reaper")
+        assert profile["module"] == "reaper"
+        assert profile["designed_role"] == "research"
         assert profile["actual_task_types"] == []
         assert profile["on_role_pct"] == 1.0
         assert profile["off_role_tasks"] == []
 
     def test_on_role_percentage(self, detector):
-        """on_role_pct is calculated correctly."""
+        """on_role_pct is calculated correctly.
+
+        Phase A: math IS now omen's role (absorbed Cipher).  The
+        off-role task here is web_search, which is reaper's domain."""
         detector.log_routing("code", "omen")
         detector.log_routing("code", "omen")
         detector.log_routing("debugging", "omen")
-        detector.log_routing("math", "omen")  # off-role
+        detector.log_routing("web_search", "omen")  # off-role (reaper's domain)
         profile = detector.get_module_profile("omen")
         assert profile["on_role_pct"] == 0.75  # 3 of 4 are on-role
-        assert "math" in profile["off_role_tasks"]
+        assert "web_search" in profile["off_role_tasks"]
 
     def test_actual_task_types(self, detector):
         """Profile shows all task types handled."""
@@ -240,13 +258,18 @@ class TestCorrectionReport:
         assert "No issues detected" in report or "0.0" in report
 
     def test_report_mentions_modules(self, detector):
-        """Report names specific modules with violations."""
-        detector.log_routing("math", "omen")
-        detector.log_routing("math", "omen")
+        """Report names specific modules with violations.
+
+        Phase A: math → omen is correct.  Use math → reaper as the
+        violation case; report should mention Reaper (where it went)
+        and Omen (where it should go — omen absorbed Cipher's math
+        role in Phase A)."""
+        detector.log_routing("math", "reaper")
+        detector.log_routing("math", "reaper")
         report = detector.generate_correction_report()
-        assert "Omen" in report
+        assert "Reaper" in report
         assert "math" in report.lower()
-        assert "Cipher" in report
+        assert "Omen" in report
 
     def test_report_mentions_underused(self, detector):
         """Report flags underused modules."""
@@ -282,11 +305,14 @@ class TestDriftStats:
 
 class TestEdgeCases:
     def test_all_module_roles_defined(self, detector):
-        """All 13 modules have role definitions."""
-        assert len(MODULE_ROLES) == 13
+        """All post-Phase-A modules have role definitions.
+
+        Phase A consolidation: Sentinel → Cerberus, Cipher → Omen,
+        Void → daemon.  MODULE_ROLES now has 10 entries (the active
+        modules + dormant Morpheus)."""
+        assert len(MODULE_ROLES) == 10
         for mod in ["shadow", "wraith", "grimoire", "reaper", "cerberus",
-                     "apex", "harbinger", "cipher", "omen", "nova",
-                     "sentinel", "void", "morpheus"]:
+                     "apex", "harbinger", "omen", "nova", "morpheus"]:
             assert mod in MODULE_ROLES
 
     def test_generalist_threshold_value(self):
@@ -298,7 +324,7 @@ class TestEdgeCases:
         d1 = DriftDetector(db_path=tmp_db)
         d2 = DriftDetector(db_path=tmp_db)
         d1.log_routing("code", "omen")
-        d2.log_routing("math", "cipher")
+        d2.log_routing("math", "omen")  # math absorbed into omen (Phase A)
         analysis = d1.analyze_drift()
         # Both logs visible
         with sqlite3.connect(tmp_db) as conn:

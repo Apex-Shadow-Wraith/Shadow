@@ -25,10 +25,11 @@ from typing import Any
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 # (codename, "module.path", "ClassName")
+# Phase A consolidation: Sentinel → Cerberus, Cipher → Omen, Void → daemon.
+# Only the active modules remain — sentinel/cipher/void entries removed.
 KNOWN_MODULES: list[tuple[str, str, str]] = [
     ("apex", "modules.apex.apex", "Apex"),
     ("cerberus", "modules.cerberus.cerberus", "Cerberus"),
-    ("cipher", "modules.cipher.cipher", "Cipher"),
     ("grimoire", "modules.grimoire.grimoire_module", "GrimoireModule"),
     ("harbinger", "modules.harbinger.harbinger", "Harbinger"),
     ("morpheus", "modules.morpheus.morpheus", "Morpheus"),

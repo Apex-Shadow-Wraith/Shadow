@@ -90,7 +90,7 @@ def test_duplicate_task_id_impossible(tracker):
 
 def test_status_transition_queued_to_running_to_completed(tracker):
     """Normal lifecycle: queued → running → completed."""
-    task_id = tracker.create("Lifecycle test", "cipher")
+    task_id = tracker.create("Lifecycle test", "omen")
 
     tracker.update_status(task_id, "running")
     assert tracker.get_status(task_id)["status"] == "running"
@@ -151,7 +151,7 @@ def test_cancel_running_task(tracker):
 
 def test_cancel_completed_task_fails(tracker):
     """Cannot cancel a completed task."""
-    task_id = tracker.create("Done task", "cipher")
+    task_id = tracker.create("Done task", "omen")
     tracker.update_status(task_id, "completed")
     assert tracker.cancel(task_id) is False
     assert tracker.get_status(task_id)["status"] == "completed"
@@ -159,7 +159,7 @@ def test_cancel_completed_task_fails(tracker):
 
 def test_cancel_failed_task_fails(tracker):
     """Cannot cancel a failed task."""
-    task_id = tracker.create("Failed task", "cipher")
+    task_id = tracker.create("Failed task", "omen")
     tracker.update_status(task_id, "failed")
     assert tracker.cancel(task_id) is False
 
@@ -176,7 +176,7 @@ def test_cancel_nonexistent_task(tracker):
 def test_list_all_tasks(tracker):
     """List without filter returns everything."""
     tracker.create("Task A", "wraith", priority=1)
-    tracker.create("Task B", "cipher", priority=3)
+    tracker.create("Task B", "omen", priority=3)
     tracker.create("Task C", "reaper", priority=2)
 
     tasks = tracker.list_tasks()
@@ -186,7 +186,7 @@ def test_list_all_tasks(tracker):
 def test_list_with_status_filter(tracker):
     """Filter returns only matching tasks."""
     id_a = tracker.create("Task A", "wraith")
-    id_b = tracker.create("Task B", "cipher")
+    id_b = tracker.create("Task B", "omen")
     tracker.update_status(id_a, "running")
 
     queued = tracker.list_tasks(status_filter="queued")
@@ -254,7 +254,7 @@ def test_cleanup_preserves_recent(tracker):
 def test_cleanup_preserves_queued_and_running(tracker):
     """Cleanup only targets completed/failed/cancelled tasks."""
     id_q = tracker.create("Queued", "wraith")
-    id_r = tracker.create("Running", "cipher")
+    id_r = tracker.create("Running", "omen")
     tracker.update_status(id_r, "running")
 
     # Backdate both
@@ -283,7 +283,7 @@ def test_cleanup_mixed(tracker):
     )
 
     # Old failed — should be deleted
-    id_fail = tracker.create("Old fail", "cipher")
+    id_fail = tracker.create("Old fail", "omen")
     tracker.update_status(id_fail, "failed")
     tracker._db.execute(
         "UPDATE shadow_tasks SET created_at = ? WHERE task_id = ?",
@@ -326,7 +326,7 @@ def test_all_valid_modules_accepted(tracker):
 
 def test_result_json_roundtrip(tracker):
     """Result dict survives JSON serialization/deserialization."""
-    task_id = tracker.create("JSON test", "cipher")
+    task_id = tracker.create("JSON test", "omen")
     payload = {"scores": [1, 2, 3], "nested": {"key": "value"}}
     tracker.update_status(task_id, "completed", result=payload)
     task = tracker.get_status(task_id)
