@@ -56,7 +56,6 @@ Morpheus = _try_import("modules.morpheus.morpheus", "Morpheus")
 Nova = _try_import("modules.nova.nova", "Nova")
 Omen = _try_import("modules.omen.omen", "Omen")
 ReaperModule = _try_import("modules.reaper.reaper_module", "ReaperModule")
-Sentinel = _try_import("modules.sentinel.sentinel", "Sentinel")
 Wraith = _try_import("modules.wraith.wraith", "Wraith")
 
 
@@ -174,7 +173,6 @@ async def startup(config: dict, logger: logging.Logger) -> Orchestrator:
     apex = Apex(_shadow_config.apex) if Apex else None
     cipher = Cipher(module_configs.get("cipher", {})) if Cipher else None
     omen = Omen(module_configs.get("omen", {})) if Omen else None
-    sentinel = Sentinel(module_configs.get("sentinel", {})) if Sentinel else None
     nova = Nova(module_configs.get("nova", {})) if Nova else None
     # Morpheus is dormant by default (config.morpheus.enabled=False). Only
     # instantiate when explicitly enabled — the router's is_routable()
@@ -207,7 +205,7 @@ async def startup(config: dict, logger: logging.Logger) -> Orchestrator:
     all_modules = [
         m for m in [
             cerberus, wraith, reaper, harbinger,
-            apex, cipher, omen, sentinel, nova, morpheus,
+            apex, cipher, omen, nova, morpheus,
         ] if m is not None
     ]
     for module in all_modules:

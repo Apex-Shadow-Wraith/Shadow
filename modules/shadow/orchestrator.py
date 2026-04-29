@@ -1812,10 +1812,9 @@ Available modules: {', '.join(available_modules)}
 Module capabilities (use the MOST specific module — avoid "direct" unless it's truly casual conversation):
 - shadow: Meta-tasks about Shadow itself, orchestration, system-level commands.
 - wraith: Reminders, timers, calendar, daily tasks, scheduling, appointments, deadlines, to-do lists.
-- cerberus: Ethics questions, moral dilemmas, biblical values, safety checks. Internal safety — rarely route user tasks here.
+- cerberus: Ethics, safety, approvals, security scans, vulnerability checks, system integrity, threat assessment, firewall, intrusion detection, audits. Both the conscience and the security surface.
 - apex: Cloud API fallback (Claude/GPT). Only when explicitly requested or after local model failure.
 - grimoire: Memory storage, recall, knowledge retrieval, "remember this", "what do you know about", Bible verse lookup.
-- sentinel: Security scans, vulnerability checks, system integrity, threat assessment, firewall, intrusion detection, audits.
 - harbinger: Briefings, daily reports, alerts, notifications, status summaries, safety reports.
 - reaper: Web search, research, current events, news, looking things up online, YouTube transcription.
 - cipher: Math, calculations, unit conversions, financial estimates, statistics, logic puzzles, data analysis. ANY math or numbers task.
@@ -1895,11 +1894,11 @@ User input: {user_input}"""
                 safety_flag=False, priority=1, confidence=0.50,
             )
 
-        # Security
+        # Security — absorbed into Cerberus's security surface (Phase A merge).
         if any(kw in lower for kw in ["security", "vulnerability", "threat", "firewall", "breach", "audit"]):
             return TaskClassification(
                 task_type=TaskType.ACTION, complexity="moderate",
-                target_module="sentinel", brain=BrainType.FAST,
+                target_module="cerberus", brain=BrainType.FAST,
                 safety_flag=False, priority=1, confidence=0.50,
             )
 
@@ -2337,7 +2336,7 @@ User input: {user_input}"""
         # that again").  The fast-path has no conversation history, so it
         # can't resolve these — hand them to the LLM router which does.
         _MODULE_NAMES = {
-            "apex", "grimoire", "reaper", "sentinel", "morpheus",
+            "apex", "grimoire", "reaper", "morpheus",
             "cipher", "omen", "nova", "harbinger", "wraith",
             "cerberus", "shadow",
         }
@@ -2352,7 +2351,7 @@ User input: {user_input}"""
             # Wraith (scheduling)
             "remind", "timer", "schedul", "alarm",
             "appoint", "deadlin", "calendar", "todo",
-            # Sentinel (security)
+            # Cerberus security surface (absorbed from Sentinel, Phase A)
             "secur", "vulnerab", "threat", "intrus", "firewall",
             "breach", "audit",
             # Cipher (math / logic)
@@ -2450,7 +2449,6 @@ User input: {user_input}"""
             "apex": TaskType.QUESTION,
             "grimoire": TaskType.MEMORY,
             "reaper": TaskType.RESEARCH,
-            "sentinel": TaskType.ACTION,
             "morpheus": TaskType.RESEARCH,
             "cipher": TaskType.ANALYSIS,
             "omen": TaskType.CREATION,
@@ -2484,7 +2482,7 @@ User input: {user_input}"""
         # Check bare module names as whole words first (most common case).
         # Excludes "nova", "shadow" — too common as English words.
         _BARE_MODULE_WORDS = {
-            "apex", "grimoire", "reaper", "sentinel", "morpheus",
+            "apex", "grimoire", "reaper", "morpheus",
             "cipher", "omen", "harbinger", "wraith", "cerberus",
         }
         bare_match = words & _BARE_MODULE_WORDS
@@ -2498,7 +2496,6 @@ User input: {user_input}"""
             ("use apex", "apex"),
             ("ask grimoire", "grimoire"),
             ("ask reaper", "reaper"),
-            ("ask sentinel", "sentinel"),
             ("ask morpheus", "morpheus"),
             ("ask cipher", "cipher"),
             ("ask omen", "omen"),
@@ -2653,23 +2650,23 @@ User input: {user_input}"""
                 confidence=0.85,
             )
 
-        # ── Priority 4: Sentinel — security ──
-        _sentinel_stems = {
+        # ── Priority 4: Cerberus security surface (absorbed from Sentinel) ──
+        _security_stems = {
             "secur", "vulnerab", "threat", "intrus",
             "firewall", "breach", "audit",
         }
-        sentinel_phrases = [
+        _security_phrases = [
             "security check", "security scan", "threat assessment",
             "vulnerability scan", "intrusion detection",
         ]
-        if _stem_matches(_sentinel_stems) or any(p in lower for p in sentinel_phrases):
-            _sent_type = TaskType.QUESTION if _is_informational else TaskType.ACTION
-            logger.info("Fast-path keyword → sentinel (type=%s, informational=%s)",
-                        _sent_type.value, _is_informational)
+        if _stem_matches(_security_stems) or any(p in lower for p in _security_phrases):
+            _sec_type = TaskType.QUESTION if _is_informational else TaskType.ACTION
+            logger.info("Fast-path keyword → cerberus (security; type=%s, informational=%s)",
+                        _sec_type.value, _is_informational)
             return TaskClassification(
-                task_type=_sent_type,
+                task_type=_sec_type,
                 complexity="moderate",
-                target_module="sentinel",
+                target_module="cerberus",
                 brain=BrainType.FAST,
                 safety_flag=False,
                 priority=1,
@@ -3973,8 +3970,16 @@ User input: {user_input}"""
                     },
                 ]
 
-        elif classification.target_module == "sentinel":
-            # Sentinel — security, network scanning, file integrity.
+        elif classification.target_module == "cerberus" and any(
+            kw in user_input.lower()
+            for kw in [
+                "security", "scan", "network", "vulnerab", "threat", "intrus",
+                "firewall", "breach", "audit", "integrity", "file check",
+                "verify", "pwned", "compromised", "leaked",
+            ]
+        ):
+            # Cerberus's absorbed security surface — network scanning,
+            # file integrity, threat assessment, breach check.
             # Important: security OPINION/ADVICE questions (no actionable
             # input like email/IP/path) should go straight to LLM response
             # with security context — not dispatched to breach_check which
@@ -3989,7 +3994,7 @@ User input: {user_input}"""
             if any(kw in lower_input for kw in ["scan", "network"]):
                 steps = [{
                     "step": 1,
-                    "description": "Run network scan via Sentinel",
+                    "description": "Run network scan via Cerberus security surface",
                     "tool": "network_scan",
                     "params": {"target": user_input},
                 }]
@@ -3998,14 +4003,14 @@ User input: {user_input}"""
             ]):
                 steps = [{
                     "step": 1,
-                    "description": "Check file integrity via Sentinel",
+                    "description": "Check file integrity via Cerberus security surface",
                     "tool": "file_integrity_check",
                     "params": {"target": user_input},
                 }]
             elif any(kw in lower_input for kw in ["threat", "assess"]):
                 steps = [{
                     "step": 1,
-                    "description": "Assess threat via Sentinel",
+                    "description": "Assess threat via Cerberus security surface",
                     "tool": "threat_assess",
                     "params": {"query": user_input},
                 }]
@@ -4014,7 +4019,7 @@ User input: {user_input}"""
             ]):
                 steps = [{
                     "step": 1,
-                    "description": "Run breach check via Sentinel",
+                    "description": "Run breach check via Cerberus security surface",
                     "tool": "breach_check",
                     "params": {"email": user_input, "query": user_input},
                 }]
@@ -4023,7 +4028,7 @@ User input: {user_input}"""
                 # — answer as a security opinion/advice question via LLM.
                 steps = [{
                     "step": 1,
-                    "description": "Answer security question via LLM with Sentinel context",
+                    "description": "Answer security question via LLM with Cerberus security context",
                     "tool": None,
                     "params": {},
                 }]
@@ -5362,16 +5367,15 @@ Current time: {current_time}
 
 YOU ARE SHADOW — MODULE AWARENESS:
 You run locally on an RTX 5090 using Gemma 4 26B as your primary brain. You are private, autonomous, and built on biblical values.
-You have 13 specialized modules:
+You have 11 specialized modules:
 - Shadow: Master orchestrator, routes tasks to the right module
 - Wraith: Fast brain for daily tasks, reminders, scheduling
-- Cerberus: Ethics, safety, approval gates
+- Cerberus: Ethics, safety, approval gates, plus security scanning, vulnerability checks, system integrity, threat assessment, firewall and audit
 - Grimoire: Memory and knowledge storage, recall
 - Reaper: Web search and research
 - Apex: Cloud API fallback to Claude and OpenAI for tasks beyond local capability
 - Cipher: Math, calculations, logic, statistics
 - Omen: Code writing, debugging, analysis, review, execution
-- Sentinel: Security scanning, vulnerability checks, system integrity
 - Nova: Content creation, documents, writing
 - Harbinger: Briefings, alerts, notifications
 - Morpheus: Creative discovery, experimentation, brainstorming, "what if" exploration

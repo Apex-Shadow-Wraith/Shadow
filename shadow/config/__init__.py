@@ -62,7 +62,6 @@ from modules.morpheus.config import MorpheusSettings
 from modules.nova.config import NovaSettings
 from modules.omen.config import OmenSettings
 from modules.reaper.reaper_settings import ReaperSettings
-from modules.sentinel.config import SentinelSettings
 from modules.shadow.config import ShadowModuleSettings
 from modules.shadow.observability_config import ObservabilitySettings
 from daemons.void.config import VoidDaemonSettings
@@ -86,7 +85,6 @@ _MODULE_FIELD_MAP: dict[str, str] = {
     "nova": "nova",
     "omen": "omen",
     "reaper": "reaper",
-    "sentinel": "sentinel",
     "wraith": "wraith",
     "observability": "observability",
     "shadow": "shadow_module",
@@ -209,7 +207,6 @@ class Settings(BaseSettings):
     observability: ObservabilitySettings = Field(default_factory=ObservabilitySettings)
     omen: OmenSettings = Field(default_factory=OmenSettings)
     reaper: ReaperSettings = Field(default_factory=ReaperSettings)
-    sentinel: SentinelSettings = Field(default_factory=SentinelSettings)
     shadow_module: ShadowModuleSettings = Field(default_factory=ShadowModuleSettings)
     void: VoidDaemonSettings = Field(default_factory=VoidDaemonSettings)
     wraith: WraithSettings = Field(default_factory=WraithSettings)
@@ -257,7 +254,7 @@ def to_legacy_dict(settings: BaseModel | BaseSettings) -> Any:
 
     The typed singleton is the source of truth for every module's config;
     this helper exists because the Orchestrator and a few unmigrated modules
-    (Grimoire, Wraith, Nova, Omen, Sentinel, Void, Morpheus, Cipher) still
+    (Grimoire, Wraith, Nova, Omen, Morpheus, Cipher) still
     read configuration via `config["modules"]["<name>"][...]` dict paths.
 
     Two transformations applied:

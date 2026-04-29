@@ -55,7 +55,6 @@ modules:
     - "apex"
     - "cipher"
     - "omen"
-    - "sentinel"
     - "nova"
     - "morpheus"
 
