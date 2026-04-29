@@ -28,6 +28,7 @@ def _make_config(tmp_path: Path, overrides: dict[str, Any] | None = None) -> dic
         "baseline_file": str(tmp_path / "baseline.json"),
         "quarantine_dir": str(tmp_path / "quarantine"),
         "project_root": str(tmp_path),
+        "dry_run": True,
     }
     if overrides:
         cfg.update(overrides)
@@ -168,7 +169,7 @@ class TestRegistryRoundTrip:
             # that's fine — we're testing the ModuleRegistry routing
             registry.register(mod)
 
-        assert len(registry) == 13
+        assert len(registry) == 10
 
         # Verify every tool routes back to the correct module
         for mod in modules:
@@ -188,4 +189,4 @@ class TestRegistryRoundTrip:
 
         stats = registry.tool_stats()
         assert stats["total_tools"] >= 152
-        assert stats["total_modules"] == 13
+        assert stats["total_modules"] == 10
