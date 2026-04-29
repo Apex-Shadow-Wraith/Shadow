@@ -147,6 +147,22 @@ def enabled_morpheus(monkeypatch):
     monkeypatch.setattr(ModuleRegistry, "is_routable", _patched)
 
 
+@pytest.fixture
+def routable_all(monkeypatch):
+    """Treat every named module as routable for the duration of the test.
+
+    Tests that instantiate ``Orchestrator(config)`` directly do not boot
+    the module registry, so ``is_routable(name)`` returns False for
+    every module (none are registered). The Phase A is_routable gate on
+    the fast-path (bare-word + explicit-phrase + dormant-module
+    skipping) then short-circuits these unit tests, which are exercising
+    routing logic in isolation rather than registry boot. This fixture
+    forces is_routable to True so the routing assertions pass.
+    """
+    from modules.base import ModuleRegistry
+    monkeypatch.setattr(ModuleRegistry, "is_routable", lambda self, name: True)
+
+
 # --- Fallback Classification Tests ---
 
 class TestFallbackClassifier:
@@ -339,31 +355,31 @@ class TestFastPathClassifier:
         result = orch._fast_path_classify("tell me something interesting about space")
         assert result is None
 
-    # --- BUG 6: Security → Sentinel ---
+    # --- BUG 6: Security → Cerberus (absorbed Sentinel surface, Phase A) ---
 
     def test_sentinel_security_check(self, config: dict):
         orch = Orchestrator(config)
         result = orch._fast_path_classify("Run a security check on your system")
         assert result is not None
-        assert result.target_module == "sentinel"
+        assert result.target_module == "cerberus"
 
     def test_sentinel_vulnerability_keyword(self, config: dict):
         orch = Orchestrator(config)
         result = orch._fast_path_classify("scan for vulnerability in the network")
         assert result is not None
-        assert result.target_module == "sentinel"
+        assert result.target_module == "cerberus"
 
     def test_sentinel_threat_assessment_phrase(self, config: dict):
         orch = Orchestrator(config)
         result = orch._fast_path_classify("threat assessment of my network")
         assert result is not None
-        assert result.target_module == "sentinel"
+        assert result.target_module == "cerberus"
 
     def test_sentinel_firewall_keyword(self, config: dict):
         orch = Orchestrator(config)
         result = orch._fast_path_classify("check the firewall status")
         assert result is not None
-        assert result.target_module == "sentinel"
+        assert result.target_module == "cerberus"
 
     # Void-routing tests deleted in Phase A (Void demoted to daemon).
     # Metric/monitoring phrases now fall through to the LLM router or
@@ -508,35 +524,35 @@ class TestFastPathClassifier:
         orch = Orchestrator(config)
         result = orch._fast_path_classify("tell me about our security systems")
         assert result is not None
-        assert result.target_module == "sentinel"
+        assert result.target_module == "cerberus"
         assert result.task_type == TaskType.QUESTION
 
     def test_informational_security_what_is(self, config: dict):
         orch = Orchestrator(config)
         result = orch._fast_path_classify("what is the security module")
         assert result is not None
-        assert result.target_module == "sentinel"
+        assert result.target_module == "cerberus"
         assert result.task_type == TaskType.QUESTION
 
     def test_informational_security_explain(self, config: dict):
         orch = Orchestrator(config)
         result = orch._fast_path_classify("explain the firewall capabilities")
         assert result is not None
-        assert result.target_module == "sentinel"
+        assert result.target_module == "cerberus"
         assert result.task_type == TaskType.QUESTION
 
     def test_informational_security_describe(self, config: dict):
         orch = Orchestrator(config)
         result = orch._fast_path_classify("describe our threat detection setup")
         assert result is not None
-        assert result.target_module == "sentinel"
+        assert result.target_module == "cerberus"
         assert result.task_type == TaskType.QUESTION
 
     def test_informational_security_how_does(self, config: dict):
         orch = Orchestrator(config)
         result = orch._fast_path_classify("how does the intrusion detection work")
         assert result is not None
-        assert result.target_module == "sentinel"
+        assert result.target_module == "cerberus"
         assert result.task_type == TaskType.QUESTION
 
     def test_action_security_still_works(self, config: dict):
@@ -544,14 +560,14 @@ class TestFastPathClassifier:
         orch = Orchestrator(config)
         result = orch._fast_path_classify("run a security scan on my network")
         assert result is not None
-        assert result.target_module == "sentinel"
+        assert result.target_module == "cerberus"
         assert result.task_type == TaskType.ACTION
 
     def test_action_breach_check_still_works(self, config: dict):
         orch = Orchestrator(config)
         result = orch._fast_path_classify("check for breaches in the system")
         assert result is not None
-        assert result.target_module == "sentinel"
+        assert result.target_module == "cerberus"
         assert result.task_type == TaskType.ACTION
 
     def test_informational_scheduling_bypasses_wraith(self, config: dict):
@@ -597,12 +613,16 @@ class TestFastPathClassifier:
         assert result.target_module == "harbinger"
         assert result.task_type == TaskType.QUESTION
 
-    def test_informational_explicit_module_sentinel(self, config: dict):
-        """'Tell me about sentinel' should be QUESTION, not ACTION."""
+    def test_informational_explicit_module_cerberus(self, config: dict, routable_all):
+        """'Tell me about cerberus' should be QUESTION, not ACTION.
+
+        Phase A absorbed Sentinel into Cerberus; the explicit-module
+        informational path is now anchored on cerberus. Requires
+        routable_all so the bare-word fast-path doesn't get gated out."""
         orch = Orchestrator(config)
-        result = orch._fast_path_classify("tell me about sentinel")
+        result = orch._fast_path_classify("tell me about cerberus")
         assert result is not None
-        assert result.target_module == "sentinel"
+        assert result.target_module == "cerberus"
         assert result.task_type == TaskType.QUESTION
 
 
@@ -1525,7 +1545,11 @@ class TestPersonalitySystemPrompt:
         sys_content = system_msgs[0]["content"]
         assert "MODULE AWARENESS" in sys_content, "System prompt missing module awareness block"
         assert "Morpheus" in sys_content, "Module awareness missing Morpheus"
-        assert "13 specialized modules" in sys_content, "Module count missing"
+        # Phase A consolidation: Cipher absorbed into Omen, Sentinel
+        # absorbed into Cerberus, Void demoted to daemon. Module count
+        # in the system prompt is now 10. Morpheus remains listed even
+        # when dormant (creator awareness, not routing target).
+        assert "10 specialized modules" in sys_content, "Module count missing"
 
 
 # --- Session 34: Router Confidence Tests ---
@@ -2247,23 +2271,28 @@ class TestGrimoireStoreWrapper:
 
 
 class TestExplicitModuleMentionRouting:
-    """FIX 2: Explicit module names in user input override keyword routing."""
+    """FIX 2: Explicit module names in user input override keyword routing.
 
-    def test_explicit_apex_mention_routes_to_apex(self, config: dict):
+    These tests use ``routable_all`` because Orchestrator(config) does
+    not register modules with the registry, so the Phase A
+    is_routable() gate on the fast-path bare-word and explicit-phrase
+    matchers would otherwise short-circuit every assertion."""
+
+    def test_explicit_apex_mention_routes_to_apex(self, config: dict, routable_all):
         """'ask apex to write code' → apex, not omen."""
         orch = Orchestrator(config)
         result = orch._fast_path_classify("ask apex to write some cool code")
         assert result is not None
         assert result.target_module == "apex"
 
-    def test_escalate_routes_to_apex(self, config: dict):
+    def test_escalate_routes_to_apex(self, config: dict, routable_all):
         """'escalate to apex' → apex."""
         orch = Orchestrator(config)
         result = orch._fast_path_classify("escalate to apex")
         assert result is not None
         assert result.target_module == "apex"
 
-    def test_use_apex_routes_to_apex(self, config: dict):
+    def test_use_apex_routes_to_apex(self, config: dict, routable_all):
         """'use apex for this question' → apex."""
         orch = Orchestrator(config)
         result = orch._fast_path_classify("use apex for this question")
@@ -2271,13 +2300,18 @@ class TestExplicitModuleMentionRouting:
         assert result.target_module == "apex"
 
     def test_code_without_apex_routes_to_omen(self, config: dict):
-        """'write me some code' → omen (existing behavior preserved)."""
+        """'write me some code' → omen (existing behavior preserved).
+
+        Doesn't need routable_all because the Omen routing path here
+        is keyword-based ('python code' triggers code-keyword fast-path),
+        not bare-word/explicit-phrase, so the is_routable gate doesn't
+        apply."""
         orch = Orchestrator(config)
         result = orch._fast_path_classify("write me some python code for a web scraper")
         assert result is not None
         assert result.target_module == "omen"
 
-    def test_apex_mention_has_high_confidence(self, config: dict):
+    def test_apex_mention_has_high_confidence(self, config: dict, routable_all):
         orch = Orchestrator(config)
         result = orch._fast_path_classify("ask apex to explain quantum computing")
         assert result is not None
@@ -2293,12 +2327,17 @@ class TestShortAmbiguousBypass:
         result = orch._fast_path_classify("what is the response?")
         assert result is None
 
-    def test_short_with_module_keyword_fast_paths(self, config: dict):
-        """'check sentinel' → sentinel (module name present)."""
+    def test_short_with_module_keyword_fast_paths(self, config: dict, routable_all):
+        """'check cerberus status' → cerberus (module name present).
+
+        Phase A absorbed Sentinel into Cerberus; the test now uses
+        cerberus as the bare-word target. Requires routable_all because
+        Orchestrator(config) doesn't register modules and the
+        bare-word fast-path is gated by is_routable()."""
         orch = Orchestrator(config)
-        result = orch._fast_path_classify("check sentinel status")
+        result = orch._fast_path_classify("check cerberus status")
         assert result is not None
-        assert result.target_module == "sentinel"
+        assert result.target_module == "cerberus"
 
     def test_short_with_strong_keyword_fast_paths(self, config: dict):
         """'debug this' → still uses fast-path because 'debug' is a strong keyword."""
@@ -2459,15 +2498,9 @@ class TestStep4PlanModuleDispatch:
             "proactive_check", "ask_user", "temporal_record",
             "temporal_patterns", "neglect_check", "proactive_suggestions",
         },
-        "sentinel": {
-            "network_scan", "file_integrity_check", "breach_check",
-            "security_alert", "threat_assess", "quarantine_file",
-            "firewall_analyze", "firewall_evaluate", "firewall_compare",
-            "firewall_explain_rule", "firewall_generate", "security_learn",
-            "threat_analyze", "threat_log_analyze", "threat_defense_profile",
-            "threat_malware_study", "threat_detection_rule",
-            "threat_shadow_assessment", "threat_knowledge_store",
-        },
+        # Sentinel was absorbed into Cerberus in Phase A; its 22+ tools
+        # are now part of Cerberus. The "cerberus" entry below merges
+        # both pre-merge surfaces (ethics + security).
         "grimoire": {
             "memory_store", "memory_search", "memory_recall",
             "memory_forget", "memory_compact", "memory_block_search",
@@ -2485,11 +2518,23 @@ class TestStep4PlanModuleDispatch:
             "reddit_search_json", "reddit_monitor",
         },
         "cerberus": {
+            # Original Cerberus ethics/safety surface
             "safety_check", "hook_pre_tool", "hook_post_tool",
             "audit_log", "config_integrity_check", "ethical_guidance",
             "false_positive_log", "calibration_stats", "ethics_lookup",
             "rollback_snapshot", "rollback_execute", "creator_exception",
             "creator_authorize", "false_positive_report",
+            "validate_response",
+            # Sentinel security tools absorbed in Phase A
+            "network_scan", "network_monitor", "file_integrity_check",
+            "breach_check", "security_alert", "threat_assess",
+            "quarantine_file", "firewall_analyze", "firewall_evaluate",
+            "firewall_compare", "firewall_explain_rule", "firewall_generate",
+            "firewall_status", "security_learn", "threat_analyze",
+            "threat_log_analyze", "threat_defense_profile",
+            "threat_malware_study", "threat_detection_rule",
+            "threat_shadow_assessment", "threat_knowledge_store",
+            "threat_scan", "vulnerability_scan", "log_analysis",
         },
     }
 
@@ -2586,13 +2631,17 @@ class TestStep4PlanModuleDispatch:
             )
 
     @pytest.mark.asyncio
-    async def test_sentinel_plan_uses_sentinel_tool(self, config: dict):
-        """Sentinel-routed task must plan a sentinel tool."""
+    async def test_sentinel_plan_uses_cerberus_tool(self, config: dict):
+        """Security-routed task must plan a Cerberus tool.
+
+        Phase A absorbed Sentinel into Cerberus. A network-scan task
+        now classifies to ``cerberus`` and the plan must use a tool
+        from Cerberus's absorbed security surface."""
         orch = Orchestrator(config)
         classification = TaskClassification(
             task_type=TaskType.ACTION,
             complexity="moderate",
-            target_module="sentinel",
+            target_module="cerberus",
             brain=BrainType.SMART,
             safety_flag=False,
             priority=1,
@@ -2603,8 +2652,8 @@ class TestStep4PlanModuleDispatch:
         tool_names = [s.get("tool") for s in plan.steps if s.get("tool")]
         assert len(tool_names) >= 1
         for tool in tool_names:
-            assert tool in self.MODULE_TOOLS["sentinel"], (
-                f"Sentinel plan used '{tool}' — expected a sentinel tool"
+            assert tool in self.MODULE_TOOLS["cerberus"], (
+                f"Cerberus plan used '{tool}' — expected a cerberus tool"
             )
 
     @pytest.mark.asyncio
