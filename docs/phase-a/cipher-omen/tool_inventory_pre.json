@@ -1,0 +1,441 @@
+[
+  {
+    "description": "Evaluate mathematical expressions safely (AST-based, no eval). Supports arithmetic, math functions, returns result + steps",
+    "name": "calculate",
+    "parameters": {
+      "expression": "str \u2014 math expression to evaluate"
+    },
+    "permission_level": "autonomous"
+  },
+  {
+    "description": "Convert between units: length, weight, volume, temperature, area, digital, time, speed",
+    "name": "unit_convert",
+    "parameters": {
+      "from_unit": "str \u2014 source unit",
+      "to_unit": "str \u2014 target unit",
+      "value": "float \u2014 numeric value to convert"
+    },
+    "permission_level": "autonomous"
+  },
+  {
+    "description": "Date calculations: add/subtract time, difference between dates, day of week, business days",
+    "name": "date_math",
+    "parameters": {
+      "date": "str \u2014 ISO date (YYYY-MM-DD) for add/subtract/day_of_week",
+      "date1": "str \u2014 first date for diff/business_days",
+      "date2": "str \u2014 second date for diff/business_days",
+      "days": "int \u2014 days to add/subtract",
+      "months": "int \u2014 months to add/subtract",
+      "operation": "str \u2014 add, subtract, diff, day_of_week, business_days",
+      "weeks": "int \u2014 weeks to add/subtract",
+      "years": "int \u2014 years to add/subtract"
+    },
+    "permission_level": "autonomous"
+  },
+  {
+    "description": "Percentage operations: X% of Y, what percent, percent change, markup, margin",
+    "name": "percentage",
+    "parameters": {
+      "cost": "float",
+      "new_value": "float",
+      "old_value": "float",
+      "operation": "str \u2014 of, what_percent, change, markup, margin",
+      "percent": "float",
+      "selling_price": "float",
+      "total": "float",
+      "value": "float"
+    },
+    "permission_level": "autonomous"
+  },
+  {
+    "description": "Financial math: compound interest, loan payment (PMT), ROI, break-even, profit/loss. Not financial advice \u2014 just math",
+    "name": "financial",
+    "parameters": {
+      "annual_rate": "float",
+      "compounds_per_year": "int",
+      "cost": "float",
+      "expenses": "float",
+      "fixed_costs": "float",
+      "gain": "float",
+      "operation": "str \u2014 compound_interest, pmt, roi, break_even, profit_loss",
+      "price_per_unit": "float",
+      "principal": "float",
+      "rate": "float",
+      "revenue": "float",
+      "variable_cost_per_unit": "float",
+      "years": "int"
+    },
+    "permission_level": "autonomous"
+  },
+  {
+    "description": "Descriptive statistics on a list of numbers: mean, median, mode, std_dev, min, max, range, sum, count, percentiles",
+    "name": "statistics",
+    "parameters": {
+      "data": "list[float] \u2014 numbers to analyze",
+      "operations": "list[str] \u2014 which stats to compute (default: all)"
+    },
+    "permission_level": "autonomous"
+  },
+  {
+    "description": "Boolean logic: truth tables for 2-3 variables, structural analysis of premises/conclusions. Full reasoning in Phase 2+",
+    "name": "logic_check",
+    "parameters": {
+      "conclusion": "str \u2014 conclusion for structural analysis",
+      "expression": "str \u2014 boolean expression for truth table",
+      "premises": "list[str] \u2014 premises for structural analysis",
+      "variables": "list[str] \u2014 variable names for truth table"
+    },
+    "permission_level": "autonomous"
+  },
+  {
+    "description": "Run code in sandboxed subprocess with timeout",
+    "name": "code_execute",
+    "parameters": {
+      "code": "str",
+      "timeout": "int"
+    },
+    "permission_level": "autonomous"
+  },
+  {
+    "description": "Check code for syntax errors and style violations",
+    "name": "code_lint",
+    "parameters": {
+      "code": "str",
+      "file_path": "str"
+    },
+    "permission_level": "autonomous"
+  },
+  {
+    "description": "Run test suite against code",
+    "name": "code_test",
+    "parameters": {
+      "test_path": "str",
+      "timeout": "int"
+    },
+    "permission_level": "autonomous"
+  },
+  {
+    "description": "Review code for issues (stub \u2014 needs LLM in Phase 2+)",
+    "name": "code_review",
+    "parameters": {
+      "code": "str",
+      "file_path": "str"
+    },
+    "permission_level": "autonomous"
+  },
+  {
+    "description": "Check git repository state",
+    "name": "git_status",
+    "parameters": {},
+    "permission_level": "autonomous"
+  },
+  {
+    "description": "Commit changes to repository",
+    "name": "git_commit",
+    "parameters": {
+      "files": "list",
+      "message": "str"
+    },
+    "permission_level": "approval_required"
+  },
+  {
+    "description": "Scan for outdated or vulnerable dependencies",
+    "name": "dependency_check",
+    "parameters": {},
+    "permission_level": "autonomous"
+  },
+  {
+    "description": "Find files matching a glob pattern",
+    "name": "code_glob",
+    "parameters": {
+      "pattern": "str",
+      "root_dir": "str"
+    },
+    "permission_level": "autonomous"
+  },
+  {
+    "description": "Search for text/regex in code files",
+    "name": "code_grep",
+    "parameters": {
+      "file_glob": "str",
+      "max_results": "int",
+      "pattern": "str",
+      "root_dir": "str"
+    },
+    "permission_level": "autonomous"
+  },
+  {
+    "description": "Apply a find-and-replace edit to a file",
+    "name": "code_edit",
+    "parameters": {
+      "file_path": "str",
+      "new_text": "str",
+      "old_text": "str"
+    },
+    "permission_level": "autonomous"
+  },
+  {
+    "description": "Read a file with line numbers",
+    "name": "code_read",
+    "parameters": {
+      "end_line": "int",
+      "file_path": "str",
+      "start_line": "int"
+    },
+    "permission_level": "autonomous"
+  },
+  {
+    "description": "Store a reusable code pattern in the pattern database",
+    "name": "pattern_store",
+    "parameters": {
+      "category": "str",
+      "code_template": "str",
+      "description": "str",
+      "language": "str",
+      "name": "str",
+      "tags": "str"
+    },
+    "permission_level": "autonomous"
+  },
+  {
+    "description": "Search stored code patterns by category, tags, or keyword",
+    "name": "pattern_search",
+    "parameters": {
+      "category": "str",
+      "keyword": "str",
+      "tags": "str"
+    },
+    "permission_level": "autonomous"
+  },
+  {
+    "description": "Apply a stored pattern with placeholder substitutions",
+    "name": "pattern_apply",
+    "parameters": {
+      "name": "str",
+      "substitutions": "dict"
+    },
+    "permission_level": "autonomous"
+  },
+  {
+    "description": "Log a code failure for learning and prevention",
+    "name": "failure_log",
+    "parameters": {
+      "code_context": "str",
+      "error_message": "str",
+      "error_type": "str",
+      "file_path": "str",
+      "fix_applied": "str",
+      "fix_worked": "bool",
+      "prevention_rule": "str"
+    },
+    "permission_level": "autonomous"
+  },
+  {
+    "description": "Search logged failures by type or keyword",
+    "name": "failure_search",
+    "parameters": {
+      "error_type": "str",
+      "keyword": "str"
+    },
+    "permission_level": "autonomous"
+  },
+  {
+    "description": "Get aggregate statistics on logged failures",
+    "name": "failure_stats",
+    "parameters": {},
+    "permission_level": "autonomous"
+  },
+  {
+    "description": "Generate boilerplate code for a new Shadow module",
+    "name": "scaffold_module",
+    "parameters": {
+      "description": "str",
+      "module_name": "str",
+      "tools": "list"
+    },
+    "permission_level": "autonomous"
+  },
+  {
+    "description": "Generate test skeleton for a Shadow module",
+    "name": "scaffold_test",
+    "parameters": {
+      "module_name": "str"
+    },
+    "permission_level": "autonomous"
+  },
+  {
+    "description": "Score a Python file on code quality (0-100)",
+    "name": "code_score",
+    "parameters": {
+      "file_path": "str"
+    },
+    "permission_level": "autonomous"
+  },
+  {
+    "description": "Populate pattern database with Shadow codebase patterns",
+    "name": "seed_patterns",
+    "parameters": {},
+    "permission_level": "autonomous"
+  },
+  {
+    "description": "Analyze inline code for structure, patterns, quality, and vulnerabilities without generating new code",
+    "name": "code_analyze",
+    "parameters": {
+      "code": "str",
+      "language": "str"
+    },
+    "permission_level": "autonomous"
+  },
+  {
+    "description": "Analyze a Python file for structure, patterns, and quality",
+    "name": "code_analyze_file",
+    "parameters": {
+      "file_path": "str"
+    },
+    "permission_level": "autonomous"
+  },
+  {
+    "description": "Analyze all Python files in a directory",
+    "name": "code_analyze_dir",
+    "parameters": {
+      "dir_path": "str",
+      "pattern": "str"
+    },
+    "permission_level": "autonomous"
+  },
+  {
+    "description": "Analyze Shadow's own codebase (modules/) for structure, patterns, quality, and metrics",
+    "name": "code_analyze_self",
+    "parameters": {},
+    "permission_level": "autonomous"
+  },
+  {
+    "description": "Download and analyze a single Python file from a URL",
+    "name": "code_analyze_url",
+    "parameters": {
+      "url": "str"
+    },
+    "permission_level": "autonomous"
+  },
+  {
+    "description": "Extract learnings from analysis and store in Grimoire",
+    "name": "code_learn",
+    "parameters": {
+      "file_path": "str"
+    },
+    "permission_level": "autonomous"
+  },
+  {
+    "description": "Compare external code patterns against Shadow's codebase",
+    "name": "code_compare",
+    "parameters": {
+      "file_path": "str"
+    },
+    "permission_level": "autonomous"
+  },
+  {
+    "description": "Generate code via LLM with fallback extraction when tool calls fail",
+    "name": "code_generate",
+    "parameters": {
+      "language": "str",
+      "model": "str",
+      "prompt": "str"
+    },
+    "permission_level": "autonomous"
+  },
+  {
+    "description": "List all installed Ollama models with size and quantization",
+    "name": "model_list",
+    "parameters": {},
+    "permission_level": "autonomous"
+  },
+  {
+    "description": "Download an Ollama model (consumes disk space)",
+    "name": "model_pull",
+    "parameters": {
+      "model_name": "str"
+    },
+    "permission_level": "approval_required"
+  },
+  {
+    "description": "Run standardized benchmark suite against an Ollama model",
+    "name": "model_benchmark",
+    "parameters": {
+      "model_name": "str",
+      "warmup": "bool"
+    },
+    "permission_level": "autonomous"
+  },
+  {
+    "description": "Score benchmark results on quality (1-5 scale, rule-based)",
+    "name": "model_evaluate",
+    "parameters": {
+      "benchmark_results": "dict"
+    },
+    "permission_level": "autonomous"
+  },
+  {
+    "description": "Benchmark and compare multiple Ollama models side by side",
+    "name": "model_compare",
+    "parameters": {
+      "model_names": "list"
+    },
+    "permission_level": "autonomous"
+  },
+  {
+    "description": "Get model details with alignment/censorship warnings",
+    "name": "model_info",
+    "parameters": {
+      "model_name": "str"
+    },
+    "permission_level": "autonomous"
+  },
+  {
+    "description": "Recommend best models for a role based on stored benchmarks",
+    "name": "model_recommend",
+    "parameters": {
+      "role": "str"
+    },
+    "permission_level": "autonomous"
+  },
+  {
+    "description": "Execute code in isolated sandbox with safety validation",
+    "name": "sandbox_execute",
+    "parameters": {
+      "allow_imports": "list[str]",
+      "code": "str",
+      "input_files": "dict[str, str]",
+      "max_memory_mb": "int",
+      "preserve": "bool",
+      "timeout_seconds": "int"
+    },
+    "permission_level": "autonomous"
+  },
+  {
+    "description": "Validate code safety without executing (static analysis)",
+    "name": "sandbox_validate",
+    "parameters": {
+      "allow_imports": "list[str]",
+      "code": "str"
+    },
+    "permission_level": "autonomous"
+  },
+  {
+    "description": "Copy sandbox file to production codebase (requires approval)",
+    "name": "sandbox_to_production",
+    "parameters": {
+      "production_path": "str",
+      "require_tests_pass": "bool",
+      "sandbox_path": "str"
+    },
+    "permission_level": "approval_required"
+  },
+  {
+    "description": "Remove old sandbox directories",
+    "name": "sandbox_cleanup",
+    "parameters": {
+      "max_age_hours": "int"
+    },
+    "permission_level": "autonomous"
+  }
+]
