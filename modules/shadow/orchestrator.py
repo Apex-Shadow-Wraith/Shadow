@@ -2498,15 +2498,24 @@ User input: {user_input}"""
 
         # Check bare module names as whole words first (most common case).
         # Excludes "nova", "shadow" — too common as English words.
+        # Dormant/disabled modules are filtered out via is_routable() so
+        # e.g. a stray "morpheus" word never short-circuits to a module
+        # that isn't actually accepting routes.
         _BARE_MODULE_WORDS = {
             "apex", "grimoire", "reaper", "morpheus",
             "omen", "harbinger", "wraith", "cerberus",
         }
-        bare_match = words & _BARE_MODULE_WORDS
+        bare_match = {
+            m for m in (words & _BARE_MODULE_WORDS)
+            if self.registry.is_routable(m)
+        }
         if bare_match:
             return _classify_for_module(bare_match.pop(), "bare word")
 
-        # Check multi-word phrases (e.g. "ask apex", "escalate to apex")
+        # Check multi-word phrases (e.g. "ask apex", "escalate to apex").
+        # Same is_routable() gate as bare words: a phrase pointing at a
+        # non-routable module is ignored so routing can fall through to
+        # the LLM classifier instead of dispatching to a dormant target.
         _EXPLICIT_MODULE_PHRASES = [
             ("escalate to apex", "apex"),
             ("ask apex", "apex"),
@@ -2521,7 +2530,7 @@ User input: {user_input}"""
             ("ask cerberus", "cerberus"),
         ]
         for phrase, mod in _EXPLICIT_MODULE_PHRASES:
-            if phrase in lower:
+            if phrase in lower and self.registry.is_routable(mod):
                 return _classify_for_module(mod, f"phrase={phrase!r}")
 
         # Code indicator set — used for Nova vs Omen conflict resolution
