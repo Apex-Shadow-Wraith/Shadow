@@ -37,7 +37,7 @@ Thumbs.db
 # Vector store
 data/vectors/
 
-# Runtime state and logs  
+# Runtime state and logs
 data/shadow_state.json
 logs/
 data/research/
@@ -48,3 +48,13 @@ wraith_reminders.json
 graphify-out/
 .graphify_chunk_*.json
 cost.json
+data/apex_log.json
+data/harbinger_queue.json
+data/module_states.json
+data/proactive_triggers.json
+data/sentinel_baseline.json
+data/task_queue.json
+data/void_latest.json
+
+# Benchmark snapshots (historical runs; benchmark_tasks.json is tracked)
+benchmarks/benchmark_2026-*.json
