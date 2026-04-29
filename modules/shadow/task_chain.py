@@ -63,7 +63,7 @@ class ChainStatus(Enum):
 
 VALID_MODULES = {
     "shadow", "wraith", "cerberus", "apex", "grimoire",
-    "harbinger", "reaper", "cipher", "omen", "nova", "morpheus",
+    "harbinger", "reaper", "omen", "nova", "morpheus",
 }
 
 
@@ -1000,8 +1000,12 @@ JSON array:"""
         request_lower = request.lower()
         keyword_map = {
             "reaper": ["search", "research", "look up", "find", "scrape"],
-            "omen": ["code", "debug", "review", "lint", "implement", "script"],
-            "cipher": ["calculate", "math", "convert", "price", "statistics"],
+            # Omen absorbed Cipher's math/stats/finance surface in Phase A;
+            # the math/calculate/convert keywords merge into Omen's bucket.
+            "omen": [
+                "code", "debug", "review", "lint", "implement", "script",
+                "calculate", "math", "convert", "price", "statistics",
+            ],
             "grimoire": ["remember", "recall", "forget", "memory", "know"],
             "nova": ["write", "create", "document", "template", "content"],
             "wraith": ["remind", "schedule", "timer", "alarm", "task"],

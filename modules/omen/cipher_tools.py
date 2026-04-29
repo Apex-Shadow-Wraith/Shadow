@@ -1,13 +1,15 @@
 """
-Cipher — Math, Logic, and Complex Reasoning
-=============================================
-Precision over speed. When the answer has to be right, not just fast.
+Cipher Tools — absorbed math/stats/finance/date/logic utilities.
 
-Design Principle: Cipher takes whatever time is needed to get the
-answer right. Verify before delivering. Flag uncertainty.
+Ported verbatim from modules/cipher/cipher.py in Phase A
+(Cipher → Omen merge). Pure functions, no module state, no I/O.
+All 7 tool methods preserve their original signatures and return
+shapes so Omen's dispatch remains a drop-in host for the absorbed
+Cipher surface.
 
-Phase 1: Safe expression evaluation, statistics, unit conversion,
-date math, percentages, financial calculations. No LLM — pure computation.
+The backward-compat aliases `data_analyze` (→ statistics) and
+`logic_verify` (→ logic_check) are handled at Omen's dispatch layer;
+this file exposes only the seven canonical methods.
 """
 
 from __future__ import annotations
@@ -19,14 +21,13 @@ import math
 import operator
 import re
 import statistics
-import time
 from datetime import date, datetime, timedelta
 from itertools import product
 from typing import Any
 
-from modules.base import BaseModule, ModuleStatus, ToolResult
+from modules.base import ToolResult
 
-logger = logging.getLogger("shadow.cipher")
+logger = logging.getLogger("shadow.omen.cipher")
 
 # Safe operators for expression evaluation
 _SAFE_OPS = {
@@ -303,174 +304,26 @@ def _count_business_days(start: date, end: date) -> int:
     return bdays
 
 
-class Cipher(BaseModule):
-    """Math, logic, and complex reasoning specialist.
+class CipherTools:
+    """Absorbed Cipher math/stats/finance/date/logic utilities.
 
-    Handles calculations, statistics, unit conversion, date math,
-    percentages, and financial analysis with precision.
-    No LLM needed — pure computation.
+    Plain helper class (no BaseModule inheritance). Stateless — all
+    methods are pure functions of their params. Omen instantiates one
+    instance per module and dispatches the 7 absorbed tool names
+    (plus 2 aliases) to these public methods.
     """
 
-    def __init__(self, config: dict[str, Any] | None = None) -> None:
-        """Initialize Cipher.
+    _MODULE = "omen"
 
-        Args:
-            config: Module configuration.
-        """
-        super().__init__(
-            name="cipher",
-            description="Math, logic, and complex reasoning — precision over speed",
-        )
-        self._config = config or {}
+    def __init__(self) -> None:
+        """Instantiate. No state, no config."""
+        return
 
-    async def initialize(self) -> None:
-        """Start Cipher."""
-        self.status = ModuleStatus.ONLINE
-        self._initialized_at = datetime.now()
-        logger.info("Cipher online. Ready for computation.")
+    # ------------------------------------------------------------------
+    # Public tool methods — dispatched by Omen.execute()
+    # ------------------------------------------------------------------
 
-    async def execute(self, tool_name: str, params: dict[str, Any]) -> ToolResult:
-        """Execute a Cipher tool.
-
-        Args:
-            tool_name: Which tool to invoke.
-            params: Tool-specific parameters.
-
-        Returns:
-            ToolResult with success/failure and content.
-        """
-        start = time.time()
-        try:
-            handlers = {
-                "calculate": self._calculate,
-                "unit_convert": self._unit_convert,
-                "date_math": self._date_math,
-                "percentage": self._percentage,
-                "financial": self._financial,
-                "statistics": self._statistics,
-                "data_analyze": self._statistics,        # backward compat
-                "logic_check": self._logic_check,
-                "logic_verify": self._logic_check,       # backward compat
-            }
-
-            handler = handlers.get(tool_name)
-            if handler is None:
-                result = ToolResult(
-                    success=False, content=None, tool_name=tool_name,
-                    module=self.name, error=f"Unknown tool: {tool_name}",
-                )
-            else:
-                result = handler(params)
-
-            result.execution_time_ms = (time.time() - start) * 1000
-            self._record_call(result.success)
-            return result
-
-        except Exception as e:
-            elapsed = (time.time() - start) * 1000
-            self._record_call(False)
-            logger.error("Cipher tool '%s' failed: %s", tool_name, e)
-            return ToolResult(
-                success=False, content=None, tool_name=tool_name,
-                module=self.name, error=str(e), execution_time_ms=elapsed,
-            )
-
-    async def shutdown(self) -> None:
-        """Shut down Cipher."""
-        self.status = ModuleStatus.OFFLINE
-        logger.info("Cipher offline.")
-
-    def get_tools(self) -> list[dict[str, Any]]:
-        """Return Cipher's tool definitions."""
-        return [
-            {
-                "name": "calculate",
-                "description": "Evaluate mathematical expressions safely (AST-based, no eval). "
-                               "Supports arithmetic, math functions, returns result + steps",
-                "parameters": {"expression": "str — math expression to evaluate"},
-                "permission_level": "autonomous",
-            },
-            {
-                "name": "unit_convert",
-                "description": "Convert between units: length, weight, volume, temperature, "
-                               "area, digital, time, speed",
-                "parameters": {
-                    "value": "float — numeric value to convert",
-                    "from_unit": "str — source unit",
-                    "to_unit": "str — target unit",
-                },
-                "permission_level": "autonomous",
-            },
-            {
-                "name": "date_math",
-                "description": "Date calculations: add/subtract time, difference between dates, "
-                               "day of week, business days",
-                "parameters": {
-                    "operation": "str — add, subtract, diff, day_of_week, business_days",
-                    "date": "str — ISO date (YYYY-MM-DD) for add/subtract/day_of_week",
-                    "date1": "str — first date for diff/business_days",
-                    "date2": "str — second date for diff/business_days",
-                    "days": "int — days to add/subtract",
-                    "weeks": "int — weeks to add/subtract",
-                    "months": "int — months to add/subtract",
-                    "years": "int — years to add/subtract",
-                },
-                "permission_level": "autonomous",
-            },
-            {
-                "name": "percentage",
-                "description": "Percentage operations: X% of Y, what percent, percent change, "
-                               "markup, margin",
-                "parameters": {
-                    "operation": "str — of, what_percent, change, markup, margin",
-                    "percent": "float", "value": "float", "total": "float",
-                    "old_value": "float", "new_value": "float",
-                    "cost": "float", "selling_price": "float",
-                },
-                "permission_level": "autonomous",
-            },
-            {
-                "name": "financial",
-                "description": "Financial math: compound interest, loan payment (PMT), ROI, "
-                               "break-even, profit/loss. Not financial advice — just math",
-                "parameters": {
-                    "operation": "str — compound_interest, pmt, roi, break_even, profit_loss",
-                    "principal": "float", "rate": "float",
-                    "compounds_per_year": "int", "years": "int",
-                    "annual_rate": "float", "gain": "float", "cost": "float",
-                    "fixed_costs": "float", "price_per_unit": "float",
-                    "variable_cost_per_unit": "float",
-                    "revenue": "float", "expenses": "float",
-                },
-                "permission_level": "autonomous",
-            },
-            {
-                "name": "statistics",
-                "description": "Descriptive statistics on a list of numbers: mean, median, mode, "
-                               "std_dev, min, max, range, sum, count, percentiles",
-                "parameters": {
-                    "data": "list[float] — numbers to analyze",
-                    "operations": "list[str] — which stats to compute (default: all)",
-                },
-                "permission_level": "autonomous",
-            },
-            {
-                "name": "logic_check",
-                "description": "Boolean logic: truth tables for 2-3 variables, structural "
-                               "analysis of premises/conclusions. Full reasoning in Phase 2+",
-                "parameters": {
-                    "variables": "list[str] — variable names for truth table",
-                    "expression": "str — boolean expression for truth table",
-                    "premises": "list[str] — premises for structural analysis",
-                    "conclusion": "str — conclusion for structural analysis",
-                },
-                "permission_level": "autonomous",
-            },
-        ]
-
-    # --- Tool implementations ---
-
-    def _calculate(self, params: dict[str, Any]) -> ToolResult:
+    def calculate(self, params: dict[str, Any]) -> ToolResult:
         """Evaluate a mathematical expression safely.
 
         Uses AST parsing with a whitelist of operators. No eval().
@@ -478,122 +331,19 @@ class Cipher(BaseModule):
         expression first. If no math can be extracted, returns success
         with needs_reasoning=True so the orchestrator routes to the LLM
         instead of escalating to Apex.
-
-        Args:
-            params: 'expression' (str) — math expression or natural language.
         """
         expression = params.get("expression", "")
         if not expression:
             return ToolResult(
                 success=False, content=None, tool_name="calculate",
-                module=self.name, error="Expression is required",
+                module=self._MODULE, error="Expression is required",
             )
 
         raw = expression.strip()
-
-        # Try to evaluate the expression, with fallback extraction
-        # for natural language input.
         return self._try_calculate(raw, expression)
 
-    def _try_calculate(
-        self, raw: str, original: str, *, allow_extraction: bool = True,
-    ) -> ToolResult:
-        """Attempt to parse and evaluate a math expression.
-
-        If the raw expression fails, tries to extract a pure math
-        expression from natural language. If nothing works, returns
-        success=True with needs_reasoning for routing to LLM.
-        """
-        # Phase 1: Try parsing as-is
-        try:
-            tree = ast.parse(raw, mode="eval")
-        except SyntaxError:
-            tree = None
-
-        if tree is not None:
-            try:
-                result = _safe_eval(tree)
-                return self._make_success(raw, result, tree)
-            except ZeroDivisionError:
-                return ToolResult(
-                    success=False, content=None, tool_name="calculate",
-                    module=self.name, error="Division by zero",
-                )
-            except (ValueError, TypeError):
-                # AST parsed but _safe_eval rejected it — could be
-                # an injection attempt or natural language that happens
-                # to be valid Python syntax (e.g. "what is 10 * 5").
-                # Fall through to extraction below.
-                pass
-
-        # Phase 2: Try extracting a math expression from natural language
-        if allow_extraction:
-            extracted = _extract_math_expression(original)
-            if extracted is not None and extracted != raw:
-                return self._try_calculate(
-                    extracted, original, allow_extraction=False,
-                )
-
-        # Phase 3: Determine if this is a reasoning problem or an error.
-        # Reasoning problems contain natural language (multiple alpha words);
-        # code injection and malformed expressions do not get the soft landing.
-        if _is_natural_language(original):
-            return ToolResult(
-                success=True,
-                content={
-                    "expression": original,
-                    "result": None,
-                    "needs_reasoning": True,
-                    "message": (
-                        "This is a reasoning problem, not a calculation. "
-                        "Route to LLM for natural language reasoning."
-                    ),
-                },
-                tool_name="calculate",
-                module=self.name,
-                metadata={"needs_reasoning": True},
-            )
-
-        # Genuine error — injection attempt, malformed syntax, etc.
-        return ToolResult(
-            success=False, content=None, tool_name="calculate",
-            module=self.name,
-            error=f"Invalid expression: {original}",
-        )
-
-    def _make_success(
-        self, expression: str, result: float, tree: ast.AST,
-    ) -> ToolResult:
-        """Build a successful calculate ToolResult."""
-        if math.isinf(result):
-            return ToolResult(
-                success=False, content=None, tool_name="calculate",
-                module=self.name, error="Result is infinite",
-            )
-        if math.isnan(result):
-            return ToolResult(
-                success=False, content=None, tool_name="calculate",
-                module=self.name, error="Result is not a number",
-            )
-        steps = _collect_steps(tree)
-        return ToolResult(
-            success=True,
-            content={
-                "expression": expression,
-                "result": result,
-                "steps": steps,
-                "confidence": 1.0,
-            },
-            tool_name="calculate",
-            module=self.name,
-        )
-
-    def _unit_convert(self, params: dict[str, Any]) -> ToolResult:
-        """Convert a value between units.
-
-        Args:
-            params: 'value' (float), 'from_unit' (str), 'to_unit' (str).
-        """
+    def unit_convert(self, params: dict[str, Any]) -> ToolResult:
+        """Convert a value between units."""
         value = params.get("value")
         from_unit = params.get("from_unit", "").lower()
         to_unit = params.get("to_unit", "").lower()
@@ -601,13 +351,13 @@ class Cipher(BaseModule):
         if value is None:
             return ToolResult(
                 success=False, content=None, tool_name="unit_convert",
-                module=self.name, error="Value is required",
+                module=self._MODULE, error="Value is required",
             )
 
         if not from_unit or not to_unit:
             return ToolResult(
                 success=False, content=None, tool_name="unit_convert",
-                module=self.name, error="from_unit and to_unit are required",
+                module=self._MODULE, error="from_unit and to_unit are required",
             )
 
         try:
@@ -615,7 +365,7 @@ class Cipher(BaseModule):
         except (ValueError, TypeError):
             return ToolResult(
                 success=False, content=None, tool_name="unit_convert",
-                module=self.name, error="Value must be a number",
+                module=self._MODULE, error="Value must be a number",
             )
 
         # Temperature special case
@@ -629,7 +379,7 @@ class Cipher(BaseModule):
                     "result": result, "formula_used": formula, "confidence": 1.0,
                 },
                 tool_name="unit_convert",
-                module=self.name,
+                module=self._MODULE,
             )
 
         # Find category
@@ -646,56 +396,23 @@ class Cipher(BaseModule):
                         "confidence": 1.0,
                     },
                     tool_name="unit_convert",
-                    module=self.name,
+                    module=self._MODULE,
                 )
 
         return ToolResult(
             success=False, content=None, tool_name="unit_convert",
-            module=self.name,
+            module=self._MODULE,
             error=f"Cannot convert between '{from_unit}' and '{to_unit}'. "
                   f"Units must be in the same category.",
         )
 
-    @staticmethod
-    def _convert_temperature(value: float, from_u: str, to_u: str) -> float:
-        """Convert temperature between C, F, and K."""
-        if from_u == "f":
-            celsius = (value - 32) * 5 / 9
-        elif from_u == "k":
-            celsius = value - 273.15
-        else:
-            celsius = value
-
-        if to_u == "f":
-            return celsius * 9 / 5 + 32
-        elif to_u == "k":
-            return celsius + 273.15
-        return celsius
-
-    @staticmethod
-    def _temperature_formula(from_u: str, to_u: str) -> str:
-        """Return the formula string for a temperature conversion."""
-        formulas = {
-            ("c", "f"): "°F = °C × 9/5 + 32",
-            ("f", "c"): "°C = (°F - 32) × 5/9",
-            ("c", "k"): "K = °C + 273.15",
-            ("k", "c"): "°C = K - 273.15",
-            ("f", "k"): "K = (°F - 32) × 5/9 + 273.15",
-            ("k", "f"): "°F = (K - 273.15) × 9/5 + 32",
-        }
-        return formulas.get((from_u, to_u), f"{from_u} → {to_u}")
-
-    def _date_math(self, params: dict[str, Any]) -> ToolResult:
-        """Perform date calculations.
-
-        Args:
-            params: 'operation' (str), plus operation-specific params.
-        """
+    def date_math(self, params: dict[str, Any]) -> ToolResult:
+        """Perform date calculations."""
         operation = params.get("operation", "")
         if not operation:
             return ToolResult(
                 success=False, content=None, tool_name="date_math",
-                module=self.name, error="Operation is required (add, subtract, diff, day_of_week, business_days)",
+                module=self._MODULE, error="Operation is required (add, subtract, diff, day_of_week, business_days)",
             )
 
         try:
@@ -712,142 +429,22 @@ class Cipher(BaseModule):
             else:
                 return ToolResult(
                     success=False, content=None, tool_name="date_math",
-                    module=self.name,
+                    module=self._MODULE,
                     error=f"Unknown operation: {operation}. Use: add, subtract, diff, day_of_week, business_days",
                 )
         except ValueError as e:
             return ToolResult(
                 success=False, content=None, tool_name="date_math",
-                module=self.name, error=f"Date error: {e}",
+                module=self._MODULE, error=f"Date error: {e}",
             )
 
-    def _date_add(self, params: dict[str, Any], negate: bool) -> ToolResult:
-        """Add or subtract time from a date."""
-        date_str = params.get("date", "")
-        if not date_str:
-            return ToolResult(
-                success=False, content=None, tool_name="date_math",
-                module=self.name, error="'date' parameter is required (YYYY-MM-DD)",
-            )
-
-        d = _parse_date(date_str)
-        sign = -1 if negate else 1
-
-        days = params.get("days", 0) * sign
-        weeks = params.get("weeks", 0) * sign
-        months = params.get("months", 0) * sign
-        years = params.get("years", 0) * sign
-
-        # Apply months and years first (they affect which month/day we're in)
-        result_date = _add_months(d, months + years * 12)
-        # Then apply days and weeks
-        result_date = result_date + timedelta(days=days, weeks=weeks)
-
-        return ToolResult(
-            success=True,
-            content={
-                "original_date": d.isoformat(),
-                "result_date": result_date.isoformat(),
-                "days_added": days + weeks * 7,
-                "months_added": months,
-                "years_added": years,
-            },
-            tool_name="date_math",
-            module=self.name,
-        )
-
-    def _date_diff(self, params: dict[str, Any]) -> ToolResult:
-        """Calculate difference between two dates."""
-        date1_str = params.get("date1", "")
-        date2_str = params.get("date2", "")
-        if not date1_str or not date2_str:
-            return ToolResult(
-                success=False, content=None, tool_name="date_math",
-                module=self.name, error="'date1' and 'date2' are required (YYYY-MM-DD)",
-            )
-
-        d1 = _parse_date(date1_str)
-        d2 = _parse_date(date2_str)
-        delta = d2 - d1
-        total_days = delta.days
-
-        return ToolResult(
-            success=True,
-            content={
-                "date1": d1.isoformat(),
-                "date2": d2.isoformat(),
-                "total_days": total_days,
-                "weeks": total_days // 7,
-                "remaining_days": total_days % 7,
-                "approximate_months": round(total_days / 30.44, 1),
-                "approximate_years": round(total_days / 365.25, 2),
-            },
-            tool_name="date_math",
-            module=self.name,
-        )
-
-    def _date_day_of_week(self, params: dict[str, Any]) -> ToolResult:
-        """Get the day of the week for a date."""
-        date_str = params.get("date", "")
-        if not date_str:
-            return ToolResult(
-                success=False, content=None, tool_name="date_math",
-                module=self.name, error="'date' parameter is required (YYYY-MM-DD)",
-            )
-
-        d = _parse_date(date_str)
-        day_name = calendar.day_name[d.weekday()]
-
-        return ToolResult(
-            success=True,
-            content={
-                "date": d.isoformat(),
-                "day_of_week": day_name,
-                "weekday_number": d.weekday(),
-                "is_weekend": d.weekday() >= 5,
-            },
-            tool_name="date_math",
-            module=self.name,
-        )
-
-    def _date_business_days(self, params: dict[str, Any]) -> ToolResult:
-        """Count business days between two dates."""
-        date1_str = params.get("date1", "")
-        date2_str = params.get("date2", "")
-        if not date1_str or not date2_str:
-            return ToolResult(
-                success=False, content=None, tool_name="date_math",
-                module=self.name, error="'date1' and 'date2' are required (YYYY-MM-DD)",
-            )
-
-        d1 = _parse_date(date1_str)
-        d2 = _parse_date(date2_str)
-        bdays = _count_business_days(d1, d2)
-
-        return ToolResult(
-            success=True,
-            content={
-                "date1": d1.isoformat(),
-                "date2": d2.isoformat(),
-                "business_days": bdays,
-                "total_days": abs((d2 - d1).days) + 1,
-                "weekend_days": abs((d2 - d1).days) + 1 - bdays,
-            },
-            tool_name="date_math",
-            module=self.name,
-        )
-
-    def _percentage(self, params: dict[str, Any]) -> ToolResult:
-        """Perform percentage calculations.
-
-        Args:
-            params: 'operation' (str), plus operation-specific params.
-        """
+    def percentage(self, params: dict[str, Any]) -> ToolResult:
+        """Perform percentage calculations."""
         operation = params.get("operation", "")
         if not operation:
             return ToolResult(
                 success=False, content=None, tool_name="percentage",
-                module=self.name, error="Operation is required (of, what_percent, change, markup, margin)",
+                module=self._MODULE, error="Operation is required (of, what_percent, change, markup, margin)",
             )
 
         try:
@@ -859,7 +456,7 @@ class Cipher(BaseModule):
                 return ToolResult(
                     success=True,
                     content={"result": result, "formula": formula},
-                    tool_name="percentage", module=self.name,
+                    tool_name="percentage", module=self._MODULE,
                 )
 
             elif operation == "what_percent":
@@ -868,14 +465,14 @@ class Cipher(BaseModule):
                 if total == 0:
                     return ToolResult(
                         success=False, content=None, tool_name="percentage",
-                        module=self.name, error="Total cannot be zero",
+                        module=self._MODULE, error="Total cannot be zero",
                     )
                 result = (value / total) * 100
                 formula = f"{value} is {result}% of {total} = ({value}/{total}) × 100"
                 return ToolResult(
                     success=True,
                     content={"result": result, "formula": formula},
-                    tool_name="percentage", module=self.name,
+                    tool_name="percentage", module=self._MODULE,
                 )
 
             elif operation == "change":
@@ -884,7 +481,7 @@ class Cipher(BaseModule):
                 if old_value == 0:
                     return ToolResult(
                         success=False, content=None, tool_name="percentage",
-                        module=self.name, error="Old value cannot be zero",
+                        module=self._MODULE, error="Old value cannot be zero",
                     )
                 result = ((new_value - old_value) / old_value) * 100
                 direction = "increase" if result > 0 else "decrease" if result < 0 else "no change"
@@ -892,7 +489,7 @@ class Cipher(BaseModule):
                 return ToolResult(
                     success=True,
                     content={"result": result, "direction": direction, "formula": formula},
-                    tool_name="percentage", module=self.name,
+                    tool_name="percentage", module=self._MODULE,
                 )
 
             elif operation == "markup":
@@ -901,14 +498,14 @@ class Cipher(BaseModule):
                 if cost == 0:
                     return ToolResult(
                         success=False, content=None, tool_name="percentage",
-                        module=self.name, error="Cost cannot be zero",
+                        module=self._MODULE, error="Cost cannot be zero",
                     )
                 result = ((selling_price - cost) / cost) * 100
                 formula = f"(({selling_price} - {cost}) / {cost}) × 100 = {result}%"
                 return ToolResult(
                     success=True,
                     content={"result": result, "formula": formula},
-                    tool_name="percentage", module=self.name,
+                    tool_name="percentage", module=self._MODULE,
                 )
 
             elif operation == "margin":
@@ -917,36 +514,33 @@ class Cipher(BaseModule):
                 if selling_price == 0:
                     return ToolResult(
                         success=False, content=None, tool_name="percentage",
-                        module=self.name, error="Selling price cannot be zero",
+                        module=self._MODULE, error="Selling price cannot be zero",
                     )
                 result = ((selling_price - cost) / selling_price) * 100
                 formula = f"(({selling_price} - {cost}) / {selling_price}) × 100 = {result}%"
                 return ToolResult(
                     success=True,
                     content={"result": result, "formula": formula},
-                    tool_name="percentage", module=self.name,
+                    tool_name="percentage", module=self._MODULE,
                 )
 
             else:
                 return ToolResult(
                     success=False, content=None, tool_name="percentage",
-                    module=self.name,
+                    module=self._MODULE,
                     error=f"Unknown operation: {operation}. Use: of, what_percent, change, markup, margin",
                 )
 
         except (ValueError, TypeError) as e:
             return ToolResult(
                 success=False, content=None, tool_name="percentage",
-                module=self.name, error=f"Invalid input: {e}",
+                module=self._MODULE, error=f"Invalid input: {e}",
             )
 
-    def _financial(self, params: dict[str, Any]) -> ToolResult:
+    def financial(self, params: dict[str, Any]) -> ToolResult:
         """Perform financial calculations.
 
         All results include a disclaimer — math only, not financial advice.
-
-        Args:
-            params: 'operation' (str), plus operation-specific params.
         """
         operation = params.get("operation", "")
         disclaimer = {"disclaimer": "Mathematical calculation only. Not financial advice."}
@@ -954,7 +548,7 @@ class Cipher(BaseModule):
         if not operation:
             return ToolResult(
                 success=False, content=None, tool_name="financial",
-                module=self.name,
+                module=self._MODULE,
                 error="Operation is required (compound_interest, pmt, roi, break_even, profit_loss)",
                 metadata=disclaimer,
             )
@@ -969,7 +563,7 @@ class Cipher(BaseModule):
                 if n <= 0:
                     return ToolResult(
                         success=False, content=None, tool_name="financial",
-                        module=self.name, error="Compounds per year must be positive",
+                        module=self._MODULE, error="Compounds per year must be positive",
                         metadata=disclaimer,
                     )
 
@@ -985,7 +579,7 @@ class Cipher(BaseModule):
                         "principal": principal,
                         "formula": formula,
                     },
-                    tool_name="financial", module=self.name,
+                    tool_name="financial", module=self._MODULE,
                     metadata=disclaimer,
                 )
 
@@ -997,7 +591,7 @@ class Cipher(BaseModule):
                 if years <= 0:
                     return ToolResult(
                         success=False, content=None, tool_name="financial",
-                        module=self.name, error="Years must be positive",
+                        module=self._MODULE, error="Years must be positive",
                         metadata=disclaimer,
                     )
 
@@ -1023,7 +617,7 @@ class Cipher(BaseModule):
                         "total_interest": round(total_interest, 2),
                         "formula": formula,
                     },
-                    tool_name="financial", module=self.name,
+                    tool_name="financial", module=self._MODULE,
                     metadata=disclaimer,
                 )
 
@@ -1034,7 +628,7 @@ class Cipher(BaseModule):
                 if cost == 0:
                     return ToolResult(
                         success=False, content=None, tool_name="financial",
-                        module=self.name, error="Cost cannot be zero",
+                        module=self._MODULE, error="Cost cannot be zero",
                         metadata=disclaimer,
                     )
 
@@ -1044,7 +638,7 @@ class Cipher(BaseModule):
                 return ToolResult(
                     success=True,
                     content={"roi_percent": round(roi, 2), "formula": formula},
-                    tool_name="financial", module=self.name,
+                    tool_name="financial", module=self._MODULE,
                     metadata=disclaimer,
                 )
 
@@ -1056,7 +650,7 @@ class Cipher(BaseModule):
                 if price == variable:
                     return ToolResult(
                         success=False, content=None, tool_name="financial",
-                        module=self.name,
+                        module=self._MODULE,
                         error="Price per unit cannot equal variable cost per unit (division by zero)",
                         metadata=disclaimer,
                     )
@@ -1072,7 +666,7 @@ class Cipher(BaseModule):
                         "revenue_at_break_even": round(revenue_at_break_even, 2),
                         "formula": formula,
                     },
-                    tool_name="financial", module=self.name,
+                    tool_name="financial", module=self._MODULE,
                     metadata=disclaimer,
                 )
 
@@ -1090,14 +684,14 @@ class Cipher(BaseModule):
                         "expenses": expenses,
                         "formula": f"{revenue} - {expenses} = {result}",
                     },
-                    tool_name="financial", module=self.name,
+                    tool_name="financial", module=self._MODULE,
                     metadata=disclaimer,
                 )
 
             else:
                 return ToolResult(
                     success=False, content=None, tool_name="financial",
-                    module=self.name,
+                    module=self._MODULE,
                     error=f"Unknown operation: {operation}. Use: compound_interest, pmt, roi, break_even, profit_loss",
                     metadata=disclaimer,
                 )
@@ -1105,16 +699,12 @@ class Cipher(BaseModule):
         except (ValueError, TypeError) as e:
             return ToolResult(
                 success=False, content=None, tool_name="financial",
-                module=self.name, error=f"Invalid input: {e}",
+                module=self._MODULE, error=f"Invalid input: {e}",
                 metadata=disclaimer,
             )
 
-    def _statistics(self, params: dict[str, Any]) -> ToolResult:
-        """Run descriptive statistics on a list of numbers.
-
-        Args:
-            params: 'data' (list of numbers), 'operations' (list of stat names).
-        """
+    def statistics(self, params: dict[str, Any]) -> ToolResult:
+        """Run descriptive statistics on a list of numbers."""
         data = params.get("data", [])
         operations = params.get("operations", [
             "mean", "median", "stdev", "min", "max",
@@ -1123,7 +713,7 @@ class Cipher(BaseModule):
         if not data:
             return ToolResult(
                 success=False, content=None, tool_name="statistics",
-                module=self.name, error="Data list is required",
+                module=self._MODULE, error="Data list is required",
             )
 
         try:
@@ -1131,7 +721,7 @@ class Cipher(BaseModule):
         except (ValueError, TypeError) as e:
             return ToolResult(
                 success=False, content=None, tool_name="statistics",
-                module=self.name, error=f"All data items must be numbers: {e}",
+                module=self._MODULE, error=f"All data items must be numbers: {e}",
             )
 
         results: dict[str, Any] = {"count": len(numbers)}
@@ -1166,18 +756,15 @@ class Cipher(BaseModule):
             success=True,
             content={"data_points": len(numbers), "results": results, "confidence": 1.0},
             tool_name="statistics",
-            module=self.name,
+            module=self._MODULE,
         )
 
-    def _logic_check(self, params: dict[str, Any]) -> ToolResult:
+    def logic_check(self, params: dict[str, Any]) -> ToolResult:
         """Check boolean logic or verify premises/conclusions.
 
         Two modes:
         - Truth table: provide 'variables' and 'expression'
         - Structural analysis: provide 'premises' and 'conclusion'
-
-        Args:
-            params: See get_tools() for parameter details.
         """
         variables = params.get("variables", [])
         expression = params.get("expression", "")
@@ -1193,14 +780,14 @@ class Cipher(BaseModule):
         if not premises:
             return ToolResult(
                 success=False, content=None, tool_name="logic_check",
-                module=self.name, error="Provide either (variables + expression) for truth table, "
-                                        "or (premises + conclusion) for structural analysis",
+                module=self._MODULE, error="Provide either (variables + expression) for truth table, "
+                                           "or (premises + conclusion) for structural analysis",
             )
 
         if not conclusion:
             return ToolResult(
                 success=False, content=None, tool_name="logic_check",
-                module=self.name, error="Conclusion is required",
+                module=self._MODULE, error="Conclusion is required",
             )
 
         # Phase 1: structural analysis only
@@ -1219,20 +806,255 @@ class Cipher(BaseModule):
             success=True,
             content=analysis,
             tool_name="logic_check",
-            module=self.name,
+            module=self._MODULE,
+        )
+
+    # ------------------------------------------------------------------
+    # Internal helpers
+    # ------------------------------------------------------------------
+
+    def _try_calculate(
+        self, raw: str, original: str, *, allow_extraction: bool = True,
+    ) -> ToolResult:
+        """Attempt to parse and evaluate a math expression.
+
+        If the raw expression fails, tries to extract a pure math
+        expression from natural language. If nothing works, returns
+        success=True with needs_reasoning for routing to LLM.
+        """
+        # Phase 1: Try parsing as-is
+        try:
+            tree = ast.parse(raw, mode="eval")
+        except SyntaxError:
+            tree = None
+
+        if tree is not None:
+            try:
+                result = _safe_eval(tree)
+                return self._make_success(raw, result, tree)
+            except ZeroDivisionError:
+                return ToolResult(
+                    success=False, content=None, tool_name="calculate",
+                    module=self._MODULE, error="Division by zero",
+                )
+            except (ValueError, TypeError):
+                # AST parsed but _safe_eval rejected it — could be
+                # an injection attempt or natural language that happens
+                # to be valid Python syntax (e.g. "what is 10 * 5").
+                # Fall through to extraction below.
+                pass
+
+        # Phase 2: Try extracting a math expression from natural language
+        if allow_extraction:
+            extracted = _extract_math_expression(original)
+            if extracted is not None and extracted != raw:
+                return self._try_calculate(
+                    extracted, original, allow_extraction=False,
+                )
+
+        # Phase 3: Determine if this is a reasoning problem or an error.
+        if _is_natural_language(original):
+            return ToolResult(
+                success=True,
+                content={
+                    "expression": original,
+                    "result": None,
+                    "needs_reasoning": True,
+                    "message": (
+                        "This is a reasoning problem, not a calculation. "
+                        "Route to LLM for natural language reasoning."
+                    ),
+                },
+                tool_name="calculate",
+                module=self._MODULE,
+                metadata={"needs_reasoning": True},
+            )
+
+        # Genuine error — injection attempt, malformed syntax, etc.
+        return ToolResult(
+            success=False, content=None, tool_name="calculate",
+            module=self._MODULE,
+            error=f"Invalid expression: {original}",
+        )
+
+    def _make_success(
+        self, expression: str, result: float, tree: ast.AST,
+    ) -> ToolResult:
+        """Build a successful calculate ToolResult."""
+        if math.isinf(result):
+            return ToolResult(
+                success=False, content=None, tool_name="calculate",
+                module=self._MODULE, error="Result is infinite",
+            )
+        if math.isnan(result):
+            return ToolResult(
+                success=False, content=None, tool_name="calculate",
+                module=self._MODULE, error="Result is not a number",
+            )
+        steps = _collect_steps(tree)
+        return ToolResult(
+            success=True,
+            content={
+                "expression": expression,
+                "result": result,
+                "steps": steps,
+                "confidence": 1.0,
+            },
+            tool_name="calculate",
+            module=self._MODULE,
+        )
+
+    @staticmethod
+    def _convert_temperature(value: float, from_u: str, to_u: str) -> float:
+        """Convert temperature between C, F, and K."""
+        if from_u == "f":
+            celsius = (value - 32) * 5 / 9
+        elif from_u == "k":
+            celsius = value - 273.15
+        else:
+            celsius = value
+
+        if to_u == "f":
+            return celsius * 9 / 5 + 32
+        elif to_u == "k":
+            return celsius + 273.15
+        return celsius
+
+    @staticmethod
+    def _temperature_formula(from_u: str, to_u: str) -> str:
+        """Return the formula string for a temperature conversion."""
+        formulas = {
+            ("c", "f"): "°F = °C × 9/5 + 32",
+            ("f", "c"): "°C = (°F - 32) × 5/9",
+            ("c", "k"): "K = °C + 273.15",
+            ("k", "c"): "°C = K - 273.15",
+            ("f", "k"): "K = (°F - 32) × 5/9 + 273.15",
+            ("k", "f"): "°F = (K - 273.15) × 9/5 + 32",
+        }
+        return formulas.get((from_u, to_u), f"{from_u} → {to_u}")
+
+    def _date_add(self, params: dict[str, Any], negate: bool) -> ToolResult:
+        """Add or subtract time from a date."""
+        date_str = params.get("date", "")
+        if not date_str:
+            return ToolResult(
+                success=False, content=None, tool_name="date_math",
+                module=self._MODULE, error="'date' parameter is required (YYYY-MM-DD)",
+            )
+
+        d = _parse_date(date_str)
+        sign = -1 if negate else 1
+
+        days = params.get("days", 0) * sign
+        weeks = params.get("weeks", 0) * sign
+        months = params.get("months", 0) * sign
+        years = params.get("years", 0) * sign
+
+        # Apply months and years first (they affect which month/day we're in)
+        result_date = _add_months(d, months + years * 12)
+        # Then apply days and weeks
+        result_date = result_date + timedelta(days=days, weeks=weeks)
+
+        return ToolResult(
+            success=True,
+            content={
+                "original_date": d.isoformat(),
+                "result_date": result_date.isoformat(),
+                "days_added": days + weeks * 7,
+                "months_added": months,
+                "years_added": years,
+            },
+            tool_name="date_math",
+            module=self._MODULE,
+        )
+
+    def _date_diff(self, params: dict[str, Any]) -> ToolResult:
+        """Calculate difference between two dates."""
+        date1_str = params.get("date1", "")
+        date2_str = params.get("date2", "")
+        if not date1_str or not date2_str:
+            return ToolResult(
+                success=False, content=None, tool_name="date_math",
+                module=self._MODULE, error="'date1' and 'date2' are required (YYYY-MM-DD)",
+            )
+
+        d1 = _parse_date(date1_str)
+        d2 = _parse_date(date2_str)
+        delta = d2 - d1
+        total_days = delta.days
+
+        return ToolResult(
+            success=True,
+            content={
+                "date1": d1.isoformat(),
+                "date2": d2.isoformat(),
+                "total_days": total_days,
+                "weeks": total_days // 7,
+                "remaining_days": total_days % 7,
+                "approximate_months": round(total_days / 30.44, 1),
+                "approximate_years": round(total_days / 365.25, 2),
+            },
+            tool_name="date_math",
+            module=self._MODULE,
+        )
+
+    def _date_day_of_week(self, params: dict[str, Any]) -> ToolResult:
+        """Get the day of the week for a date."""
+        date_str = params.get("date", "")
+        if not date_str:
+            return ToolResult(
+                success=False, content=None, tool_name="date_math",
+                module=self._MODULE, error="'date' parameter is required (YYYY-MM-DD)",
+            )
+
+        d = _parse_date(date_str)
+        day_name = calendar.day_name[d.weekday()]
+
+        return ToolResult(
+            success=True,
+            content={
+                "date": d.isoformat(),
+                "day_of_week": day_name,
+                "weekday_number": d.weekday(),
+                "is_weekend": d.weekday() >= 5,
+            },
+            tool_name="date_math",
+            module=self._MODULE,
+        )
+
+    def _date_business_days(self, params: dict[str, Any]) -> ToolResult:
+        """Count business days between two dates."""
+        date1_str = params.get("date1", "")
+        date2_str = params.get("date2", "")
+        if not date1_str or not date2_str:
+            return ToolResult(
+                success=False, content=None, tool_name="date_math",
+                module=self._MODULE, error="'date1' and 'date2' are required (YYYY-MM-DD)",
+            )
+
+        d1 = _parse_date(date1_str)
+        d2 = _parse_date(date2_str)
+        bdays = _count_business_days(d1, d2)
+
+        return ToolResult(
+            success=True,
+            content={
+                "date1": d1.isoformat(),
+                "date2": d2.isoformat(),
+                "business_days": bdays,
+                "total_days": abs((d2 - d1).days) + 1,
+                "weekend_days": abs((d2 - d1).days) + 1 - bdays,
+            },
+            tool_name="date_math",
+            module=self._MODULE,
         )
 
     def _truth_table(self, variables: list[str], expression: str) -> ToolResult:
-        """Generate a truth table for a boolean expression.
-
-        Args:
-            variables: Variable names (2-3 max).
-            expression: Boolean expression using and/or/not.
-        """
+        """Generate a truth table for a boolean expression."""
         if len(variables) < 1 or len(variables) > 3:
             return ToolResult(
                 success=False, content=None, tool_name="logic_check",
-                module=self.name,
+                module=self._MODULE,
                 error="Truth tables support 1-3 variables",
             )
 
@@ -1241,7 +1063,7 @@ class Cipher(BaseModule):
         except SyntaxError as e:
             return ToolResult(
                 success=False, content=None, tool_name="logic_check",
-                module=self.name, error=f"Invalid boolean expression: {e}",
+                module=self._MODULE, error=f"Invalid boolean expression: {e}",
             )
 
         rows: list[dict[str, Any]] = []
@@ -1254,7 +1076,7 @@ class Cipher(BaseModule):
         except ValueError as e:
             return ToolResult(
                 success=False, content=None, tool_name="logic_check",
-                module=self.name, error=f"Boolean evaluation error: {e}",
+                module=self._MODULE, error=f"Boolean evaluation error: {e}",
             )
 
         return ToolResult(
@@ -1266,5 +1088,5 @@ class Cipher(BaseModule):
                 "total_rows": len(rows),
             },
             tool_name="logic_check",
-            module=self.name,
+            module=self._MODULE,
         )

@@ -34,6 +34,7 @@ from pathlib import Path
 from typing import Any
 
 from modules.base import BaseModule, ModuleStatus, ToolResult
+from modules.omen.cipher_tools import CipherTools
 from modules.omen.code_analyzer import CodeAnalyzer
 from modules.omen.model_evaluator import ModelEvaluator
 from modules.omen.sandbox import CodeSandbox
@@ -494,6 +495,10 @@ class Omen(BaseModule):
         except Exception as e:
             logger.warning("Scratchpad not available: %s", e)
 
+        # Cipher tools — absorbed Phase A. Pure math/stats/finance/date/logic
+        # utilities; no state, no config.
+        self._cipher = CipherTools()
+
     async def initialize(self) -> None:
         """Start Omen. Create DB and tables."""
         self.status = ModuleStatus.STARTING
@@ -610,6 +615,16 @@ class Omen(BaseModule):
                 "model_compare": self._model_compare,
                 "model_info": self._model_info,
                 "model_recommend": self._model_recommend,
+                # --- Cipher tools (absorbed Phase A) ---
+                "calculate": self._cipher.calculate,
+                "unit_convert": self._cipher.unit_convert,
+                "date_math": self._cipher.date_math,
+                "percentage": self._cipher.percentage,
+                "financial": self._cipher.financial,
+                "statistics": self._cipher.statistics,
+                "data_analyze": self._cipher.statistics,      # backward-compat alias
+                "logic_check": self._cipher.logic_check,
+                "logic_verify": self._cipher.logic_check,     # backward-compat alias
             }
 
             handler = handlers.get(tool_name)
@@ -923,6 +938,90 @@ class Omen(BaseModule):
                 "name": "sandbox_cleanup",
                 "description": "Remove old sandbox directories",
                 "parameters": {"max_age_hours": "int"},
+                "permission_level": "autonomous",
+            },
+            # ── Cipher tools (absorbed Phase A) ──
+            {
+                "name": "calculate",
+                "description": "Evaluate mathematical expressions safely (AST-based, no eval). "
+                               "Supports arithmetic, math functions, returns result + steps",
+                "parameters": {"expression": "str — math expression to evaluate"},
+                "permission_level": "autonomous",
+            },
+            {
+                "name": "unit_convert",
+                "description": "Convert between units: length, weight, volume, temperature, "
+                               "area, digital, time, speed",
+                "parameters": {
+                    "value": "float — numeric value to convert",
+                    "from_unit": "str — source unit",
+                    "to_unit": "str — target unit",
+                },
+                "permission_level": "autonomous",
+            },
+            {
+                "name": "date_math",
+                "description": "Date calculations: add/subtract time, difference between dates, "
+                               "day of week, business days",
+                "parameters": {
+                    "operation": "str — add, subtract, diff, day_of_week, business_days",
+                    "date": "str — ISO date (YYYY-MM-DD) for add/subtract/day_of_week",
+                    "date1": "str — first date for diff/business_days",
+                    "date2": "str — second date for diff/business_days",
+                    "days": "int — days to add/subtract",
+                    "weeks": "int — weeks to add/subtract",
+                    "months": "int — months to add/subtract",
+                    "years": "int — years to add/subtract",
+                },
+                "permission_level": "autonomous",
+            },
+            {
+                "name": "percentage",
+                "description": "Percentage operations: X% of Y, what percent, percent change, "
+                               "markup, margin",
+                "parameters": {
+                    "operation": "str — of, what_percent, change, markup, margin",
+                    "percent": "float", "value": "float", "total": "float",
+                    "old_value": "float", "new_value": "float",
+                    "cost": "float", "selling_price": "float",
+                },
+                "permission_level": "autonomous",
+            },
+            {
+                "name": "financial",
+                "description": "Financial math: compound interest, loan payment (PMT), ROI, "
+                               "break-even, profit/loss. Not financial advice — just math",
+                "parameters": {
+                    "operation": "str — compound_interest, pmt, roi, break_even, profit_loss",
+                    "principal": "float", "rate": "float",
+                    "compounds_per_year": "int", "years": "int",
+                    "annual_rate": "float", "gain": "float", "cost": "float",
+                    "fixed_costs": "float", "price_per_unit": "float",
+                    "variable_cost_per_unit": "float",
+                    "revenue": "float", "expenses": "float",
+                },
+                "permission_level": "autonomous",
+            },
+            {
+                "name": "statistics",
+                "description": "Descriptive statistics on a list of numbers: mean, median, mode, "
+                               "std_dev, min, max, range, sum, count, percentiles",
+                "parameters": {
+                    "data": "list[float] — numbers to analyze",
+                    "operations": "list[str] — which stats to compute (default: all)",
+                },
+                "permission_level": "autonomous",
+            },
+            {
+                "name": "logic_check",
+                "description": "Boolean logic: truth tables for 2-3 variables, structural "
+                               "analysis of premises/conclusions. Full reasoning in Phase 2+",
+                "parameters": {
+                    "variables": "list[str] — variable names for truth table",
+                    "expression": "str — boolean expression for truth table",
+                    "premises": "list[str] — premises for structural analysis",
+                    "conclusion": "str — conclusion for structural analysis",
+                },
                 "permission_level": "autonomous",
             },
         ]

@@ -102,7 +102,7 @@ VALID_CONTENT_TYPES = {
 }
 
 VALID_SOURCE_MODULES = {
-    "apex", "omen", "reaper", "morpheus", "cipher", "manual", "ingestor",
+    "apex", "omen", "reaper", "morpheus", "manual", "ingestor",
     "grimoire", "wraith", "cerberus", "sentinel", "harbinger", "nova",
     "shadow",
     # Phase A merge: absorbed Sentinel surface tags new writes

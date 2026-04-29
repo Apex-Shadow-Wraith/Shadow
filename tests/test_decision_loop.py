@@ -53,17 +53,20 @@ class MockWraithModule(BaseModule):
         ]
 
 
-class MockCipherModule(BaseModule):
-    """Mock Cipher that handles all cipher tools (calculate, percentage, etc.)."""
+class MockOmenAbsorbedMathModule(BaseModule):
+    """Mock Omen that handles the absorbed Cipher math tools (Phase A).
+    Registers under the "omen" name so the orchestrator's math
+    sub-router (folded into the omen step-planning branch) finds the
+    right execute() target post-merge."""
 
-    # All tool names that _step4_plan can route to cipher
-    CIPHER_TOOLS = {
+    # All Cipher tool names that Omen's step-planner can route to (post-merge).
+    ABSORBED_CIPHER_TOOLS = {
         "calculate", "percentage", "unit_convert", "financial",
         "statistics", "logic_check", "date_math",
     }
 
     def __init__(self):
-        super().__init__(name="cipher", description="Mock Cipher")
+        super().__init__(name="omen", description="Mock Omen (absorbed Cipher math)")
         self.calls: list[tuple[str, dict]] = []
 
     async def initialize(self) -> None:
@@ -71,10 +74,10 @@ class MockCipherModule(BaseModule):
 
     async def execute(self, tool_name: str, params: dict[str, Any]) -> ToolResult:
         self.calls.append((tool_name, params))
-        if tool_name in self.CIPHER_TOOLS:
+        if tool_name in self.ABSORBED_CIPHER_TOOLS:
             return ToolResult(
                 success=True,
-                content={"result": 127.05, "expression": "15% of 847"},
+                content={"result": 862.0, "expression": "15 + 847"},
                 tool_name=tool_name, module=self.name,
             )
         return ToolResult(success=False, content=None, tool_name=tool_name,
@@ -85,9 +88,9 @@ class MockCipherModule(BaseModule):
 
     def get_tools(self) -> list[dict[str, Any]]:
         return [
-            {"name": name, "description": f"Cipher {name} tool",
+            {"name": name, "description": f"Absorbed Cipher tool {name} (via Omen)",
              "parameters": {}, "permission_level": "autonomous"}
-            for name in self.CIPHER_TOOLS
+            for name in self.ABSORBED_CIPHER_TOOLS
         ]
 
 
@@ -314,17 +317,21 @@ class TestGreetingFastPath:
 
 
 class TestMathRouting:
-    """Test 2: Math question → keyword fast-path routes to cipher, full pipeline executes."""
+    """Test 2: Math expression → Priority 1 numeric fast-path routes
+    to Omen (post Cipher→Omen merge), Omen's math sub-router picks the
+    right absorbed Cipher tool, full pipeline executes."""
 
     @pytest.mark.asyncio
-    async def test_math_routes_to_cipher(self, tmp_config: dict):
-        """'calculate 15 percentage of 847' fast-path routes to cipher via keyword."""
+    async def test_math_routes_to_omen(self, tmp_config: dict):
+        """'what is 15 + 847' fast-paths via Priority 1 numeric regex
+        (digit-op-digit) to omen, then Omen's math sub-router dispatches
+        the calculate tool (one of the absorbed Cipher tools)."""
         orch = Orchestrator(tmp_config)
 
         # Register mock modules
-        cipher = MockCipherModule()
-        await cipher.initialize()
-        orch.registry.register(cipher)
+        omen = MockOmenAbsorbedMathModule()
+        await omen.initialize()
+        orch.registry.register(omen)
 
         wraith = MockWraithModule()
         await wraith.initialize()
@@ -338,21 +345,22 @@ class TestMathRouting:
         # Fast-path classification means only 1 LLM call needed (eval, no router)
         # Confidence scorer may trigger a retry (2nd call) if score is low
         eval_response = _mock_ollama_response(
-            "15% of 847 is 127.05."
+            "15 + 847 is 862."
         )
 
         orch._ollama_chat = MagicMock(
             return_value=eval_response
         )
 
-        response = await orch.process_input("calculate 15 percentage of 847")
+        response = await orch.process_input("what is 15 + 847")
 
         # 1. Response is non-empty and reasonable
         assert response and len(response) > 0
-        assert "127.05" in response
+        assert "862" in response
 
-        # 2. Fast-path routed to cipher — eval LLM call (no router call)
-        #    Confidence scorer may trigger a retry, so 1-2 calls expected
+        # 2. Fast-path routed to omen via Priority 1 — eval LLM call only
+        #    (no router call).  Confidence scorer may trigger a retry,
+        #    so 1-2 calls expected.
         calls = orch._ollama_chat.call_args_list
         assert 1 <= len(calls) <= 2, f"Expected 1-2 LLM calls (eval + possible retry), got {len(calls)}"
 
@@ -516,7 +524,7 @@ class TestUnsafeRequestBlocked:
 
         # 4. No module tools should have been called (blocked before execution)
         # Wraith temporal_record IS called in step7_log for blocked inputs
-        # but no reaper/cipher/grimoire tools
+        # but no reaper/omen/grimoire tools.
         assert not any(c[0] != "temporal_record" for c in wraith.calls)
 
     @pytest.mark.asyncio

@@ -52,8 +52,14 @@ MODULE_ROLES = {
     },
     "apex": {"role": "cloud_fallback", "should_handle": ["escalation", "teaching"]},
     "harbinger": {"role": "briefings", "should_handle": ["alerts", "summaries", "notifications"]},
-    "cipher": {"role": "math_logic", "should_handle": ["math", "calculation", "logic", "proof"]},
-    "omen": {"role": "code", "should_handle": ["code", "programming", "debugging", "compilation"]},
+    # Omen absorbed Cipher's math/logic surface in Phase A.
+    "omen": {
+        "role": "code_and_math",
+        "should_handle": [
+            "code", "programming", "debugging", "compilation",
+            "math", "calculation", "logic", "proof",
+        ],
+    },
     "nova": {"role": "content", "should_handle": ["writing", "creative", "content_creation"]},
     "morpheus": {"role": "creative_discovery", "should_handle": ["exploration", "dreaming", "research"]},
 }

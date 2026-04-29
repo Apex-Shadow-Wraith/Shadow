@@ -35,19 +35,18 @@ def _make_config(tmp_path: Path, overrides: dict[str, Any] | None = None) -> dic
 
 
 def _create_all_modules(tmp_path: Path) -> list[BaseModule]:
-    """Instantiate all 13 modules with safe configs."""
+    """Instantiate all post-Phase-A active modules with safe configs.
+    Cipher absorbed into Omen, Sentinel absorbed into Cerberus, Void
+    demoted to a daemon — none instantiated here."""
     from modules.apex.apex import Apex
     from modules.cerberus.cerberus import Cerberus
-    from modules.cipher.cipher import Cipher
     from modules.grimoire.grimoire_module import GrimoireModule
     from modules.harbinger.harbinger import Harbinger
     from modules.morpheus.morpheus import Morpheus
     from modules.nova.nova import Nova
     from modules.omen.omen import Omen
     from modules.reaper.reaper_module import ReaperModule
-    from modules.sentinel.sentinel import Sentinel
     from modules.shadow.shadow_module import ShadowModule
-    from modules.void.void import Void
     from modules.wraith.wraith import Wraith
 
     registry = ModuleRegistry()
@@ -56,7 +55,6 @@ def _create_all_modules(tmp_path: Path) -> list[BaseModule]:
     modules = [
         Apex(config=cfg),
         Cerberus(config=cfg),
-        Cipher(),
         GrimoireModule(config={
             "db_path": str(tmp_path / "grimoire.db"),
             "vector_path": str(tmp_path / "vectors"),
@@ -66,9 +64,7 @@ def _create_all_modules(tmp_path: Path) -> list[BaseModule]:
         Nova(),
         Omen(config=cfg),
         ReaperModule(config=cfg),
-        Sentinel(config=cfg),
         ShadowModule(config=cfg, registry=registry),
-        Void(config=cfg),
         Wraith(config=cfg),
     ]
     return modules
@@ -82,9 +78,12 @@ class TestInstantiateAllModules:
     """Every module can be instantiated with safe test configs."""
 
     def test_instantiate_all_modules(self, tmp_path):
-        """All 13 BaseModule subclasses instantiate without error."""
+        """All post-Phase-A BaseModule subclasses instantiate without error.
+        Phase A consolidation: Sentinel → Cerberus, Cipher → Omen, Void → daemon.
+        Active module count: 10 (Apex, Cerberus, Grimoire, Harbinger, Morpheus,
+        Nova, Omen, Reaper, ShadowModule, Wraith)."""
         modules = _create_all_modules(tmp_path)
-        assert len(modules) == 13
+        assert len(modules) == 10
 
         for mod in modules:
             assert isinstance(mod, BaseModule), f"{mod} is not a BaseModule"

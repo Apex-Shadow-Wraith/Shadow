@@ -65,7 +65,9 @@ SAFE_TOOL_NAMES = frozenset({
     # Nova — content creation
     "content_generate", "document_generate", "template_render",
     "estimate_generate",
-    # Cipher — calculations
+    # Math/stats/finance — absorbed Cipher → Omen in Phase A; tool names
+    # preserved for safe-tool listing parity (calculate / unit_convert /
+    # financial / statistics live on Omen now).
     "math_calculate", "unit_convert", "financial_calc",
     "statistics_calc",
     # Morpheus — creative discovery
@@ -80,7 +82,7 @@ SAFE_TOOL_NAMES = frozenset({
 
 SAFE_MODULES = frozenset({
     "omen", "grimoire", "reaper", "wraith", "nova",
-    "cipher", "harbinger", "void", "morpheus", "shadow",
+    "harbinger", "void", "morpheus", "shadow",
     "apex",
 })
 

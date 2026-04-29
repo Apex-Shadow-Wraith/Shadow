@@ -274,9 +274,10 @@ class DynamicToolLoader:
         "grimoire": ["remember", "recall", "memory", "stored knowledge"],
         # Cerberus absorbed Sentinel's security surface in Phase A.
         "cerberus": ["security", "scan network", "firewall"],
-        "cipher": ["calculate", "math", "convert units"],
+        # Omen absorbed Cipher's math/stats/finance surface in Phase A.
+        "omen": ["write code", "debug", "lint", "git",
+                 "calculate", "math", "convert units"],
         "nova": ["generate content", "write document", "create image"],
-        "omen": ["write code", "debug", "lint", "git"],
         "harbinger": ["notify", "alert", "briefing"],
     }
 

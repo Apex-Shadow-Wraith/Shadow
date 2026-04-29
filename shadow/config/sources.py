@@ -34,7 +34,6 @@ from pydantic_settings import BaseSettings, PydanticBaseSettingsSource
 _MODULE_YAML_TO_FIELD: dict[str, str] = {
     "apex": "apex",
     "cerberus": "cerberus",
-    "cipher": "cipher",
     "grimoire": "grimoire",
     "harbinger": "harbinger",
     "morpheus": "morpheus",

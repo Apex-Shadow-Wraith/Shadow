@@ -37,8 +37,11 @@ MODULE_DESCRIPTIONS = {
     "grimoire": "Data storage, knowledge base, memory, vector DB, block search",
     "harbinger": "Briefings, alerts, notifications, decision queue, safety reports, personalization",
     "reaper": "Research, web scraping, Reddit .json, YouTube transcription",
-    "cipher": "Math, logic, unit conversion, financial, statistics",
-    "omen": "Code execution, linting, review, git ops, pattern DB, failure learning, scaffolding",
+    "omen": (
+        "Code execution, linting, review, git ops, pattern DB, failure learning, "
+        "scaffolding; math, logic, unit conversion, financial, statistics "
+        "(absorbed Cipher in Phase A)"
+    ),
     "nova": "Content creation, document generation, templates, business estimates",
     "morpheus": "Creative discovery pipeline, controlled hallucination, experiment tracking",
 }
@@ -49,7 +52,7 @@ Module B ({module_b}) handles: {module_b_description}
 What novel capability could emerge from combining these two modules in ways they weren't designed for?
 Examples:
 - Cerberus (security surface, absorbed Sentinel) + Omen (code) → security-hardened code generation patterns
-- Cipher (math) + Reaper (research) → statistical source reliability scoring
+- Omen (math, absorbed Cipher) + Reaper (research) → statistical source reliability scoring
 
 Generate 1-2 creative hypotheses. For each, provide:
 1. A short title

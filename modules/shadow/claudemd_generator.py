@@ -88,8 +88,11 @@ _MODULE_DESCRIPTIONS: dict[str, str] = {
     "grimoire": "Data storage, knowledge base, memory, vector DB, block search",
     "harbinger": "Briefings, alerts, notifications, decision queue, safety reports, personalization",
     "reaper": "Research, web scraping, Reddit .json, YouTube transcription",
-    "cipher": "Math, logic, unit conversion, financial, statistics",
-    "omen": "Code execution, linting, review, git ops, pattern DB, failure learning, scaffolding, scoring",
+    "omen": (
+        "Code execution, linting, review, git ops, pattern DB, failure learning, "
+        "scaffolding, scoring; math, logic, unit conversion, financial, statistics "
+        "(absorbed Cipher in Phase A)"
+    ),
     "nova": "Content creation, document generation, templates, business estimates",
     "void": "24/7 passive monitoring, system health, trends, thresholds",
     "morpheus": "Creative discovery pipeline (controlled hallucination)",

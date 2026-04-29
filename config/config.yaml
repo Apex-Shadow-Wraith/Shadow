@@ -33,7 +33,7 @@ models:
 
   smart_brain:
     name: "gemma4:26b"
-    purpose: "Complex reasoning (Cipher, Omen, research)"
+    purpose: "Complex reasoning (Omen, research)"
     # Ubuntu target: llama4-scout (1.78-bit quantized)
 
   embedding:
@@ -53,7 +53,6 @@ modules:
     - "reaper"
     - "harbinger"
     - "apex"
-    - "cipher"
     - "omen"
     - "nova"
     - "morpheus"

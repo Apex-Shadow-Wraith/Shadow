@@ -31,7 +31,6 @@ _KNOWN_MODULES: dict[str, str] = {
     "grimoire": "module",
     "harbinger": "module",
     "reaper": "module",
-    "cipher": "module",
     "omen": "module",
     "nova": "module",
     "morpheus": "module",

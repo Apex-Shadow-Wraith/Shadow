@@ -55,7 +55,6 @@ from pydantic_settings import (
 
 from modules.apex.config import ApexSettings
 from modules.cerberus.config import CerberusSettings
-from modules.cipher.config import CipherSettings
 from modules.grimoire.config import GrimoireSettings
 from modules.harbinger.config import HarbingerSettings
 from modules.morpheus.config import MorpheusSettings
@@ -78,7 +77,6 @@ REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 _MODULE_FIELD_MAP: dict[str, str] = {
     "apex": "apex",
     "cerberus": "cerberus",
-    "cipher": "cipher",
     "grimoire": "grimoire",
     "harbinger": "harbinger",
     "morpheus": "morpheus",
@@ -199,7 +197,6 @@ class Settings(BaseSettings):
     # Per-module settings (hoisted from YAML `modules:` block)
     apex: ApexSettings = Field(default_factory=ApexSettings)
     cerberus: CerberusSettings = Field(default_factory=CerberusSettings)
-    cipher: CipherSettings = Field(default_factory=CipherSettings)
     grimoire: GrimoireSettings = Field(default_factory=GrimoireSettings)
     harbinger: HarbingerSettings = Field(default_factory=HarbingerSettings)
     morpheus: MorpheusSettings = Field(default_factory=MorpheusSettings)
@@ -254,7 +251,7 @@ def to_legacy_dict(settings: BaseModel | BaseSettings) -> Any:
 
     The typed singleton is the source of truth for every module's config;
     this helper exists because the Orchestrator and a few unmigrated modules
-    (Grimoire, Wraith, Nova, Omen, Morpheus, Cipher) still
+    (Grimoire, Wraith, Nova, Omen, Morpheus) still
     read configuration via `config["modules"]["<name>"][...]` dict paths.
 
     Two transformations applied:

@@ -824,7 +824,8 @@ class Wraith(BaseModule):
         elif any(kw in lower for kw in ["search", "look up", "find", "research", "what is"]):
             suggestion = {"module": "reaper", "task_type": "research", "confidence": 0.8}
         elif any(kw in lower for kw in ["calculate", "math", "compute", "how much", "percent"]):
-            suggestion = {"module": "cipher", "task_type": "analysis", "confidence": 0.8}
+            # Cipher absorbed into Omen in Phase A; math tools live on Omen now.
+            suggestion = {"module": "omen", "task_type": "analysis", "confidence": 0.8}
         elif any(kw in lower for kw in ["write code", "debug", "script", "program", "function"]):
             suggestion = {"module": "omen", "task_type": "creation", "confidence": 0.8}
         elif any(kw in lower for kw in ["security", "threat", "breach", "hack", "protect"]):

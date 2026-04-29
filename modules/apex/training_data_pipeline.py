@@ -69,7 +69,7 @@ class TrainingDataPipeline:
             user_input: The original user input that triggered escalation.
             shadow_failed_response: Shadow's failed attempt (may be empty).
             apex_response: The correct response from the frontier model.
-            module: Which module was involved (e.g. "omen", "cipher").
+            module: Which module was involved (e.g. "omen", "reaper").
             category: Task category (e.g. "code_generation", "research").
             metadata: Optional extra metadata (model names, confidence, etc).
 
