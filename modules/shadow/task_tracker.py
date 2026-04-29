@@ -31,7 +31,7 @@ VALID_STATUSES = {"queued", "running", "completed", "failed", "cancelled"}
 
 VALID_MODULES = {
     "shadow", "wraith", "cerberus", "apex", "grimoire",
-    "harbinger", "reaper", "cipher", "omen", "nova", "morpheus",
+    "harbinger", "reaper", "omen", "nova", "morpheus",
 }
 
 

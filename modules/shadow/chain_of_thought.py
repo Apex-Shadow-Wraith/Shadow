@@ -14,7 +14,7 @@ Default 4-step pipeline:
 Supports early exit (confidence >= 0.9), custom pipelines, and
 complexity-based step selection (simple=1, moderate=2, complex=4).
 
-Feeds into: Omen (code tasks), Cipher (math), Growth Engine (stats).
+Feeds into: Omen (code + math, absorbed Cipher in Phase A), Growth Engine (stats).
 """
 
 from __future__ import annotations

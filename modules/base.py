@@ -354,7 +354,8 @@ class ModuleRegistry:
     tracks module health for the daily briefing.
 
     From architecture doc: 'Always running: Grimoire, Cerberus, Void.
-    On demand: Reaper, Cipher, Omen, Nova. Scheduled: Harbinger, Morpheus.'
+    On demand: Reaper, Omen, Nova. Scheduled: Harbinger, Morpheus.'
+    (Cipher absorbed into Omen in Phase A.)
     """
 
     def __init__(self) -> None:

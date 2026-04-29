@@ -325,7 +325,7 @@ class CodeAnalyzer:
             ),
             "list_comprehensions": (
                 "Concise, readable collection transformations",
-                ["cipher", "omen", "grimoire"],
+                ["omen", "grimoire"],
             ),
             "decorators_used": (
                 "Cross-cutting concerns (logging, caching, auth)",

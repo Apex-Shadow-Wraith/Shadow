@@ -46,15 +46,15 @@ Every tool call goes through [MCP](https://modelcontextprotocol.io/) (Model Cont
 | 📚 | **Grimoire** | Three-layer memory — SQLite + ChromaDB vector store | 6 |
 | 📡 | **Harbinger** | Morning/evening briefings, alerts, Telegram notifications | 12 |
 | 🔍 | **Reaper** | Web research, scraping, Reddit, YouTube transcript analysis | 5 |
-| 🧮 | **Cipher** | Math, logic, unit conversion, data analysis | 7 |
-| 💻 | **Omen** | Code execution sandbox, linting, review, git ops, model eval | 21 |
+| 💻 | **Omen** | Code execution sandbox, linting, review, git ops, model eval, plus math/logic/unit/finance/stats (absorbed Cipher in Phase A) | 47 |
 | ✍️ | **Nova** | Content creation, document generation, templates | 6 |
-| | **Total (10 active modules)** | | **119** |
+| | **Total (9 active modules)** | | **119** |
 
 > Phase A consolidation also moved Void to a daemon (`daemons/void/`)
-> for 24/7 monitoring outside the registry, and Morpheus
-> (creative-discovery pipeline) is now opt-in via
-> `config.morpheus.enabled` — both intentionally absent from the
+> for 24/7 monitoring outside the registry, absorbed Cipher into Omen
+> as a utility sub-namespace, and made Morpheus
+> (creative-discovery pipeline) opt-in via `config.morpheus.enabled`
+> — all three intentionally absent (or absorbed) in the
 > active module table above.
 
 > All modules communicate via a multi-agent backbone: MessageBus, EventSystem (20 event types), priority queue with preemption, and shared read-only Grimoire access.
@@ -78,7 +78,7 @@ Frontend        React + Tailwind · Electron desktop · PWA mobile
 
 ```
 Shadow/
-├── modules/                  # 10 active modules (post-Phase-A)
+├── modules/                  # 9 active modules (post-Phase-A)
 │   ├── shadow/               # Orchestrator, task tracker, growth engine
 │   ├── wraith/               # Fast brain, temporal tracking
 │   ├── cerberus/             # Safety gate + injection detector + absorbed
@@ -87,8 +87,8 @@ Shadow/
 │   ├── grimoire/             # Memory (SQLite + ChromaDB)
 │   ├── harbinger/            # Briefings, alerts, notifications
 │   ├── reaper/               # Web research, scraping
-│   ├── cipher/               # Math and logic
-│   ├── omen/                 # Code tools, sandbox, model eval
+│   ├── omen/                 # Code tools, sandbox, model eval +
+│   │                         #   absorbed math/logic/finance/stats (Cipher, Phase A)
 │   ├── nova/                 # Content creation
 │   └── morpheus/             # Discovery pipeline (opt-in, dormant by default)
 ├── daemons/

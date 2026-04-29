@@ -906,21 +906,21 @@ class ProactiveEngine:
             ),
         ])
 
-        # --- Cipher ---
+        # --- Math validation (absorbed Cipher → Omen, Phase A) ---
         triggers.extend([
             ProactiveTrigger(
-                module_name="cipher",
+                module_name="omen",
                 trigger_type="event",
-                description="Cipher validates numerical data from modules",
+                description="Omen validates numerical data from modules (absorbed Cipher)",
                 event_name="NUMERICAL_DATA_PRODUCED",
                 action="Validate calculations in produced numerical data",
                 priority=4,
                 max_frequency=120,
             ),
             ProactiveTrigger(
-                module_name="cipher",
+                module_name="omen",
                 trigger_type="discovery",
-                description="Cipher cross-checks financial data",
+                description="Omen cross-checks financial data (absorbed Cipher)",
                 action="Cross-check math when financial data is processed",
                 priority=3,
                 max_frequency=300,
