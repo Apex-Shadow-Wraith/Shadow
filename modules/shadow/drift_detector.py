@@ -40,13 +40,21 @@ MODULE_ROLES = {
     "wraith": {"role": "fast_daily", "should_handle": ["reminders", "quick_lookup", "simple_tasks"]},
     "grimoire": {"role": "memory", "should_handle": ["storage", "retrieval", "knowledge"]},
     "reaper": {"role": "research", "should_handle": ["web_search", "scraping", "data_gathering"]},
-    "cerberus": {"role": "ethics_safety", "should_handle": ["ethics", "safety", "permissions"]},
+    "cerberus": {
+        "role": "ethics_safety_security",
+        # Absorbed Sentinel's security surface in Phase A; "should_handle"
+        # union covers both ethics/safety and the inherited firewall /
+        # threats / monitoring vocabulary.
+        "should_handle": [
+            "ethics", "safety", "permissions",
+            "firewall", "threats", "monitoring",
+        ],
+    },
     "apex": {"role": "cloud_fallback", "should_handle": ["escalation", "teaching"]},
     "harbinger": {"role": "briefings", "should_handle": ["alerts", "summaries", "notifications"]},
     "cipher": {"role": "math_logic", "should_handle": ["math", "calculation", "logic", "proof"]},
     "omen": {"role": "code", "should_handle": ["code", "programming", "debugging", "compilation"]},
     "nova": {"role": "content", "should_handle": ["writing", "creative", "content_creation"]},
-    "sentinel": {"role": "security", "should_handle": ["firewall", "threats", "monitoring"]},
     "morpheus": {"role": "creative_discovery", "should_handle": ["exploration", "dreaming", "research"]},
 }
 

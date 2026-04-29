@@ -62,7 +62,7 @@ class ChainStatus(Enum):
 # ---------------------------------------------------------------------------
 
 VALID_MODULES = {
-    "shadow", "wraith", "cerberus", "apex", "grimoire", "sentinel",
+    "shadow", "wraith", "cerberus", "apex", "grimoire",
     "harbinger", "reaper", "cipher", "omen", "nova", "morpheus",
 }
 
@@ -1003,11 +1003,14 @@ JSON array:"""
             "omen": ["code", "debug", "review", "lint", "implement", "script"],
             "cipher": ["calculate", "math", "convert", "price", "statistics"],
             "grimoire": ["remember", "recall", "forget", "memory", "know"],
-            "sentinel": ["security", "firewall", "scan", "network", "integrity"],
             "nova": ["write", "create", "document", "template", "content"],
             "wraith": ["remind", "schedule", "timer", "alarm", "task"],
             "harbinger": ["brief", "alert", "notify", "report", "status"],
-            "cerberus": ["ethics", "moral", "bible", "safe", "approve"],
+            "cerberus": [
+                "ethics", "moral", "bible", "safe", "approve",
+                # absorbed Sentinel security surface (Phase A)
+                "security", "firewall", "scan", "network", "integrity",
+            ],
             "morpheus": ["creative", "imagine", "brainstorm", "discover"],
         }
         for module, keywords in keyword_map.items():

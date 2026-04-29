@@ -28,10 +28,13 @@ logger = logging.getLogger("shadow.morpheus.cross_module_dreaming")
 MODULE_DESCRIPTIONS = {
     "shadow": "Master orchestrator/router, 7-step decision loop, task routing and delegation",
     "wraith": "Fast brain, daily tasks, reminders, task classification, temporal patterns",
-    "cerberus": "Ethics, safety, approvals, injection detection, reversibility, watchdog",
+    "cerberus": (
+        "Ethics, safety, approvals, injection detection, reversibility, watchdog, "
+        "and security surface — firewall, network scanning, file integrity, quarantine "
+        "(absorbed Sentinel in Phase A)"
+    ),
     "apex": "Claude/GPT API fallback with cost tracking and teaching cycle",
     "grimoire": "Data storage, knowledge base, memory, vector DB, block search",
-    "sentinel": "Security, firewall, network scanning, file integrity, quarantine",
     "harbinger": "Briefings, alerts, notifications, decision queue, safety reports, personalization",
     "reaper": "Research, web scraping, Reddit .json, YouTube transcription",
     "cipher": "Math, logic, unit conversion, financial, statistics",
@@ -45,7 +48,7 @@ Module B ({module_b}) handles: {module_b_description}
 
 What novel capability could emerge from combining these two modules in ways they weren't designed for?
 Examples:
-- Sentinel (security) + Omen (code) → security-hardened code generation patterns
+- Cerberus (security surface, absorbed Sentinel) + Omen (code) → security-hardened code generation patterns
 - Cipher (math) + Reaper (research) → statistical source reliability scoring
 
 Generate 1-2 creative hypotheses. For each, provide:

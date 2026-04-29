@@ -272,7 +272,8 @@ class DynamicToolLoader:
     _CROSS_MODULE_KEYWORDS: dict[str, list[str]] = {
         "reaper": ["search the web", "scrape", "reddit", "research online"],
         "grimoire": ["remember", "recall", "memory", "stored knowledge"],
-        "sentinel": ["security", "scan network", "firewall"],
+        # Cerberus absorbed Sentinel's security surface in Phase A.
+        "cerberus": ["security", "scan network", "firewall"],
         "cipher": ["calculate", "math", "convert units"],
         "nova": ["generate content", "write document", "create image"],
         "omen": ["write code", "debug", "lint", "git"],

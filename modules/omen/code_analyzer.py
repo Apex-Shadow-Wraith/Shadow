@@ -309,7 +309,7 @@ class CodeAnalyzer:
             ),
             "context_managers": (
                 "Guaranteed resource cleanup (files, connections, locks)",
-                ["grimoire", "sentinel", "omen"],
+                ["grimoire", "cerberus", "omen"],
             ),
             "dataclasses": (
                 "Clean data structures with less boilerplate",
@@ -329,7 +329,7 @@ class CodeAnalyzer:
             ),
             "decorators_used": (
                 "Cross-cutting concerns (logging, caching, auth)",
-                ["shadow", "cerberus", "sentinel"],
+                ["shadow", "cerberus"],
             ),
         }
 
@@ -971,7 +971,7 @@ class CodeAnalyzer:
             "singleton": ["grimoire", "shadow"],
             "factory": ["shadow", "omen"],
             "observer": ["void", "harbinger", "shadow"],
-            "decorator": ["cerberus", "sentinel", "shadow"],
+            "decorator": ["cerberus", "shadow"],
             "strategy": ["shadow", "apex", "reaper"],
             "builder": ["nova", "omen"],
             "template_method": ["shadow", "omen"],

@@ -1605,7 +1605,7 @@ class Cerberus(BaseModule):
 
     # Internal modules that are NOT external integrations
     _INTERNAL_MODULES: set[str] = {
-        "shadow", "wraith", "cerberus", "apex", "grimoire", "sentinel",
+        "shadow", "wraith", "cerberus", "apex", "grimoire",
         "harbinger", "reaper", "cipher", "omen", "nova", "void", "morpheus",
     }
 
