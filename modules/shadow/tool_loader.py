@@ -20,6 +20,11 @@ DEFAULT_CORE_TOOLS = frozenset({
     "get_date",
 })
 
+# Routing pseudo-targets that are not real modules. Callers that pass these
+# (the orchestrator already guards them, but third-party callers may not)
+# get an empty tool list silently — no "module not found" warning.
+_PSEUDO_MODULES: frozenset[str] = frozenset({"direct", "conversation"})
+
 
 class DynamicToolLoader:
     """Load only the active module's tool schemas instead of the full set.
@@ -131,6 +136,11 @@ class DynamicToolLoader:
         Auto-refreshes the index if it's empty but the registry has modules.
         """
         try:
+            # Pseudo-modules ("direct", "conversation") are routing labels,
+            # not real modules — return empty without warning.
+            if module_name in _PSEUDO_MODULES:
+                return []
+
             # Auto-refresh: index empty but registry has registered modules
             if not self._index and self._registry is not None:
                 try:

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import logging
+
 import pytest
 
 from modules.shadow.tool_loader import DEFAULT_CORE_TOOLS, DynamicToolLoader
@@ -77,6 +79,16 @@ class TestGetToolsForModule:
         loader = DynamicToolLoader(module_registry=registry)
         tools = loader.get_tools_for_module("empty_mod")
         assert tools == []
+
+    def test_pseudo_modules_silent(self, caplog):
+        """'direct' and 'conversation' are routing labels — empty list, no warning."""
+        loader = DynamicToolLoader(module_registry=_default_registry())
+        with caplog.at_level(logging.WARNING, logger="modules.shadow.tool_loader"):
+            assert loader.get_tools_for_module("direct") == []
+            assert loader.get_tools_for_module("conversation") == []
+        assert not any(
+            "not found in tool index" in rec.getMessage() for rec in caplog.records
+        )
 
 
 class TestGetCoreTools:
