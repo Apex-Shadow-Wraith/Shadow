@@ -291,7 +291,7 @@ class TestAutoRegisterTool:
         """Auto-registration creates an audit log entry."""
         cerberus.auto_register_tool(
             tool_name="audit_test_tool",
-            module_name="cipher",
+            module_name="omen",
             description="Math computation tool",
         )
         audit_entries = [
