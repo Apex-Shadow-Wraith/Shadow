@@ -302,7 +302,8 @@ class TestClassifyTask:
             "classify_task", {"input_text": "calculate 15% of 250"}
         )
         assert result.success is True
-        assert result.content["module"] == "cipher"
+        # Cipher absorbed into Omen in Phase A; math classifies as omen now.
+        assert result.content["module"] == "omen"
 
     @pytest.mark.asyncio
     async def test_code_classification(self, online_wraith: Wraith):
