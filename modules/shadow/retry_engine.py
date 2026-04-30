@@ -31,6 +31,18 @@ try:
 except ImportError:
     _DECOMPOSER_AVAILABLE = False
 
+# Graceful import — RetryEngine works without Langfuse instrumentation.
+# observed_span yields None when observability is disabled, so the
+# `with` block becomes a transparent no-op.
+try:
+    from modules.shadow.observability import observed_span
+except ImportError:
+    from contextlib import contextmanager
+
+    @contextmanager
+    def observed_span(name, **metadata):  # type: ignore[no-redef]
+        yield None
+
 
 # ── Failure Type Classification ─────────────────────────────────────
 
@@ -343,145 +355,166 @@ class RetryEngine:
                 attempt_num, session.attempts
             )
 
-            # Build strategy context with history of all prior failures
-            strategy_context = self._build_strategy_context(
-                task=task,
-                attempt_num=attempt_num,
-                strategy_name=strategy_name,
-                strategy_desc=strategy_desc,
-                previous_attempts=session.attempts,
-                failure_context=failure_context,
-                extra_context=context,
-            )
-
-            # Execute the attempt
-            start_time = time.time()
-            attempt = Attempt(
+            with observed_span(
+                "retry_attempt",
                 attempt_number=attempt_num,
                 strategy=strategy_name,
-                approach_description=strategy_desc,
-                tools_used=context.get("tools", []),
-            )
+                task_type=session.task_type,
+                module=module,
+            ) as retry_span:
+                # Build strategy context with history of all prior failures
+                strategy_context = self._build_strategy_context(
+                    task=task,
+                    attempt_num=attempt_num,
+                    strategy_name=strategy_name,
+                    strategy_desc=strategy_desc,
+                    previous_attempts=session.attempts,
+                    failure_context=failure_context,
+                    extra_context=context,
+                )
 
-            try:
-                if execute_fn is not None:
-                    result = await execute_fn(task, strategy_context)
-                else:
-                    result = {"response": "", "error": "No execute function provided"}
-                attempt.duration_seconds = time.time() - start_time
-                attempt.result = result
+                # Execute the attempt
+                start_time = time.time()
+                attempt = Attempt(
+                    attempt_number=attempt_num,
+                    strategy=strategy_name,
+                    approach_description=strategy_desc,
+                    tools_used=context.get("tools", []),
+                )
 
-                # Evaluate the result
-                evaluation = evaluate_fn(result)
-                attempt.success = evaluation.get("success", False)
+                try:
+                    if execute_fn is not None:
+                        result = await execute_fn(task, strategy_context)
+                    else:
+                        result = {"response": "", "error": "No execute function provided"}
+                    attempt.duration_seconds = time.time() - start_time
+                    attempt.result = result
 
-                if not attempt.success:
-                    attempt.error = evaluation.get("reason", "Evaluation failed")
-                    # Classify failure type
-                    attempt.failure_type = classify_failure(
-                        attempt.error, attempt.result
-                    )
-                    # Only model failures increment fatigue
+                    # Evaluate the result
+                    evaluation = evaluate_fn(result)
+                    attempt.success = evaluation.get("success", False)
+
+                    if not attempt.success:
+                        attempt.error = evaluation.get("reason", "Evaluation failed")
+                        # Classify failure type
+                        attempt.failure_type = classify_failure(
+                            attempt.error, attempt.result
+                        )
+                        # Only model failures increment fatigue
+                        if attempt.failure_type == FailureType.MODEL:
+                            self._fatigue_counter += 1
+
+                except Exception as e:
+                    attempt.duration_seconds = time.time() - start_time
+                    attempt.error = str(e)
+                    attempt.success = False
+                    # Classify exception-based failures
+                    attempt.failure_type = classify_failure(str(e))
                     if attempt.failure_type == FailureType.MODEL:
                         self._fatigue_counter += 1
+                    logger.warning(
+                        "Attempt %d (%s) raised exception: %s",
+                        attempt_num, strategy_name, e,
+                    )
 
-            except Exception as e:
-                attempt.duration_seconds = time.time() - start_time
-                attempt.error = str(e)
-                attempt.success = False
-                # Classify exception-based failures
-                attempt.failure_type = classify_failure(str(e))
-                if attempt.failure_type == FailureType.MODEL:
-                    self._fatigue_counter += 1
-                logger.warning(
-                    "Attempt %d (%s) raised exception: %s",
-                    attempt_num, strategy_name, e,
+                session.attempts.append(attempt)
+
+                # Attach attempt-outcome metadata to the retry-attempt span
+                # before any early-return path exits the context manager.
+                # Defensive: every span call swallows exceptions.
+                if retry_span is not None:
+                    try:
+                        retry_span.update(metadata={
+                            "failure_type": attempt.failure_type,
+                            "attempt_duration_ms": round(attempt.duration_seconds * 1000),
+                            "success": attempt.success,
+                            "error": attempt.error[:200] if attempt.error else None,
+                        })
+                    except Exception as _span_err:
+                        logger.debug("retry_span update failed: %s", _span_err)
+
+                # Success — done
+                if attempt.success:
+                    session.status = "succeeded"
+                    session.final_result = attempt.result
+                    logger.info(
+                        "Task succeeded on attempt %d (%s)",
+                        attempt_num, strategy_name,
+                    )
+                    self._record_session(session)
+                    return self._session_to_dict(session)
+
+                # Early exit: genuine infrastructure failure on first attempt — skip
+                # all retries.  "Genuine" means the caller explicitly signalled an
+                # empty tool-loader index (no modules online at all).  A specific
+                # module returning empty tools, a module's tools erroring, or a
+                # transient ollama/network hiccup all get marker-classified as
+                # INFRASTRUCTURE too — but those are recoverable by strategy
+                # rotation (alternative_tools, model_switch, etc.), so we let the
+                # retry loop continue rather than bailing on attempt 1.
+                result_signals_empty_loader = (
+                    attempt.result is not None
+                    and attempt.result.get("tool_loader_empty", False)
                 )
+                if attempt_num == 1 and result_signals_empty_loader:
+                    logger.warning(
+                        "Tool loader index is empty — no modules available, "
+                        "skipping retries (genuine infrastructure failure)"
+                    )
+                    session.status = "exhausted"
+                    self._record_session(session)
+                    result_dict = self._session_to_dict(session)
+                    result_dict["exhausted"] = True
+                    result_dict["ready_to_escalate"] = False
+                    result_dict["infrastructure_failure"] = True
+                    return result_dict
 
-            session.attempts.append(attempt)
+                # Early exit: deterministic failure on first attempt — same input
+                # produces the same validation/schema error every time.  Strategy
+                # rotation can't fix it; escalate immediately so Apex (or the
+                # caller) can correct the input.
+                if (attempt_num == 1
+                        and attempt.failure_type == FailureType.DETERMINISTIC):
+                    logger.warning(
+                        "Deterministic failure on first attempt — skipping retries "
+                        "and escalating: %s",
+                        attempt.error,
+                    )
+                    session.status = "deterministic_failure"
+                    self._record_session(session)
+                    result_dict = self._session_to_dict(session)
+                    result_dict["exhausted"] = True
+                    result_dict["ready_to_escalate"] = True
+                    result_dict["deterministic_failure"] = True
+                    return result_dict
 
-            # Success — done
-            if attempt.success:
-                session.status = "succeeded"
-                session.final_result = attempt.result
-                logger.info(
-                    "Task succeeded on attempt %d (%s)",
-                    attempt_num, strategy_name,
-                )
-                self._record_session(session)
-                return self._session_to_dict(session)
+                # Marker-classified infrastructure failure with a populated loader —
+                # log distinctly and let the next strategy attempt run.
+                if (attempt_num == 1
+                        and attempt.failure_type == FailureType.INFRASTRUCTURE):
+                    logger.info(
+                        "Attempt %d failed with infrastructure-shaped error "
+                        "(%s), rotating strategy instead of bailing",
+                        attempt_num, attempt.error,
+                    )
 
-            # Early exit: genuine infrastructure failure on first attempt — skip
-            # all retries.  "Genuine" means the caller explicitly signalled an
-            # empty tool-loader index (no modules online at all).  A specific
-            # module returning empty tools, a module's tools erroring, or a
-            # transient ollama/network hiccup all get marker-classified as
-            # INFRASTRUCTURE too — but those are recoverable by strategy
-            # rotation (alternative_tools, model_switch, etc.), so we let the
-            # retry loop continue rather than bailing on attempt 1.
-            result_signals_empty_loader = (
-                attempt.result is not None
-                and attempt.result.get("tool_loader_empty", False)
-            )
-            if attempt_num == 1 and result_signals_empty_loader:
-                logger.warning(
-                    "Tool loader index is empty — no modules available, "
-                    "skipping retries (genuine infrastructure failure)"
-                )
-                session.status = "exhausted"
-                self._record_session(session)
-                result_dict = self._session_to_dict(session)
-                result_dict["exhausted"] = True
-                result_dict["ready_to_escalate"] = False
-                result_dict["infrastructure_failure"] = True
-                return result_dict
+                # Progress notifications
+                if notify_fn is not None:
+                    await self._send_progress(notify_fn, attempt_num, session)
 
-            # Early exit: deterministic failure on first attempt — same input
-            # produces the same validation/schema error every time.  Strategy
-            # rotation can't fix it; escalate immediately so Apex (or the
-            # caller) can correct the input.
-            if (attempt_num == 1
-                    and attempt.failure_type == FailureType.DETERMINISTIC):
-                logger.warning(
-                    "Deterministic failure on first attempt — skipping retries "
-                    "and escalating: %s",
-                    attempt.error,
-                )
-                session.status = "deterministic_failure"
-                self._record_session(session)
-                result_dict = self._session_to_dict(session)
-                result_dict["exhausted"] = True
-                result_dict["ready_to_escalate"] = True
-                result_dict["deterministic_failure"] = True
-                return result_dict
-
-            # Marker-classified infrastructure failure with a populated loader —
-            # log distinctly and let the next strategy attempt run.
-            if (attempt_num == 1
-                    and attempt.failure_type == FailureType.INFRASTRUCTURE):
-                logger.info(
-                    "Attempt %d failed with infrastructure-shaped error "
-                    "(%s), rotating strategy instead of bailing",
-                    attempt_num, attempt.error,
-                )
-
-            # Progress notifications
-            if notify_fn is not None:
-                await self._send_progress(notify_fn, attempt_num, session)
-
-            # Check for hardware impossibility — early exit
-            if attempt.error and self._is_impossibility(attempt.error):
-                logger.warning(
-                    "Hardware/software impossibility detected at attempt %d: %s",
-                    attempt_num, attempt.error,
-                )
-                session.status = "exhausted"
-                self._record_session(session)
-                result_dict = self._session_to_dict(session)
-                result_dict["exhausted"] = True
-                result_dict["ready_to_escalate"] = True
-                result_dict["impossibility_detected"] = True
-                return result_dict
+                # Check for hardware impossibility — early exit
+                if attempt.error and self._is_impossibility(attempt.error):
+                    logger.warning(
+                        "Hardware/software impossibility detected at attempt %d: %s",
+                        attempt_num, attempt.error,
+                    )
+                    session.status = "exhausted"
+                    self._record_session(session)
+                    result_dict = self._session_to_dict(session)
+                    result_dict["exhausted"] = True
+                    result_dict["ready_to_escalate"] = True
+                    result_dict["impossibility_detected"] = True
+                    return result_dict
 
         # All 12 attempts exhausted
         session.status = "exhausted"
