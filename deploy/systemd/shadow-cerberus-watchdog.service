@@ -1,0 +1,16 @@
+[Unit]
+Description=Shadow Cerberus Watchdog - external heartbeat monitor + emergency shutdown
+After=default.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/patrick/dev/Shadow
+ExecStart=/home/patrick/dev/Shadow/shadow_env/bin/python -m daemons.cerberus_watchdog
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+MemoryMax=128M
+
+[Install]
+WantedBy=default.target

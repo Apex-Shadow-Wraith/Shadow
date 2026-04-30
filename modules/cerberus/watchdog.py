@@ -4,7 +4,7 @@ Cerberus Watchdog — Heartbeat Monitoring and Emergency Lockdown
 Two components:
 
 1. HeartbeatWriter — Background thread that writes periodic heartbeat
-   JSON for the external watchdog script (scripts/watchdog_cerberus.py).
+   JSON for the external watchdog daemon (daemons/cerberus_watchdog/).
 
 2. CerberusWatchdog — In-process monitor that checks heartbeat freshness
    and creates a lockfile to halt all Shadow operations if Cerberus goes
