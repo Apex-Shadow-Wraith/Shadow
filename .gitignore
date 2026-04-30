@@ -61,3 +61,7 @@ benchmarks/benchmark_2026-*.json
 
 # B2 verification harness output (runtime reports)
 data/reports/b2_followup_*.txt
+
+# Langfuse self-hosted
+deploy/langfuse/.env
+deploy/langfuse/data/
