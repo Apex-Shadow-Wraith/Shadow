@@ -98,37 +98,65 @@ def load_config(config_path: str = "config/config.yaml") -> dict:
 def _check_training_backup_freshness(logger: logging.Logger) -> None:
     """Warn at boot if the nightly training-data backup is stale.
 
-    A stale `current` symlink means the systemd timer hasn't fired in a
-    while — likely the timer is disabled, the HDD is unmounted, or
-    rsync has been failing silently. Does not raise; pure advisory.
+    Reads the freshness state from Void's `data/void_latest.json`
+    snapshot rather than walking the filesystem inline — Void is the
+    canonical owner of this signal post-Phase-A. If Void hasn't written
+    a snapshot recently (>2× the default 60s tick), warn and return —
+    that itself indicates Void is down, which is a separate concern.
     """
+    import json
     import time
-    link = Path("/mnt/storage/backup/training-data/current")
-    if not link.is_symlink():
-        if link.parent.exists():
-            logger.warning(
-                "Training-data backup: 'current' symlink missing at %s — "
-                "has the nightly timer ever succeeded?",
-                link,
-            )
+
+    # Default poll_interval_seconds=60 (daemons.void.config.VoidDaemonSettings);
+    # 2× = 120s window before we treat the snapshot as stale.
+    state_path = Path("data/void_latest.json")
+    if not state_path.exists():
+        logger.warning(
+            "Training-data backup check skipped: %s missing — is the Void "
+            "daemon running? (`systemctl --user status shadow-void`)",
+            state_path,
+        )
+        return
+    age_seconds = time.time() - state_path.stat().st_mtime
+    if age_seconds > 120:
+        logger.warning(
+            "Training-data backup check skipped: %s is %.0fs old (>120s) — "
+            "Void daemon may be stopped.",
+            state_path, age_seconds,
+        )
         return
     try:
-        target = link.resolve()
-        if not target.is_dir():
-            logger.warning(
-                "Training-data backup: current -> %s does not resolve to a directory.",
-                target,
-            )
-            return
-        age_hours = (time.time() - target.stat().st_mtime) / 3600
-        if age_hours > 48:
-            logger.warning(
-                "Training-data backup is STALE: last snapshot %s is %.1fh old "
-                "(>48h). Check `systemctl status shadow-training-backup.timer`.",
-                target.name, age_hours,
-            )
-    except OSError as e:
-        logger.warning("Training-data backup freshness check failed: %s", e)
+        snapshot = json.loads(state_path.read_text())
+    except (OSError, json.JSONDecodeError) as e:
+        logger.warning("Training-data backup check skipped: %s unreadable: %s",
+                       state_path, e)
+        return
+
+    status = snapshot.get("backup_status")
+    age_hours = snapshot.get("backup_age_hours")
+    target = snapshot.get("backup_target")
+
+    if status == "fresh" or status == "not_configured":
+        return  # Healthy or backup mount intentionally absent — silent.
+    if status == "missing":
+        logger.warning(
+            "Training-data backup: 'current' symlink missing — "
+            "has the nightly timer ever succeeded?"
+        )
+    elif status == "no_target":
+        logger.warning(
+            "Training-data backup: current -> %s does not resolve to a directory.",
+            target,
+        )
+    elif status == "stale":
+        logger.warning(
+            "Training-data backup is STALE: last snapshot %s is %.1fh old "
+            "(>48h). Check `systemctl status shadow-training-backup.timer`.",
+            target, age_hours,
+        )
+    elif status == "error":
+        logger.warning("Training-data backup freshness check failed: %s",
+                       snapshot.get("backup_error"))
 
 
 async def startup(config: dict, logger: logging.Logger) -> Orchestrator:

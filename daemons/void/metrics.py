@@ -10,8 +10,16 @@ from __future__ import annotations
 
 import os
 import subprocess
+import time
 from datetime import datetime
+from pathlib import Path
 from typing import Any
+
+# Path the nightly training-backup rsync timer writes a `current` symlink to.
+# Pointing the symlink at the most recent dated snapshot is how we detect
+# the timer is alive — if the symlink stops moving, the timer is broken.
+_TRAINING_BACKUP_LINK = Path("/mnt/storage/backup/training-data/current")
+_TRAINING_BACKUP_STALE_HOURS = 48.0
 
 
 def query_gpu() -> dict[str, Any]:
@@ -50,6 +58,55 @@ def query_gpu() -> dict[str, Any]:
         return {"available": False, "reason": "nvidia-smi timed out"}
 
 
+def collect_backup_freshness(
+    link: Path = _TRAINING_BACKUP_LINK,
+    stale_hours: float = _TRAINING_BACKUP_STALE_HOURS,
+) -> dict[str, Any]:
+    """Check the training-data backup symlink and return its freshness state.
+
+    The nightly rsync timer points `current` at the most recent dated
+    snapshot. A stale or missing symlink means the timer hasn't fired —
+    HDD unmounted, timer disabled, or rsync failing silently.
+
+    Returns a dict with:
+      - backup_status: "fresh" | "stale" | "missing" | "no_target" |
+                       "not_configured" | "error"
+      - backup_age_hours: float | None  (None unless status is fresh/stale)
+      - backup_target: str | None       (resolved snapshot directory name)
+      - backup_error: str | None        (only when status == "error")
+
+    Pure function — no I/O beyond the symlink resolve and stat.
+    """
+    base = {
+        "backup_status": "missing",
+        "backup_age_hours": None,
+        "backup_target": None,
+        "backup_error": None,
+    }
+    if not link.is_symlink():
+        # Distinguish "backup mount missing entirely" from "symlink missing"
+        # so callers can warn appropriately (or stay silent on a system
+        # where the backup HDD just isn't attached).
+        if not link.parent.exists():
+            base["backup_status"] = "not_configured"
+        return base
+    try:
+        target = link.resolve()
+        if not target.is_dir():
+            base["backup_status"] = "no_target"
+            base["backup_target"] = str(target)
+            return base
+        age_hours = (time.time() - target.stat().st_mtime) / 3600
+        base["backup_age_hours"] = round(age_hours, 2)
+        base["backup_target"] = target.name
+        base["backup_status"] = "stale" if age_hours > stale_hours else "fresh"
+        return base
+    except OSError as e:
+        base["backup_status"] = "error"
+        base["backup_error"] = str(e)
+        return base
+
+
 def collect_snapshot() -> dict[str, Any]:
     """Collect CPU / RAM / disk / process / GPU metrics in a single snapshot."""
     import psutil
@@ -64,6 +121,7 @@ def collect_snapshot() -> dict[str, Any]:
     proc_mem_mb = proc_mem.rss / (1024 ** 2)
 
     gpu_data = query_gpu()
+    backup = collect_backup_freshness()
 
     return {
         "cpu_percent": cpu,
@@ -75,6 +133,7 @@ def collect_snapshot() -> dict[str, Any]:
         "disk_used_gb": round(disk.used / (1024 ** 3), 2),
         "process_memory_mb": round(proc_mem_mb, 2),
         "gpu": gpu_data,
+        **backup,
         "timestamp": timestamp,
     }
 

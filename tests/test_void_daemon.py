@@ -65,6 +65,23 @@ def _fake_psutil(monkeypatch, *, cpu: float = 40.0, ram: float = 50.0, disk: flo
     monkeypatch.setitem(sys.modules, "psutil", fake)
 
 
+def _stub_backup_freshness(monkeypatch, status: str = "not_configured"):
+    """Make the snapshot's backup-freshness probe deterministic.
+
+    Without this the collector hits /mnt/storage/backup/... on whatever
+    machine the test runs on, so results vary between Citadel and CI.
+    """
+    monkeypatch.setattr(
+        "daemons.void.metrics.collect_backup_freshness",
+        lambda: {
+            "backup_status": status,
+            "backup_age_hours": None,
+            "backup_target": None,
+            "backup_error": None,
+        },
+    )
+
+
 def test_metrics_collector_snapshot_shape(monkeypatch):
     _fake_psutil(monkeypatch, cpu=25.0, ram=30.0, disk=40.0)
     # GPU query shells out to nvidia-smi; stub to "unavailable" for determinism.
@@ -72,6 +89,7 @@ def test_metrics_collector_snapshot_shape(monkeypatch):
         "daemons.void.metrics.query_gpu",
         lambda: {"available": False, "reason": "stubbed"},
     )
+    _stub_backup_freshness(monkeypatch)
 
     snap = collect_snapshot()
 
@@ -80,6 +98,10 @@ def test_metrics_collector_snapshot_shape(monkeypatch):
     assert snap["disk_percent"] == 40.0
     assert "timestamp" in snap
     assert snap["gpu"] == {"available": False, "reason": "stubbed"}
+    # Backup freshness fields are always present in the snapshot so
+    # main.py can rely on them being there.
+    assert "backup_status" in snap
+    assert "backup_age_hours" in snap
 
     rows = snapshot_to_metric_rows(snap)
     names = {r[0] for r in rows}
@@ -94,6 +116,78 @@ def test_metrics_collector_snapshot_shape(monkeypatch):
         assert isinstance(value, (int, float))
         assert isinstance(unit, str)
         assert ts == snap["timestamp"]
+
+
+# ---------------------------------------------------------------------------
+# B3: backup-freshness collector
+# ---------------------------------------------------------------------------
+
+
+def test_backup_freshness_fresh(tmp_path: Path):
+    """Recently-touched symlink target → status='fresh', age_hours small."""
+    from daemons.void.metrics import collect_backup_freshness
+
+    target = tmp_path / "snapshot-2026-04-29"
+    target.mkdir()
+    link = tmp_path / "current"
+    link.symlink_to(target)
+
+    out = collect_backup_freshness(link=link, stale_hours=48.0)
+    assert out["backup_status"] == "fresh"
+    assert out["backup_target"] == "snapshot-2026-04-29"
+    assert out["backup_age_hours"] is not None
+    assert out["backup_age_hours"] < 1.0  # just created
+
+
+def test_backup_freshness_stale(tmp_path: Path, monkeypatch):
+    """Symlink target older than threshold → status='stale'."""
+    import os
+    from daemons.void.metrics import collect_backup_freshness
+
+    target = tmp_path / "snapshot-old"
+    target.mkdir()
+    link = tmp_path / "current"
+    link.symlink_to(target)
+
+    # Backdate the snapshot directory to 72h ago.
+    old = datetime.now().timestamp() - 72 * 3600
+    os.utime(target, (old, old))
+
+    out = collect_backup_freshness(link=link, stale_hours=48.0)
+    assert out["backup_status"] == "stale"
+    assert out["backup_age_hours"] > 48.0
+
+
+def test_backup_freshness_missing_link(tmp_path: Path):
+    """Parent dir exists but symlink doesn't → status='missing'."""
+    from daemons.void.metrics import collect_backup_freshness
+
+    link = tmp_path / "current"  # no symlink, parent exists
+
+    out = collect_backup_freshness(link=link)
+    assert out["backup_status"] == "missing"
+    assert out["backup_age_hours"] is None
+
+
+def test_backup_freshness_not_configured(tmp_path: Path):
+    """Parent dir doesn't exist → status='not_configured' (silent)."""
+    from daemons.void.metrics import collect_backup_freshness
+
+    link = tmp_path / "no-such-dir" / "current"
+
+    out = collect_backup_freshness(link=link)
+    assert out["backup_status"] == "not_configured"
+
+
+def test_backup_freshness_dangling_link(tmp_path: Path):
+    """Symlink points to a non-existent target → status='no_target'."""
+    from daemons.void.metrics import collect_backup_freshness
+
+    link = tmp_path / "current"
+    link.symlink_to(tmp_path / "does-not-exist")
+
+    out = collect_backup_freshness(link=link)
+    assert out["backup_status"] == "no_target"
 
 
 # ---------------------------------------------------------------------------
@@ -187,6 +281,7 @@ async def test_monitor_loop_two_ticks(tmp_path: Path, monkeypatch):
         "daemons.void.metrics.query_gpu",
         lambda: {"available": False, "reason": "stubbed"},
     )
+    _stub_backup_freshness(monkeypatch, status="fresh")
 
     settings = VoidDaemonSettings(
         enabled=True,
@@ -209,6 +304,8 @@ async def test_monitor_loop_two_ticks(tmp_path: Path, monkeypatch):
     assert settings.latest_snapshot_path.exists()
     data = json.loads(settings.latest_snapshot_path.read_text())
     assert data["cpu_percent"] == 40.0  # from _fake_psutil default
+    # Backup freshness flows through to the on-disk snapshot.
+    assert data["backup_status"] == "fresh"
 
 
 @pytest.mark.asyncio
