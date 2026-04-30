@@ -626,6 +626,61 @@ class TestFastPathClassifier:
         assert result.task_type == TaskType.QUESTION
 
 
+class TestAdversarialRouting:
+    """B1: bracketed prefix artifacts must not leak module names into
+    the bare-word matcher and short-circuit routing to the wrong module."""
+
+    def test_leading_bracket_does_not_force_bare_word_route(self, config: dict):
+        """[Previous conversation about omen] ... must not bare-word match omen."""
+        orch = Orchestrator(config)
+        result = orch._fast_path_classify(
+            "[Previous conversation about omen] please summarize my notes"
+        )
+        # Either the fast-path returns None (deferring to LLM router) or
+        # it picks a non-omen target — what it MUST NOT do is short-circuit
+        # to omen via "bare word" classification.
+        if result is not None:
+            assert result.target_module != "omen", (
+                "Bracketed prefix leaked 'omen' into bare-word matcher"
+            )
+
+    def test_stacked_leading_brackets_all_stripped(self, config: dict):
+        """[System][User] prefix run is fully stripped before matching."""
+        orch = Orchestrator(config)
+        # "calculate" is an Omen keyword — confirms the stripping is
+        # PRE-bare-word and the rest of fast-path still runs on the body.
+        result = orch._fast_path_classify("[System] [User] calculate 2 + 2")
+        # Body still routes normally (Omen handles math post-Phase-A);
+        # the brackets don't break or skew classification.
+        assert result is not None
+
+    def test_midstring_bracket_keeps_phrase_routing(self, config: dict):
+        """Mid-sentence brackets are NOT stripped — phrase routing intact."""
+        orch = Orchestrator(config)
+        # "ask omen" phrase is the legitimate routing signal here; the
+        # mid-string [code review] should not interfere.
+        result = orch._fast_path_classify(
+            "please ask omen [code review] to look at this"
+        )
+        assert result is not None
+        assert result.target_module == "omen"
+
+    def test_only_bracketed_prefix_no_crash(self, config: dict):
+        """Input that is ONLY a bracketed prefix doesn't raise."""
+        orch = Orchestrator(config)
+        # After stripping the prefix the body is empty; fast-path should
+        # either return None or a safe default — not crash.
+        result = orch._fast_path_classify("[Previous conversation]")
+        # No assertion on outcome; only that the call returns cleanly.
+        assert result is None or hasattr(result, "target_module")
+
+    def test_empty_input_no_crash(self, config: dict):
+        """Empty string returns no fast-path classification cleanly."""
+        orch = Orchestrator(config)
+        result = orch._fast_path_classify("")
+        assert result is None or hasattr(result, "target_module")
+
+
 class TestIntrospectionRouting:
     """Introspection / personality questions → direct, not Morpheus.
 

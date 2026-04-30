@@ -47,6 +47,23 @@ logger = logging.getLogger("shadow.orchestrator")
 # every fast-path conversational query.
 NON_MODULE_TARGETS = {"direct", "conversation"}
 
+# Adversarial-input guard: leading bracketed tags like
+# "[Previous conversation about omen]" can leak module names into
+# the bare-word matcher and short-circuit routing to the wrong module.
+# Strip one or more leading bracket-delimited tags so the matcher sees
+# only the user's actual message.  Only the leading run is stripped —
+# mid-sentence brackets are left alone so phrase routing still works.
+_LEADING_BRACKETED_PREFIX_RE = re.compile(r"^(?:\s*\[[^\]]+\]\s*)+")
+
+
+def _strip_leading_bracketed_prefixes(text: str) -> str:
+    """Remove leading bracketed tags from a routing input.
+
+    Leaves mid-string brackets untouched so legitimate user phrases like
+    'please ask omen [code review] to look at this' still match phrase routing.
+    """
+    return _LEADING_BRACKETED_PREFIX_RE.sub("", text)
+
 # One-line capability blurbs for the LLM router prompt. Keyed by module
 # name; the prompt is assembled by filtering this dict through
 # ModuleRegistry.is_routable() so dormant modules (e.g. Morpheus when
@@ -2505,8 +2522,14 @@ User input: {user_input}"""
             "apex", "grimoire", "reaper", "morpheus",
             "omen", "harbinger", "wraith", "cerberus",
         }
+        # Sanitize leading bracketed tags so artifacts like
+        # "[Previous conversation about omen]" can't leak a module name
+        # into the bare-word matcher.  Phrase loop still sees `lower`.
+        sanitized_words = set(
+            _strip_leading_bracketed_prefixes(stripped).lower().split()
+        )
         bare_match = {
-            m for m in (words & _BARE_MODULE_WORDS)
+            m for m in (sanitized_words & _BARE_MODULE_WORDS)
             if self.registry.is_routable(m)
         }
         if bare_match:
