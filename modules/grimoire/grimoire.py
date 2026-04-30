@@ -618,6 +618,9 @@ class Grimoire:
                       self.embed_model, len(text), len(truncated))
 
         max_retries = 3
+        # TODO(B2-followup): consider DETERMINISTIC short-circuit here —
+        # 4xx HTTPErrors (bad model name, malformed request) won't be
+        # fixed by retry; only 5xx/timeouts benefit from the loop.
         for attempt in range(max_retries):
             try:
                 response = requests.post(

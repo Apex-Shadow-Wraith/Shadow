@@ -35,10 +35,14 @@ except ImportError:
 # ── Failure Type Classification ─────────────────────────────────────
 
 class FailureType:
-    """Classify failures as infrastructure vs model to avoid inflating fatigue."""
+    """Classify failures so the retry loop can short-circuit on
+    failures that retrying will never fix."""
 
     INFRASTRUCTURE = "infrastructure_failure"
     MODEL = "model_failure"
+    # Validation/schema failures that are deterministic in the input —
+    # rerunning the same call produces the same error. Escalate immediately.
+    DETERMINISTIC = "deterministic_failure"
 
 
 # Infrastructure failure indicators — the model never got a chance
@@ -64,9 +68,31 @@ _INFRASTRUCTURE_MARKERS = [
     "503 service unavailable",
 ]
 
+# Deterministic failure indicators — same input would always produce the
+# same error.  Schema/validation/permission errors that retrying can't
+# fix.  Markers must be specific enough not to false-match transient
+# errors (e.g. "validation error" vs "ssl validation timeout").
+_DETERMINISTIC_MARKERS = [
+    "is required",
+    "must be a valid",
+    "must be an integer",
+    "must be a number",
+    "cannot be negative",
+    "invalid format",
+    "schema validation failed",
+    "validation error",
+    "unprocessable entity",
+    "422 unprocessable",
+    "400 bad request",
+    "permission denied",  # auth-level deny, not filesystem
+]
+
 
 def classify_failure(error: str | None, result: dict | None = None) -> str:
-    """Classify a failure as infrastructure or model.
+    """Classify a failure as deterministic, infrastructure, or model.
+
+    Deterministic failures: validation/schema errors (e.g. "content is
+    required") — rerunning will always fail the same way.  Escalate now.
 
     Infrastructure failures: tool_loader empty, network timeout, Ollama down,
     ChromaDB connection error. The model never got a chance.
@@ -79,9 +105,10 @@ def classify_failure(error: str | None, result: dict | None = None) -> str:
         result: Result dict from the attempt (may contain tool_loader info).
 
     Returns:
-        FailureType.INFRASTRUCTURE or FailureType.MODEL.
+        FailureType.DETERMINISTIC, INFRASTRUCTURE, or MODEL.
     """
-    # Check result dict for tool_loader empty signal
+    # Result-dict signals (tool_loader_empty etc.) take priority over
+    # string parsing because the orchestrator sets them deliberately.
     if result is not None:
         if result.get("tool_loader_empty", False):
             return FailureType.INFRASTRUCTURE
@@ -91,9 +118,14 @@ def classify_failure(error: str | None, result: dict | None = None) -> str:
             if result.get("infrastructure_error"):
                 return FailureType.INFRASTRUCTURE
 
-    # Check error string for infrastructure markers
+    # Check error string. Deterministic markers checked first because
+    # they're more specific and shouldn't be eclipsed by infrastructure
+    # markers (e.g. an "errno 111" substring inside a longer message).
     if error:
         error_lower = error.lower()
+        for marker in _DETERMINISTIC_MARKERS:
+            if marker in error_lower:
+                return FailureType.DETERMINISTIC
         for marker in _INFRASTRUCTURE_MARKERS:
             if marker in error_lower:
                 return FailureType.INFRASTRUCTURE
@@ -402,6 +434,25 @@ class RetryEngine:
                 result_dict["exhausted"] = True
                 result_dict["ready_to_escalate"] = False
                 result_dict["infrastructure_failure"] = True
+                return result_dict
+
+            # Early exit: deterministic failure on first attempt — same input
+            # produces the same validation/schema error every time.  Strategy
+            # rotation can't fix it; escalate immediately so Apex (or the
+            # caller) can correct the input.
+            if (attempt_num == 1
+                    and attempt.failure_type == FailureType.DETERMINISTIC):
+                logger.warning(
+                    "Deterministic failure on first attempt — skipping retries "
+                    "and escalating: %s",
+                    attempt.error,
+                )
+                session.status = "deterministic_failure"
+                self._record_session(session)
+                result_dict = self._session_to_dict(session)
+                result_dict["exhausted"] = True
+                result_dict["ready_to_escalate"] = True
+                result_dict["deterministic_failure"] = True
                 return result_dict
 
             # Marker-classified infrastructure failure with a populated loader —

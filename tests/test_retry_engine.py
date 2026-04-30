@@ -968,3 +968,94 @@ def test_classify_failure_tool_execution_errors():
     assert classify_failure(
         "Tool execution errors: invalid JSON in tool call"
     ) == FailureType.INFRASTRUCTURE
+
+
+# ── Test: classify_failure identifies deterministic validation errors ─
+
+def test_classify_failure_deterministic_markers():
+    """B2: validation/schema errors classify as DETERMINISTIC."""
+    # Wraith reminder_create validation failures
+    assert classify_failure(
+        "Reminder content is required"
+    ) == FailureType.DETERMINISTIC
+    assert classify_failure(
+        "Importance must be an integer between 1 and 5"
+    ) == FailureType.DETERMINISTIC
+    assert classify_failure(
+        "due_time must be a valid ISO datetime string"
+    ) == FailureType.DETERMINISTIC
+    assert classify_failure(
+        "delay_minutes cannot be negative"
+    ) == FailureType.DETERMINISTIC
+    # General validation patterns
+    assert classify_failure("Schema validation failed") == FailureType.DETERMINISTIC
+    assert classify_failure("422 Unprocessable Entity") == FailureType.DETERMINISTIC
+
+
+def test_classify_failure_deterministic_takes_priority_over_infrastructure():
+    """Wraith errors propagated through orchestrator's evaluate_fn arrive as
+    'Tool execution errors: <field> is required'.  DETERMINISTIC must win
+    so retries short-circuit instead of rotating strategies on a permanent
+    validation error."""
+    assert classify_failure(
+        "Tool execution errors: Reminder content is required"
+    ) == FailureType.DETERMINISTIC
+
+
+def test_classify_failure_regression_infrastructure_still_works():
+    """Existing infrastructure markers still classify correctly after the
+    DETERMINISTIC layer was added."""
+    assert classify_failure("Network timeout") == FailureType.INFRASTRUCTURE
+    assert classify_failure("Ollama unreachable") == FailureType.INFRASTRUCTURE
+
+
+def test_classify_failure_regression_model_still_default():
+    """Generic model failures still fall through to MODEL."""
+    assert classify_failure("LLM returned malformed JSON") == FailureType.MODEL
+    assert classify_failure("Low confidence on the answer") == FailureType.MODEL
+
+
+# ── Test: DETERMINISTIC short-circuits the retry loop ────────────────
+
+@pytest.mark.asyncio
+async def test_deterministic_failure_short_circuits_retry():
+    """B2: a deterministic failure on attempt 1 must not trigger 12 attempts.
+
+    Mirrors the existing tool_loader_empty short-circuit but with
+    ready_to_escalate=True (the input is fixable, just not by retrying)."""
+    engine = RetryEngine(registry=None, config={})
+    call_count = {"n": 0}
+
+    async def execute_validation_error(task, ctx):
+        call_count["n"] += 1
+        return {
+            "response": "",
+            "results": [{
+                "success": False,
+                "error": "Reminder content is required",
+            }],
+        }
+
+    def evaluate_validation_error(result):
+        # Mirror orchestrator.evaluate_fn shape: tool error becomes
+        # "Tool execution errors: <error>"
+        tool_results = result.get("results", [])
+        error_details = "; ".join(
+            r.get("error", "") for r in tool_results
+            if r.get("error") and not r.get("success", True)
+        )
+        reason = f"Tool execution errors: {error_details}"
+        return {"success": False, "confidence": 0.0, "reason": reason}
+
+    result = await engine.attempt_task(
+        task="Create reminder with no content",
+        module="wraith",
+        context={"task_type": "action"},
+        evaluate_fn=evaluate_validation_error,
+        execute_fn=execute_validation_error,
+    )
+
+    assert call_count["n"] == 1, "Should short-circuit after first attempt"
+    assert result["status"] == "deterministic_failure"
+    assert result["ready_to_escalate"] is True
+    assert result.get("deterministic_failure") is True
