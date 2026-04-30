@@ -1,6 +1,5 @@
 [Unit]
 Description=Trigger B2 verification on 2026-05-13 at 09:00 local
-Documentation=Shadow Session 44 followup; one-shot
 
 [Timer]
 # One-shot: fires once on the calendar date, then never again.

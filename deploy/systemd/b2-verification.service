@@ -1,6 +1,5 @@
 [Unit]
 Description=B2 deterministic-failure short-circuit verification (one-shot)
-Documentation=Shadow Session 44 followup; commit 4d53206
 
 [Service]
 Type=oneshot
