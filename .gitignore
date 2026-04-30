@@ -58,3 +58,6 @@ data/void_latest.json
 
 # Benchmark snapshots (historical runs; benchmark_tasks.json is tracked)
 benchmarks/benchmark_2026-*.json
+
+# B2 verification harness output (runtime reports)
+data/reports/b2_followup_*.txt

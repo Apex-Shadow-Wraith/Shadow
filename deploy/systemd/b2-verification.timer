@@ -1,0 +1,20 @@
+[Unit]
+Description=Trigger B2 verification on 2026-05-13 at 09:00 local
+Documentation=Shadow Session 44 followup; one-shot
+
+[Timer]
+# One-shot: fires once on the calendar date, then never again.
+OnCalendar=2026-05-13 09:00:00
+Persistent=true
+RemainAfterElapse=no
+Unit=b2-verification.service
+
+# To convert to weekly recurring B2 health monitoring later:
+#   1. Replace OnCalendar above with: OnCalendar=Mon *-*-* 09:00:00
+#   2. Set RemainAfterElapse=yes
+#   3. In scripts/b2_verification.sh, change REPORT_FILE filename to include
+#      ISO week number to avoid overwrites (e.g., b2_health_$(date +%G-W%V).txt)
+#   4. systemctl --user daemon-reload && systemctl --user restart b2-verification.timer
+
+[Install]
+WantedBy=timers.target
