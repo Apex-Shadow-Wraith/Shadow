@@ -29,6 +29,9 @@ psutil              # System metrics (CPU, RAM, disk, process)
 watchdog            # File system monitoring
 rich                # Terminal formatting
 
+# --- Observability ---
+langfuse==4.5.1     # Self-hosted trace export (deploy/langfuse/)
+
 # --- API (future) ---
 fastapi             # REST API server
 uvicorn             # ASGI server
