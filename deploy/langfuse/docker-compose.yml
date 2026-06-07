@@ -5,9 +5,10 @@
 #   - All image tags pinned to specific versions (no floating :3 / :latest).
 #   - All host ports bound to 127.0.0.1 (Citadel is a single-host local instance).
 #   - Postgres host port = 5433 (system postgres already holds 5432).
-#   - Postgres / Redis / MinIO data dirs bind-mounted to ./data/<service>.
-#   - ClickHouse data + logs use named volumes (UID 101 chown requirement; bind-
-#     mount would need pre-chown via sudo). Backup pattern documented in README.
+#   - All service data dirs bind-mounted to ./data/<service>, including
+#     ClickHouse data (./data/clickhouse) and logs (./data/clickhouse-logs).
+#     The ClickHouse host dirs must be pre-chowned to 101:101 (the in-container
+#     UID); see README "Backup" / "Fresh install" sections.
 #   - MinIO uses minio/minio:RELEASE.* tag instead of upstream's chainguard image
 #     so we can pin a real version. Bucket-creation entrypoint hack preserved.
 #   - All secrets injected from .env — no inline defaults.
@@ -89,8 +90,8 @@ services:
       CLICKHOUSE_USER: ${CLICKHOUSE_USER}
       CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD}
     volumes:
-      - langfuse_clickhouse_data:/var/lib/clickhouse
-      - langfuse_clickhouse_logs:/var/log/clickhouse-server
+      - ./data/clickhouse:/var/lib/clickhouse
+      - ./data/clickhouse-logs:/var/log/clickhouse-server
     ports:
       - 127.0.0.1:8123:8123
       - 127.0.0.1:9000:9000

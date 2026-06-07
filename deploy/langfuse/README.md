@@ -78,36 +78,35 @@ breaks production.
 
 ## Backup
 
+All persistent state — Postgres, Redis, MinIO, ClickHouse data, and
+ClickHouse logs — lives under `./data/<service>` as host bind-mounts.
+A single filesystem-level tarball captures the whole stack.
+
 Backups must run with the stack stopped (`docker compose down`) to avoid
-torn writes.
+torn writes:
 
-**Bind-mounted volumes** — visible at filesystem level:
 ```bash
 docker compose down
-tar czf langfuse-backup-$(date +%F).tar.gz data/postgres data/redis data/minio
+tar czf langfuse-backup-$(date +%F).tar.gz \
+    data/postgres data/redis data/minio \
+    data/clickhouse data/clickhouse-logs
 docker compose up -d
 ```
 
-**Named volumes** — ClickHouse data + logs:
+### ClickHouse bind-mount ownership
+
+The official ClickHouse image runs as UID 101 with no auto-chown step,
+so the two ClickHouse host directories must be pre-created and
+chowned to `101:101` before the first `docker compose up -d`:
+
 ```bash
-docker compose down
-docker run --rm \
-    -v langfuse_langfuse_clickhouse_data:/data \
-    -v "$PWD":/backup busybox \
-    tar czf /backup/clickhouse-data-$(date +%F).tar.gz -C /data .
-docker run --rm \
-    -v langfuse_langfuse_clickhouse_logs:/data \
-    -v "$PWD":/backup busybox \
-    tar czf /backup/clickhouse-logs-$(date +%F).tar.gz -C /data .
-docker compose up -d
+mkdir -p data/clickhouse data/clickhouse-logs
+sudo chown 101:101 data/clickhouse data/clickhouse-logs
 ```
 
-(Volume names are prefixed with the compose project name, which defaults
-to the directory name `langfuse`. Adjust if your project name differs.)
-
-ClickHouse uses named volumes because the official image runs as UID 101
-without an auto-chown step; bind-mounting would require host-side `chown`
-with root.
+This is the only step in the stack that requires root. Restoring from
+backup preserves the embedded ownership, so the chown is only needed on
+a fresh install or after `rm -rf data/clickhouse*`.
 
 ## Schema migrations
 
