@@ -10,11 +10,12 @@
 
 ## What This Project Is
 Shadow is a fully autonomous, locally-hosted personal AI agent system. One
-agent, one identity, currently 13 specialized modules (consolidating to 10
-after Phase A, 7 after Phase D). Built for home and business use
-(landscaping business using LMN software). The goal is a Jarvis-style
-assistant that exceeds ChatGPT quality for the creator's specific needs,
-with complete data privacy and no recurring API costs.
+agent, one identity, currently 10 BaseModule peers (9 active routing +
+Morpheus dormant). Phase A consolidation merged 13 → 10; Phase D will
+consolidate to 7. Built for home and business use (landscaping business
+using LMN software). The goal is a Jarvis-style assistant that exceeds
+ChatGPT quality for the creator's specific needs, with complete data
+privacy and no recurring API costs.
 
 ## Creator Profile
 - Intermediate Python learner — actively studying (Automate the Boring Stuff)
@@ -23,61 +24,46 @@ with complete data privacy and no recurring API costs.
 - Anti-sycophancy is a top priority: Shadow must push back, correct errors,
   and never just agree
 
-## Current Phase: A — Module Consolidation
+## Current Phase: B — In Progress
 This section is load-bearing. Read before any structural work.
 
-**Authoritative design doc:** `Shadow_Consolidation_Architecture_v1.md`.
-Supersedes `Shadow_Unified_Module_Architecture_v2.pdf` — that PDF is a
-stale 13-module reference and must not be used.
+**Phase A is complete.** All three merges are on `main`:
+- Cipher → Omen (Cipher's 7 tools absorbed into Omen; routing target
+  removed; stem over-matching bug fixed for free).
+- Sentinel → Cerberus (Sentinel's 24 tools absorbed; zero tool loss
+  verified via pre/post inventories).
+- Void → `daemons/void/` (full demotion to systemd-managed background
+  service; the `daemons/` directory now holds background services).
 
-**Module count trajectory:** 13 → 10 (end of Phase A) → 7 (end of Phase D).
+Phase A regression gate **passed at 83.69%** (exceeds the 78.18% Phase 0
+baseline). Merge artifacts live in `docs/phase-a/{cipher-omen,sentinel-cerberus,void}/`
+(pre/post tool inventories + diffs). Phase A also resolved the two punted
+S41 bugs: Morpheus dormancy misrouting (`config.morpheus.enabled` flag +
+router opt-out) and Cipher stem over-matching.
 
-**Phase A consists of three INDEPENDENT parallel merges** (no shared files,
-can proceed concurrently in separate sessions or worktrees):
+**Module count trajectory:** 13 → 10 (Phase A, done) → 7 (Phase D).
 
-1. **Cipher → Omen.** Cipher becomes a utility function inside Omen.
-   Removing Cipher as a routing target kills the stem over-matching bug
-   for free.
-2. **Sentinel → Cerberus.** All 22+ Sentinel tools preserved.
-   **Zero tool loss** is the invariant — verify with a pre-merge tool
-   manifest and a post-merge tool manifest, then diff them.
-3. **Void → daemons/void/.** Full demotion from module to systemd-driven
-   background service. Creates the new `daemons/` directory, which is
-   where future background services also land.
+**Phase B (current):**
+- Wraith → Shadow merge.
+- LangGraph cutover.
+- PostgreSQL migration (16.14 installed and running, not yet wired).
+- Cerberus watchdog daemon promotion (already landed in commit `ff0dc0f`,
+  living at `daemons/cerberus_watchdog/`).
 
-**Phase A non-negotiables:**
+**Phase C:** Nova → Shadow, Harbinger → Shadow (shared files, sequential).
+
+**Phase D:** `ToolResult` base class + typed subclasses (spans all
+modules, sequential).
+
+**Phase non-negotiables (carry-forward from Phase A):**
 - Each merge gets its own typed-settings migration. No dict-bridge band-aids.
 - Each merge generates pre-merge + post-merge tool inventories + diff
-  proving zero tool loss. Inventory = `ModuleClass.get_tools()` output
-  serialized to JSON for every module touched by the merge. Sentinel →
-  Cerberus: pre = `Sentinel().get_tools() + Cerberus().get_tools()`,
-  post = `Cerberus().get_tools()`, diff asserts every pre-merge tool
-  name appears in post (exact schema match preferred, feature-parity
-  documentation required for any renames). Cipher → Omen: same pattern.
-  Void → daemons/void/: Void's 6 tools either migrate to the daemon's
-  own interface or are explicitly dropped with reason documented in the
-  merge commit.
+  via `scripts/dump_tools.py`. Zero tool loss is the invariant; explicit
+  drops must be documented in the merge commit.
 - Each merge lands as its own commit series.
 - Targeted regression tests written for each merge.
-- After Phase A: 25-task partial benchmark must confirm zero regression
-  against the 78.18% Phase 0 baseline before Phase B begins.
-
-**Phase A rolls up two punted bugs from S41:**
-- **Morpheus dormancy misrouting** — fixed by `config.morpheus.enabled`
-  flag + lazy tool registration + router opt-out for dormant modules.
-  Lands naturally inside the Void demotion work (both involve router
-  changes).
-- **Cipher stem over-matching** — fixed automatically when Cipher stops
-  being a routing target during Cipher → Omen.
-
-**Forward schedule** (so sessions know where they sit):
-- **Phase A** — Session 42 — 3 parallel merges
-- **Phase B** — Sessions 43–44 — Wraith → Shadow + LangGraph cutover +
-  PostgreSQL migration (sequential)
-- **Phase C** — Session 45 — Nova → Shadow, Harbinger → Shadow (shared
-  files, sequential)
-- **Phase D** — Session 46 — `ToolResult` base class + typed subclasses
-  (spans all modules, sequential)
+- Each phase end-state benchmark must match or exceed the Phase 0 baseline
+  (78.18%) before the next phase begins.
 
 ## Hardware & Environment
 - **Hostname:** Citadel
@@ -90,7 +76,7 @@ can proceed concurrently in separate sessions or worktrees):
 - **Cooling:** Noctua NH-D15 G2 air, O11 Dynamic EVO XL case
 - **Python:** 3.12.3 (system); venv at `~/dev/Shadow/shadow_env`
 - **Primary inference:** Ollama + Gemma 4 26B + `nomic-embed-text`
-- **PostgreSQL:** 16.13 installed, not yet wired to Shadow (Phase B)
+- **PostgreSQL:** 16.14 installed and running, not yet wired to Shadow (Phase B)
 - **Shell:** bash (zsh is not configured)
 - **Terminal quirk:** bracketed-paste disabled in bash for GNOME Terminal
   compatibility — do not re-enable.
@@ -103,10 +89,14 @@ Linux transition; that transition is complete.
 - **Virtual Environment:** `shadow_env` (see rules below)
 - **Database:** SQLite + ChromaDB (vector DB with `nomic-embed-text`
   embeddings, 768 dimensions). PostgreSQL migration is Phase B.
-- **AI Runtime:** Ollama — Gemma 4 26B for generation, phi4-mini for
-  routing/scoring, `nomic-embed-text` for embeddings
-- **Observability:** Langfuse tracing (`modules/shadow/observability.py`) —
-  optional, degrades gracefully if not configured
+- **AI Runtime:** Ollama — Gemma 4 26B for generation and routing/scoring,
+  `nomic-embed-text` for embeddings
+- **Observability:** Self-hosted Langfuse v4 (compose at
+  `deploy/langfuse/docker-compose.yml`) with ClickHouse bind-mount
+  storage and pinned OpenTelemetry 1.41.1. Wired through
+  `modules/shadow/observability.py`. Orchestrator emits nested spans
+  for router/dispatch/assembly and per-attempt retry spans. Degrades
+  gracefully if Langfuse is unreachable.
 - **Search Chain:** DuckDuckGo → Bing scraper → Reddit .json endpoints
 - **Web Automation:** Playwright + stealth layer
 - **Git:** Initialized, commits on `main` branch
@@ -135,10 +125,10 @@ Post-S41, config is centralized.
   `config.local.yaml` > `config.yaml` > defaults.
 - **Secret handling:** all API keys/tokens typed as `SecretStr | None`.
   `repr()` redacted, `model_dump_json()` redacted.
-- **Scope boundary:** the orchestrator and a handful of module constructors
-  (Grimoire, Wraith, Nova, Omen, Sentinel, Void, Morpheus, Cipher) still
-  consume dict shape via `to_legacy_dict`. These get rewritten during
-  consolidation — do **NOT** migrate them in isolation.
+- **Scope boundary:** the orchestrator and a handful of remaining module
+  constructors (Grimoire, Wraith, Nova, Omen, Morpheus) still consume
+  dict shape via `to_legacy_dict`. These get rewritten during the
+  Phase B / C consolidation — do **NOT** migrate them in isolation.
 - **Fail-loud rule:** Apex with `dry_run=False` and no keys = startup
   failure with named field + remediation message. Never silently degrade
   to dry-run.
@@ -153,10 +143,10 @@ Post-S41, config is centralized.
 - **Weak (Phase 1 training targets):** adversarial_routing 44%,
   conversation_continuity 40%, math_logic 40%
 
-**Regression rule:** Phase A end-state benchmark must match or exceed
-78.18% overall. Category-level regressions in perfect/strong tiers require
-investigation before Phase B proceeds. Weak-tier movement is expected and
-not an automatic failure.
+**Regression rule:** Each phase end-state benchmark must match or exceed
+78.18% overall. Phase A passed at **83.69%**. Category-level regressions
+in perfect/strong tiers require investigation before the next phase
+proceeds. Weak-tier movement is expected and not an automatic failure.
 
 ## Codebase Architecture Reference
 Before multi-file changes, read `graphify-out/GRAPH_REPORT.md` for
@@ -172,32 +162,39 @@ high-risk; final typed-subclass refactor is scheduled for Phase D.
 ```
 ~/dev/Shadow/
 ├── modules/
-│   ├── shadow/            # Master orchestrator/router
+│   ├── shadow/            # Master orchestrator/router + ShadowModule peer
 │   ├── wraith/            # Fast brain, daily tasks
-│   ├── cerberus/          # Ethics, safety, approvals
+│   ├── cerberus/          # Ethics, safety, approvals + absorbed Sentinel
 │   │   ├── cerberus.py
 │   │   ├── injection_detector.py
 │   │   ├── reversibility.py
-│   │   └── watchdog.py
+│   │   ├── watchdog.py
+│   │   ├── ethics_engine.py
+│   │   ├── emergency_shutdown.py
+│   │   ├── creator_override.py
+│   │   └── security/           # Sentinel port (subpackage)
 │   ├── apex/              # Claude/GPT API fallback
 │   ├── grimoire/          # Memory system (SQLite + ChromaDB)
-│   ├── sentinel/          # Security, white-hat defense
 │   ├── harbinger/         # Briefings, alerts, notifications
 │   │   ├── harbinger.py
 │   │   └── safety_report.py
 │   ├── reaper/            # Research, web scraping, Reddit .json
-│   ├── cipher/            # Math, logic (merging into Omen, Phase A)
-│   ├── omen/              # Code writing, debugging
+│   ├── omen/              # Code writing, debugging + absorbed Cipher
 │   ├── nova/              # Content creation, image gen
-│   ├── void/              # 24/7 passive monitoring (demoting to daemon)
-│   └── morpheus/          # Creative discovery pipeline
+│   └── morpheus/          # Creative discovery pipeline (dormant)
 ├── shadow/
 │   └── config/            # pydantic-settings singleton (post-S41)
-├── daemons/                # Created in Phase A (Void lives here)
+├── daemons/                # Background services (systemd-managed)
+│   ├── void/                       # 24/7 passive monitoring (demoted from module)
+│   └── cerberus_watchdog/          # Out-of-process watchdog (B4)
+├── deploy/
+│   └── langfuse/          # Self-hosted Langfuse v4 compose stack
+├── services/
+│   └── searxng/           # SearXNG meta-search for Reaper (Track D, staged)
 ├── scripts/
 │   ├── esv_processor.py   # Parse ESV Study Bible epub → JSON
 │   ├── esv_ingestion.py   # Load parsed ESV into Grimoire
-│   └── watchdog_cerberus.py
+│   └── dump_tools.py      # Tool inventory snapshot (per-merge zero-loss check)
 ├── training_data/         # Separate git repo — NEVER push to GitHub
 ├── data/
 │   ├── memory/            # shadow_memory.db (SQLite)
@@ -207,63 +204,77 @@ high-risk; final typed-subclass refactor is scheduled for Phase D.
 │   ├── research/quarantine/
 │   ├── logs/
 │   ├── downloads/
-│   └── backups/
+│   ├── backups/
+│   ├── void_metrics.db    # Void daemon metrics
+│   └── void_latest.json   # Void daemon latest snapshot
 ├── config/
 │   ├── .env                         # API credentials (secrets only)
 │   ├── config.yaml                  # Checked-in defaults
 │   ├── config.local.yaml.example    # Template for per-machine overrides
 │   └── cerberus_limits.yaml
+├── docs/
+│   ├── phase-a/           # Phase A merge artifacts (cipher-omen, sentinel-cerberus, void)
+│   └── dual_pattern_investigation.md
 ├── identity/              # Shadow's identity file, system prompts
-├── tests/                 # 947 tests across all modules
+├── tests/                 # 4004 tests across all modules (3985 passing)
 ├── main.py                # CLI entry point
 ├── CLAUDE.md              # This file
 └── .gitignore
 ```
 
 ## Module Codenames — NEVER RENAME THESE
-These names are Shadow's identity. Counts reflect current (pre-Phase-A)
-state.
+These names are Shadow's identity. Counts reflect current post-Phase-A
+state (verified June 2026 via `scripts/dump_tools.py`).
 
 1. **Shadow** — Master orchestrator/router, 7-step decision loop,
-   Langfuse observability (12 tools)
+   Langfuse observability. The orchestrator IS the agent and does not
+   register routable tools itself.
 2. **Wraith** — Fast brain, daily tasks, reminders, task classification,
    temporal patterns (12 tools)
 3. **Cerberus** — Ethics, safety, approvals, injection detection,
-   reversibility, watchdog (15 tools; +24 from Sentinel in Phase A)
+   reversibility, watchdog, security surface absorbed from Sentinel
+   (39 tools). A standalone watchdog daemon also runs at
+   `daemons/cerberus_watchdog/`.
 4. **Apex** — Claude/GPT API fallback, cost tracking, teaching cycle
    (10 tools)
 5. **Grimoire** — Data storage, knowledge base, memory, vector DB,
    block search (9 tools)
-6. **Sentinel** — Security, firewall, network scanning, file integrity,
-   quarantine (24 tools) — merging into Cerberus in Phase A
-7. **Harbinger** — Briefings, alerts, notifications, decision queue,
+6. **Harbinger** — Briefings, alerts, notifications, decision queue,
    safety reports, personalization (12 tools)
-8. **Reaper** — Research, web scraping, Reddit .json, YouTube
-   transcription (5 tools)
-9. **Cipher** — Math, logic, unit conversion, financial, statistics
-   (7 tools) — merging into Omen in Phase A
-10. **Omen** — Code execution, linting, review, git ops, pattern DB,
-    failure learning, scaffolding, scoring (40 tools)
-11. **Nova** — Content creation, document generation, templates, business
-    estimates (6 tools)
-12. **Void** — 24/7 passive monitoring, system health, trends, thresholds
-    (6 tools) — demoting to `daemons/void/` in Phase A
-13. **Morpheus** — Creative discovery pipeline (controlled hallucination)
-    (11 tools)
-14. **ShadowModule** — Router-facing task-tracking and module-health
+7. **Reaper** — Research, web scraping, Reddit .json, YouTube
+   transcription (5 tools). SearXNG meta-search stack staged at
+   `services/searxng/`, not yet wired (Track D).
+8. **Omen** — Code execution, linting, review, git ops, pattern DB,
+   failure learning, scaffolding, scoring, math/stats/finance absorbed
+   from Cipher (47 tools)
+9. **Nova** — Content creation, document generation, templates, business
+   estimates (6 tools)
+10. **Morpheus** — Creative discovery pipeline (controlled hallucination)
+    (11 tools) — **dormant by default** (`config.morpheus.enabled=False`;
+    router opts out when dormant).
+11. **ShadowModule** — Router-facing task-tracking and module-health
     interface (4 tools: task_create, task_status, task_list,
     module_health). Distinct from the Shadow orchestrator class itself
     — the orchestrator IS the agent and is not registered as a module;
     ShadowModule is a BaseModule peer that exposes task-persistence and
     registry-health queries to the router like any other module.
 
+**Demoted to daemon (no longer a module):**
+- **Void** — 24/7 passive monitoring, system health, trends, thresholds.
+  Runs as a systemd-managed daemon at `daemons/void/`. Routing tools
+  (6) dropped during Phase A demotion; metrics surface via
+  `data/void_metrics.db` and `data/void_latest.json`.
+
 ## Current Status
 - **Git:** commits on `main`
-- **Tests:** 947 passing
-- **Tools:** 161 tools across all modules (verified April 2026, AST-based
-  count from `get_tools()` method bodies):
-  - All 161 registered through the internal module registry via
-    `get_tools()` method on BaseModule subclasses.
+- **Tests:** 4004 collected, 3985 passing, 17 failing + 2 errors under
+  triage (June 2026 full-suite run).
+- **Tools:** ~155 tools across 10 modules (verified June 2026 via
+  `scripts/dump_tools.py`):
+  - All registered through the internal module registry via `get_tools()`
+    method on BaseModule subclasses.
+  - Phase A net change: dropped Void's 6 routing tools; absorbed
+    Sentinel's 24 into Cerberus; absorbed Cipher's 7 into Omen.
   - Central registry: `modules/shadow/tool_loader.py` (DynamicToolLoader)
     consumes `module_registry.list_tools()` and builds a
     module → tool-schemas index. Loads only the routed module's tools
@@ -275,7 +286,12 @@ state.
     the internal registry — different tool names, different dispatch path,
     reachable only via HTTP. It exists so other MCP clients outside
     Shadow can talk to Grimoire/Reaper.
-- **Observability:** Langfuse tracing on orchestrator (optional)
+- **Observability:** Self-hosted Langfuse v4 with ClickHouse bind-mount
+  storage; OpenTelemetry pinned to 1.41.1. Orchestrator emits nested
+  spans for router/dispatch/assembly and per-attempt retry spans.
+  Degrades gracefully if Langfuse is unreachable.
+- **Phase A benchmark gate:** Passed at 83.69% (exceeds 78.18% Phase 0
+  baseline). Snapshot pending commit.
 - **Grimoire:** Fresh on Linux — RunPod Grimoire DB was intentionally NOT
   restored due to benchmark pollution. `training_data/` and `benchmarks/`
   **were** preserved.
@@ -286,13 +302,13 @@ state.
 
 Shadow exposes tools on two orthogonal surfaces:
 
-1. **Internal tool registry** (used by the router for all 14 modules).
+1. **Internal tool registry** (used by the router for all 10 modules).
    Every module subclasses BaseModule and implements
    `get_tools() -> list[dict]`. The module registry calls this method
    at boot and builds an index that the router consumes when
    dispatching a task. This is the ONLY surface the router sees and
-   the ONLY surface that matters for Phase A zero-tool-loss
-   verification.
+   the ONLY surface that matters for zero-tool-loss verification on
+   future merges.
 
 2. **External MCP HTTP servers** (optional, Grimoire and Reaper only).
    `modules/grimoire/mcp_server.py` and `modules/reaper/mcp_server.py`
@@ -305,13 +321,10 @@ Shadow exposes tools on two orthogonal surfaces:
    clients use the HTTP surface; the router uses the internal surface;
    they do not interfere.
 
-**Phase A scope:** all three Phase A merges operate on the internal
-registry surface only. No interaction with the external MCP HTTP
-surface is required or expected. Grimoire and Reaper are not involved
-in any Phase A merge. The prior "dual-pattern investigation scheduled
-before Phase B" item is retired — see
+**Dual-pattern investigation:** retired before Phase B — see
 `docs/dual_pattern_investigation.md` (commit `0b9a441`) for the full
-finding.
+finding. Future merges only touch the internal registry; the external
+MCP HTTP surface stays orthogonal.
 
 ## Testing
 
@@ -383,8 +396,10 @@ masks the real issue.
 - **NEVER** access financial accounts — permanent rule
 - **NEVER** take external-facing actions without explicit approval
 - **NEVER** delete files without backup first
-- All models must be abliterated before use (strip manufacturer alignment);
-  Heretic v1.2.0 is the abliteration tool
+- All models are abliterated *at preparation time* before being loaded
+  into Ollama (strip manufacturer alignment). Heretic v1.2.0 is the
+  prep-time abliteration tool — it is **not** a runtime dependency of
+  Shadow.
 - Any model recommendation must flag bias/censorship/alignment training
 - Shadow's ethics come from biblical values, not manufacturer training
 - Anti-sycophancy: push back on bad ideas, say "I don't know," never guess
@@ -406,7 +421,19 @@ Pre-approved, no asking needed:
 - `cd`, `ls`, `cat`, `head`, `tail`
 - `mkdir`, `cp`, `mv`
 - `ollama`
-- `systemctl --user` (for daemon work in Phase A)
+- `systemctl --user` (for daemon work)
+
+### Hard deny list (enforced by `.claude/settings.local.json`)
+The following are blocked at the harness level — Claude Code cannot run
+them even if instructed to. Source of truth lives in
+`.claude/settings.local.json`; this list is for visibility, not authority.
+
+- `Bash(git push*)`, `Bash(git push --force*)`
+- `Bash(rm -rf *)`, `Bash(rm -rf /*)`, `Bash(rm -rf ~/*)`
+- `Bash(sudo *)`
+- `Bash(systemctl stop *)`, `Bash(systemctl disable *)`, `Bash(systemctl mask *)`
+- `Edit(**/.env)`, `Edit(**/.env.*)`, `Write(**/.env)`, `Write(**/.env.*)`
+- `Read(**/.ssh/**)`, `Read(**/.aws/credentials)`, `Read(**/.config/git/credentials)`
 
 ## What NOT to Do
 - Don't rename module codenames
@@ -421,8 +448,6 @@ Pre-approved, no asking needed:
 - Don't re-enable bash bracketed-paste
 - Don't migrate `to_legacy_dict` module constructors in isolation — they
   get rewritten during consolidation
-- Don't use the stale `Shadow_Unified_Module_Architecture_v2.pdf` as
-  current reference
 
 ## Git Workflow
 After completing any task successfully (targeted tests pass):
