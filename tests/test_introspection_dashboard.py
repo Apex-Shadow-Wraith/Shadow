@@ -36,8 +36,8 @@ class TestGetDashboardData(unittest.TestCase):
         """All sections return safe defaults when orchestrator is None."""
         dash = IntrospectionDashboard(orchestrator=None)
         data = dash.get_dashboard_data()
-        # module_states should list all 13 modules
-        self.assertEqual(len(data["module_states"]), 13)
+        # module_states should list every codenamed module
+        self.assertEqual(len(data["module_states"]), len(MODULE_CODENAMES))
         for name in MODULE_CODENAMES:
             self.assertIn(name, data["module_states"])
             self.assertEqual(data["module_states"][name]["status"], "unknown")

@@ -151,50 +151,6 @@ class TestWraithBenchmark:
 
 
 # ---------------------------------------------------------------------------
-# Void benchmark
-# ---------------------------------------------------------------------------
-
-class TestVoidBenchmark:
-    """Benchmark Void health_check tool."""
-
-    @pytest.fixture
-    def void_module(self, tmp_path):
-        from modules.void.void import Void
-        return Void(config={
-            "db_path": str(tmp_path / "void.db"),
-        })
-
-    @pytest.mark.asyncio
-    async def test_health_check_speed(self, void_module):
-        await void_module.initialize()
-        mock_psutil = MagicMock()
-        mock_psutil.cpu_percent.return_value = 25.0
-        mock_psutil.virtual_memory.return_value = MagicMock(
-            total=32 * 1024**3, used=8 * 1024**3, percent=25.0
-        )
-        mock_psutil.disk_usage.return_value = MagicMock(
-            total=1000 * 1024**3, used=450 * 1024**3, percent=45.0
-        )
-        import sys
-        original = sys.modules.get("psutil")
-        sys.modules["psutil"] = mock_psutil
-        try:
-            avg_ms, _ = await _bench_tool(void_module, "health_check", {})
-        finally:
-            if original is not None:
-                sys.modules["psutil"] = original
-            else:
-                sys.modules.pop("psutil", None)
-        assert avg_ms < 100, f"health_check averaged {avg_ms:.1f}ms (threshold: 100ms)"
-
-    @pytest.mark.asyncio
-    async def test_shutdown_closes_connection(self, void_module):
-        await void_module.initialize()
-        await void_module.shutdown()
-        assert void_module._conn is None, "Void._conn not closed after shutdown"
-
-
-# ---------------------------------------------------------------------------
 # Nova benchmark
 # ---------------------------------------------------------------------------
 

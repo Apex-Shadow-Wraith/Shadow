@@ -503,9 +503,9 @@ class TestDefaultTriggers:
         # Should have triggers for all modules
         modules_with_triggers = {t.module_name for t in triggers}
         expected = {
-            "sentinel", "omen", "reaper", "wraith", "void",
+            "omen", "reaper", "wraith",
             "harbinger", "grimoire", "cerberus", "apex", "nova",
-            "morpheus", "cipher",
+            "morpheus",
         }
         assert expected == modules_with_triggers
         # Check we have a good number of triggers

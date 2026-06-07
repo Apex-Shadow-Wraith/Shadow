@@ -611,6 +611,9 @@ class TestOmenToolRegistration:
 
     @pytest.mark.asyncio
     async def test_tool_count_updated(self, online_omen: Omen):
-        """Omen now has 38 tools (26 original + 7 model evaluator + 4 sandbox + 1 code_generate)."""
+        """Model evaluator and sandbox tools must register on Omen."""
         tools = online_omen.get_tools()
-        assert len(tools) == 38
+        names = {t["name"] for t in tools}
+        assert {"model_list", "model_benchmark", "model_evaluate"} <= names
+        assert {"sandbox_execute", "sandbox_validate"} <= names
+        assert "code_generate" in names

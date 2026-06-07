@@ -27,7 +27,7 @@ from modules.shadow.task_chain import (
 def _make_mock_registry(online_modules=None):
     """Create a mock ModuleRegistry with online modules."""
     if online_modules is None:
-        online_modules = ["reaper", "omen", "sentinel", "wraith", "cerberus", "grimoire"]
+        online_modules = ["reaper", "omen", "wraith", "cerberus", "grimoire"]
 
     registry = MagicMock()
     registry.__contains__ = lambda self, name: name in online_modules
@@ -98,7 +98,7 @@ def _simple_steps(step_ids=None):
         },
         {
             "step_id": ids[1],
-            "module": "sentinel",
+            "module": "cerberus",
             "task_description": "Analyze findings and design rules",
             "output_key": "firewall_design",
             "input_source": "previous_step",
@@ -252,7 +252,7 @@ class TestCreateChain:
             },
             {
                 "step_id": id_b,
-                "module": "sentinel",
+                "module": "cerberus",
                 "task_description": "Research B",
                 "output_key": "b",
                 "parallel_group": "research",
@@ -316,7 +316,7 @@ class TestExecuteChain:
             },
             {
                 "step_id": id_b,
-                "module": "sentinel",
+                "module": "cerberus",
                 "task_description": "Research B",
                 "output_key": "b",
                 "parallel_group": "research",
@@ -380,7 +380,7 @@ class TestExecuteChain:
 
         # Build a registry that caches module mocks so patching sticks
         module_cache = {}
-        online = ["reaper", "omen", "sentinel", "wraith", "cerberus", "grimoire"]
+        online = ["reaper", "omen", "wraith", "cerberus", "grimoire"]
         registry = MagicMock()
         registry.__contains__ = lambda self, name: name in online
 
