@@ -2725,6 +2725,21 @@ User input: {user_input}"""
             or any(p in lower for p in omen_analysis_phrases)
         )
 
+        # Informational prefixes ("explain", "what's") correctly catch pure
+        # knowledge questions but collaterally catch action requests pointing
+        # at concrete code ("explain this function"). When analysis intent is
+        # present AND a code-context token is named, treat as action.
+        _code_context_tokens = {
+            "function", "code", "method", "class", "module",
+            "script", "snippet", "this", "that",
+        }
+        if (
+            _is_informational
+            and has_analysis_intent
+            and bool(words & _code_context_tokens)
+        ):
+            _is_informational = False
+
         # ── Self-analysis shortcut: "analyze your codebase" etc. ──
         _self_ref_phrases = [
             "your code", "your codebase", "your modules",
