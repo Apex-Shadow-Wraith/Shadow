@@ -157,11 +157,17 @@ except ImportError:
 
 # Graceful import — orchestrator still starts if observability is missing
 try:
-    from modules.shadow.observability import trace_interaction
+    from modules.shadow.observability import observed_span, trace_interaction
 except ImportError:
     logger.info("Observability not available — Langfuse tracing disabled")
     def trace_interaction(f):  # noqa: E303
         return f
+
+    from contextlib import contextmanager
+
+    @contextmanager
+    def observed_span(name, **metadata):  # type: ignore[no-redef]
+        yield None
 
 # Module state awareness and independent Grimoire access
 try:
@@ -1184,14 +1190,39 @@ class Orchestrator:
                 return "Fatigue counter reset."
 
             # Step 2 — Classify & Route
-            classification = await self._step2_classify(user_input)
+            with observed_span("shadow.router_decision") as router_span:
+                classification = await self._step2_classify(user_input)
 
-            # Apply injection warning flag to classification
-            if injection_result is not None and injection_result.action == "warn":
-                classification.safety_flag = True
+                # Apply injection warning flag to classification
+                if injection_result is not None and injection_result.action == "warn":
+                    classification.safety_flag = True
 
-            # Store routing decision for contextual reference resolution
-            self._last_route = classification
+                # Store routing decision for contextual reference resolution
+                self._last_route = classification
+
+                # Confidence band → classify_path inference:
+                # 0.95 = exact keyword fast-path, 0.85 = regex/set fast-path,
+                # 0.70 = LLM router, 0.50 = keyword fallback.
+                if classification.confidence >= 0.85:
+                    _classify_path = "fast_path"
+                elif classification.confidence >= 0.60:
+                    _classify_path = "llm_router"
+                else:
+                    _classify_path = "fallback_keyword"
+
+                if router_span is not None:
+                    try:
+                        router_span.update(metadata={
+                            "target_module": classification.target_module,
+                            "task_type": classification.task_type.value,
+                            "complexity": classification.complexity,
+                            "brain": classification.brain.value,
+                            "confidence": classification.confidence,
+                            "classify_path": _classify_path,
+                            "safety_flag": classification.safety_flag,
+                        })
+                    except Exception as _span_err:
+                        logger.debug("router_span update failed: %s", _span_err)
 
             logger.info(
                 "Step 2 — Route: type=%s, module=%s, brain=%s",
@@ -1335,16 +1366,42 @@ class Orchestrator:
 
             # Step 5 — Execute with Retry Engine (12-attempt strategy rotation)
             results = []
-            if self._retry_engine is not None:
-                response = await self._step5_with_retry(
-                    user_input, plan, classification, context, source,
-                )
-            else:
-                # Fallback: single-attempt execution (original behavior)
-                results = await self._step5_execute(plan, classification, source)
-                response = await self._step6_evaluate(
-                    user_input, classification, results, context
-                )
+            with observed_span(
+                "shadow.module_dispatch",
+                module=classification.target_module,
+            ) as dispatch_span:
+                if self._retry_engine is not None:
+                    response = await self._step5_with_retry(
+                        user_input, plan, classification, context, source,
+                    )
+                else:
+                    # Fallback: single-attempt execution (original behavior)
+                    results = await self._step5_execute(plan, classification, source)
+                    response = await self._step6_evaluate(
+                        user_input, classification, results, context
+                    )
+
+                if dispatch_span is not None:
+                    try:
+                        # Tool count: prefer actual results when single-attempt
+                        # path ran (results populated); fall back to plan step
+                        # count when retry engine owned the inner execution.
+                        if results:
+                            _tool_count = len(results)
+                            _tools_succeeded = sum(1 for r in results if r.success)
+                        else:
+                            _tool_count = len(plan.steps)
+                            _tools_succeeded = None
+                        dispatch_span.update(metadata={
+                            "module": classification.target_module,
+                            "tool_count": _tool_count,
+                            "tools_succeeded": _tools_succeeded,
+                            "plan_steps": len(plan.steps),
+                            "retry_engine_used": self._retry_engine is not None,
+                            "response_length": len(response),
+                        })
+                    except Exception as _span_err:
+                        logger.debug("dispatch_span update failed: %s", _span_err)
 
             # Persist tool results for cross-interaction context (e.g. Apex escalation).
             # Stored so that a follow-up "escalate to Apex" can include the data
@@ -1361,169 +1418,212 @@ class Orchestrator:
                     if r.success and r.content
                 ]
 
-            # Step 6.5 — Confidence Scoring (quality gate)
-            # When retry engine is active, it handles retries — Step 6.5 only
-            # logs confidence and marks escalation. Single-attempt path retries here.
-            confidence_result = None
-            if self._confidence_scorer is not None:
-                try:
-                    # Build execution metadata for confabulation detection
-                    _is_fallback = response.startswith("[Fallback")
-                    if self._retry_engine is not None:
-                        # Retry engine path — extract what we can from the response
-                        _tools_ran = []  # tools are internal to retry engine
-                        if classification.target_module == "apex":
-                            _source = "fallback" if _is_fallback else "claude_api"
+            # Steps 6.5 + 6.7 — Response assembly (confidence scoring,
+            # confidence-driven retry, self-review). One span covers both:
+            # this is the "polish the candidate response into the final
+            # response" phase. Step 7 (log) is persistence, not assembly,
+            # and stays outside this span.
+            _pre_assembly_response_length = len(response)
+            _self_review_improved = False
+            with observed_span(
+                "shadow.response_assembly",
+                module=classification.target_module,
+            ) as assembly_span:
+                # Step 6.5 — Confidence Scoring (quality gate)
+                # When retry engine is active, it handles retries — Step 6.5
+                # only logs confidence and marks escalation. Single-attempt
+                # path retries here.
+                confidence_result = None
+                if self._confidence_scorer is not None:
+                    try:
+                        # Build execution metadata for confabulation detection
+                        _is_fallback = response.startswith("[Fallback")
+                        if self._retry_engine is not None:
+                            # Retry engine path — extract what we can from the response
+                            _tools_ran = []  # tools are internal to retry engine
+                            if classification.target_module == "apex":
+                                _source = "fallback" if _is_fallback else "claude_api"
+                            else:
+                                _source = "fallback" if _is_fallback else "module_direct"
                         else:
-                            _source = "fallback" if _is_fallback else "module_direct"
-                    else:
-                        # Single-attempt path — we have the results list
-                        _tools_ran = [
-                            r.tool_name for r in results
-                            if r.success and r.tool_name
-                        ]
-                        _all_failed = results and all(not r.success for r in results)
-                        if classification.target_module == "apex" and not _all_failed:
-                            _source = "claude_api"
-                        elif _all_failed:
-                            _source = "fallback"
-                        else:
-                            _source = "module_direct"
-                    _confab_metadata = {
-                        "target_module": classification.target_module,
-                        "used_fallback": _is_fallback,
-                        "source": _source,
-                        "tools_executed": _tools_ran,
-                    }
-
-                    confidence_result = self._confidence_scorer.score_response(
-                        task=user_input,
-                        response=response,
-                        task_type=classification.task_type.value,
-                        context={"module": classification.target_module},
-                        metadata=_confab_metadata,
-                    )
-                    logger.info(
-                        "Step 6.5 — Confidence: %.3f (%s)",
-                        confidence_result["confidence"],
-                        confidence_result["recommendation"],
-                    )
-
-                    # Retry only in single-attempt path (retry engine handles its own retries)
-                    if self._retry_engine is None and confidence_result["recommendation"] in ("retry", "retry_with_context"):
-                        prev_score = confidence_result["confidence"]
-                        retry_context = ""
-                        if confidence_result["recommendation"] == "retry_with_context":
-                            # Build feedback for the retry
-                            weak_factors = sorted(
-                                confidence_result["factors"].items(),
-                                key=lambda x: x[1],
-                            )
-                            weakest = weak_factors[0][0] if weak_factors else "completeness"
-                            retry_context = (
-                                f" Your previous attempt scored {prev_score:.2f} "
-                                f"on confidence. It was weakest on {weakest}. "
-                                f"Be more specific and complete."
-                            )
-
-                        logger.info("Step 6.5 — Retrying (confidence=%.3f)", prev_score)
-                        retry_response = await self._step6_evaluate(
-                            user_input + retry_context,
-                            classification, results, context,
-                        )
-
-                        # Score the retry — reuse metadata but update fallback status
-                        _retry_is_fallback = retry_response.startswith("[Fallback")
-                        _retry_metadata = {
-                            **_confab_metadata,
-                            "used_fallback": _retry_is_fallback,
-                            "source": "fallback" if _retry_is_fallback else _confab_metadata["source"],
+                            # Single-attempt path — we have the results list
+                            _tools_ran = [
+                                r.tool_name for r in results
+                                if r.success and r.tool_name
+                            ]
+                            _all_failed = results and all(not r.success for r in results)
+                            if classification.target_module == "apex" and not _all_failed:
+                                _source = "claude_api"
+                            elif _all_failed:
+                                _source = "fallback"
+                            else:
+                                _source = "module_direct"
+                        _confab_metadata = {
+                            "target_module": classification.target_module,
+                            "used_fallback": _is_fallback,
+                            "source": _source,
+                            "tools_executed": _tools_ran,
                         }
-                        retry_score = self._confidence_scorer.score_response(
+
+                        confidence_result = self._confidence_scorer.score_response(
                             task=user_input,
-                            response=retry_response,
+                            response=response,
                             task_type=classification.task_type.value,
-                            context={"module": classification.target_module, "is_retry": True},
-                            metadata=_retry_metadata,
-                        )
-                        improvement = self._confidence_scorer.score_improvement(
-                            prev_score, retry_score["confidence"],
+                            context={"module": classification.target_module},
+                            metadata=_confab_metadata,
                         )
                         logger.info(
-                            "Step 6.5 — Retry result: %.3f → %.3f (%s)",
-                            prev_score, retry_score["confidence"],
-                            improvement["recommendation"],
+                            "Step 6.5 — Confidence: %.3f (%s)",
+                            confidence_result["confidence"],
+                            confidence_result["recommendation"],
                         )
-                        # Use retry if it improved, otherwise keep original
-                        if improvement["improved"]:
-                            response = retry_response
-                            confidence_result = retry_score
 
-                    elif confidence_result["recommendation"] == "escalate":
-                        logger.info("Step 6.5 — Escalation recommended (confidence=%.3f)",
-                                    confidence_result["confidence"])
-                        # Mark for potential Apex escalation
-                        if "apex" in self.registry:
-                            response += (
-                                "\n\n*[Low confidence — consider asking me to "
-                                "use Apex for a more detailed answer.]*"
+                        # Retry only in single-attempt path (retry engine handles its own retries)
+                        if self._retry_engine is None and confidence_result["recommendation"] in ("retry", "retry_with_context"):
+                            prev_score = confidence_result["confidence"]
+                            retry_context = ""
+                            if confidence_result["recommendation"] == "retry_with_context":
+                                # Build feedback for the retry
+                                weak_factors = sorted(
+                                    confidence_result["factors"].items(),
+                                    key=lambda x: x[1],
+                                )
+                                weakest = weak_factors[0][0] if weak_factors else "completeness"
+                                retry_context = (
+                                    f" Your previous attempt scored {prev_score:.2f} "
+                                    f"on confidence. It was weakest on {weakest}. "
+                                    f"Be more specific and complete."
+                                )
+
+                            logger.info("Step 6.5 — Retrying (confidence=%.3f)", prev_score)
+                            retry_response = await self._step6_evaluate(
+                                user_input + retry_context,
+                                classification, results, context,
                             )
 
-                    # Record confidence in growth engine
-                    if self._growth_engine is not None:
-                        try:
-                            self._growth_engine.record_metric(
-                                "confidence_score",
-                                confidence_result["confidence"],
-                                json.dumps({
-                                    "task_type": classification.task_type.value,
-                                    "recommendation": confidence_result["recommendation"],
-                                }),
-                            )
-                        except Exception as e:
-                            logger.debug("Growth confidence recording failed: %s", e)
-
-                    # Record calibration data (prediction vs outcome)
-                    if self._confidence_calibrator is not None:
-                        try:
-                            task_succeeded = confidence_result["recommendation"] == "respond"
-                            self._confidence_calibrator.record(
-                                predicted_confidence=confidence_result["confidence"],
-                                actual_success=task_succeeded,
+                            # Score the retry — reuse metadata but update fallback status
+                            _retry_is_fallback = retry_response.startswith("[Fallback")
+                            _retry_metadata = {
+                                **_confab_metadata,
+                                "used_fallback": _retry_is_fallback,
+                                "source": "fallback" if _retry_is_fallback else _confab_metadata["source"],
+                            }
+                            retry_score = self._confidence_scorer.score_response(
+                                task=user_input,
+                                response=retry_response,
                                 task_type=classification.task_type.value,
-                                module=classification.target_module,
-                                was_escalated=confidence_result["recommendation"] == "escalate",
+                                context={"module": classification.target_module, "is_retry": True},
+                                metadata=_retry_metadata,
                             )
-                        except Exception as e:
-                            logger.debug("Confidence calibration failed: %s", e)
-
-                except Exception as e:
-                    logger.warning("Step 6.5 — Confidence scoring failed: %s", e)
-
-            # Step 6.7 — Adversarial Self-Review
-            if hasattr(self, '_self_reviewer') and self._self_reviewer:
-                try:
-                    sr_confidence = (
-                        confidence_result["confidence"]
-                        if confidence_result is not None
-                        else 0.5
-                    )
-                    if self._self_reviewer.should_review(
-                        classification.task_type.value, sr_confidence
-                    ):
-                        review = self._self_reviewer.review(
-                            user_input, response, classification.task_type.value
-                        )
-                        if review.improved:
-                            response = review.reviewed_response
+                            improvement = self._confidence_scorer.score_improvement(
+                                prev_score, retry_score["confidence"],
+                            )
                             logger.info(
-                                "Step 6.7 — Self-review improved response "
-                                "(%d cycles, %d issues fixed)",
-                                review.review_cycles,
-                                len(review.issues_fixed),
+                                "Step 6.5 — Retry result: %.3f → %.3f (%s)",
+                                prev_score, retry_score["confidence"],
+                                improvement["recommendation"],
                             )
-                except Exception as e:
-                    logger.debug("Step 6.7 — Self-review failed (non-critical): %s", e)
+                            # Use retry if it improved, otherwise keep original
+                            if improvement["improved"]:
+                                response = retry_response
+                                confidence_result = retry_score
+
+                        elif confidence_result["recommendation"] == "escalate":
+                            logger.info("Step 6.5 — Escalation recommended (confidence=%.3f)",
+                                        confidence_result["confidence"])
+                            # Mark for potential Apex escalation
+                            if "apex" in self.registry:
+                                response += (
+                                    "\n\n*[Low confidence — consider asking me to "
+                                    "use Apex for a more detailed answer.]*"
+                                )
+
+                        # Record confidence in growth engine
+                        if self._growth_engine is not None:
+                            try:
+                                self._growth_engine.record_metric(
+                                    "confidence_score",
+                                    confidence_result["confidence"],
+                                    json.dumps({
+                                        "task_type": classification.task_type.value,
+                                        "recommendation": confidence_result["recommendation"],
+                                    }),
+                                )
+                            except Exception as e:
+                                logger.debug("Growth confidence recording failed: %s", e)
+
+                        # Record calibration data (prediction vs outcome)
+                        if self._confidence_calibrator is not None:
+                            try:
+                                task_succeeded = confidence_result["recommendation"] == "respond"
+                                self._confidence_calibrator.record(
+                                    predicted_confidence=confidence_result["confidence"],
+                                    actual_success=task_succeeded,
+                                    task_type=classification.task_type.value,
+                                    module=classification.target_module,
+                                    was_escalated=confidence_result["recommendation"] == "escalate",
+                                )
+                            except Exception as e:
+                                logger.debug("Confidence calibration failed: %s", e)
+
+                    except Exception as e:
+                        logger.warning("Step 6.5 — Confidence scoring failed: %s", e)
+
+                # Step 6.7 — Adversarial Self-Review
+                if hasattr(self, '_self_reviewer') and self._self_reviewer:
+                    try:
+                        sr_confidence = (
+                            confidence_result["confidence"]
+                            if confidence_result is not None
+                            else 0.5
+                        )
+                        if self._self_reviewer.should_review(
+                            classification.task_type.value, sr_confidence
+                        ):
+                            review = self._self_reviewer.review(
+                                user_input, response, classification.task_type.value
+                            )
+                            if review.improved:
+                                response = review.reviewed_response
+                                _self_review_improved = True
+                                logger.info(
+                                    "Step 6.7 — Self-review improved response "
+                                    "(%d cycles, %d issues fixed)",
+                                    review.review_cycles,
+                                    len(review.issues_fixed),
+                                )
+                    except Exception as e:
+                        logger.debug("Step 6.7 — Self-review failed (non-critical): %s", e)
+
+                if assembly_span is not None:
+                    try:
+                        # Span source classification mirrors Step 6.5's
+                        # _confab_metadata source logic so the trace and the
+                        # confabulation gate agree on what produced the
+                        # final response.
+                        _final_fallback = response.startswith("[Fallback")
+                        if classification.target_module == "apex":
+                            _final_source = "fallback" if _final_fallback else "claude_api"
+                        else:
+                            _final_source = "fallback" if _final_fallback else "module_direct"
+                        assembly_span.update(metadata={
+                            "module": classification.target_module,
+                            "response_length": len(response),
+                            "pre_assembly_response_length": _pre_assembly_response_length,
+                            "confidence": (
+                                confidence_result.get("confidence")
+                                if confidence_result else None
+                            ),
+                            "confidence_recommendation": (
+                                confidence_result.get("recommendation")
+                                if confidence_result else None
+                            ),
+                            "self_review_improved": _self_review_improved,
+                            "source": _final_source,
+                            "used_fallback": _final_fallback,
+                        })
+                    except Exception as _span_err:
+                        logger.debug("assembly_span update failed: %s", _span_err)
 
             # Step 7 — Log
             # Extract operational metadata for Grimoire (best-effort from Step 6.5)
