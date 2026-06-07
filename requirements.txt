@@ -32,6 +32,20 @@ rich                # Terminal formatting
 # --- Observability ---
 langfuse==4.5.1     # Self-hosted trace export (deploy/langfuse/)
 
+# OpenTelemetry coherent pin (Session 45 — see deploy/langfuse/README.md).
+# ChromaDB (>=1.2.0, no ceiling) and Langfuse (>=1.33.1,<2) both accept
+# any 1.41.x. The OTel grpc/http exporters hard-pin (==) their sibling
+# proto/proto-common/sdk versions internally, so the whole family must
+# move in lockstep. Pinning explicitly so fresh-env installs don't pick
+# mismatched siblings (e.g. grpc-exporter==1.41.0 + proto-common==1.41.1).
+opentelemetry-api==1.41.1
+opentelemetry-sdk==1.41.1
+opentelemetry-semantic-conventions==0.62b1
+opentelemetry-proto==1.41.1
+opentelemetry-exporter-otlp-proto-common==1.41.1
+opentelemetry-exporter-otlp-proto-grpc==1.41.1
+opentelemetry-exporter-otlp-proto-http==1.41.1
+
 # --- API (future) ---
 fastapi             # REST API server
 uvicorn             # ASGI server

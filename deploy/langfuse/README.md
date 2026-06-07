@@ -122,3 +122,28 @@ tags like `:3` or `:7`). Rationale: prior-session lesson — floating tags
 silently drift on `docker compose pull` and break reproducibility. Update
 pins explicitly when bumping versions; see `docker-compose.yml` header
 for the bumped-on date.
+
+## OpenTelemetry version coordination
+
+ChromaDB and Langfuse both depend on the `opentelemetry-*` package family.
+ChromaDB declares loose floors (`>=1.2.0`, no ceiling); Langfuse declares
+`>=1.33.1,<2`. The OTel exporter packages themselves hard-pin (`==`) their
+sibling `proto`, `proto-common`, and `sdk` versions internally, so the
+whole family must move in lockstep — a fresh-env resolver can otherwise
+land `grpc-exporter==1.41.0` next to `proto-common==1.41.1` and trip
+`pip check`.
+
+As of Session 45, the entire family is pinned to **1.41.1** (with
+`opentelemetry-semantic-conventions==0.62b1`, its lockstep sibling) in
+`requirements.txt` to prevent resolver drift in fresh environments.
+
+If either ChromaDB or Langfuse is upgraded in the future, re-verify OTel
+compatibility:
+
+```bash
+pip check | grep -i opentelemetry
+python3 -c "import chromadb; chromadb.EphemeralClient().get_or_create_collection('test')"
+python3 -c "import langfuse; from langfuse import Langfuse"
+```
+
+If conflicts surface, treat as a Phase B follow-up — see Session 45 report.
