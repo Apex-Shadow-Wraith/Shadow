@@ -75,7 +75,7 @@ modules, sequential).
 - **NVIDIA Driver:** 580 + CUDA 13.0
 - **Cooling:** Noctua NH-D15 G2 air, O11 Dynamic EVO XL case
 - **Python:** 3.12.3 (system); venv at `~/dev/Shadow/shadow_env`
-- **Primary inference:** Ollama + Gemma 4 26B + `nomic-embed-text`
+- **Primary inference:** Ollama + Gemma 4 26B (stock — abliteration pending; Heretic run deferred to Phase B) + `nomic-embed-text`
 - **PostgreSQL:** 16.14 installed and running, not yet wired to Shadow (Phase B)
 - **Shell:** bash (zsh is not configured)
 - **Terminal quirk:** bracketed-paste disabled in bash for GNOME Terminal
@@ -89,7 +89,7 @@ Linux transition; that transition is complete.
 - **Virtual Environment:** `shadow_env` (see rules below)
 - **Database:** SQLite + ChromaDB (vector DB with `nomic-embed-text`
   embeddings, 768 dimensions). PostgreSQL migration is Phase B.
-- **AI Runtime:** Ollama — Gemma 4 26B for generation and routing/scoring,
+- **AI Runtime:** Ollama — Gemma 4 26B (stock — abliteration pending; Heretic run deferred to Phase B) for generation and routing/scoring,
   `nomic-embed-text` for embeddings
 - **Observability:** Self-hosted Langfuse v4 (compose at
   `deploy/langfuse/docker-compose.yml`) with ClickHouse bind-mount
