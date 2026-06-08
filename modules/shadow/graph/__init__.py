@@ -19,10 +19,20 @@ Public surface:
   ``compile_grimoire_subgraph`` — Grimoire sub-graph that delegates dispatch
   to the live :meth:`GrimoireModule.execute`. Additive; nothing on the
   orchestrator path imports it.
+- ``CerberusCallState`` / ``build_cerberus_subgraph`` /
+  ``compile_cerberus_subgraph`` — Cerberus sub-graph that delegates dispatch
+  to the live :meth:`Cerberus.execute`. Same additive posture; delegation
+  preserves the heartbeat side effect the external watchdog daemon depends
+  on.
 """
 
 from __future__ import annotations
 
+from modules.shadow.graph.cerberus_subgraph import (
+    CerberusCallState,
+    build_cerberus_subgraph,
+    compile_cerberus_subgraph,
+)
 from modules.shadow.graph.grimoire_subgraph import (
     GrimoireCallState,
     build_grimoire_subgraph,
@@ -40,11 +50,14 @@ from modules.shadow.graph.skeleton import (
 )
 
 __all__ = [
+    "CerberusCallState",
     "GrimoireCallState",
     "ShadowState",
+    "build_cerberus_subgraph",
     "build_grimoire_subgraph",
     "build_shadow_serde",
     "build_skeleton",
+    "compile_cerberus_subgraph",
     "compile_grimoire_subgraph",
     "compile_skeleton",
     "open_async_sqlite_saver",
