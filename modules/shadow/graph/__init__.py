@@ -15,10 +15,19 @@ Public surface:
   checkpoint key from §3.6).
 - ``build_skeleton`` / ``compile_skeleton`` — pass-through ``StateGraph`` that
   compiles and ``ainvoke``s end-to-end. Used only by skeleton tests.
+- ``GrimoireCallState`` / ``build_grimoire_subgraph`` /
+  ``compile_grimoire_subgraph`` — Grimoire sub-graph that delegates dispatch
+  to the live :meth:`GrimoireModule.execute`. Additive; nothing on the
+  orchestrator path imports it.
 """
 
 from __future__ import annotations
 
+from modules.shadow.graph.grimoire_subgraph import (
+    GrimoireCallState,
+    build_grimoire_subgraph,
+    compile_grimoire_subgraph,
+)
 from modules.shadow.graph.serde import (
     build_shadow_serde,
     open_async_sqlite_saver,
@@ -31,9 +40,12 @@ from modules.shadow.graph.skeleton import (
 )
 
 __all__ = [
+    "GrimoireCallState",
     "ShadowState",
+    "build_grimoire_subgraph",
     "build_shadow_serde",
     "build_skeleton",
+    "compile_grimoire_subgraph",
     "compile_skeleton",
     "open_async_sqlite_saver",
     "shadow_serde",
