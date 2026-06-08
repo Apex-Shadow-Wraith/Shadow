@@ -1,7 +1,9 @@
 """Tests for Reaper's SearXNG integration.
 
-Covers the Phase B Track D integration: the rung's HTTP plumbing and the
-TTL-cached health probe (boot-race fix).
+Covers the Phase B Track D integration: the rung's HTTP plumbing, the
+TTL-cached health probe (boot-race fix), and the typed-settings wiring
+that finally makes ``config.reaper.searxng_enabled`` / ``search_backend``
+non-decorative.
 
 All web calls are mocked — no real SearXNG instance required.
 """
@@ -43,18 +45,24 @@ def mock_grimoire():
 
 
 @pytest.fixture
-def reaper_searxng_up(mock_grimoire, tmp_path):
+def reaper_searxng_up(mock_grimoire, tmp_path, monkeypatch):
     """Reaper instance where SearXNG was reachable at init."""
+    from shadow.config import config
+
+    monkeypatch.setattr(config.reaper, "searxng_enabled", True)
     with patch.object(Reaper, "_check_searxng", return_value=True):
         r = Reaper(grimoire=mock_grimoire, data_dir=str(tmp_path / "research"))
         yield r
 
 
 @pytest.fixture
-def reaper_searxng_down(mock_grimoire, tmp_path):
+def reaper_searxng_down(mock_grimoire, tmp_path, monkeypatch):
     """Reaper instance where SearXNG was NOT reachable at init.
 
     This is the precondition for the boot-race regression test."""
+    from shadow.config import config
+
+    monkeypatch.setattr(config.reaper, "searxng_enabled", True)
     with patch.object(Reaper, "_check_searxng", return_value=False):
         r = Reaper(grimoire=mock_grimoire, data_dir=str(tmp_path / "research"))
         yield r
@@ -208,3 +216,156 @@ class TestCascadeFallsThroughOnSearXNGError:
 
         mock_ddg.assert_called_once()
         assert results == ddg_results
+
+
+class TestSearXNGDisabledFlag:
+    """The decorative searxng_enabled flag must now actually skip the rung."""
+
+    def test_disabled_flag_short_circuits_probe(
+        self, reaper_searxng_up, monkeypatch
+    ):
+        from shadow.config import config
+
+        monkeypatch.setattr(config.reaper, "searxng_enabled", False)
+        with patch.object(
+            reaper_searxng_up, "_check_searxng", return_value=True
+        ) as mock_probe:
+            assert reaper_searxng_up._searxng_is_available() is False
+            # Must not have hit the network — the flag short-circuits BEFORE
+            # the probe.
+            mock_probe.assert_not_called()
+
+    def test_disabled_rung_skipped_in_cascade(self, reaper_searxng_up, monkeypatch):
+        from shadow.config import config
+
+        monkeypatch.setattr(config.reaper, "searxng_enabled", False)
+        ddg_results = [
+            {
+                "title": "DDG hit",
+                "url": "https://example.com",
+                "snippet": "",
+                "engine": "duckduckgo",
+                "source_eval": {"domain": "example.com", "tier": 3, "trust_score": 0.5, "source_type": "general"},
+            }
+        ]
+        with patch.object(
+            reaper_searxng_up, "_search_searxng"
+        ) as mock_searxng, patch.object(
+            reaper_searxng_up, "_search_ddg", return_value=ddg_results
+        ):
+            results = reaper_searxng_up._search_once("anything", max_results=5)
+
+        # Disabled rung must not be invoked even though _searxng_is_available
+        # was probed by the cascade.
+        mock_searxng.assert_not_called()
+        assert results == ddg_results
+
+
+class TestCascadeOrderRespectsBackendSetting:
+    """``config.reaper.search_backend`` selects which rung leads. The
+    decorative ``self.search_backend = "ddg"`` hardcode is now gone."""
+
+    def _stub_results(self, engine_name):
+        return [
+            {
+                "title": f"{engine_name} hit",
+                "url": f"https://example.com/{engine_name}",
+                "snippet": "",
+                "engine": engine_name,
+                "source_eval": {"domain": "example.com", "tier": 3, "trust_score": 0.5, "source_type": "general"},
+            }
+        ]
+
+    def test_ddg_default_puts_searxng_first(self, reaper_searxng_up, monkeypatch):
+        reaper_searxng_up.search_backend = "ddg"
+        with patch.object(
+            reaper_searxng_up,
+            "_search_searxng",
+            return_value=self._stub_results("searxng"),
+        ) as mock_searxng, patch.object(
+            reaper_searxng_up, "_search_ddg"
+        ) as mock_ddg:
+            results = reaper_searxng_up._search_once("query", max_results=5)
+
+        mock_searxng.assert_called_once()
+        mock_ddg.assert_not_called()
+        assert results[0]["engine"] == "searxng"
+
+    def test_brave_backend_puts_brave_first_when_key_present(
+        self, reaper_searxng_up, monkeypatch
+    ):
+        reaper_searxng_up.search_backend = "brave"
+        reaper_searxng_up.brave_available = True
+        with patch.object(
+            reaper_searxng_up, "_brave_get_usage", return_value=0
+        ), patch.object(
+            reaper_searxng_up,
+            "_search_brave",
+            return_value=self._stub_results("brave"),
+        ) as mock_brave, patch.object(
+            reaper_searxng_up, "_search_searxng"
+        ) as mock_searxng:
+            results = reaper_searxng_up._search_once("query", max_results=5)
+
+        mock_brave.assert_called_once()
+        mock_searxng.assert_not_called()
+        assert results[0]["engine"] == "brave"
+
+    def test_searxng_backend_explicit_keeps_searxng_first(
+        self, reaper_searxng_up, monkeypatch
+    ):
+        reaper_searxng_up.search_backend = "searxng"
+        with patch.object(
+            reaper_searxng_up,
+            "_search_searxng",
+            return_value=self._stub_results("searxng"),
+        ) as mock_searxng, patch.object(
+            reaper_searxng_up, "_search_ddg"
+        ) as mock_ddg:
+            results = reaper_searxng_up._search_once("query", max_results=5)
+
+        mock_searxng.assert_called_once()
+        mock_ddg.assert_not_called()
+
+
+class TestTypedSettingsOverrideBaseUrl:
+    """A per-machine override of ``searxng_base_url`` must be honored by
+    both the health probe and the search call (no hidden hardcodes left)."""
+
+    def test_probe_uses_settings_base_url(self, mock_grimoire, tmp_path, monkeypatch):
+        """Construct Reaper directly so the real _check_searxng body runs
+        (the standard fixture mocks it at init to skip the network)."""
+        from shadow.config import config
+
+        monkeypatch.setattr(config.reaper, "searxng_enabled", True)
+        monkeypatch.setattr(
+            config.reaper, "searxng_base_url", "http://searx.example:9999"
+        )
+        with patch("modules.reaper.reaper.requests.get") as mock_get:
+            mock_resp = MagicMock()
+            mock_resp.status_code = 200
+            mock_get.return_value = mock_resp
+
+            Reaper(grimoire=mock_grimoire, data_dir=str(tmp_path / "research"))
+
+            called_url = mock_get.call_args[0][0]
+            assert called_url.startswith("http://searx.example:9999/healthz")
+
+    @patch("modules.reaper.reaper.time.sleep")
+    @patch("modules.reaper.reaper.requests.get")
+    def test_search_uses_settings_base_url(
+        self, mock_get, mock_sleep, reaper_searxng_up, monkeypatch
+    ):
+        monkeypatch.setattr(
+            reaper_searxng_up._settings, "searxng_base_url", "http://searx.example:9999"
+        )
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.json.return_value = SEARXNG_OK_RESPONSE
+        mock_resp.raise_for_status.return_value = None
+        mock_get.return_value = mock_resp
+
+        reaper_searxng_up._search_searxng("test")
+
+        called_url = mock_get.call_args[0][0]
+        assert called_url.startswith("http://searx.example:9999/search")

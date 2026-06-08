@@ -21,6 +21,11 @@ class ReaperSettings(BaseModel):
     max_results_per_query: int = 5
     stealth_mode: bool = True
     searxng_enabled: bool = False
+    searxng_base_url: str = "http://localhost:8888"
+    searxng_timeout_s: int = 15
+    # TTL for the cached SearXNG health probe. Trades responsiveness to a
+    # stack restart against the cost of a probe per request.
+    searxng_health_ttl_s: int = 60
 
     brave_search_api_key: SecretStr | None = Field(
         default=None,

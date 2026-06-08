@@ -236,10 +236,9 @@ ALWAYS_SKIP_PATTERNS = [
 # SEARCH BACKEND SETTINGS
 # =============================================================================
 
-# SearXNG (primary) — runs in Docker locally
-SEARXNG_URL = "http://localhost:8888"
-SEARXNG_TIMEOUT = 15  # seconds
-SEARXNG_HEALTH_TTL_S = 60  # how long to trust a probe result before re-checking
+# SearXNG (primary) — runs in Docker locally.
+# Runtime knobs (base URL, timeout, health TTL) live in shadow.config.reaper
+# (modules/reaper/reaper_settings.py) so they can be overridden per machine.
 
 # DuckDuckGo (first fallback) — no setup needed, always available
 DDG_MAX_RESULTS = 20

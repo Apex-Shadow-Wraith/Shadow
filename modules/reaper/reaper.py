@@ -72,7 +72,7 @@ from .config import (
     REDDIT_MIN_SCORE_STANDING, REDDIT_MIN_SCORE_HIGH_SIGNAL,
     REDDIT_MAX_COMMENTS_STORED, YOUTUBE_SUMMARY_CHAR_THRESHOLD,
     WEB_MAX_ARTICLE_CHARS, WEB_SKIP_OLDER_THAN_DAYS,
-    ALWAYS_SKIP_PATTERNS, SEARXNG_URL, SEARXNG_TIMEOUT, SEARXNG_HEALTH_TTL_S,
+    ALWAYS_SKIP_PATTERNS,
     DDG_MAX_RESULTS, QUERY_EXPANSION_COUNT,
     OLLAMA_URL, LLM_MODEL,
     TEMP_RELEVANCE_SCORING, TEMP_SUMMARIZATION, TEMP_QUERY_EXPANSION,
@@ -313,7 +313,7 @@ class Reaper:
         # drives the human-visible startup status line below.
         self._searxng_health_cached: bool = False
         self._searxng_health_last_check: float = 0.0
-        self._searxng_health_ttl_s: float = SEARXNG_HEALTH_TTL_S
+        self._searxng_health_ttl_s: float = self._settings.searxng_health_ttl_s
         self._searxng_health_cached = self._check_searxng()
         self._searxng_health_last_check = time.monotonic()
         self.searxng_available = self._searxng_health_cached
@@ -325,7 +325,7 @@ class Reaper:
             else None
         )
         self.brave_available = bool(self.brave_api_key)
-        self.search_backend = "ddg"  # Default; set via config.yaml
+        self.search_backend = self._settings.search_backend
 
         print(f"[Reaper] Initialized")
         print(f"[Reaper] SearXNG: {'✅ Available' if self.searxng_available else '❌ Not running'}")
@@ -348,7 +348,7 @@ class Reaper:
         within one TTL window."""
         try:
             response = requests.get(
-                f"{SEARXNG_URL}/healthz",
+                f"{self._settings.searxng_base_url}/healthz",
                 timeout=5,
             )
             return response.status_code == 200
@@ -357,8 +357,10 @@ class Reaper:
 
     def _searxng_is_available(self) -> bool:
         """Return cached SearXNG availability; re-probe after the TTL window
-        elapses. Fixes the boot-race where a one-shot probe at init left the
-        rung dead forever if SearXNG started after Reaper."""
+        elapses. Honors ``config.reaper.searxng_enabled`` — if disabled in
+        settings the rung is skipped without a network probe."""
+        if not self._settings.searxng_enabled:
+            return False
         now = time.monotonic()
         if now - self._searxng_health_last_check >= self._searxng_health_ttl_s:
             self._searxng_health_cached = self._check_searxng()
@@ -529,14 +531,14 @@ class Reaper:
 
         try:
             response = requests.get(
-                f"{SEARXNG_URL}/search",
+                f"{self._settings.searxng_base_url}/search",
                 params={
                     "q": query,
                     "format": "json",
                     "categories": "general",
                     "language": "en",
                 },
-                timeout=SEARXNG_TIMEOUT,
+                timeout=self._settings.searxng_timeout_s,
             )
             response.raise_for_status()
             data = response.json()

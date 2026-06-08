@@ -96,8 +96,10 @@ modules:
     search_backend: "ddg"  # Primary backend: "ddg", "brave", "searxng"
     max_results_per_query: 5
     stealth_mode: true
-    # SearXNG deferred to Ubuntu Phase 1
-    searxng_enabled: false
+    searxng_enabled: true
+    searxng_base_url: "http://localhost:8888"
+    searxng_timeout_s: 15
+    searxng_health_ttl_s: 60
 
 # --- Path Configuration ---
 paths:
