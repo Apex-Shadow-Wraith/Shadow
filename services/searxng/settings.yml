@@ -1,8 +1,23 @@
-# SearXNG Settings for Shadow/Reaper
+# SearXNG Settings for Shadow/Reaper (Citadel, Ubuntu 24.04).
+#
+# `use_default_settings: true` means everything not overridden here inherits
+# upstream defaults. Verified hygiene under default settings:
+#   - Outbound User-Agent per request is a random Firefox via gen_useragent()
+#     (searx/search/processors/online.py applies it to every engine).
+#   - `outgoing.useragent_suffix` defaults to empty string, so `SearXNG/<ver>`
+#     never leaks an admin email or instance tag. Do not set a suffix here.
+#   - The enabled engines (google/bing/duckduckgo/brave/reddit/github/arxiv/
+#     stackoverflow) do not invoke searxng_useragent(); see Track D
+#     integration notes for the audit trail.
+#
+# `server.secret_key` is left as a placeholder. The real value comes from the
+# SEARXNG_SECRET env var (sourced from services/searxng/.env, untracked) and
+# is applied via docker-compose.yml.
+
 use_default_settings: true
 
 general:
-  instance_name: "Shadow Search"
+  instance_name: "local"
   debug: false
 
 search:
@@ -13,7 +28,7 @@ search:
   safe_search: 0
 
 server:
-  secret_key: "shadow-searxng-local-key-change-me"
+  secret_key: "PLACEHOLDER_OVERRIDDEN_BY_SEARXNG_SECRET_ENV"
   bind_address: "0.0.0.0"
   port: 8080
   limiter: false

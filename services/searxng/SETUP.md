@@ -1,250 +1,167 @@
-# SearXNG Setup Guide — Windows PC
-## Shadow Project • Session 7
+# SearXNG Setup — Citadel (Ubuntu 24.04)
 
-SearXNG is a self-hosted metasearch engine. It queries Google, Bing,
-DuckDuckGo, and dozens of other engines simultaneously, returning
-combined results. Reaper uses it as the primary search backend.
+SearXNG is a self-hosted metasearch engine that queries Google, Bing,
+DuckDuckGo, Brave, Reddit, GitHub, arXiv, and StackOverflow simultaneously and
+returns combined results. Reaper uses it as the **primary** search backend in
+the default `"ddg"` cascade (`modules/reaper/reaper.py`).
 
-Runs in Docker on your PC. Completely private — no search history
-sent to any third party.
+Runs in Docker on Citadel. Bound to `127.0.0.1` only — never exposed to the
+LAN. The container holds no Shadow secrets; the only secret is its own
+`server.secret_key`, sourced from an untracked `.env` file.
 
 ---
 
-## Step 1: Enable WSL2 (Windows Subsystem for Linux)
+## Prerequisites
 
-Docker Desktop requires WSL2. Open **PowerShell as Administrator**
-(right-click Start → Terminal (Admin)) and run:
+Docker is already installed on Citadel via the system package manager. Verify:
 
-```
-wsl --install
-```
-
-If WSL is already installed, this will tell you. If not, it installs
-Ubuntu as the default distro. **Restart your PC when prompted.**
-
-After restart, verify:
-```
-wsl --version
-```
-
-You should see WSL version 2.x.x. If it says version 1, run:
-```
-wsl --set-default-version 2
+```bash
+docker --version          # expect 28+
+docker compose version    # expect v2.x (note: `docker compose`, not `docker-compose`)
 ```
 
 ---
 
-## Step 2: Install Docker Desktop
+## First-time bring-up
 
-1. Download from: https://www.docker.com/products/docker-desktop/
-2. Run the installer
-3. **Check "Use WSL 2 instead of Hyper-V"** during install
-4. Restart if prompted
-5. Open Docker Desktop — it may take a minute to start
-6. Accept the terms of service
-7. You do NOT need a Docker account — skip sign-in
+```bash
+cd ~/dev/Shadow/services/searxng
 
-Verify Docker is working. Open a terminal (PowerShell or CMD):
-```
-docker --version
-docker run hello-world
+# Generate the SearXNG server secret (one time only, host-side).
+python3 -c "import secrets; print(f'SEARXNG_SECRET={secrets.token_hex(32)}')" > .env
+chmod 600 .env
+
+# Pull the image and start.
+docker compose up -d
+docker compose ps
 ```
 
-The hello-world container should download and print a success message.
+`.env` is covered by the repo's root `.gitignore` (`.env` line). Do not commit
+it. Rotating the secret is just regenerating the file and `docker compose
+restart`.
 
 ---
 
-## Step 3: Create SearXNG Configuration
+## Verify
 
-Create a folder for SearXNG's config:
+```bash
+# HTML interface in a browser.
+xdg-open http://localhost:8888
+
+# JSON API (what Reaper hits).
+curl -s 'http://localhost:8888/search?q=test&format=json' | jq '.results | length'
+# expect: a positive integer (15-30 typical)
+
+# Healthcheck endpoint (what the compose healthcheck hits).
+curl -fsS http://localhost:8888/healthz
+
+# From Python, with Reaper's actual code path.
+python3 -c "
+from modules.reaper.reaper import Reaper
+r = Reaper()
+print('searxng_available:', r._searxng_is_available())
+results = r.search('rtx 5090 review', max_results=3)
+print(f'{len(results)} results, first engine: {results[0][\"engine\"] if results else \"NONE\"}')
+"
 ```
-mkdir C:\Shadow\services\searxng
-```
 
-Create the settings file. Open VS Code or Notepad and save this as
-`C:\Shadow\services\searxng\settings.yml`:
-
-```yaml
-# SearXNG Settings for Shadow/Reaper
-use_default_settings: true
-
-general:
-  instance_name: "Shadow Search"
-  debug: false
-
-search:
-  # Enable JSON API so Reaper can query programmatically
-  formats:
-    - html
-    - json
-  
-  # Default language
-  default_lang: "en"
-  
-  # Safe search off (Shadow is an adult tool, not a family browser)
-  safe_search: 0
-
-server:
-  # Secret key — change this to any random string
-  secret_key: "shadow-searxng-local-key-change-me"
-  
-  # Bind to localhost only (not accessible from outside your PC)
-  bind_address: "0.0.0.0"
-  port: 8080
-  
-  # Limiter off for local use (it's just you, not a public server)
-  limiter: false
-
-engines:
-  # Enable the best engines for Shadow's research needs
-  - name: google
-    engine: google
-    disabled: false
-  - name: bing
-    engine: bing
-    disabled: false
-  - name: duckduckgo
-    engine: duckduckgo
-    disabled: false
-  - name: brave
-    engine: brave
-    disabled: false
-  - name: reddit
-    engine: reddit
-    disabled: false
-  - name: github
-    engine: github
-    disabled: false
-  - name: arxiv
-    engine: arxiv
-    disabled: false
-  - name: stackoverflow
-    engine: stackoverflow
-    disabled: false
-```
+If `/healthz` is unavailable but `/search` works, the SearXNG image version
+predates the healthz endpoint; the `docker compose ps` STATUS column will read
+`(unhealthy)`. The data plane is still fine — bump the image and restart.
 
 ---
 
-## Step 4: Create Docker Compose File
+## CAPTCHA warmup (only if needed)
 
-Save this as `C:\Shadow\services\searxng\docker-compose.yml`:
+Some upstream engines (notably Google) occasionally rate-limit fresh IPs. If
+JSON queries return empty `.results` while HTML works in the browser:
 
-```yaml
-version: '3.7'
+1. Open `http://localhost:8888` in a browser.
+2. Run a manual search; if Google shows a CAPTCHA, solve it.
+3. JSON API will then resolve normally.
 
-services:
-  searxng:
-    image: searxng/searxng:latest
-    container_name: shadow-searxng
-    ports:
-      - "8888:8080"
-    volumes:
-      - ./settings.yml:/etc/searxng/settings.yml:ro
-    environment:
-      - SEARXNG_BASE_URL=http://localhost:8888/
-    restart: unless-stopped
-```
+Bing and DDG rarely require this.
 
 ---
 
-## Step 5: Start SearXNG
+## Operations
 
-Open a terminal, navigate to the folder, and start it:
+```bash
+cd ~/dev/Shadow/services/searxng
 
+# Stop
+docker compose down
+
+# Start
+docker compose up -d
+
+# Logs
+docker compose logs -f
+
+# Update image
+docker compose pull && docker compose up -d
+
+# Live container status
+docker compose ps
 ```
-cd C:\Shadow\services\searxng
-docker-compose up -d
-```
 
-The `-d` flag runs it in the background (detached mode).
-
-First run will download the SearXNG image (~200MB). After that,
-startup takes about 5 seconds.
+SearXNG idle footprint: ~80 MB RAM, near-zero CPU. Safe to leave running 24/7.
 
 ---
 
-## Step 6: Verify It Works
+## Run under systemd (optional)
 
-### In your browser:
-Open http://localhost:8888 — you should see the SearXNG search page.
-Try a search. If results come back, it's working.
+The compose stack will auto-restart on container failure (`restart:
+unless-stopped`), but Docker itself needs to come up at boot. On Citadel the
+docker service is already enabled. To verify:
 
-### Test the JSON API (what Reaper uses):
-Open this URL in your browser:
-http://localhost:8888/search?q=test&format=json
-
-You should see raw JSON with search results. This is what Reaper
-will call programmatically.
-
-### From Python (optional quick test):
-```python
-import requests
-response = requests.get(
-    "http://localhost:8888/search",
-    params={"q": "RTX 5090 review", "format": "json"}
-)
-data = response.json()
-print(f"Found {len(data.get('results', []))} results")
-for r in data.get('results', [])[:3]:
-    print(f"  {r['title']}")
-    print(f"  {r['url']}")
+```bash
+systemctl is-enabled docker
+# expect: enabled
 ```
+
+A future Phase B promotion may convert this to a per-user systemd unit at
+`~/.config/systemd/user/shadow-searxng.service` parallel to
+`daemons/cerberus_watchdog/`. Today, plain `docker compose up -d` is
+sufficient.
 
 ---
 
-## Managing SearXNG
+## Stealth posture (verified June 2026)
 
-```
-# Stop SearXNG
-cd C:\Shadow\services\searxng
-docker-compose down
+The default SearXNG behavior — inherited via `use_default_settings: true` —
+sets `User-Agent: Mozilla/5.0 ... Firefox/<150|151>` per outbound request via
+`gen_useragent()` in `searx/search/processors/online.py`. The engines enabled
+in `settings.yml` (Google, Bing, DDG, Brave, Reddit, GitHub, arXiv,
+StackOverflow) do **not** invoke `searxng_useragent()` — that function (which
+returns `SearXNG/<version>`) is only used by Photon, Marginalia, Wikidata,
+Unsplash, Pixabay, and the autocomplete endpoint, none of which we enable.
 
-# Start SearXNG
-docker-compose up -d
+`outgoing.useragent_suffix` defaults to empty string. Do not set a suffix —
+the empty default is what keeps `SearXNG/<version>` from leaking even on
+endpoints that *do* use `searxng_useragent()`.
 
-# View logs (if something's wrong)
-docker-compose logs
-
-# Update to latest version
-docker-compose pull
-docker-compose up -d
-
-# Check if it's running
-docker ps
-```
-
-SearXNG uses minimal resources: ~50-100MB RAM, negligible CPU
-when idle. It's fine to leave running 24/7 on your development PC.
+`general.instance_name` is `"local"` (not "Shadow") and surfaces only on the
+inbound HTML `/about` and `/stats` endpoints. The host bind is
+`127.0.0.1:8888` so no upstream sees it.
 
 ---
 
 ## Troubleshooting
 
 **"Port 8888 already in use"**
-Change the port in docker-compose.yml: `"9999:8080"` instead.
-Then access at http://localhost:9999
+Another process is bound. `ss -ltnp | grep 8888` to identify, then either
+stop it or change the compose port mapping (`"127.0.0.1:9999:8080"`) and
+re-run.
 
-**"Cannot connect to Docker daemon"**
-Open Docker Desktop and make sure it's running (whale icon in taskbar).
+**"JSON returns empty results but HTML works"**
+Cold-start engines warming up, or upstream CAPTCHA — see the warmup section.
 
-**"JSON API returns empty results"**
-Check settings.yml — make sure `json` is in the formats list.
-Some engines may take a moment to warm up on first query.
+**"Reaper reports SearXNG ❌ Not running" with stack confirmed up**
+Re-instantiate Reaper *after* the stack is healthy. The boot-race fix
+(`_searxng_is_available()` TTL probe) auto-recovers within 60 seconds of the
+next search call, so the symptom should be transient.
 
-**SearXNG starts but searches fail**
-Some engines require occasional CAPTCHA solving. Open the HTML
-interface (localhost:8888), run a search manually to clear CAPTCHAs,
-then the API should work.
-
----
-
-## For Shadow PC (Ubuntu) Later
-
-Same setup but simpler — Docker comes native on Ubuntu:
-```bash
-sudo apt install docker.io docker-compose
-cd ~/shadow/services/searxng
-docker-compose up -d
-```
-
-Everything migrates cleanly. Same files, same config.
+**"healthcheck status: unhealthy"**
+`/healthz` may not exist on older SearXNG images. Bump the image:
+`docker compose pull && docker compose up -d`.
