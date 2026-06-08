@@ -50,6 +50,16 @@ opentelemetry-exporter-otlp-proto-http==1.41.1
 fastapi             # REST API server
 uvicorn             # ASGI server
 
+# --- Orchestration (Phase B — Track B) ---
+# LangGraph cutover: the decision loop becomes a compiled StateGraph,
+# modules become sub-graphs, state persists via the checkpointer. The
+# SQLite saver is the Phase B target; the Postgres saver is staged for
+# Track A's PostgreSQL migration (interface-compatible swap).
+langgraph==1.2.4
+langgraph-checkpoint==4.1.1
+langgraph-checkpoint-sqlite==3.1.0
+langgraph-checkpoint-postgres==3.1.0
+
 # --- Testing ---
 pytest              # Test framework
 pytest-asyncio      # Async test support
