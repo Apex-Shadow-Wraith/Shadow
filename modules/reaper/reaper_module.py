@@ -101,12 +101,25 @@ class ReaperModule(BaseModule):
                     max_results=max_results,
                 )
                 self._record_call(True)
+                # Surface which rung served and any reformulation context so
+                # the orchestrator can reason about search quality without
+                # walking the result list. `backend` is the rung name
+                # (searxng/ddg/brave/bing); `engine` is the upstream engine
+                # within that rung (e.g. google/startpage/reddit).
+                reformulation = results[0].get("_reformulation", {}) if results else {}
+                metadata = {
+                    "backend": results[0].get("_served_by") if results else None,
+                    "engine": results[0].get("engine") if results else None,
+                    "was_reformulated": reformulation.get("was_reformulated", False),
+                    "final_query": reformulation.get("final_query", query),
+                }
                 return ToolResult(
                     success=True,
                     content=results,
                     tool_name=tool_name,
                     module=self.name,
                     execution_time_ms=(time.time() - start) * 1000,
+                    metadata=metadata,
                 )
 
             elif tool_name == "web_fetch":

@@ -63,6 +63,16 @@ except ImportError:
     HAS_PRAW = False
     print("[Reaper] WARNING: praw not installed → pip install praw")
 
+# Graceful observability import — Reaper still runs if Langfuse is missing.
+try:
+    from modules.shadow.observability import observed_span
+except ImportError:
+    from contextlib import contextmanager
+
+    @contextmanager
+    def observed_span(name, **metadata):  # type: ignore[no-redef]
+        yield None
+
 # Import Reaper's configuration
 from .config import (
     STANDING_TOPICS, USER_AGENTS, STEALTH_DELAY_MIN, STEALTH_DELAY_MAX,
@@ -410,41 +420,73 @@ class Reaper:
         """
         original_query = query
 
-        # Pre-search extraction: long queries (benchmark-style with embedded
-        # context) get trimmed to keywords BEFORE the first search attempt.
-        query = _extract_search_query(query)
-        if query != original_query:
-            print(f"[Reaper] Pre-search extraction: '{original_query[:60]}…' → '{query}'")
+        with observed_span(
+            "reaper.search",
+            query=query[:120],
+            max_results=max_results,
+        ) as span:
+            # Pre-search extraction: long queries (benchmark-style with embedded
+            # context) get trimmed to keywords BEFORE the first search attempt.
+            query = _extract_search_query(query)
+            if query != original_query:
+                print(f"[Reaper] Pre-search extraction: '{original_query[:60]}…' → '{query}'")
 
-        results = self._search_once(query, max_results)
+            results = self._search_once(query, max_results)
 
-        # Reformulation loop: max 2 retries
-        if _results_relevant(results, query):
-            return self._tag_results(results, original_query, query)
+            # Reformulation loop: max 2 retries
+            if _results_relevant(results, query):
+                tagged = self._tag_results(results, original_query, query)
+                self._update_search_span(span, tagged, was_reformulated=(query != original_query))
+                return tagged
 
-        reformulators = [_simplify_query, _broaden_query]
-        current_query = query
+            reformulators = [_simplify_query, _broaden_query]
+            current_query = query
 
-        for i, reformulate in enumerate(reformulators):
-            new_query = reformulate(current_query)
-            if not new_query or new_query == current_query:
-                continue
+            for i, reformulate in enumerate(reformulators):
+                new_query = reformulate(current_query)
+                if not new_query or new_query == current_query:
+                    continue
 
-            reason = "no results" if not results else "low relevance"
-            print(f"[Reaper] Reformulating query '{current_query}' → '{new_query}' (reason: {reason})")
+                reason = "no results" if not results else "low relevance"
+                print(f"[Reaper] Reformulating query '{current_query}' → '{new_query}' (reason: {reason})")
 
-            results = self._search_once(new_query, max_results)
-            current_query = new_query
+                results = self._search_once(new_query, max_results)
+                current_query = new_query
 
-            if _results_relevant(results, new_query):
-                return self._tag_results(results, original_query, current_query)
+                if _results_relevant(results, new_query):
+                    tagged = self._tag_results(results, original_query, current_query)
+                    self._update_search_span(span, tagged, was_reformulated=True)
+                    return tagged
 
-        # All retries exhausted — return whatever we have
-        if current_query != original_query:
-            print(f"[Reaper] Reformulation exhausted for '{original_query}', returning best effort")
+            # All retries exhausted — return whatever we have
+            if current_query != original_query:
+                print(f"[Reaper] Reformulation exhausted for '{original_query}', returning best effort")
 
-        return self._tag_results(results, original_query, current_query,
-                                 note="results may be limited" if not results else None)
+            tagged = self._tag_results(
+                results, original_query, current_query,
+                note="results may be limited" if not results else None,
+            )
+            self._update_search_span(
+                span, tagged, was_reformulated=(current_query != original_query)
+            )
+            return tagged
+
+    @staticmethod
+    def _update_search_span(span, results, was_reformulated):
+        """Attach parent-span metadata summarizing the cascade outcome."""
+        if span is None:
+            return
+        try:
+            served_by = results[0].get("_served_by") if results else None
+            upstream_engine = results[0].get("engine") if results else None
+            span.update(metadata={
+                "backend_used": served_by,
+                "upstream_engine": upstream_engine,
+                "result_count": len(results),
+                "was_reformulated": was_reformulated,
+            })
+        except Exception:
+            pass
 
     def _search_once(self, query, max_results=10):
         """Execute a single search attempt across all backends.
@@ -504,8 +546,26 @@ class Reaper:
         for name, available, method in order:
             if not available:
                 continue
-            results = method(query, max_results)
+            with observed_span("reaper.search.attempt", backend=name) as child:
+                t0 = time.monotonic()
+                results = method(query, max_results)
+                if child is not None:
+                    try:
+                        child.update(metadata={
+                            "backend": name,
+                            "result_count": len(results),
+                            "latency_ms": (time.monotonic() - t0) * 1000.0,
+                            "served": bool(results),
+                        })
+                    except Exception:
+                        pass
             if results:
+                # Tag each result with the rung that served so the adapter
+                # can record provenance separately from the upstream engine
+                # name (SearXNG aggregates many — "engine" can legitimately
+                # read "duckduckgo" even when the SearXNG rung served).
+                for r in results:
+                    r["_served_by"] = name
                 return results
 
         print(f"[Reaper] No search backend available for: '{query}'")

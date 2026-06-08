@@ -1,9 +1,8 @@
 """Tests for Reaper's SearXNG integration.
 
 Covers the Phase B Track D integration: the rung's HTTP plumbing, the
-TTL-cached health probe (boot-race fix), and the typed-settings wiring
-that finally makes ``config.reaper.searxng_enabled`` / ``search_backend``
-non-decorative.
+TTL-cached health probe (boot-race fix), and downstream concerns
+(observability spans, ToolResult metadata) introduced in later steps.
 
 All web calls are mocked — no real SearXNG instance required.
 """
@@ -326,6 +325,175 @@ class TestCascadeOrderRespectsBackendSetting:
 
         mock_searxng.assert_called_once()
         mock_ddg.assert_not_called()
+
+
+class TestToolResultMetadata:
+    """The Reaper adapter at reaper_module.py must populate ToolResult.metadata
+    with the backend used, reformulation flag, and final query, so the router
+    can reason about provenance without walking the result list."""
+
+    @pytest.fixture
+    def reaper_module(self, mock_grimoire, tmp_path, monkeypatch):
+        """Build a real ReaperModule wired to a Reaper with SearXNG up."""
+        from modules.reaper.reaper_module import ReaperModule
+        from shadow.config import config
+
+        monkeypatch.setattr(config.reaper, "searxng_enabled", True)
+        with patch.object(Reaper, "_check_searxng", return_value=True):
+            module = ReaperModule(config={}, grimoire_instance=mock_grimoire)
+            # Replace the internally-built Reaper with one rooted at tmp_path
+            # so test artifacts stay out of the repo.
+            module._reaper = Reaper(
+                grimoire=mock_grimoire, data_dir=str(tmp_path / "research"),
+            )
+        return module
+
+    @patch("modules.reaper.reaper.time.sleep")
+    @patch("modules.reaper.reaper.requests.get")
+    @pytest.mark.asyncio
+    async def test_metadata_records_backend_used(
+        self, mock_get, mock_sleep, reaper_module
+    ):
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.json.return_value = SEARXNG_OK_RESPONSE
+        mock_resp.raise_for_status.return_value = None
+        mock_get.return_value = mock_resp
+
+        result = await reaper_module.execute(
+            "web_search", {"query": "python 3.14", "max_results": 3}
+        )
+
+        assert result.success is True
+        assert result.metadata is not None
+        # Backend records the RUNG that served (searxng/ddg/brave/bing),
+        # distinct from the upstream engine within that rung.
+        assert result.metadata["backend"] == "searxng"
+        assert result.metadata["engine"] in {"google", "reddit"}
+        assert result.metadata["was_reformulated"] is False
+        assert result.metadata["final_query"] == "python 3.14"
+
+    @patch("modules.reaper.reaper.time.sleep")
+    @patch("modules.reaper.reaper.requests.get")
+    @pytest.mark.asyncio
+    async def test_metadata_records_empty_backend_when_no_results(
+        self, mock_get, mock_sleep, reaper_module
+    ):
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.json.return_value = {"results": []}
+        mock_resp.raise_for_status.return_value = None
+        mock_get.return_value = mock_resp
+
+        # Also disable DDG so the cascade exits empty.
+        reaper_module._reaper.ddg_available = False
+        reaper_module._reaper.bing_available = False
+
+        result = await reaper_module.execute(
+            "web_search", {"query": "asdfqwerty", "max_results": 3}
+        )
+
+        assert result.success is True
+        assert result.metadata is not None
+        assert result.metadata["backend"] is None
+
+
+class TestObservabilitySpans:
+    """Search() must emit a parent span and one child span per attempted rung.
+    Verified by monkey-patching observed_span and recording every entry."""
+
+    def _record_spans(self, monkeypatch):
+        from contextlib import contextmanager
+
+        calls = []
+
+        class FakeSpan:
+            def __init__(self, name):
+                self.name = name
+                self.metadata = None
+
+            def update(self, metadata=None):
+                self.metadata = metadata
+
+        @contextmanager
+        def fake_observed_span(name, **metadata):
+            span = FakeSpan(name)
+            calls.append({"name": name, "open_metadata": metadata, "span": span})
+            yield span
+
+        monkeypatch.setattr(
+            "modules.reaper.reaper.observed_span", fake_observed_span
+        )
+        return calls
+
+    @patch("modules.reaper.reaper.time.sleep")
+    @patch("modules.reaper.reaper.requests.get")
+    def test_parent_and_child_spans_emit(
+        self, mock_get, mock_sleep, reaper_searxng_up, monkeypatch
+    ):
+        calls = self._record_spans(monkeypatch)
+
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.json.return_value = SEARXNG_OK_RESPONSE
+        mock_resp.raise_for_status.return_value = None
+        mock_get.return_value = mock_resp
+
+        reaper_searxng_up.search("python 3.14", max_results=3)
+
+        names = [c["name"] for c in calls]
+        # Parent span first.
+        assert names[0] == "reaper.search"
+        # At least one child attempt span — the SearXNG rung.
+        assert "reaper.search.attempt" in names
+
+    @patch("modules.reaper.reaper.time.sleep")
+    @patch("modules.reaper.reaper.requests.get")
+    def test_child_span_records_backend_and_count(
+        self, mock_get, mock_sleep, reaper_searxng_up, monkeypatch
+    ):
+        calls = self._record_spans(monkeypatch)
+
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.json.return_value = SEARXNG_OK_RESPONSE
+        mock_resp.raise_for_status.return_value = None
+        mock_get.return_value = mock_resp
+
+        reaper_searxng_up.search("python 3.14", max_results=3)
+
+        # First child span is the SearXNG attempt (DDG order default).
+        child = next(c for c in calls if c["name"] == "reaper.search.attempt")
+        assert child["open_metadata"]["backend"] == "searxng"
+        assert child["span"].metadata is not None
+        assert child["span"].metadata["backend"] == "searxng"
+        assert child["span"].metadata["result_count"] == 2
+        assert child["span"].metadata["served"] is True
+        assert isinstance(child["span"].metadata["latency_ms"], float)
+
+    @patch("modules.reaper.reaper.time.sleep")
+    @patch("modules.reaper.reaper.requests.get")
+    def test_parent_span_records_backend_used(
+        self, mock_get, mock_sleep, reaper_searxng_up, monkeypatch
+    ):
+        calls = self._record_spans(monkeypatch)
+
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        # Pretend Google was the upstream that served.
+        mock_resp.json.return_value = SEARXNG_OK_RESPONSE
+        mock_resp.raise_for_status.return_value = None
+        mock_get.return_value = mock_resp
+
+        reaper_searxng_up.search("python 3.14", max_results=3)
+
+        parent = next(c for c in calls if c["name"] == "reaper.search")
+        assert parent["span"].metadata is not None
+        # Parent records which RUNG served (searxng/ddg/brave/bing),
+        # distinct from the upstream engine name within that rung.
+        assert parent["span"].metadata["backend_used"] == "searxng"
+        assert parent["span"].metadata["upstream_engine"] in {"google", "reddit"}
+        assert parent["span"].metadata["result_count"] == 2
 
 
 class TestTypedSettingsOverrideBaseUrl:
