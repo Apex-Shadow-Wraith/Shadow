@@ -228,7 +228,14 @@ The first pass through the codebase undercounted the test surface by ~20×. Cuto
 
 12 strategies × fatigue tracking × Apex escalation thresholds. Encoding this purely as conditional edges + state would hurt readability and break the 40 existing retry tests. Recommendation: keep `RetryEngine` as a class invoked from a single graph node that loops via a conditional self-edge. Not a hybrid; just pragmatic node design.
 
-### 6.5 Spec predates Track C / Track D instrumentation
+### 6.5 Checkpointer sync/async split — and `ToolResult` msgpack registration
+
+Two LangGraph-internal findings surfaced during the spike:
+
+- **Sync graphs need `SqliteSaver`; async graphs need `AsyncSqliteSaver`.** They are not interchangeable — calling `graph.ainvoke()` against a `SqliteSaver` raises `NotImplementedError` on `aget_tuple`. Same split exists on the Postgres side (`PostgresSaver` vs. `AsyncPostgresSaver`). The orchestrator is fully async today, so the cutover lands on `AsyncSqliteSaver` (and later `AsyncPostgresSaver` for Track A). Worth pinning the contract early so module sub-graphs don't drift.
+- **`ToolResult` triggers a forward-compat warning** during checkpoint serialization: `Deserializing unregistered type modules.base.ToolResult from checkpoint. This will be blocked in a future version.` LangGraph's msgpack serde doesn't know about Shadow dataclasses and falls back to pickle. The cutover needs to either register `ToolResult` via `allowed_msgpack_modules` (config-level) or provide a custom serde. Cheap to fix; expensive to discover mid-migration if not flagged now.
+
+### 6.6 Spec predates Track C / Track D instrumentation
 
 §5.3 does not mention `observed_span`, the orchestrator's three child spans, or Reaper's search-cascade spans (Track D). The cutover prompt should treat the **current observability surface** as authoritative, not the spec. The graph topology in §3 reflects current reality.
 
