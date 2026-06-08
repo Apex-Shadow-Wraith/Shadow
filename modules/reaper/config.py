@@ -239,6 +239,7 @@ ALWAYS_SKIP_PATTERNS = [
 # SearXNG (primary) — runs in Docker locally
 SEARXNG_URL = "http://localhost:8888"
 SEARXNG_TIMEOUT = 15  # seconds
+SEARXNG_HEALTH_TTL_S = 60  # how long to trust a probe result before re-checking
 
 # DuckDuckGo (first fallback) — no setup needed, always available
 DDG_MAX_RESULTS = 20

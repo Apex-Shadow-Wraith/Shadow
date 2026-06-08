@@ -72,7 +72,7 @@ from .config import (
     REDDIT_MIN_SCORE_STANDING, REDDIT_MIN_SCORE_HIGH_SIGNAL,
     REDDIT_MAX_COMMENTS_STORED, YOUTUBE_SUMMARY_CHAR_THRESHOLD,
     WEB_MAX_ARTICLE_CHARS, WEB_SKIP_OLDER_THAN_DAYS,
-    ALWAYS_SKIP_PATTERNS, SEARXNG_URL, SEARXNG_TIMEOUT,
+    ALWAYS_SKIP_PATTERNS, SEARXNG_URL, SEARXNG_TIMEOUT, SEARXNG_HEALTH_TTL_S,
     DDG_MAX_RESULTS, QUERY_EXPANSION_COUNT,
     OLLAMA_URL, LLM_MODEL,
     TEMP_RELEVANCE_SCORING, TEMP_SUMMARIZATION, TEMP_QUERY_EXPANSION,
@@ -308,7 +308,15 @@ class Reaper:
         from shadow.config import config as _shadow_config
 
         self._settings = _shadow_config.reaper
-        self.searxng_available = self._check_searxng()
+        # SearXNG health is TTL-cached so the rung can recover if the stack
+        # is brought up after Reaper. The initial probe primes the cache and
+        # drives the human-visible startup status line below.
+        self._searxng_health_cached: bool = False
+        self._searxng_health_last_check: float = 0.0
+        self._searxng_health_ttl_s: float = SEARXNG_HEALTH_TTL_S
+        self._searxng_health_cached = self._check_searxng()
+        self._searxng_health_last_check = time.monotonic()
+        self.searxng_available = self._searxng_health_cached
         self.ddg_available = HAS_DDG
         self.bing_available = HAS_BS4  # Bing scraping only needs BeautifulSoup
         self.brave_api_key = (
@@ -335,16 +343,28 @@ class Reaper:
     # =========================================================================
 
     def _check_searxng(self):
-        """Check if SearXNG is running and responding."""
+        """One-shot reachability probe. Use _searxng_is_available() at call
+        sites — it adds TTL caching so the stack-came-up-late case recovers
+        within one TTL window."""
         try:
             response = requests.get(
-                f"{SEARXNG_URL}/search",
-                params={"q": "test", "format": "json"},
-                timeout=5
+                f"{SEARXNG_URL}/healthz",
+                timeout=5,
             )
             return response.status_code == 200
         except Exception:
             return False
+
+    def _searxng_is_available(self) -> bool:
+        """Return cached SearXNG availability; re-probe after the TTL window
+        elapses. Fixes the boot-race where a one-shot probe at init left the
+        rung dead forever if SearXNG started after Reaper."""
+        now = time.monotonic()
+        if now - self._searxng_health_last_check >= self._searxng_health_ttl_s:
+            self._searxng_health_cached = self._check_searxng()
+            self._searxng_health_last_check = now
+            self.searxng_available = self._searxng_health_cached
+        return self._searxng_health_cached
 
     @staticmethod
     def _is_reddit_query(query: str) -> bool:
@@ -460,20 +480,20 @@ class Reaper:
             # Brave-primary cascade
             order = [
                 ("brave", self.brave_available and self._brave_get_usage() < BRAVE_MONTHLY_QUOTA, self._search_brave),
-                ("searxng", self.searxng_available, self._search_searxng),
+                ("searxng", self._searxng_is_available(), self._search_searxng),
                 ("ddg", self.ddg_available, self._search_ddg),
                 ("bing", self.bing_available, self._search_bing),
             ]
         elif backend == "searxng":
             order = [
-                ("searxng", self.searxng_available, self._search_searxng),
+                ("searxng", self._searxng_is_available(), self._search_searxng),
                 ("brave", self.brave_available and self._brave_get_usage() < BRAVE_MONTHLY_QUOTA, self._search_brave),
                 ("ddg", self.ddg_available, self._search_ddg),
                 ("bing", self.bing_available, self._search_bing),
             ]
         else:  # "ddg" (default)
             order = [
-                ("searxng", self.searxng_available, self._search_searxng),
+                ("searxng", self._searxng_is_available(), self._search_searxng),
                 ("ddg", self.ddg_available, self._search_ddg),
                 ("brave", self.brave_available and self._brave_get_usage() < BRAVE_MONTHLY_QUOTA, self._search_brave),
                 ("bing", self.bing_available, self._search_bing),
@@ -485,9 +505,6 @@ class Reaper:
             results = method(query, max_results)
             if results:
                 return results
-            # SearXNG may go down — re-check
-            if name == "searxng":
-                self.searxng_available = self._check_searxng()
 
         print(f"[Reaper] No search backend available for: '{query}'")
         return []
@@ -519,7 +536,7 @@ class Reaper:
                     "categories": "general",
                     "language": "en",
                 },
-                timeout=SEARXNG_TIMEOUT
+                timeout=SEARXNG_TIMEOUT,
             )
             response.raise_for_status()
             data = response.json()
