@@ -37,6 +37,13 @@ Public surface:
   layer; Reaper additionally preserves its inner-engine ``reaper.search``
   spans by delegating through ``execute`` rather than duplicating dispatch.
   Same additive posture — nothing on the orchestrator path imports them.
+- ``RouterNode`` / ``make_router_node`` — router *delegating node* (not a
+  sub-graph) that hands the route decision to the live
+  :meth:`Orchestrator._step2_classify` and bridges cross-invocation route
+  memory between ``Orchestrator._last_route`` and the checkpointed
+  ``state["last_route"]``. Span-silent at the node layer; preserves the
+  fast-path classifier, the Session-47 override, the LLM router, and the
+  keyword fallback by delegation. Same additive posture.
 """
 
 from __future__ import annotations
@@ -60,6 +67,10 @@ from modules.shadow.graph.omen_node import (
 from modules.shadow.graph.reaper_node import (
     ReaperNode,
     make_reaper_node,
+)
+from modules.shadow.graph.router_node import (
+    RouterNode,
+    make_router_node,
 )
 from modules.shadow.graph.shadow_module_node import (
     ShadowModuleNode,
@@ -98,6 +109,7 @@ __all__ = [
     "NovaNode",
     "OmenNode",
     "ReaperNode",
+    "RouterNode",
     "ShadowModuleNode",
     "ShadowState",
     "WraithNode",
@@ -113,6 +125,7 @@ __all__ = [
     "make_nova_node",
     "make_omen_node",
     "make_reaper_node",
+    "make_router_node",
     "make_shadow_module_node",
     "make_wraith_node",
     "open_async_sqlite_saver",
