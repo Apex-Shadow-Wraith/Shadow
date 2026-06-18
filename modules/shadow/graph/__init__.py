@@ -24,10 +24,18 @@ Public surface:
   to the live :meth:`Cerberus.execute`. Same additive posture; delegation
   preserves the heartbeat side effect the external watchdog daemon depends
   on.
+- ``ApexNode`` / ``make_apex_node`` — Apex *delegating node* (not a
+  sub-graph) that hands dispatch to the live :meth:`Apex.execute`. Single
+  node per design doc §4 (Apex is the fallback leg wired directly into the
+  parent graph); no ``StateGraph`` / compile wrapper. Same additive posture.
 """
 
 from __future__ import annotations
 
+from modules.shadow.graph.apex_node import (
+    ApexNode,
+    make_apex_node,
+)
 from modules.shadow.graph.cerberus_subgraph import (
     CerberusCallState,
     build_cerberus_subgraph,
@@ -50,6 +58,7 @@ from modules.shadow.graph.skeleton import (
 )
 
 __all__ = [
+    "ApexNode",
     "CerberusCallState",
     "GrimoireCallState",
     "ShadowState",
@@ -60,6 +69,7 @@ __all__ = [
     "compile_cerberus_subgraph",
     "compile_grimoire_subgraph",
     "compile_skeleton",
+    "make_apex_node",
     "open_async_sqlite_saver",
     "shadow_serde",
 ]
