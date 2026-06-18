@@ -106,3 +106,41 @@ choice.
    - The test
      `tests/test_grimoire_subgraph.py::test_grimoire_subgraph_inherits_live_blocking_for_sync_tools`
      pins the inherited behavior so the refactor knows what tightens.
+
+---
+
+## Carried from Step 1 (Router)
+
+8. **Phantom "63/63 orchestrator sanity" gate — corrected.** The Session 50
+   Step 3a working notes asserted the router/dispatcher build "validates
+   262/262 Cerberus regression green and 63/63 orchestrator sanity green."
+   There is **no 63-test orchestrator gate**. Verified counts (`grep -c` for
+   `def test_` / `async def test_`): `tests/test_orchestrator.py` = 192,
+   `tests/test_decision_loop.py` = 9 → **201** total. The orchestrator-untouched
+   gate is the *green-tests-AND-import-isolation* rule, **not a fixed count**:
+   `test_orchestrator.py` + `test_decision_loop.py` green (currently 201) AND
+   `grep -rn 'modules.shadow.graph' modules/ main.py | grep -v 'modules/shadow/graph/'`
+   → empty. The phantom figure was struck at source (the Step 3a notes) and in
+   the promoted [cerberus-safety-gate.md](cerberus-safety-gate.md); recorded
+   here so no future step re-imports "63/63."
+
+9. **Concurrent-mutation hazard on `orchestrator._last_route`.** The router
+   delegating node ([modules/shadow/graph/router_node.py](../../../modules/shadow/graph/router_node.py))
+   bridges cross-invocation route memory by hydrating
+   `orchestrator._last_route` from the checkpointed `state["last_route"]`
+   before delegating to `_step2_classify`, then mirroring the live write back
+   onto `orchestrator._last_route` (parity with
+   [orchestrator.py:1201](../../../modules/shadow/orchestrator.py#L1201)).
+   `_last_route` is a **shared instance attribute**. This is correct under
+   sequential invocation, but under **concurrent node execution across distinct
+   `thread_id`s** it becomes a cross-`thread_id` route-memory leak — invocation
+   A hydrates the attr from thread A's checkpoint, invocation B overwrites it
+   from thread B's, then A reads B's route. The per-thread `state["last_route"]`
+   checkpoint is correct; the shared live attribute is the leak. The real fix —
+   route `last_route` purely through graph state, i.e. make the contextual-
+   reference read at [orchestrator.py:2173](../../../modules/shadow/orchestrator.py#L2173)
+   consume `state["last_route"]` instead of `self._last_route` — requires
+   touching `_fast_path_classify` and is therefore **blocked by the
+   orchestrator-untouched constraint** of the additive router step. **Deferred
+   to the parent-graph integration step**, which must close it deliberately
+   (the additive node keeps the instance-attribute mutation in the meantime).
