@@ -28,6 +28,15 @@ Public surface:
   sub-graph) that hands dispatch to the live :meth:`Apex.execute`. Single
   node per design doc §4 (Apex is the fallback leg wired directly into the
   parent graph); no ``StateGraph`` / compile wrapper. Same additive posture.
+- ``WraithNode`` / ``make_wraith_node``, ``ReaperNode`` /
+  ``make_reaper_node``, ``HarbingerNode`` / ``make_harbinger_node``,
+  ``NovaNode`` / ``make_nova_node``, ``OmenNode`` / ``make_omen_node``,
+  ``ShadowModuleNode`` / ``make_shadow_module_node`` — six more *delegating
+  nodes* (not sub-graphs) over the flat-dispatch leaf modules, each handing
+  dispatch to the module's live ``execute``. All span-silent at the node
+  layer; Reaper additionally preserves its inner-engine ``reaper.search``
+  spans by delegating through ``execute`` rather than duplicating dispatch.
+  Same additive posture — nothing on the orchestrator path imports them.
 """
 
 from __future__ import annotations
@@ -35,6 +44,30 @@ from __future__ import annotations
 from modules.shadow.graph.apex_node import (
     ApexNode,
     make_apex_node,
+)
+from modules.shadow.graph.harbinger_node import (
+    HarbingerNode,
+    make_harbinger_node,
+)
+from modules.shadow.graph.nova_node import (
+    NovaNode,
+    make_nova_node,
+)
+from modules.shadow.graph.omen_node import (
+    OmenNode,
+    make_omen_node,
+)
+from modules.shadow.graph.reaper_node import (
+    ReaperNode,
+    make_reaper_node,
+)
+from modules.shadow.graph.shadow_module_node import (
+    ShadowModuleNode,
+    make_shadow_module_node,
+)
+from modules.shadow.graph.wraith_node import (
+    WraithNode,
+    make_wraith_node,
 )
 from modules.shadow.graph.cerberus_subgraph import (
     CerberusCallState,
@@ -61,7 +94,13 @@ __all__ = [
     "ApexNode",
     "CerberusCallState",
     "GrimoireCallState",
+    "HarbingerNode",
+    "NovaNode",
+    "OmenNode",
+    "ReaperNode",
+    "ShadowModuleNode",
     "ShadowState",
+    "WraithNode",
     "build_cerberus_subgraph",
     "build_grimoire_subgraph",
     "build_shadow_serde",
@@ -70,6 +109,12 @@ __all__ = [
     "compile_grimoire_subgraph",
     "compile_skeleton",
     "make_apex_node",
+    "make_harbinger_node",
+    "make_nova_node",
+    "make_omen_node",
+    "make_reaper_node",
+    "make_shadow_module_node",
+    "make_wraith_node",
     "open_async_sqlite_saver",
     "shadow_serde",
 ]
