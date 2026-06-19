@@ -51,6 +51,14 @@ Public surface:
   :meth:`Orchestrator._step5_execute`. Preserves the three-verdict per-tool hook,
   the heartbeat seam, and the async/post-hook surface by delegation. Same
   additive posture — nothing on the orchestrator path imports it.
+- ``RetryCallState`` / ``build_retry_subgraph`` / ``compile_retry_subgraph`` —
+  retry *delegating node* with a conditional **self-edge**: one node loops back
+  on the engine's "retry" verdict and exits to ``END`` on "succeeded" /
+  "exhausted". Rotation stays *data* — the node delegates strategy selection to
+  :meth:`RetryEngine.get_strategy_for_attempt` and the give-up decision to
+  :meth:`RetryEngine.should_escalate`, never forking the rotation into topology.
+  Unlike the other (span-silent) nodes it *preserves* the live ``retry_attempt``
+  span. Same additive posture — nothing on the orchestrator path imports it.
 """
 
 from __future__ import annotations
@@ -101,6 +109,12 @@ from modules.shadow.graph.grimoire_subgraph import (
     build_grimoire_subgraph,
     compile_grimoire_subgraph,
 )
+from modules.shadow.graph.retry_graph import (
+    RetryCallState,
+    build_retry_subgraph,
+    compile_retry_subgraph,
+    make_retry_node,
+)
 from modules.shadow.graph.serde import (
     build_shadow_serde,
     open_async_sqlite_saver,
@@ -120,6 +134,7 @@ __all__ = [
     "NovaNode",
     "OmenNode",
     "ReaperNode",
+    "RetryCallState",
     "RouterNode",
     "ShadowModuleNode",
     "ShadowState",
@@ -127,17 +142,20 @@ __all__ = [
     "build_cerberus_subgraph",
     "build_dispatch_subgraph",
     "build_grimoire_subgraph",
+    "build_retry_subgraph",
     "build_shadow_serde",
     "build_skeleton",
     "compile_cerberus_subgraph",
     "compile_dispatch_subgraph",
     "compile_grimoire_subgraph",
+    "compile_retry_subgraph",
     "compile_skeleton",
     "make_apex_node",
     "make_harbinger_node",
     "make_nova_node",
     "make_omen_node",
     "make_reaper_node",
+    "make_retry_node",
     "make_router_node",
     "make_shadow_module_node",
     "make_wraith_node",
