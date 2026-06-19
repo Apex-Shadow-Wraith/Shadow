@@ -51,14 +51,18 @@ Public surface:
   :meth:`Orchestrator._step5_execute`. Preserves the three-verdict per-tool hook,
   the heartbeat seam, and the async/post-hook surface by delegation. Same
   additive posture — nothing on the orchestrator path imports it.
-- ``RetryCallState`` / ``build_retry_subgraph`` / ``compile_retry_subgraph`` —
-  retry *delegating node* with a conditional **self-edge**: one node loops back
-  on the engine's "retry" verdict and exits to ``END`` on "succeeded" /
-  "exhausted". Rotation stays *data* — the node delegates strategy selection to
-  :meth:`RetryEngine.get_strategy_for_attempt` and the give-up decision to
-  :meth:`RetryEngine.should_escalate`, never forking the rotation into topology.
-  Unlike the other (span-silent) nodes it *preserves* the live ``retry_attempt``
-  span. Same additive posture — nothing on the orchestrator path imports it.
+- ``RetryCallState`` / ``make_retry_node`` / ``build_retry_subgraph`` /
+  ``compile_retry_subgraph`` — retry *delegating node* (single ``retry`` node,
+  ``START → retry → END``, **no self-edge**) that delegates the *whole* 12-attempt
+  loop to live code via one :meth:`RetryEngine.attempt_task` call, forwarding the
+  same ``execute_fn`` / ``evaluate_fn`` / ``grimoire_search_fn`` / ``notify_fn``
+  closures the live path builds. Supersedes the prior self-edge node, which
+  reimplemented the loop from lower-level primitives and dropped 5 behaviors
+  (deterministic early-exit, fatigue counter, Grimoire preflight, progress
+  notifications, ``_record_session``); whole-call delegation runs all of them
+  inside the engine and preserves the live ``retry_attempt`` span. The node layer
+  is span-silent. Same additive posture — nothing on the orchestrator path imports
+  it.
 """
 
 from __future__ import annotations

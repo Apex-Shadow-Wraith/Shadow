@@ -144,3 +144,37 @@ choice.
    orchestrator-untouched constraint** of the additive router step. **Deferred
    to the parent-graph integration step**, which must close it deliberately
    (the additive node keeps the instance-attribute mutation in the meantime).
+
+10. **Retry self-edge node superseded by whole-loop delegation (S51b).** The
+    first retry-graph commit drove its own attempt loop from `attempt_task`'s
+    primitives (`get_strategy_for_attempt` / `_build_strategy_context` /
+    `classify_failure` / `should_escalate`) across a conditional self-edge,
+    bypassing [retry_engine.py:352](../../../modules/shadow/retry_engine.py#L352)
+    entirely, and silently dropped 5 behaviors that live *inside* `attempt_task`:
+    deterministic-failure early-exit
+    ([retry_engine.py:476-489](../../../modules/shadow/retry_engine.py#L476-L489)),
+    the fatigue counter
+    ([:404-405](../../../modules/shadow/retry_engine.py#L404-L405) /
+    [:413-414](../../../modules/shadow/retry_engine.py#L413-L414)), the Grimoire
+    preflight ([:329-350](../../../modules/shadow/retry_engine.py#L329-L350)),
+    progress notifications ([:502-503](../../../modules/shadow/retry_engine.py#L502-L503)),
+    and `_record_session`
+    ([:444](../../../modules/shadow/retry_engine.py#L444) /
+    [:465](../../../modules/shadow/retry_engine.py#L465) /
+    [:521](../../../modules/shadow/retry_engine.py#L521)). The 40
+    `tests/test_retry_engine.py` tests call `attempt_task` directly, so they
+    guarded the live loop, **not** the node's reimplemented driver — green
+    tests over an untouched path. The pre-decision "retry = self-edge, rotation
+    as data" assumed a per-attempt public primitive that does not exist;
+    `attempt_task` owns the whole 12-attempt loop. **Superseded:** retry is now a
+    single node delegating the whole `attempt_task` call to live code, forwarding
+    the same `execute_fn` / `evaluate_fn` / `grimoire_search_fn` / `notify_fn`
+    closures the live path builds at
+    [orchestrator.py:4698-4709](../../../modules/shadow/orchestrator.py#L4698-L4709)
+    — same posture as `dispatch_node` → `_step5_execute`. Rotation stays entirely
+    inside the engine as data; the graph models no per-attempt topology.
+    Delegation seam chosen at `attempt_task` (not the higher `_step5_with_retry`)
+    because `_step5_with_retry` re-wraps `_step5_execute` (already
+    `dispatch_node`'s) plus Apex escalation / decomposition concerns beyond the
+    retry loop. 6th "looks governed but isn't" of the phase; **first caught
+    pre-ship.**
