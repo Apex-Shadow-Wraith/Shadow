@@ -63,6 +63,16 @@ Public surface:
   inside the engine and preserves the live ``retry_attempt`` span. The node layer
   is span-silent. Same additive posture — nothing on the orchestrator path imports
   it.
+- ``make_routable_gate`` / ``build_routable_gate_subgraph`` /
+  ``compile_routable_gate_subgraph`` — routable-module reachability gate that
+  lifts the live ``registry.is_routable()`` dormancy filter onto a conditional
+  edge: a non-routable target (currently Morpheus when ``config.morpheus.enabled``
+  is False) routes to a terminal ``dormant`` node and never reaches a module, while
+  a routable target reaches a ``dispatch`` node that delegates the per-step loop to
+  the live :meth:`Orchestrator._step5_execute`. General (any non-routable module),
+  not Morpheus-special, and **defense-in-depth** over the router's upstream
+  ``is_routable`` filtering. Span-silent. Same additive posture — nothing on the
+  orchestrator path imports it.
 """
 
 from __future__ import annotations
@@ -113,6 +123,11 @@ from modules.shadow.graph.grimoire_subgraph import (
     build_grimoire_subgraph,
     compile_grimoire_subgraph,
 )
+from modules.shadow.graph.morpheus_gate import (
+    build_routable_gate_subgraph,
+    compile_routable_gate_subgraph,
+    make_routable_gate,
+)
 from modules.shadow.graph.retry_graph import (
     RetryCallState,
     build_retry_subgraph,
@@ -147,12 +162,14 @@ __all__ = [
     "build_dispatch_subgraph",
     "build_grimoire_subgraph",
     "build_retry_subgraph",
+    "build_routable_gate_subgraph",
     "build_shadow_serde",
     "build_skeleton",
     "compile_cerberus_subgraph",
     "compile_dispatch_subgraph",
     "compile_grimoire_subgraph",
     "compile_retry_subgraph",
+    "compile_routable_gate_subgraph",
     "compile_skeleton",
     "make_apex_node",
     "make_harbinger_node",
@@ -160,6 +177,7 @@ __all__ = [
     "make_omen_node",
     "make_reaper_node",
     "make_retry_node",
+    "make_routable_gate",
     "make_router_node",
     "make_shadow_module_node",
     "make_wraith_node",
