@@ -44,6 +44,13 @@ Public surface:
   ``state["last_route"]``. Span-silent at the node layer; preserves the
   fast-path classifier, the Session-47 override, the LLM router, and the
   keyword fallback by delegation. Same additive posture.
+- ``build_dispatch_subgraph`` / ``compile_dispatch_subgraph`` — dispatcher
+  sub-graph that lifts the plan-level Cerberus short-circuit onto a conditional
+  edge (``cerberus_approved=False`` → terminal ``blocked`` node, never reaching a
+  module) and delegates the per-step loop to the live
+  :meth:`Orchestrator._step5_execute`. Preserves the three-verdict per-tool hook,
+  the heartbeat seam, and the async/post-hook surface by delegation. Same
+  additive posture — nothing on the orchestrator path imports it.
 """
 
 from __future__ import annotations
@@ -85,6 +92,10 @@ from modules.shadow.graph.cerberus_subgraph import (
     build_cerberus_subgraph,
     compile_cerberus_subgraph,
 )
+from modules.shadow.graph.dispatch_graph import (
+    build_dispatch_subgraph,
+    compile_dispatch_subgraph,
+)
 from modules.shadow.graph.grimoire_subgraph import (
     GrimoireCallState,
     build_grimoire_subgraph,
@@ -114,10 +125,12 @@ __all__ = [
     "ShadowState",
     "WraithNode",
     "build_cerberus_subgraph",
+    "build_dispatch_subgraph",
     "build_grimoire_subgraph",
     "build_shadow_serde",
     "build_skeleton",
     "compile_cerberus_subgraph",
+    "compile_dispatch_subgraph",
     "compile_grimoire_subgraph",
     "compile_skeleton",
     "make_apex_node",
