@@ -108,6 +108,55 @@ def _gate(state: ShadowState) -> Literal["blocked", "dispatch"]:
     return "dispatch"
 
 
+# Public alias for the plan-level Cerberus gate predicate. ``_gate`` stays the
+# internal name (and the branch key the standalone sub-graph + its tests key on);
+# ``plan_gate`` is the public composition handle the parent graph imports, so the
+# parent assembler reuses the *same* predicate rather than reaching for a private
+# name or re-declaring the gate (which would risk drift from ``orchestrator.py:4923``).
+plan_gate = _gate
+
+
+async def blocked_node(state: ShadowState) -> ShadowState:
+    """Terminal denial node — byte-for-byte parity with ``orchestrator.py:4924-4930``.
+
+    Module-level so both :func:`build_dispatch_subgraph` and the parent-graph
+    assembler reuse the one denial envelope. Pure (no captured state); never
+    touches a module.
+    """
+    return {
+        "tool_results": [
+            ToolResult(
+                success=False,
+                content=None,
+                tool_name="plan",
+                module="orchestrator",
+                error="Plan was denied by Cerberus",
+            )
+        ]
+    }
+
+
+def make_dispatch_node(orchestrator: Orchestrator):
+    """Build the module-dispatch node, closed over the live ``orchestrator``.
+
+    Module-level factory so the parent-graph assembler reuses the *same*
+    dispatch node the standalone sub-graph uses — delegating the entire per-step
+    loop to :meth:`Orchestrator._step5_execute` (three-verdict hook, heartbeat
+    seam via ``cerberus.execute``, async-queue branch, post-hook, exception
+    envelope all preserved). Reimplements no part of the loop.
+    """
+
+    async def dispatch_node(state: ShadowState) -> ShadowState:
+        results = await orchestrator._step5_execute(
+            state["plan"],
+            state["classification"],
+            state.get("source", "user"),
+        )
+        return {"tool_results": results}
+
+    return dispatch_node
+
+
 def build_dispatch_subgraph(orchestrator: Orchestrator) -> StateGraph:
     """Construct the dispatcher sub-graph builder (not compiled).
 
@@ -122,35 +171,9 @@ def build_dispatch_subgraph(orchestrator: Orchestrator) -> StateGraph:
             the dispatch node delegates to.
     """
 
-    async def blocked_node(state: ShadowState) -> ShadowState:
-        # Byte-for-byte parity with the denial ToolResult at
-        # orchestrator.py:4924-4930. Terminal — never touches a module.
-        return {
-            "tool_results": [
-                ToolResult(
-                    success=False,
-                    content=None,
-                    tool_name="plan",
-                    module="orchestrator",
-                    error="Plan was denied by Cerberus",
-                )
-            ]
-        }
-
-    async def dispatch_node(state: ShadowState) -> ShadowState:
-        # Delegate the entire per-step loop to live code. This carries the
-        # three-verdict hook, the heartbeat seam (hooks via cerberus.execute),
-        # the async-queue branch, the post-hook, and the exception envelope.
-        results = await orchestrator._step5_execute(
-            state["plan"],
-            state["classification"],
-            state.get("source", "user"),
-        )
-        return {"tool_results": results}
-
     builder = StateGraph(ShadowState)
     builder.add_node("blocked", blocked_node)
-    builder.add_node("dispatch", dispatch_node)
+    builder.add_node("dispatch", make_dispatch_node(orchestrator))
     builder.add_conditional_edges(
         START,
         _gate,

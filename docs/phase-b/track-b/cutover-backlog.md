@@ -144,6 +144,21 @@ choice.
    orchestrator-untouched constraint** of the additive router step. **Deferred
    to the parent-graph integration step**, which must close it deliberately
    (the additive node keeps the instance-attribute mutation in the meantime).
+   - **Parent-graph step update (carried, not yet closed).** The parent graph
+     ([modules/shadow/graph/parent.py](../../../modules/shadow/graph/parent.py))
+     runs nodes **sequentially within a single `ainvoke`** — `dispatch` has
+     in-degree 1, `plan` has in-degree 1, and the only branch points are the two
+     *mutually exclusive* conditional gates, so one invocation walks one linear
+     path with no intra-invocation race (asserted by
+     `tests/test_parent_graph.py::test_item9_single_linear_path_per_invocation`).
+     The residual hazard is **concurrent invocations across distinct `thread_id`s
+     against one shared orchestrator instance**, which cannot bite pre-flip: no
+     live caller invokes the graph yet, let alone concurrently. The real fix
+     (route `last_route` purely through `state`, i.e.
+     [orchestrator.py:2173](../../../modules/shadow/orchestrator.py#L2173) reads
+     `state["last_route"]`) still requires touching `_fast_path_classify` and so
+     **carries to the flip dispatch**, where `orchestrator.py` is intentionally
+     edited. Confirmed-sequential-and-deferred, not band-aided.
 
 10. **Retry self-edge node superseded by whole-loop delegation (S51b).** The
     first retry-graph commit drove its own attempt loop from `attempt_task`'s
@@ -178,3 +193,79 @@ choice.
     `dispatch_node`'s) plus Apex escalation / decomposition concerns beyond the
     retry loop. 6th "looks governed but isn't" of the phase; **first caught
     pre-ship.**
+
+---
+
+## Parent-graph wiring (assembled; flip still pending)
+
+The parent graph is assembled and asserted at
+[modules/shadow/graph/parent.py](../../../modules/shadow/graph/parent.py)
+(`build_parent_graph` / `compile_parent_graph`): `START → router → routable_gate
+→ plan → plan_gate → dispatch`, with `dormant` / `blocked` terminals. The two
+load-bearing safety properties (Cerberus denial unreachable; dormant target
+unreachable) are re-asserted **structurally** across the full graph in
+[tests/test_parent_graph.py](../../../tests/test_parent_graph.py). The build does
+**not** flip the live path: `process_input` stays authoritative and nothing live
+imports the graph (the item-8 grep still runs empty). The items below are the
+deliberate obligations the wiring leaves to the flip dispatch.
+
+11. **New import-isolation invariant (supersedes item-8's grep AT FLIP, not
+    now).** The pre-flip invariant — `grep -rn 'modules.shadow.graph' modules/
+    main.py | grep -v 'modules/shadow/graph/'` → empty — still holds after the
+    wiring dispatch (the assembler lives *inside* `graph/`). At flip it is
+    intentionally broken; the invariant that replaces it is:
+    > The live path imports the compiled parent graph from **exactly one entry
+    > point** (`modules.shadow.graph.parent`); **no node imports a sibling node's
+    > internals** (a node module imports only its delegation target +
+    > `ShadowState` / `ToolResult`); and the orchestrator's `_step*` methods
+    > remain the **delegated-to source of truth** (nodes reimplement none).
+
+    The two mechanically-checkable clauses (single assembler entry point; no
+    sibling-internal imports, parent.py the sole composition seam) are asserted
+    now by [tests/test_graph_import_isolation.py](../../../tests/test_graph_import_isolation.py).
+    The "live path imports from one entry point" clause activates at flip; its
+    precondition (a single public assembler exists) is asserted now. The flip
+    dispatch must wire the live caller through `parent` only — not scatter graph
+    imports across the orchestrator.
+
+12. **Retry + response (Step 6) legs carry to the flip.** The parent graph's
+    approved branch wires the bare `dispatch` node (delegates `_step5_execute`).
+    The **retry** wrap and the **response/Step-6** leg are NOT wired this
+    dispatch: both need per-request closures / Step-3 context the orchestrator
+    builds *inside* `_step5_with_retry`
+    ([orchestrator.py:4515-4709](../../../modules/shadow/orchestrator.py#L4515-L4709))
+    — `execute_fn` / `evaluate_fn` / `grimoire_search_fn` / `notify_fn` and the
+    loaded context — which are not exposed without touching `orchestrator.py`.
+    `make_retry_node` deliberately takes those closures as arguments
+    ([retry_graph.py:54](../../../modules/shadow/graph/retry_graph.py#L54): "the
+    orchestrator at cutover builds them"). Wiring them now would force either a
+    **reimplemented driver** (the item-10 trap) or an orchestrator edit (a
+    partial flip) — both out of scope. The flip dispatch exposes the closures
+    (and Step-3 context) from live code and inserts `retry` between `plan_gate`'s
+    approved branch and `response`. **Confirmed-deferred, not band-aided.**
+
+13. **AsyncTaskQueue worker still dispatches outside the graph.** The background
+    worker at
+    [async_tasks.py:234-235](../../../modules/shadow/async_tasks.py#L234-L235)
+    calls `module.execute(...)` directly (bypassing the graph, and therefore the
+    Cerberus plan-gate). The design says the queue should **invoke the compiled
+    graph per deferred task** (design §4 item 7), but rerouting it now would
+    live-import `modules.shadow.graph` from a non-graph file — breaking the
+    item-8 grep before the flip and changing live behavior (a partial flip). The
+    parent graph is documented as the worker's future entry point; the reroute
+    **carries to the flip dispatch**. **Confirmed-deferred, not band-aided.**
+
+14. **Spec-wording divergence: `_step4_plan` is not "a single `cerberus_approved`
+    write."** Recon for the new `plan_node` enumerated the full side-effect
+    surface of `_step4_plan`
+    ([orchestrator.py:3850-4483](../../../modules/shadow/orchestrator.py#L3850-L4483)):
+    a per-step Cerberus `safety_check` loop (whose transitive `send_heartbeat()`
+    at [cerberus.py:238](../../../modules/cerberus/cerberus.py#L238) writes the
+    daemon heartbeat), the `cerberus_approved` verdict, and `_background` param
+    injection ([:4477-4481](../../../modules/shadow/orchestrator.py#L4477-L4481)).
+    `plan_node` therefore delegates the **whole** method (same posture as
+    `dispatch_node` / `retry`); a thinner "set the gate flag" reconstruction
+    would have silently dropped the heartbeat and the `_background` flag. Pinned
+    by the side-effect tests in
+    [tests/test_parent_graph.py](../../../tests/test_parent_graph.py). Recorded
+    so no future step re-imports the "single write site" framing.

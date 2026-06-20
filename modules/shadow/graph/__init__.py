@@ -115,8 +115,11 @@ from modules.shadow.graph.cerberus_subgraph import (
     compile_cerberus_subgraph,
 )
 from modules.shadow.graph.dispatch_graph import (
+    blocked_node,
     build_dispatch_subgraph,
     compile_dispatch_subgraph,
+    make_dispatch_node,
+    plan_gate,
 )
 from modules.shadow.graph.grimoire_subgraph import (
     GrimoireCallState,
@@ -126,7 +129,16 @@ from modules.shadow.graph.grimoire_subgraph import (
 from modules.shadow.graph.morpheus_gate import (
     build_routable_gate_subgraph,
     compile_routable_gate_subgraph,
+    dormant_node,
     make_routable_gate,
+)
+from modules.shadow.graph.parent import (
+    build_parent_graph,
+    compile_parent_graph,
+)
+from modules.shadow.graph.plan_node import (
+    PlanNode,
+    make_plan_node,
 )
 from modules.shadow.graph.retry_graph import (
     RetryCallState,
@@ -152,15 +164,18 @@ __all__ = [
     "HarbingerNode",
     "NovaNode",
     "OmenNode",
+    "PlanNode",
     "ReaperNode",
     "RetryCallState",
     "RouterNode",
     "ShadowModuleNode",
     "ShadowState",
     "WraithNode",
+    "blocked_node",
     "build_cerberus_subgraph",
     "build_dispatch_subgraph",
     "build_grimoire_subgraph",
+    "build_parent_graph",
     "build_retry_subgraph",
     "build_routable_gate_subgraph",
     "build_shadow_serde",
@@ -168,13 +183,17 @@ __all__ = [
     "compile_cerberus_subgraph",
     "compile_dispatch_subgraph",
     "compile_grimoire_subgraph",
+    "compile_parent_graph",
     "compile_retry_subgraph",
     "compile_routable_gate_subgraph",
     "compile_skeleton",
+    "dormant_node",
     "make_apex_node",
+    "make_dispatch_node",
     "make_harbinger_node",
     "make_nova_node",
     "make_omen_node",
+    "make_plan_node",
     "make_reaper_node",
     "make_retry_node",
     "make_routable_gate",
@@ -182,5 +201,6 @@ __all__ = [
     "make_shadow_module_node",
     "make_wraith_node",
     "open_async_sqlite_saver",
+    "plan_gate",
     "shadow_serde",
 ]

@@ -136,6 +136,29 @@ def make_routable_gate(
     return gate
 
 
+async def dormant_node(state: ShadowState) -> ShadowState:
+    """Terminal defense-in-depth node for a non-routable (dormant) target.
+
+    Module-level so both :func:`build_routable_gate_subgraph` and the
+    parent-graph assembler reuse the one denial envelope. The live router never
+    emits a route to a dormant module, so there is no live envelope to copy:
+    this synthesizes a denial that names the non-routable target. Never touches
+    a module.
+    """
+    target = _target_module(state)
+    return {
+        "tool_results": [
+            ToolResult(
+                success=False,
+                content=None,
+                tool_name="route",
+                module="orchestrator",
+                error=f"Module {target!r} is not routable (dormant or disabled)",
+            )
+        ]
+    }
+
+
 def build_routable_gate_subgraph(orchestrator: Orchestrator) -> StateGraph:
     """Construct the routable-module reachability sub-graph builder (not compiled).
 
@@ -151,23 +174,6 @@ def build_routable_gate_subgraph(orchestrator: Orchestrator) -> StateGraph:
     """
 
     gate = make_routable_gate(orchestrator.registry)
-
-    async def dormant_node(state: ShadowState) -> ShadowState:
-        # Defense-in-depth terminal: the live router never emits a route to a
-        # dormant module, so there is no live envelope to copy. Synthesize a
-        # denial that names the non-routable target. Never touches a module.
-        target = _target_module(state)
-        return {
-            "tool_results": [
-                ToolResult(
-                    success=False,
-                    content=None,
-                    tool_name="route",
-                    module="orchestrator",
-                    error=f"Module {target!r} is not routable (dormant or disabled)",
-                )
-            ]
-        }
 
     async def dispatch_node(state: ShadowState) -> ShadowState:
         # Routable target: delegate the entire per-step loop to live code, exactly
