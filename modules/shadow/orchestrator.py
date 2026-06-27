@@ -4512,6 +4512,57 @@ User input: {user_input}"""
             len(user_input), classification.target_module,
         )
 
+        # Unit A: build the four retry closures (state-driven at the graph layer,
+        # locals here). Both the live path and the graph retry node call this same
+        # method, so the closures are byte-identical given identical inputs.
+        execute_fn, evaluate_fn, grimoire_search_fn, notify_fn = (
+            self._build_retry_closures(plan, classification, context, source)
+        )
+
+        # Unit B: delegate the whole 12-attempt loop to the engine (unchanged).
+        retry_result = await self._retry_engine.attempt_task(
+            task=user_input,
+            module=classification.target_module,
+            context={
+                "task_type": classification.task_type.value,
+                "tools": [s.get("tool", "") for s in plan.steps if s.get("tool")],
+            },
+            evaluate_fn=evaluate_fn,
+            execute_fn=execute_fn,
+            grimoire_search_fn=grimoire_search_fn,
+            notify_fn=notify_fn,
+        )
+
+        # Unit C: resolve the session into the final response string. Shared with
+        # the graph response leg; the same execute_fn rebuilt from identical inputs
+        # drives the escalation path byte-identically.
+        return await self._resolve_retry_outcome(
+            retry_result, user_input, classification, context, source, execute_fn
+        )
+
+    def _build_retry_closures(
+        self,
+        plan: ExecutionPlan,
+        classification: TaskClassification,
+        context: list[dict[str, Any]],
+        source: str,
+    ) -> tuple:
+        """Build the four retry closures (Unit A — extracted verbatim).
+
+        Returns ``(execute_fn, evaluate_fn, grimoire_search_fn, notify_fn)`` — the
+        exact closures the former inline body of ``_step5_with_retry`` built and
+        handed to ``RetryEngine.attempt_task``. Extracted so the live path AND the
+        graph retry node construct byte-identical closures from the same inputs
+        (``plan`` / ``classification`` / ``context`` / ``source``); no behavior is
+        reimplemented.
+
+        Args:
+            plan: Execution plan from Step 4.
+            classification: Task classification from Step 2.
+            context: Loaded context from Step 3.
+            source: Input source ("user", "telegram", "autonomous", etc).
+        """
+
         async def execute_fn(task: str, strategy_context: dict) -> dict:
             """Execute one attempt using the plan + evaluate pipeline."""
             # Check tool_loader before executing — truly empty index means
@@ -4694,20 +4745,36 @@ User input: {user_input}"""
             async def notify_fn(msg: str) -> None:
                 logger.info("Retry progress: %s", msg)
 
-        # Run the retry engine
-        retry_result = await self._retry_engine.attempt_task(
-            task=user_input,
-            module=classification.target_module,
-            context={
-                "task_type": classification.task_type.value,
-                "tools": [s.get("tool", "") for s in plan.steps if s.get("tool")],
-            },
-            evaluate_fn=evaluate_fn,
-            execute_fn=execute_fn,
-            grimoire_search_fn=grimoire_search_fn,
-            notify_fn=notify_fn,
-        )
+        return execute_fn, evaluate_fn, grimoire_search_fn, notify_fn
 
+    async def _resolve_retry_outcome(
+        self,
+        retry_result: dict[str, Any],
+        user_input: str,
+        classification: TaskClassification,
+        context: list[dict[str, Any]],
+        source: str,
+        execute_fn,
+    ) -> str:
+        """Resolve a completed retry session into the final response (Unit C).
+
+        Extracted verbatim from the former tail of ``_step5_with_retry`` so the
+        live path AND the graph response leg resolve byte-identically. May write
+        ``self._pending_escalation`` on the live-conversation escalation-offer path.
+        ``execute_fn`` is threaded in because the autonomous escalation call and the
+        stored ``_pending_escalation`` both need it.
+
+        Args:
+            retry_result: The completed ``attempt_task`` session dict.
+            user_input: The original user input.
+            classification: Task classification from Step 2.
+            context: Loaded context from Step 3.
+            source: Input source ("user", "telegram", "autonomous", etc).
+            execute_fn: The same attempt closure built by ``_build_retry_closures``.
+
+        Returns:
+            Final response string.
+        """
         # Succeeded — return the response
         if retry_result.get("status") == "succeeded" and retry_result.get("final_result"):
             return retry_result["final_result"].get("response", "")
