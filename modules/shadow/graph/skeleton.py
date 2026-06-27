@@ -25,7 +25,7 @@ an orchestrator-private attribute; it is public graph state.
 from __future__ import annotations
 
 from operator import add
-from typing import Annotated, TypedDict
+from typing import Annotated, Any, TypedDict
 
 from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.graph import END, START, StateGraph
@@ -48,6 +48,19 @@ class ShadowState(TypedDict, total=False):
     tool_results: Annotated[list[ToolResult], add]
     response: str | None
     last_route: TaskClassification | None
+
+    # --- Flip-step channels (Track B cutover) ---
+    # ``source`` regularizes the de-facto undeclared key the dispatch node already
+    # reads (dispatch_graph.py: ``state.get("source", "user")``); ``context`` is the
+    # Step-3 loaded context the retry node needs to build its closures
+    # (orchestrator._build_retry_closures). ``retry_result`` / ``status`` carry the
+    # ``attempt_task`` session out of the retry node for the caller's response leg.
+    # All four are JSON-primitives / plain dicts — they round-trip under the
+    # JsonPlusSerializer (serde.py) with zero msgpack-allowlist involvement.
+    source: str
+    context: list[dict[str, Any]]
+    retry_result: dict[str, Any]
+    status: str
 
 
 def _passthrough(state: ShadowState) -> ShadowState:
