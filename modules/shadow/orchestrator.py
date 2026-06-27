@@ -387,6 +387,7 @@ class Orchestrator:
         # held for the orchestrator lifetime and closed in shutdown().
         self._graph_builder: Any = None
         self._compiled_graph: Any = None
+        self._worker_graph: Any = None
         self._graph_saver: Any = None
         self._graph_saver_cm: Any = None
         self._graph_checkpoint_db: str = config.get("graph", {}).get(
@@ -668,6 +669,7 @@ class Orchestrator:
                     task_queue=self._task_queue,
                     task_tracker=self._task_tracker,
                     registry=self.registry,
+                    orchestrator=self,
                 )
                 await self._async_task_queue.start()
                 logger.info("AsyncTaskQueue initialized and worker started")
@@ -787,6 +789,7 @@ class Orchestrator:
             self._graph_saver_cm = None
             self._graph_saver = None
             self._compiled_graph = None
+            self._worker_graph = None
             self._graph_builder = None
 
         for module_info in self.registry.list_modules():
@@ -1117,6 +1120,34 @@ class Orchestrator:
             interrupt_after=["router", "plan"],
         )
         return self._compiled_graph
+
+    async def run_deferred_through_graph(
+        self, description: str, source: str = "autonomous"
+    ) -> dict[str, Any]:
+        """Run a deferred task end-to-end through the compiled parent graph (item 13).
+
+        The async worker delegates here instead of calling ``module.execute``
+        directly, so a deferred task traverses the dormancy gate and the Cerberus
+        plan-gate: a denied plan reaches the terminal ``blocked`` node and a
+        dormant target the terminal ``dormant`` node — neither reaches a module.
+        ``cerberus_approved`` is computed by the real ``_step4_plan`` inside the
+        plan node, never hardcoded.
+
+        Uses a non-interrupting compile of the *same* parent-graph builder (the
+        worker needs no segment spans / escape hatches), sharing the orchestrator's
+        saver on a distinct ``thread_id``. Returns the final graph state. Keeping
+        the graph entirely inside the orchestrator preserves the item-11 invariant
+        — the worker file never imports ``graph.parent``.
+        """
+        await self._ensure_graph()  # builds the shared builder + saver
+        if self._worker_graph is None:
+            self._worker_graph = self._graph_builder.compile(
+                checkpointer=self._graph_saver
+            )
+        config = {"configurable": {"thread_id": f"async:{uuid.uuid4().hex}"}}
+        return await self._worker_graph.ainvoke(
+            {"user_input": description, "source": source}, config
+        )
 
     @trace_interaction
     async def process_input(self, user_input: str, source: str = "user") -> str:

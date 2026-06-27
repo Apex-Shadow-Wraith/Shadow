@@ -41,10 +41,16 @@ class AsyncTaskQueue:
         task_queue: PriorityTaskQueue,
         task_tracker: TaskTracker,
         registry: ModuleRegistry,
+        orchestrator: Any = None,
     ) -> None:
         self._task_queue = task_queue
         self._task_tracker = task_tracker
         self._registry = registry
+        # When set (item 13), deferred tasks are routed through the orchestrator's
+        # compiled parent graph (plan-gate + dormancy gate apply) instead of
+        # calling ``module.execute`` directly — so a deferred task cannot bypass
+        # Cerberus. Duck-typed to avoid an import cycle with the orchestrator.
+        self._orchestrator = orchestrator
         self._work_available = asyncio.Event()
         self._shutdown = False
         self._worker_task: asyncio.Task | None = None
@@ -232,18 +238,27 @@ class AsyncTaskQueue:
             # Execute
             start_time = time.time()
             try:
-                module = self._registry.get_module_for_tool(tool_name)
-                result: ToolResult = await module.execute(tool_name, params)
-                elapsed_ms = (time.time() - start_time) * 1000
-
-                result_dict = {
-                    "success": result.success,
-                    "content": result.content,
-                    "tool_name": result.tool_name,
-                    "module": result.module,
-                    "execution_time_ms": elapsed_ms,
-                    "error": result.error,
-                }
+                if self._orchestrator is not None:
+                    # Item 13: route through the compiled parent graph so the
+                    # plan-gate (Cerberus) and dormancy gate apply. A denied plan
+                    # reaches the blocked terminal and never executes a module.
+                    state = await self._orchestrator.run_deferred_through_graph(
+                        task.description, source="autonomous"
+                    )
+                    elapsed_ms = (time.time() - start_time) * 1000
+                    result_dict = self._result_from_graph_state(state, elapsed_ms)
+                else:
+                    module = self._registry.get_module_for_tool(tool_name)
+                    result: ToolResult = await module.execute(tool_name, params)
+                    elapsed_ms = (time.time() - start_time) * 1000
+                    result_dict = {
+                        "success": result.success,
+                        "content": result.content,
+                        "tool_name": result.tool_name,
+                        "module": result.module,
+                        "execution_time_ms": elapsed_ms,
+                        "error": result.error,
+                    }
 
                 self._task_queue.complete(task_id, result_dict)
                 try:
@@ -256,7 +271,7 @@ class AsyncTaskQueue:
 
                 logger.info(
                     "Task %s completed in %.0fms (success=%s)",
-                    task_id[:8], elapsed_ms, result.success,
+                    task_id[:8], elapsed_ms, result_dict.get("success"),
                 )
 
             except Exception as e:
@@ -278,6 +293,44 @@ class AsyncTaskQueue:
                 # Loop continues — per-task exception handling
 
         logger.info("Worker loop exiting")
+
+    def _result_from_graph_state(
+        self, state: dict[str, Any], elapsed_ms: float
+    ) -> dict[str, Any]:
+        """Build a worker result dict from the final parent-graph state (item 13).
+
+        A denial envelope (Cerberus ``blocked`` or dormant ``route``) means no
+        module ran — surface it as an unsuccessful result naming the gate that
+        fired. Otherwise the retry leg ran: surface its resolved response and
+        success status.
+        """
+        tool_results = state.get("tool_results", []) or []
+        for tr in tool_results:
+            err = getattr(tr, "error", None)
+            tname = getattr(tr, "tool_name", None)
+            if err == "Plan was denied by Cerberus":
+                return {
+                    "success": False, "content": None, "tool_name": "plan",
+                    "module": "orchestrator", "execution_time_ms": elapsed_ms,
+                    "error": err,
+                }
+            if tname == "route" and err and "not routable" in err:
+                return {
+                    "success": False, "content": None, "tool_name": "route",
+                    "module": "orchestrator", "execution_time_ms": elapsed_ms,
+                    "error": err,
+                }
+        retry_result = state.get("retry_result") or {}
+        status = state.get("status") or retry_result.get("status", "unknown")
+        response = (retry_result.get("final_result") or {}).get("response", "")
+        return {
+            "success": status == "succeeded",
+            "content": response,
+            "tool_name": "graph",
+            "module": "orchestrator",
+            "execution_time_ms": elapsed_ms,
+            "error": None if status == "succeeded" else f"status={status}",
+        }
 
     # ------------------------------------------------------------------
     # Grimoire persistence
