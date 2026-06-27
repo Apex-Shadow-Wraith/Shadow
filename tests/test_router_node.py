@@ -36,6 +36,7 @@ The two fast-path inputs used below were verified against the live classifier:
 
 from __future__ import annotations
 
+import asyncio
 from pathlib import Path
 
 import pytest
@@ -309,6 +310,44 @@ async def test_router_node_routes_last_route_through_state_not_shared_attr(
     # The new route is persisted to state for the next turn on this thread_id...
     assert out["last_route"] is out["classification"]
     # ...but the shared instance attribute is NEVER touched — the leak is closed.
+    assert orch._last_route is None
+
+
+@pytest.mark.asyncio
+async def test_router_node_no_cross_thread_last_route_bleed(tmp_path: Path) -> None:
+    """Item 9 / clause 4: two interleaved invocations on distinct thread_ids,
+    each carrying its OWN ``state["last_route"]``, must not bleed across each
+    other. Run concurrently via ``asyncio.gather``; each contextual re-route
+    must resolve to its own seeded module, and the shared
+    ``orchestrator._last_route`` must stay ``None`` (never mutated by the node).
+    """
+    orch = _make_orch(tmp_path)
+    assert orch._last_route is None
+
+    route_a = TaskClassification(
+        task_type=TaskType.CREATION, complexity="moderate", target_module="omen",
+        brain=BrainType.FAST, safety_flag=False, priority=1, confidence=0.85,
+    )
+    route_b = TaskClassification(
+        task_type=TaskType.RESEARCH, complexity="moderate", target_module="reaper",
+        brain=BrainType.FAST, safety_flag=False, priority=1, confidence=0.85,
+    )
+    node = make_router_node(orch)
+
+    # "do that" + each thread's own last_route → real _fast_path_classify reads
+    # the param (orchestrator.py contextual branch), returns a 0.90 clone.
+    out_a, out_b = await asyncio.gather(
+        node({"user_input": "do that", "last_route": route_a}),
+        node({"user_input": "do that", "last_route": route_b}),
+    )
+
+    assert out_a["classification"].target_module == "omen"
+    assert out_a["classification"].confidence == pytest.approx(0.90)
+    assert out_b["classification"].target_module == "reaper"
+    assert out_b["classification"].confidence == pytest.approx(0.90)
+    # No bleed and no shared-attribute mutation — route memory lived only in state.
+    assert out_a["last_route"] is out_a["classification"]
+    assert out_b["last_route"] is out_b["classification"]
     assert orch._last_route is None
 
 
