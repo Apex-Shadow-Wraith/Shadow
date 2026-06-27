@@ -366,6 +366,10 @@ class Orchestrator:
         self._router_model = config["models"]["router"]["name"]
         self._fast_brain = config["models"]["fast_brain"]["name"]
         self._smart_brain = config["models"]["smart_brain"]["name"]
+        # Generation model under benchmark (item-11 provenance). Stamped into the
+        # benchmark run record so it reads the real model (e.g. "gemma4:26b"),
+        # never "unknown". Config-driven — never hardcoded.
+        self._model_name = self._smart_brain
         self._state_file = Path(config["system"].get("state_file", "data/shadow_state.json"))
         self._conversation_history: list[dict[str, str]] = []
         self._max_history = 10  # Keep last 10 turns (user+assistant pairs) in working memory
