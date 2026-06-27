@@ -269,3 +269,29 @@ deliberate obligations the wiring leaves to the flip dispatch.
     by the side-effect tests in
     [tests/test_parent_graph.py](../../../tests/test_parent_graph.py). Recorded
     so no future step re-imports the "single write site" framing.
+
+---
+
+## FLIP LANDED — import-isolation transition (item 11 closed)
+
+The flip is wired (`process_input` drives the compiled parent graph via segmented
+invoke; retry + response legs in; items 9/11/12/13 closed). The pre-flip
+import-isolation grep
+(`grep -rn 'modules.shadow.graph' modules/ main.py | grep -v 'modules/shadow/graph/'`
+→ empty) is now **intentionally non-empty and superseded** by the item-11
+invariant:
+
+> The live path imports the compiled parent graph from **exactly one entry
+> point** — `modules.shadow.graph.parent` (`orchestrator._ensure_graph` /
+> `run_deferred_through_graph` import `build_parent_graph` from there, and
+> nowhere else). **No node imports a sibling node's internals** (a node module
+> imports only its delegation target + `ShadowState` / `ToolResult`;
+> `parent.py` is the sole composition seam). The orchestrator's `_step*` methods
+> remain the **delegated-to source of truth** — nodes reimplement none.
+
+Mechanically: `async_tasks.py` (a non-graph file) does **not** import
+`graph.parent`; it delegates to `Orchestrator.run_deferred_through_graph`, so the
+single-entry-point clause holds. `tests/test_graph_import_isolation.py` continues
+to assert the two mechanical clauses (single assembler entry point; no
+sibling-internal imports). The grep-empty rule is retired; cite this entry, not
+the grep, going forward.

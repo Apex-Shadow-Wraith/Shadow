@@ -63,7 +63,7 @@ Degrades gracefully if Langfuse is unreachable (yields `None`).
 | `tests/test_orchestrator.py` | 192 |
 | `tests/test_context_orchestrator.py` | 41 |
 | `tests/test_retry_engine.py` | 40 |
-| `tests/test_code_analyze_routing.py` | 39 |
+| `tests/test_code_analyze_routing.py` | 44 |
 | `tests/test_informational_guard.py` | 23 |
 | `tests/test_contextual_routing.py` | 19 |
 | `tests/test_false_positive.py` | 16 |
@@ -71,7 +71,7 @@ Degrades gracefully if Langfuse is unreachable (yields `None`).
 | `tests/test_orchestrator_child_spans.py` | 9 |
 | `tests/test_router_opt_out.py` | 5 |
 | `tests/test_fallback_transparency.py` | 4 |
-| **Total core gate** | **~397 tests** |
+| **Total core gate** | **402 tests** |
 
 The cutover must keep these passing. Plus Phase 0 baseline at ≥78.18%.
 
@@ -193,7 +193,7 @@ Each step is independently testable. Each step keeps the live orchestrator path 
 
 ## 5. Behavioral contract — what the graph must preserve
 
-The ~397 tests above are the gate. The cutover must preserve at minimum:
+The 402 tests above are the gate. The cutover must preserve at minimum:
 
 1. All 10 routing decision points in their current tier order.
 2. Confidence bands per tier (0.95 / 0.90 / 0.85 / 0.70 / 0.50).
@@ -216,7 +216,7 @@ The §5.3 spec says "no hand-written decision loop remains." Five places where c
 
 The background worker processes deferred priority-≥4 tasks **outside the request path**. LangGraph is a request-execution framework; long-lived background workers are not graph nodes. The honest framing: post-cutover the **decision loop** is pure LangGraph, but at the **process level** the orchestrator process still has a background worker that wraps graph invocations. This is not a decision-loop hybrid — but the spec language should be sharpened in the cutover prompt to acknowledge it.
 
-### 6.2 Behavioral-contract scale (~397 tests)
+### 6.2 Behavioral-contract scale (402 tests)
 
 The first pass through the codebase undercounted the test surface by ~20×. Cutover effort scales with test maintenance, not with module count. Plan for it.
 
