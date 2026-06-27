@@ -241,6 +241,28 @@ def make_orchestrator_retry_node(orchestrator: "Orchestrator") -> RetryNode:
         classification = state["classification"]
         plan = state["plan"]
 
+        # Degraded fallback (retry engine unavailable on import): single attempt,
+        # mirroring the live ``_retry_engine is None`` branch — delegate to
+        # ``_step5_execute`` + ``_step6_evaluate``, wrap as a succeeded session so
+        # the caller's ``_resolve_retry_outcome`` returns the response uniformly.
+        if orchestrator._retry_engine is None:
+            results = await orchestrator._step5_execute(
+                plan, classification, state.get("source", "user")
+            )
+            response = await orchestrator._step6_evaluate(
+                state["user_input"], classification, results,
+                state.get("context", []) or [],
+            )
+            return {
+                "tool_results": results,
+                "retry_result": {
+                    "status": "succeeded",
+                    "final_result": {"response": response},
+                    "attempts": [],
+                },
+                "status": "succeeded",
+            }
+
         # Build the four closures from graph state — same method the live path
         # uses, so execute_fn/evaluate_fn/grimoire_search_fn/notify_fn match.
         execute_fn, evaluate_fn, grimoire_search_fn, notify_fn = (
