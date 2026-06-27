@@ -9,15 +9,17 @@ safety-critical spine of the live decision loop::
                           ▼
                         plan ─plan_gate ─blocked─► blocked_node ─► END
                           │              │dispatch
-                          └────────────► dispatch ─► END
+                          └────────────► retry ─► END
 
 Load-bearing assertions, in order of importance:
 
 1. **Structural reachability (topology, not behavior).** Re-asserts, across the
    *full* parent graph, the two properties proven in isolation for the
    sub-graphs: a denied plan (``cerberus_approved=False``) and a dormant target
-   (``is_routable=False``) each make the dispatch node *unreachable by graph
-   topology*. Proven by graph introspection + the gate path-maps.
+   (``is_routable=False``) each make the module-executing ``retry`` node
+   *unreachable by graph topology*. Proven by graph introspection + the gate
+   path-maps. (Post-flip the approved-branch target is ``retry`` — which delegates
+   the whole ``attempt_task`` loop — not the superseded bare ``dispatch``.)
 2. **plan_node side-effect surface (Amendment A).** ``plan_node`` is the only
    genuinely-new node this dispatch; it must carry the COMPLETE side-effect
    surface of ``_step4_plan`` (transitive Cerberus ``safety_check`` → heartbeat,
@@ -196,25 +198,26 @@ def _pin_classification(orch: Orchestrator, target: str) -> None:
 
 
 def test_cerberus_denial_unreachable_by_topology(tmp_path: Path) -> None:
-    """A denied plan makes ``dispatch`` structurally unreachable across the parent.
+    """A denied plan makes ``retry`` structurally unreachable across the parent.
 
     Path-map binding + edge introspection: ``plan_gate`` routes ``"blocked"`` to
-    the terminal ``blocked`` node, ``dispatch`` is reachable only via the approved
-    branch, and there is no ``blocked → dispatch`` edge.
+    the terminal ``blocked`` node, ``retry`` (the approved-branch, module-executing
+    node) is reachable only via the approved branch, and there is no
+    ``blocked → retry`` edge.
     """
     orch = _make_orch(tmp_path)
 
     builder = build_parent_graph(orch)
     plan_ends = builder.branches["plan"]["_gate"].ends
-    assert plan_ends == {"blocked": "blocked", "dispatch": "dispatch"}
+    assert plan_ends == {"blocked": "blocked", "dispatch": "retry"}
 
     compiled = compile_parent_graph(orch)
     edges = [(e.source, e.target) for e in compiled.get_graph().edges]
 
     assert {t for s, t in edges if s == "blocked"} == {"__end__"}
-    assert ("blocked", "dispatch") not in edges
-    # Dispatch is reachable ONLY as the approved plan-gate target.
-    assert {s for s, t in edges if t == "dispatch"} == {"plan"}
+    assert ("blocked", "retry") not in edges
+    # Retry (the approved-branch leg) is reachable ONLY as the approved plan-gate target.
+    assert {s for s, t in edges if t == "retry"} == {"plan"}
 
 
 def test_dormant_target_unreachable_by_topology(tmp_path: Path) -> None:
@@ -243,19 +246,20 @@ def test_dormant_target_unreachable_by_topology(tmp_path: Path) -> None:
 def test_item9_single_linear_path_per_invocation(tmp_path: Path) -> None:
     """Item 9: the graph runs nodes sequentially within one ``ainvoke``.
 
-    No node fans into ``dispatch`` in parallel (in-degree 1), and the only
+    No node fans into ``retry`` in parallel (in-degree 1), and the only
     multi-target sources are the two *mutually exclusive* conditional gates — so
-    a single invocation walks one linear path. This is the evidence that the
-    cross-``thread_id`` ``_last_route`` hazard (backlog item 9) cannot bite via
-    intra-invocation concurrency; the residual concurrent-invocation hazard is
-    deferred to the flip (it requires touching ``orchestrator.py:2173``).
+    a single invocation walks one linear path. This is structural evidence that
+    the cross-``thread_id`` ``_last_route`` hazard (backlog item 9) cannot bite via
+    intra-invocation concurrency. (The concurrent-invocation leak itself is closed
+    by the flip — ``last_route`` now flows purely through per-``thread_id`` state;
+    see ``tests/test_router_node`` / the item-9 leak test.)
     """
     orch = _make_orch(tmp_path)
     compiled = compile_parent_graph(orch)
     edges = [(e.source, e.target) for e in compiled.get_graph().edges]
 
-    # dispatch has exactly one predecessor — no parallel fan-in.
-    assert {s for s, t in edges if t == "dispatch"} == {"plan"}
+    # retry has exactly one predecessor — no parallel fan-in.
+    assert {s for s, t in edges if t == "retry"} == {"plan"}
     # plan has exactly one predecessor.
     assert {s for s, t in edges if t == "plan"} == {"router"}
     # The two gates are the only branch points, and each branch is exclusive.
@@ -427,19 +431,40 @@ async def test_dormant_route_never_reaches_module(tmp_path: Path) -> None:
 
 @pytest.mark.asyncio
 async def test_approved_routable_reaches_module(tmp_path: Path) -> None:
-    """Approved + routable: the target module's ``execute`` fires end-to-end."""
+    """Approved + routable: the target module's ``execute`` fires end-to-end.
+
+    Post-flip the approved branch is the ``retry`` node, which delegates the whole
+    ``attempt_task`` loop. Its ``execute_fn`` runs ``_step5_execute`` (firing the
+    leaf) then ``_step6_evaluate`` to compose the response — so the graph surfaces
+    ``retry_attempt`` ToolResults (not the raw leaf ToolResult), and the run
+    succeeds. ``_step6_evaluate`` is stubbed to keep the canary off Ollama, exactly
+    as ``_step2_classify`` is pinned (both are covered by ``tests/test_orchestrator``).
+    """
     orch = _make_orch(tmp_path)
     _pin_classification(orch, "grimoire")
+
+    async def fake_eval(user_input, classification, results, context):
+        return "evaluated ok"
+
+    orch._step6_evaluate = fake_eval  # type: ignore[assignment]
+
     leaf = _LeafModule("grimoire", "memory_search")
     orch.registry.register(leaf)  # no cerberus registered → plan approved
+    # The approved branch is now the retry node, whose execute_fn guards on
+    # tool_loader.is_populated (orchestrator.py) — an empty index reads as an
+    # infrastructure failure and skips execution. Production populates the index
+    # at boot; this test bypasses boot, so refresh after registering the leaf.
+    orch._tool_loader.refresh()
 
     graph = compile_parent_graph(orch)
     out = await graph.ainvoke({"user_input": "search for cats"})
 
     assert leaf.executed is True
-    assert any(tr.success and tr.content == "ran" for tr in out["tool_results"]), (
-        out["tool_results"]
-    )
+    assert out.get("status") == "succeeded", out.get("retry_result")
+    assert any(
+        tr.tool_name == "retry_attempt" and tr.success for tr in out["tool_results"]
+    ), out["tool_results"]
+    assert out["retry_result"]["final_result"]["response"] == "evaluated ok"
 
 
 # ===========================================================================

@@ -95,13 +95,17 @@ fragment from outside, as it nests over the live call.
 from __future__ import annotations
 
 from operator import add
-from typing import Annotated, Any, Awaitable, Callable, TypedDict
+from typing import TYPE_CHECKING, Annotated, Any, Awaitable, Callable, TypedDict
 
 from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.graph import END, START, StateGraph
 
 from modules.base import ToolResult
+from modules.shadow.graph.skeleton import ShadowState
 from modules.shadow.retry_engine import RetryEngine
+
+if TYPE_CHECKING:  # pragma: no cover - typing only, avoids an import cycle
+    from modules.shadow.orchestrator import Orchestrator
 
 # Caller-supplied attempt + evaluation hooks, matching the live closures the
 # orchestrator builds inside ``_step5_with_retry`` and hands to
@@ -191,6 +195,79 @@ def make_retry_node(
         # Materialize one ToolResult per real attempt the engine drove, so the
         # append reducer accumulates the attempt trail (design §3.4). The engine
         # returns attempts as dicts via ``_session_to_dict`` (retry_engine.py:888).
+        tool_results = [
+            ToolResult(
+                success=attempt.get("success", False),
+                content=attempt.get("result"),
+                tool_name="retry_attempt",
+                module="retry_engine",
+                error=attempt.get("error"),
+            )
+            for attempt in retry_result.get("attempts", [])
+        ]
+
+        return {
+            "tool_results": tool_results,
+            "retry_result": retry_result,
+            "status": retry_result.get("status", "exhausted"),
+        }
+
+    return retry
+
+
+def make_orchestrator_retry_node(orchestrator: "Orchestrator") -> RetryNode:
+    """Build the retry node for the parent graph (orchestrator-driven, state-fed).
+
+    Same whole-loop delegation posture as :func:`make_retry_node`, but instead of
+    receiving pre-built closures it builds them *at call time from graph state* via
+    ``orchestrator._build_retry_closures`` — the **same** method the live
+    ``_step5_with_retry`` calls (orchestrator.py), so the closures are
+    byte-identical given identical inputs. This is the form the parent graph wires
+    on the approved branch (item 12); the closure-arg :func:`make_retry_node` stays
+    for the standalone sub-graph + its tests.
+
+    Reads ``user_input`` / ``plan`` / ``classification`` / ``context`` / ``source``
+    from state; delegates the whole 12-attempt loop to ``attempt_task`` (rotation,
+    fatigue, preflight, early-exits, notifications, ``_record_session`` and the
+    per-attempt ``retry_attempt`` span all run inside the one call); writes
+    ``tool_results`` / ``retry_result`` / ``status``.
+
+    Args:
+        orchestrator: The live orchestrator whose ``_build_retry_closures`` and
+            ``_retry_engine`` the node delegates to.
+    """
+
+    async def retry(state: ShadowState) -> ShadowState:
+        classification = state["classification"]
+        plan = state["plan"]
+
+        # Build the four closures from graph state — same method the live path
+        # uses, so execute_fn/evaluate_fn/grimoire_search_fn/notify_fn match.
+        execute_fn, evaluate_fn, grimoire_search_fn, notify_fn = (
+            orchestrator._build_retry_closures(
+                plan,
+                classification,
+                state.get("context", []) or [],
+                state.get("source", "user"),
+            )
+        )
+
+        # Delegate the WHOLE loop to live code, building the engine context dict
+        # exactly as the live path does (orchestrator.py _step5_with_retry).
+        retry_result = await orchestrator._retry_engine.attempt_task(
+            task=state["user_input"],
+            module=classification.target_module,
+            context={
+                "task_type": classification.task_type.value,
+                "tools": [s.get("tool", "") for s in plan.steps if s.get("tool")],
+            },
+            evaluate_fn=evaluate_fn,
+            execute_fn=execute_fn,
+            grimoire_search_fn=grimoire_search_fn,
+            notify_fn=notify_fn,
+        )
+
+        # Materialize one ToolResult per real attempt (append reducer, design §3.4).
         tool_results = [
             ToolResult(
                 success=attempt.get("success", False),
