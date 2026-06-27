@@ -147,7 +147,7 @@ async def test_router_node_delegates_to_llm_router_tier(tmp_path: Path) -> None:
     ladder, not just the fast path.
     """
     orch = _make_orch(tmp_path)
-    orch._fast_path_classify = lambda _u: None  # type: ignore[method-assign]
+    orch._fast_path_classify = lambda _u, _lr=None: None  # type: ignore[method-assign]
     orch._ollama_chat = lambda **_kw: (  # type: ignore[method-assign]
         '{"task_type": "research", "complexity": "moderate", '
         '"target_module": "reaper", "brain": "fast_brain", '
@@ -174,7 +174,7 @@ async def test_router_node_delegates_to_keyword_fallback_tier(
     the generic input has no fallback keyword, so it defaults to ``direct``.
     """
     orch = _make_orch(tmp_path)
-    orch._fast_path_classify = lambda _u: None  # type: ignore[method-assign]
+    orch._fast_path_classify = lambda _u, _lr=None: None  # type: ignore[method-assign]
 
     def _raise(**_kw):
         raise RuntimeError("router LLM unavailable")
@@ -276,15 +276,17 @@ async def test_no_contextual_reroute_without_checkpointed_route(
 
 
 @pytest.mark.asyncio
-async def test_router_node_hydrates_last_route_into_live_attribute(
+async def test_router_node_routes_last_route_through_state_not_shared_attr(
     tmp_path: Path,
 ) -> None:
-    """The node copies ``state["last_route"]`` onto ``orchestrator._last_route``.
+    """Route memory flows through ``state["last_route"]``, never the shared attr.
 
-    Direct unit check of bridge step 1: hand the node a state carrying a
-    ``last_route`` and assert the live attribute the pre-graph classifier reads
-    (``self._last_route`` at ``orchestrator.py:2173``) is populated from it —
-    independent of any checkpointer.
+    Item-9 leak closed: the node passes ``state["last_route"]`` to the classifier
+    as the ``last_route`` parameter (so the contextual re-route at
+    ``orchestrator.py:2173`` fires off it), persists the new route back into
+    ``state``, and **neither reads nor mutates** ``orchestrator._last_route``.
+    Hand the node a state carrying ``last_route``; assert the contextual re-route
+    fires AND the shared instance attribute stays ``None`` throughout.
     """
     orch = _make_orch(tmp_path)
     assert orch._last_route is None
@@ -301,11 +303,13 @@ async def test_router_node_hydrates_last_route_into_live_attribute(
 
     out = await node({"user_input": "do that", "last_route": seeded})
 
-    # The contextual branch fired off the hydrated route → omen clone at 0.90.
+    # The contextual branch fired off the per-thread state route → omen clone at 0.90.
     assert out["classification"].target_module == "omen"
     assert out["classification"].confidence == pytest.approx(0.90)
-    # And the live attribute now holds the NEW route (bridge step 3).
-    assert orch._last_route is out["classification"]
+    # The new route is persisted to state for the next turn on this thread_id...
+    assert out["last_route"] is out["classification"]
+    # ...but the shared instance attribute is NEVER touched — the leak is closed.
+    assert orch._last_route is None
 
 
 # ---------------------------------------------------------------------------

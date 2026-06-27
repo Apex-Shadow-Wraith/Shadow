@@ -47,6 +47,13 @@ logger = logging.getLogger("shadow.orchestrator")
 # every fast-path conversational query.
 NON_MODULE_TARGETS = {"direct", "conversation"}
 
+# Sentinel distinguishing "caller did not pass last_route" (fall back to the
+# instance attribute — legacy/single-threaded callers + direct-classify tests)
+# from "caller explicitly passed last_route" (use it verbatim, even if None —
+# the graph router node, which routes per-thread state and must NEVER read the
+# shared self._last_route, closing the item-9 cross-thread leak).
+_LAST_ROUTE_UNSET: Any = object()
+
 # Adversarial-input guard: leading bracketed tags like
 # "[Previous conversation about omen]" can leak module names into
 # the bare-word matcher and short-circuit routing to the wrong module.
@@ -1919,7 +1926,9 @@ class Orchestrator:
 
     # --- Step 2: Classify & Route ---
 
-    async def _step2_classify(self, user_input: str) -> TaskClassification:
+    async def _step2_classify(
+        self, user_input: str, last_route: Any = _LAST_ROUTE_UNSET
+    ) -> TaskClassification:
         """Classify the input and decide where it goes.
 
         Architecture: 'The router examines the input and makes fast
@@ -1927,9 +1936,18 @@ class Orchestrator:
         keyword matching.'
 
         Phase 1: LLM classification via phi4-mini with keyword fallback.
+
+        Args:
+            user_input: The text to classify.
+            last_route: Prior route for contextual-reference re-routing. When the
+                caller passes it explicitly (the graph router node passes the
+                per-``thread_id`` ``state["last_route"]``), that value is used and
+                the shared ``self._last_route`` is never read — closing the
+                cross-``thread_id`` leak (item 9). Omitted → legacy fallback to
+                ``self._last_route``.
         """
         # Fast-path: skip LLM for obvious inputs
-        fast = self._fast_path_classify(user_input)
+        fast = self._fast_path_classify(user_input, last_route)
         if fast is not None:
             logger.info(
                 "Fast-path classified: '%s' → %s (%s, conf=%.2f, input_len=%d, skipped LLM router)",
@@ -2150,7 +2168,9 @@ User input: {user_input}"""
 
         return user_input.strip()
 
-    def _fast_path_classify(self, user_input: str) -> TaskClassification | None:
+    def _fast_path_classify(
+        self, user_input: str, last_route: Any = _LAST_ROUTE_UNSET
+    ) -> TaskClassification | None:
         """Try to classify without calling the LLM router.
 
         Returns a TaskClassification if the input is obvious,
@@ -2158,9 +2178,23 @@ User input: {user_input}"""
 
         This saves ~6 seconds per input on phi4-mini for cases
         where keyword matching is unambiguous.
+
+        Args:
+            user_input: The text to classify.
+            last_route: Prior route for contextual-reference re-routing. Explicit
+                value (including ``None``) is used verbatim and the shared
+                ``self._last_route`` is never read (item-9 leak closed); omitted →
+                fall back to ``self._last_route``.
         """
         stripped = user_input.strip()
         lower = stripped.lower()
+
+        # Resolve the route memory: explicit param (graph path, per-thread state)
+        # wins; the sentinel means "not passed" → legacy fallback to the instance
+        # attribute. The contextual branch below reads ONLY ``effective_last_route``.
+        effective_last_route = (
+            self._last_route if last_route is _LAST_ROUTE_UNSET else last_route
+        )
 
         # --- Contextual reference detection ---
         # If the user says "do that", "yes proceed", etc., they're referring to the
@@ -2170,21 +2204,21 @@ User input: {user_input}"""
             "ok do it", "yeah", "yep", "sure", "please do", "go for it",
             "make it so", "run it", "execute that", "ok go ahead",
         )
-        if self._last_route is not None:
+        if effective_last_route is not None:
             # Check if the input starts with a contextual reference
             for prefix in _CONTEXTUAL_PREFIXES:
                 if lower == prefix or lower.startswith(prefix + " ") or lower.startswith(prefix + ",") or lower.startswith(prefix + "."):
                     logger.info(
                         "Contextual reference '%s' detected — re-routing to previous module: %s",
-                        prefix, self._last_route.target_module,
+                        prefix, effective_last_route.target_module,
                     )
                     return TaskClassification(
-                        task_type=self._last_route.task_type,
-                        complexity=self._last_route.complexity,
-                        target_module=self._last_route.target_module,
-                        brain=self._last_route.brain,
-                        safety_flag=self._last_route.safety_flag,
-                        priority=self._last_route.priority,
+                        task_type=effective_last_route.task_type,
+                        complexity=effective_last_route.complexity,
+                        target_module=effective_last_route.target_module,
+                        brain=effective_last_route.brain,
+                        safety_flag=effective_last_route.safety_flag,
+                        priority=effective_last_route.priority,
                         confidence=0.90,
                     )
 

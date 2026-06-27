@@ -1,14 +1,12 @@
 """Router delegating node for the Track B cutover.
 
 A single delegating LangGraph *node* — **not** a sub-graph — that hands the
-route decision to the live :meth:`Orchestrator._step2_classify` coroutine and
-bridges cross-invocation route memory between the orchestrator's private
-``_last_route`` attribute and the checkpointed ``state["last_route"]`` graph
-key. Lives at ``modules/shadow/graph/router_node.py`` and is imported by
-exactly one caller in the repo today — :mod:`tests.test_router_node`. Nothing
-on the orchestrator path references it, which is the strongest possible feature
-flag (physical separation), identical to the posture of every other Track B
-node and sub-graph.
+route decision to the live :meth:`Orchestrator._step2_classify` coroutine,
+passing the per-``thread_id`` route memory from the checkpointed
+``state["last_route"]`` graph key straight through as the ``last_route``
+parameter. Lives at ``modules/shadow/graph/router_node.py``. At the flip it is
+wired into the parent graph as the ``router`` node and is also exercised
+standalone by :mod:`tests.test_router_node`.
 
 Why a node, not a sub-graph
 ===========================
@@ -40,46 +38,34 @@ byte-for-byte:
 A duplicating router would create a second drift-prone copy of all three tiers
 and silently lose the override the moment either side changed.
 
-The ``last_route`` bridge (the load-bearing seam)
-=================================================
+Route memory flows purely through state (item-9 leak closed at the flip)
+========================================================================
 
-The live contextual-reference re-route reads ``self._last_route``
-(``orchestrator.py:2173`` — "do that" / "yes proceed" returns a clone of the
-previous route at ``confidence=0.90``). Cross-invocation route memory, however,
-is carried in the checkpointed ``state["last_route"]`` keyed by ``thread_id``
-(``skeleton.py:12-14``), and a fresh orchestrator always starts with
-``self._last_route = None`` (``orchestrator.py:370``). So the node must bridge
-the two on every invocation:
+The contextual-reference re-route (``orchestrator.py:2173`` — "do that" / "yes
+proceed" returns a clone of the previous route at ``confidence=0.90``) now reads
+the ``last_route`` **parameter** the classifier receives, not the shared
+``self._last_route`` attribute. Cross-invocation route memory is carried in the
+checkpointed ``state["last_route"]`` keyed by ``thread_id`` (``skeleton.py``).
+So the node:
 
-1. **Hydrate IN** — ``orchestrator._last_route = state.get("last_route")``
-   *before* delegating, so the pre-graph contextual read sees the prior turn's
-   route even on a fresh orchestrator resuming from a checkpoint.
-2. **Delegate** — ``classification = await orchestrator._step2_classify(...)``.
-3. **Mirror the live write** — ``orchestrator._last_route = classification``
-   (parity with the write at ``orchestrator.py:1201``).
-4. **Persist OUT** — return ``{"classification": ..., "last_route": ...}`` so
-   the checkpoint carries the new route to the next invocation.
+1. **Delegate** — ``await orchestrator._step2_classify(state["user_input"],
+   last_route=state.get("last_route"))``, passing the per-``thread_id`` route
+   memory explicitly. ``_step2_classify`` forwards it to ``_fast_path_classify``,
+   whose contextual branch reads the parameter (``orchestrator.py``), never the
+   shared attribute.
+2. **Persist OUT** — return ``{"classification": ..., "last_route": ...}`` so the
+   checkpoint carries the new route to the next invocation on this ``thread_id``.
 
-Miss step 1 and the failure is silent: invocation N+1's
-``_fast_path_classify`` sees ``self._last_route = None``, the contextual branch
-never fires, the input falls through to keyword matching, and route memory
-appears to "not work" with no error anywhere. ``tests.test_router_node`` pins
-this with a cross-invocation test that resumes a fresh orchestrator from the
-same checkpoint.
-
-Concurrency hazard (documented, deferred)
-=========================================
-
-Steps 1 and 3 mutate the shared ``orchestrator._last_route`` instance
-attribute. This is correct under sequential invocation, but under concurrent
-node execution across distinct ``thread_id``s it becomes a cross-``thread_id``
-route-memory leak (the per-thread ``state["last_route"]`` checkpoint is fine;
-the shared live attribute is the leak). The pure-state fix — make the
-contextual read at ``orchestrator.py:2173`` consume ``state["last_route"]``
-instead of ``self._last_route`` — requires touching ``_fast_path_classify`` and
-is therefore blocked by the orchestrator-untouched constraint of this additive
-step. Tracked as ``docs/phase-b/track-b/cutover-backlog.md`` item 9, deferred to
-the parent-graph integration step.
+Because the node neither reads nor writes ``orchestrator._last_route``, the
+former cross-``thread_id`` leak (backlog item 9) is closed: concurrent
+invocations on distinct ``thread_id``s each pass their own checkpointed
+``last_route`` and cannot observe each other's route memory. The sentinel
+default on ``_step2_classify`` / ``_fast_path_classify`` distinguishes "caller
+passed ``last_route`` explicitly" (graph path — used verbatim, even ``None``)
+from "omitted" (legacy single-threaded callers + direct-classify tests — fall
+back to ``self._last_route``). ``tests.test_router_node`` pins the
+cross-invocation behavior by resuming a fresh orchestrator from the same
+checkpoint.
 
 Observability
 =============
@@ -112,9 +98,10 @@ def make_router_node(orchestrator: Orchestrator) -> RouterNode:
 
     Args:
         orchestrator: The live :class:`~modules.shadow.orchestrator.Orchestrator`
-            instance to delegate the route decision to. The node reads and
-            mutates its private ``_last_route`` attribute to bridge
-            cross-invocation route memory (see module docstring).
+            instance to delegate the route decision to. The node passes the
+            per-``thread_id`` ``state["last_route"]`` to the classifier as a
+            parameter; it never reads or mutates the shared ``_last_route``
+            attribute (item-9 leak closed — see module docstring).
 
     Returns:
         An async LangGraph node that reads ``user_input`` and ``last_route``
@@ -124,21 +111,20 @@ def make_router_node(orchestrator: Orchestrator) -> RouterNode:
     """
 
     async def router_node(state: dict[str, Any]) -> dict[str, Any]:
-        # 1. Bridge IN: hydrate the live attribute from checkpointed graph
-        #    state so the contextual-reference re-route sees the prior turn's
-        #    route even on a fresh orchestrator resuming from a checkpoint.
-        orchestrator._last_route = state.get("last_route")
+        # Delegate to the live classifier, passing the per-``thread_id`` route
+        # memory from checkpointed state EXPLICITLY. The shared
+        # ``orchestrator._last_route`` attribute is neither hydrated nor mirrored
+        # here — so concurrent invocations on distinct ``thread_id``s cannot leak
+        # route memory across each other (item 9 closed). The fast-path
+        # classifier, the Session-47 override, the LLM router, and the keyword
+        # fallback are preserved byte-for-byte; only the route-memory source moves
+        # from the shared attribute to per-thread state.
+        classification = await orchestrator._step2_classify(
+            state["user_input"], last_route=state.get("last_route")
+        )
 
-        # 2. Delegate to the live classifier — preserves the fast-path
-        #    classifier, the Session-47 override, the LLM router, and the
-        #    keyword fallback byte-for-byte.
-        classification = await orchestrator._step2_classify(state["user_input"])
-
-        # 3. Mirror the live write (parity with orchestrator.py:1201).
-        orchestrator._last_route = classification
-
-        # 4. Bridge OUT: persist the new route into checkpointed state so the
-        #    next invocation on this thread_id resumes with it.
+        # Persist the new route into checkpointed state so the next invocation on
+        # this ``thread_id`` resumes with it. Route memory lives only in state.
         return {"classification": classification, "last_route": classification}
 
     return router_node

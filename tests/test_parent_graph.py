@@ -186,7 +186,7 @@ def _pin_classification(orch: Orchestrator, target: str) -> None:
     deterministic classification to drive the gates, so we pin it.
     """
 
-    async def fake_classify(user_input: str) -> TaskClassification:
+    async def fake_classify(user_input: str, last_route=None) -> TaskClassification:
         return _classification(target)
 
     orch._step2_classify = fake_classify  # type: ignore[assignment]
