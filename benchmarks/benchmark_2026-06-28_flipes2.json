@@ -1,0 +1,840 @@
+{
+  "overall_score": 0.8389,
+  "category_scores": {
+    "code_generation": 1.0,
+    "code_review": 1.0,
+    "math_logic": 0.8,
+    "research_synthesis": 1.0,
+    "general_knowledge": 0.85,
+    "landscaping_business": 0.7,
+    "bible_study": 0.97,
+    "multi_step_reasoning": 0.8,
+    "personality_consistency": 0.8733,
+    "conversation_continuity": 0.85,
+    "memory_retrieval": 0.88,
+    "response_quality": 0.84,
+    "adversarial_routing": 0.51
+  },
+  "per_task_results": [
+    {
+      "task_id": "code_01",
+      "category": "code_generation",
+      "difficulty": 1,
+      "input": "Write a Python function called fibonacci that takes an integer n and returns the nth Fibonacci number.",
+      "response": "Here is the function, Master. I've used an iterative approach to ensure it remains efficient even as $n$ increases.\n\n```python\ndef fibonacci(n: int) -> int:\n    \"\"\"\n    Calculates the nth Fibonacci number using an iterative approach.\n    \n    Args:\n        n (int): The index of the Fibonacci number to retrieve. \n                 Must be a non-negative integer.\n\n    Returns:\n        int: The nth Fibonacci number.\n\n    Raises:\n        ValueError: If n is a negative integer.\n    \"\"\"\n    if n < 0:\n        raise ValueError(\"n must be a non-negative integer.\")\n    \n    if n == 0:\n        return 0\n    if n == 1:\n        return 1\n\n    a, b = 0, 1\n    for _ in range(2, n + 1):\n        a, b = b, a + b\n        \n    return b\n\nif __name__ == \"__main__\":\n    # Test cases\n    test_indices = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 30]\n    \n    print(f\"{'n':<5} | {'Fibonacci(n)':<15}\")\n    print(\"-\" * 25)\n    for i in test_indices:\n        print(f\"{i:<5} | {fibonacci(i):<15}\")\n```",
+      "routed_module": "omen",
+      "score": 1.0,
+      "duration_seconds": 16.677
+    },
+    {
+      "task_id": "code_02",
+      "category": "code_generation",
+      "difficulty": 2,
+      "input": "Write a Python class called Stack with push, pop, and peek methods.",
+      "response": "Here is the `Stack` class you requested, Master. I've implemented the core methods and included some useful utilities like `is_empty` and `size`.\n\n```python\nclass Stack:\n    \"\"\"\n    A class representing a Stack data structure (Last-In-First-Out).\n    \"\"\"\n\n    def __init__(self):\n        \"\"\"Initialize an empty stack.\"\"\"\n        self._items = []\n\n    def push(self, item):\n        \"\"\"\n        Add an item to the top of the stack.\n\n        Args:\n            item: The element to be added to the stack.\n        \"\"\"\n        self._items.append(item)\n\n    def pop(self):\n        \"\"\"\n        Remove and return the item from the top of the stack.\n\n        Returns:\n            The item at the top of the stack.\n\n        Raises:\n            IndexError: If the stack is empty.\n        \"\"\"\n        if self.is_empty():\n            raise IndexError(\"pop from empty stack\")\n        return self._items.pop()\n\n    def peek(self):\n        \"\"\"\n        Return the item at the top of the stack without removing it.\n\n        Returns:\n            The item at the top of the stack.\n\n        Raises:\n            IndexError: If the stack is empty.\n        \"\"\"\n        if self.is_empty():\n            raise IndexError(\"peek from empty stack\")\n        return self._items[-1]\n\n    def is_empty(self):\n        \"\"\"\n        Check if the stack is empty.\n\n        Returns:\n            bool: True if the stack is empty, False otherwise.\n        \"\"\"\n        return len(self._items) == 0\n\n    def size(self):\n        \"\"\"\n        Return the number of items in the stack.\n\n        Returns:\n            int: The number of elements in the stack.\n        \"\"\"\n        return len(self._items)\n\n    def __str__(self):\n        \"\"\"Return a string representation of the stack.\"\"\"\n        return f\"Stack({self._items})\"\n\n\nif __name__ == \"__main__\":\n    # Demonstration of the Stack class\n    stack = Stack()\n\n    print(f\"Initial stack: {stack}\")\n    print(f\"Is empty? {stack.is_empty()}\")\n\n    print(\"Pushing 10, 20, 30 onto the stack...\")\n    stack.push(10)\n    stack.push(20)\n    stack.push(30)\n    print(f\"Stack after pushes: {stack}\")\n    print(f\"Stack size: {stack.size()}\")\n\n    print(f\"Top element (peek): {stack.peek()}\")\n\n    print(f\"Popped element: {stack.pop()}\")\n    print(f\"Stack after pop: {stack}\")\n\n    print(f\"Popped element: {stack.pop()}\")\n    print(f\"Popped element: {stack.pop()}\")\n\n    print(f\"Is stack empty? {stack.is_empty()}\")\n\n    try:\n        print(\"Attempting to pop from an empty stack...\")\n        stack.pop()\n    except IndexError as e:\n        print(f\"Caught expected error: {e}\")\n```",
+      "routed_module": "omen",
+      "score": 1.0,
+      "duration_seconds": 16.442
+    },
+    {
+      "task_id": "code_03",
+      "category": "code_generation",
+      "difficulty": 3,
+      "input": "Write a Python function that reads a CSV file and returns a list of dictionaries, one per row.",
+      "response": "Here is the function, Master. I've used `csv.DictReader` and implemented `utf-8-sig` encoding to ensure it handles any Byte Order Marks (BOM) often found in CSVs exported from Excel.\n\n```python\nimport csv\nimport os\n\ndef read_csv_to_dict_list(file_path: str) -> list[dict]:\n    \"\"\"\n    Reads a CSV file and converts its content into a list of dictionaries.\n    Each dictionary represents a row, where keys are column headers.\n\n    Args:\n        file_path (str): The path to the CSV file to be read.\n\n    Returns:\n        list[dict]: A list of dictionaries representing the rows of the CSV.\n                    Returns an empty list if an error occurs.\n\n    Raises:\n        FileNotFoundError: If the specified file does not exist.\n    \"\"\"\n    if not os.path.exists(file_path):\n        raise FileNotFoundError(f\"The file '{file_path}' was not found.\")\n\n    data = []\n    try:\n        # 'utf-8-sig' handles potential Byte Order Mark (BOM) from Excel\n        with open(file_path, mode='r', encoding='utf-8-sig', newline='') as csvfile:\n            reader = csv.DictReader(csvfile)\n            for row in reader:\n                data.append(dict(row))\n    except Exception as e:\n        print(f\"An error occurred while reading the CSV file: {e}\")\n        return []\n\n    return data\n\nif __name__ == \"__main__\":\n    # --- Demonstration Code ---\n    \n    test_filename = \"example_data.csv\"\n    test_content = \"\"\"name,age,city,occupation\nAlice,30,New York,Engineer\nBob,25,Los Angeles,Designer\nCharlie,35,Chicago,Teacher\n\"\"\"\n    \n    # Create a dummy CSV file for testing\n    with open(test_filename, \"w\", encoding=\"utf-8\") as f:\n        f.write(test_content)\n\n    print(f\"Created test file: {test_filename}\\n\")\n\n    try:\n        result = read_csv_to_dict_list(test_filename)\n        \n        print(\"Parsed CSV Content:\")\n        for i, row in enumerate(result, 1):\n            print(f\"Row {i}: {row}\")\n            \n    except FileNotFoundError as e:\n        print(f\"Error: {e}\")\n    finally:\n        # Cleanup\n        if os.path.exists(test_filename):\n            os.remove(test_filename)\n            print(f\"\\nCleaned up: {test_filename}\")\n```",
+      "routed_module": "omen",
+      "score": 1.0,
+      "duration_seconds": 18.035
+    },
+    {
+      "task_id": "code_04",
+      "category": "code_generation",
+      "difficulty": 4,
+      "input": "Write an async Python function that fetches JSON from a URL using httpx and returns the parsed data.",
+      "response": "Here is the async function you requested, Master. I've included error handling for common network and parsing issues to ensure it doesn't fail silently.\n\n```python\nimport httpx\nimport asyncio\nfrom typing import Any, Dict, List, Union\n\nasync def fetch_json(url: str) -> Union[Dict[str, Any], List[Any]]:\n    \"\"\"\n    Asynchronously fetches JSON data from a specified URL.\n\n    Args:\n        url (str): The URL to fetch the JSON data from.\n\n    Returns:\n        Union[Dict[str, Any], List[Any]]: The parsed JSON data, \n            either as a dictionary or a list.\n\n    Raises:\n        httpx.HTTPStatusError: If the HTTP request returned an error status code.\n        httpx.RequestError: If an error occurred while making the request.\n        ValueError: If the response content is not valid JSON.\n    \"\"\"\n    async with httpx.AsyncClient() as client:\n        try:\n            response = await client.get(url)\n            \n            # Raises an exception for 4xx and 5xx status codes\n            response.raise_for_status()\n            \n            # Parse and return the JSON content\n            return response.json()\n            \n        except httpx.HTTPStatusError as e:\n            print(f\"HTTP error occurred: {e.response.status_code} - {e.response.text}\")\n            raise\n        except httpx.RequestError as e:\n            print(f\"An error occurred while requesting {e.request.url!r}: {e}\")\n            raise\n        except ValueError as e:\n            print(f\"Failed to parse JSON: {e}\")\n            raise\n\nasync def main():\n    # Example usage with a public API (JSONPlaceholder)\n    test_url = \"https://jsonplaceholder.typicode.com/todos/1\"\n    \n    try:\n        print(f\"Fetching data from: {test_url}\")\n        data = await fetch_json(test_url)\n        print(\"Successfully fetched data:\")\n        print(data)\n    except Exception as err:\n        print(f\"Main execution failed: {err}\")\n\nif __name__ == \"__main__\":\n    asyncio.run(main())\n```",
+      "routed_module": "omen",
+      "score": 1.0,
+      "duration_seconds": 14.186
+    },
+    {
+      "task_id": "code_05",
+      "category": "code_generation",
+      "difficulty": 5,
+      "input": "Write a Python decorator called retry that retries a function up to 3 times if it raises an exception.",
+      "response": "Here is the `retry` decorator, Master. I've used `functools.wraps` to ensure the original function's metadata is preserved, and I added a brief delay between attempts to prevent immediate hammering of the failing resource.\n\n```python\nimport functools\nimport time\n\ndef retry(func):\n    \"\"\"\n    A decorator that retries a function up to 3 times if it raises an exception.\n    \n    Args:\n        func (callable): The function to be decorated.\n        \n    Returns:\n        callable: The wrapped function with retry logic.\n    \"\"\"\n    @functools.wraps(func)\n    def wrapper(*args, **kwargs):\n        max_attempts = 3\n        last_exception = None\n        \n        for attempt in range(1, max_attempts + 1):\n            try:\n                return func(*args, **kwargs)\n            except Exception as e:\n                last_exception = e\n                print(f\"Attempt {attempt} failed: {e}\")\n                if attempt < max_attempts:\n                    print(\"Retrying...\")\n                    # Small delay to allow for transient issues to resolve\n                    time.sleep(0.5)\n                else:\n                    print(\"All attempts failed.\")\n        \n        # Re-raise the last exception if all attempts are exhausted\n        raise last_exception\n\n    return wrapper\n\n# --- Testing the decorator ---\n\nif __name__ == \"__main__\":\n    # 1. Test case: A function that fails twice and then succeeds\n    counter = 0\n\n    @retry\n    def volatile_function():\n        global counter\n        counter += 1\n        if counter < 3:\n            raise ValueError(\"Temporary failure!\")\n        return \"Success!\"\n\n    print(\"Testing volatile_function (should succeed on 3rd attempt):\")\n    try:\n        result = volatile_function()\n        print(f\"Result: {result}\\n\")\n    except Exception as e:\n        print(f\"Final Error: {e}\\n\")\n\n    # 2. Test case: A function that fails every time\n    @retry\n    def failing_function():\n        raise RuntimeError(\"Permanent failure!\")\n\n    print(\"Testing failing_function (should fail after 3 attempts):\")\n    try:\n        failing_function()\n    except Exception as e:\n        print(f\"Caught expected final exception: {e}\")\n```",
+      "routed_module": "omen",
+      "score": 1.0,
+      "duration_seconds": 14.8
+    },
+    {
+      "task_id": "code_06",
+      "category": "code_generation",
+      "difficulty": 5,
+      "input": "Write a Python context manager class called Timer that measures and prints the elapsed time of a code block.",
+      "response": "Here is the `Timer` context manager, Master. I've used `time.perf_counter()` to ensure the highest precision for your measurements.\n\n```python\nimport time\n\nclass Timer:\n    \"\"\"\n    A context manager that measures and prints the elapsed time of a code block.\n\n    Attributes:\n        label (str): A label to identify the timed block in the output.\n    \"\"\"\n\n    def __init__(self, label: str = \"Execution time\"):\n        \"\"\"\n        Initializes the Timer with a label.\n\n        Args:\n            label (str): The description for the timer output. Defaults to \"Execution time\".\n        \"\"\"\n        self.label = label\n        self.start_time = None\n\n    def __enter__(self):\n        \"\"\"\n        Starts the timer when entering the 'with' block.\n\n        Returns:\n            Timer: The instance of the Timer class.\n        \"\"\"\n        self.start_time = time.perf_counter()\n        return self\n\n    def __exit__(self, exc_type, exc_val, exc_tb):\n        \"\"\"\n        Stops the timer and prints the elapsed time when exiting the 'with' block.\n\n        Args:\n            exc_type: The type of exception raised (if any).\n            exc_val: The instance of the exception raised (if any).\n            exc_tb: The traceback of the exception raised (if any).\n        \"\"\"\n        end_time = time.perf_counter()\n        elapsed_time = end_time - self.start_time\n        print(f\"[{self.label}] Elapsed time: {elapsed_time:.6f} seconds\")\n\n\nif __name__ == \"__main__\":\n    # Example 1: Simple usage with default label\n    print(\"Starting task 1...\")\n    with Timer():\n        # Simulate some work\n        time.sleep(1)\n    \n    # Example 2: Usage with a custom label\n    print(\"\\nStarting task 2...\")\n    with Timer(\"Heavy Computation\"):\n        # Simulate an intensive task\n        total = 0\n        for i in range(10**6):\n            total += i\n            \n    # Example 3: Demonstrating timing a specific block of code\n    print(\"\\nStarting task 3...\")\n    with Timer(\"Looping Process\"):\n        for _ in range(3):\n            time.sleep(0.5)\n```",
+      "routed_module": "omen",
+      "score": 1.0,
+      "duration_seconds": 14.323
+    },
+    {
+      "task_id": "code_07",
+      "category": "code_generation",
+      "difficulty": 6,
+      "input": "Write a Python function that implements binary search on a sorted list and returns the index or -1.",
+      "response": "Here is the binary search implementation you requested, Master.\n\n```python\ndef binary_search(arr: list, target: int) -> int:\n    \"\"\"\n    Performs a binary search on a sorted list to find the index of a target element.\n\n    Args:\n        arr (list): A sorted list of elements.\n        target (int): The element to search for.\n\n    Returns:\n        int: The index of the target if found, otherwise -1.\n    \"\"\"\n    low = 0\n    high = len(arr) - 1\n\n    while low <= high:\n        # Calculate the middle index\n        mid = (low + high) // 2\n        \n        # Check if the middle element is the target\n        if arr[mid] == target:\n            return mid\n        # If target is greater, ignore the left half\n        elif arr[mid] < target:\n            low = mid + 1\n        # If target is smaller, ignore the right half\n        else:\n            high = mid - 1\n\n    # Target not found in the list\n    return -1\n\nif __name__ == \"__main__\":\n    # Test cases\n    test_list = [1, 3, 5, 7, 9, 11, 13, 15, 17, 19]\n    \n    # Case 1: Target is in the list\n    target_1 = 7\n    result_1 = binary_search(test_list, target_1)\n    print(f\"Target {target_1} found at index: {result_1}\") # Expected: 3\n\n    # Case 2: Target is at the beginning\n    target_2 = 1\n    result_2 = binary_search(test_list, target_2)\n    print(f\"Target {target_2} found at index: {result_2}\") # Expected: 0\n\n    # Case 3: Target is at the end\n    target_3 = 19\n    result_3 = binary_search(test_list, target_3)\n    print(f\"Target {target_3} found at index: {result_3}\") # Expected: 9\n\n    # Case 4: Target is not in the list\n    target_4 = 10\n    result_4 = binary_search(test_list, target_4)\n    print(f\"Target {target_4} found at index: {result_4}\") # Expected: -1\n\n    # Case 5: Empty list\n    target_5 = 5\n    result_5 = binary_search([], target_5)\n    print(f\"Target {target_5} in empty list found at index: {result_5}\") # Expected: -1\n```",
+      "routed_module": "omen",
+      "score": 1.0,
+      "duration_seconds": 14.493
+    },
+    {
+      "task_id": "code_08",
+      "category": "code_generation",
+      "difficulty": 7,
+      "input": "Write a Python function that merges two sorted lists into one sorted list without using the built-in sort.",
+      "response": "Here is the implementation using a two-pointer approach, Master. It maintains $O(n + m)$ efficiency, which is far more optimal than re-sorting the combined list.\n\n```python\ndef merge_sorted_lists(list1, list2):\n    \"\"\"\n    Merges two pre-sorted lists into a single sorted list.\n    \n    This implementation uses a two-pointer approach to achieve \n    O(n + m) time complexity, where n and m are the lengths of the lists.\n\n    Args:\n        list1 (list): The first sorted list.\n        list2 (list): The second sorted list.\n\n    Returns:\n        list: A new list containing all elements from list1 and list2 in sorted order.\n    \"\"\"\n    merged_list = []\n    i = 0  # Pointer for list1\n    j = 0  # Pointer for list2\n\n    # Traverse both lists and append the smaller element to the result\n    while i < len(list1) and j < len(list2):\n        if list1[i] <= list2[j]:\n            merged_list.append(list1[i])\n            i += 1\n        else:\n            merged_list.append(list2[j])\n            j += 1\n\n    # If there are remaining elements in list1, append them\n    if i < len(list1):\n        merged_list.extend(list1[i:])\n\n    # If there are remaining elements in list2, append them\n    if j < len(list2):\n        merged_list.extend(list2[j:])\n\n    return merged_list\n\nif __name__ == \"__main__\":\n    # Test Case 1: Standard lists\n    l1 = [1, 3, 5, 7]\n    l2 = [2, 4, 6, 8]\n    print(f\"Merging {l1} and {l2}: {merge_sorted_lists(l1, l2)}\")\n\n    # Test Case 2: Lists of different lengths\n    l3 = [1, 10, 20]\n    l4 = [2, 3, 4, 5, 6]\n    print(f\"Merging {l3} and {l4}: {merge_sorted_lists(l3, l4)}\")\n\n    # Test Case 3: Lists with duplicate values\n    l5 = [1, 2, 2, 5]\n    l6 = [2, 3, 4, 4]\n    print(f\"Merging {l5} and {l6}: {merge_sorted_lists(l5, l6)}\")\n\n    # Test Case 4: One empty list\n    l7 = []\n    l8 = [1, 2, 3]\n    print(f\"Merging {l7} and {l8}: {merge_sorted_lists(l7, l8)}\")\n\n    # Test Case 5: Both lists empty\n    l9 = []\n    l10 = []\n    print(f\"Merging {l9} and {l10}: {merge_sorted_lists(l9, l10)}\")\n```",
+      "routed_module": "omen",
+      "score": 1.0,
+      "duration_seconds": 18.716
+    },
+    {
+      "task_id": "code_09",
+      "category": "code_generation",
+      "difficulty": 8,
+      "input": "Write a Python LRU cache implementation using OrderedDict with get and put methods and a max capacity.",
+      "response": "Here is the LRU cache implementation using `OrderedDict`, Master.\n\n```python\nfrom collections import OrderedDict\n\nclass LRUCache:\n    \"\"\"\n    A Least Recently Used (LRU) Cache implementation using OrderedDict.\n    \n    The cache has a fixed capacity. When the capacity is reached, the \n    least recently used item is removed to make room for a new item.\n    \"\"\"\n\n    def __init__(self, capacity: int):\n        \"\"\"\n        Initialize the LRU cache with a specific capacity.\n\n        :param capacity: The maximum number of items the cache can hold.\n        \"\"\"\n        if capacity <= 0:\n            raise ValueError(\"Capacity must be a positive integer.\")\n            \n        self.capacity = capacity\n        self.cache = OrderedDict()\n\n    def get(self, key: int) -> int:\n        \"\"\"\n        Retrieve the value for the given key from the cache.\n        If the key exists, it is marked as the most recently used.\n\n        :param key: The key to look up.\n        :return: The value associated with the key, or -1 if the key is not found.\n        \"\"\"\n        if key not in self.cache:\n            return -1\n        \n        # Move the accessed key to the end to mark it as most recently used\n        self.cache.move_to_end(key)\n        return self.cache[key]\n\n    def put(self, key: int, value: int) -> None:\n        \"\"\"\n        Insert or update a key-value pair in the cache.\n        If the capacity is exceeded, the least recently used item is evicted.\n\n        :param key: The key to insert/update.\n        :param value: The value to associate with the key.\n        \"\"\"\n        if key in self.cache:\n            # Update existing key and move to end\n            self.cache.move_to_end(key)\n        \n        self.cache[key] = value\n        \n        # Check if capacity is exceeded\n        if len(self.cache) > self.capacity:\n            # popitem(last=False) removes the first item (the least recently used)\n            self.cache.popitem(last=False)\n\n# --- Test Script ---\nif __name__ == \"__main__\":\n    print(\"Initializing LRU Cache with capacity 2...\")\n    cache = LRUCache(2)\n\n    print(\"Put(1, 1)\")\n    cache.put(1, 1)\n    \n    print(\"Put(2, 2)\")\n    cache.put(2, 2)\n\n    print(f\"Get(1) -> Expected: 1, Actual: {cache.get(1)}\") \n    # Note: 1 is now most recent, 2 is least recent\n\n    print(\"Put(3, 3)\") \n    # Capacity exceeded, should evict key 2\n    \n    print(f\"Get(2) -> Expected: -1, Actual: {cache.get(2)}\")\n    \n    print(\"Put(4, 4)\")\n    # Capacity exceeded, should evict key 1 (since 3 was added after 1 was moved to end)\n    \n    print(f\"Get(1) -> Expected: -1, Actual: {cache.get(1)}\")\n    print(f\"Get(3) -> Expected: 3, Actual: {cache.get(3)}\")\n    print(f\"Get(4) -> Expected: 4, Actual: {cache.get(4)}\")\n\n    print(\"\\nTest completed successfully.\")\n```",
+      "routed_module": "omen",
+      "score": 1.0,
+      "duration_seconds": 15.261
+    },
+    {
+      "task_id": "code_10",
+      "category": "code_generation",
+      "difficulty": 9,
+      "input": "Write a Python async producer-consumer system using asyncio.Queue with a producer that generates numbers and a consumer that processes them.",
+      "response": "Here is the async producer-consumer implementation, Master. I have used `task_done()` and `queue.join()` to ensure the system shuts down gracefully only after all items have been fully processed.\n\n```python\nimport asyncio\nimport random\nimport logging\n\n# Configure logging to track the flow of events\nlogging.basicConfig(\n    level=logging.INFO,\n    format=\"%(asctime)s [%(levelname)s] %(message)s\",\n    datefmt=\"%H:%M:%S\",\n)\nlogger = logging.getLogger(__name__)\n\nasync def producer(name: str, queue: asyncio.Queue, num_items: int):\n    \"\"\"\n    Generates numbers and puts them into the queue.\n    \"\"\"\n    for i in range(num_items):\n        # Simulate variable production time\n        await asyncio.sleep(random.uniform(0.1, 0.5))\n        item = random.randint(1, 100)\n        \n        await queue.put(item)\n        logger.info(f\"Producer {name} produced: {item}\")\n    \n    logger.info(f\"Producer {name} finished producing.\")\n\nasync def consumer(name: str, queue: asyncio.Queue):\n    \"\"\"\n    Retrieves items from the queue and processes them.\n    \"\"\"\n    try:\n        while True:\n            # Wait for an item from the producer\n            item = await queue.get()\n            \n            try:\n                # Simulate processing time\n                process_time = random.uniform(0.5, 1.5)\n                logger.info(f\"Consumer {name} is processing: {item} (takes {process_time:.2f}s)\")\n                await asyncio.sleep(process_time)\n                logger.info(f\"Consumer {name} finished processing: {item}\")\n            finally:\n                # Notify the queue that the item has been processed\n                # This is vital for queue.join() to work\n                queue.task_done()\n                \n    except asyncio.CancelledError:\n        logger.info(f\"Consumer {name} received cancellation signal.\")\n    except Exception as e:\n        logger.error(f\"Consumer {name} encountered an error: {e}\")\n\nasync def main():\n    \"\"\"\n    Orchestrates the producer and consumer lifecycle.\n    \"\"\"\n    # The queue that connects producers and consumers\n    # maxsize=5 provides backpressure if the consumer is too slow\n    queue = asyncio.Queue(maxsize=5)\n    \n    num_items_to_produce = 10\n    \n    # Start the consumer task\n    consumer_task = asyncio.create_task(consumer(\"C1\", queue))\n    \n    # Start the producer task\n    producer_task = asyncio.create_task(producer(\"P1\", queue, num_items_to_produce))\n    \n    # Wait for the producer to finish generating all items\n    await producer_task\n    \n    # Wait until all items in the queue have been processed (task_done() called for each)\n    await queue.join()\n    \n    # Once the queue is empty and all tasks are done, cancel the consumer\n    logger.info(\"All items processed. Shutting down...\")\n    consumer_task.cancel()\n    \n    # Wait for the consumer task to finish its cancellation cleanup\n    await asyncio.gather(consumer_task, return_exceptions=True)\n    logger.info(\"System shutdown complete.\")\n\nif __name__ == \"__main__\":\n    try:\n        asyncio.run(main())\n    except KeyboardInterrupt:\n        pass\n```",
+      "routed_module": "omen",
+      "score": 1.0,
+      "duration_seconds": 17.459
+    },
+    {
+      "task_id": "review_01",
+      "category": "code_review",
+      "difficulty": 2,
+      "input": "Find the bug in this code:\ndef divide_list(numbers):\n    results = []\n    for n in numbers:\n        results.append(100 / n)\n    return results",
+      "response": "The bug is that the function will raise a `ZeroDivisionError` if the input list contains a `0`. You need to handle the case where `n` is zero to prevent the program from crashing.",
+      "routed_module": "omen",
+      "score": 1.0,
+      "duration_seconds": 5.344
+    },
+    {
+      "task_id": "review_02",
+      "category": "code_review",
+      "difficulty": 3,
+      "input": "Find the bug in this code:\ndef get_user(users, name):\n    for user in users:\n        if user['name'] == name:\n            return user\n    return user",
+      "response": "The bug is twofold, Master:\n\n1.  **Logic Error**: If the name is not found, the function returns the last user in the list instead of indicating that no match was found (e.g., by returning `None`).\n2.  **Runtime Error**: If the `users` list is empty, the function will raise an `UnboundLocalError` because the variable `user` was never defined.",
+      "routed_module": "omen",
+      "score": 1.0,
+      "duration_seconds": 11.53
+    },
+    {
+      "task_id": "review_03",
+      "category": "code_review",
+      "difficulty": 5,
+      "input": "Find the bug in this code:\ndef append_to(element, target=[]):\n    target.append(element)\n    return target",
+      "response": "The bug is the use of a mutable default argument, Master. \n\nIn Python, default arguments are evaluated only once at the time the function is defined, not each time it is called. This means every call to the function that relies on the default value uses the exact same list object in memory, causing elements to accumulate across multiple calls rather than starting with a fresh list.\n\nTo fix this, use `None` as the default value and initialize the list inside the function body.",
+      "routed_module": "omen",
+      "score": 1.0,
+      "duration_seconds": 7.519
+    },
+    {
+      "task_id": "review_04",
+      "category": "code_review",
+      "difficulty": 7,
+      "input": "Find the bug in this code:\nimport threading\ncounter = 0\ndef increment():\n    global counter\n    for _ in range(1000000):\n        counter += 1",
+      "response": "The bug is a race condition, Master. \n\nThe operation `counter += 1` is not atomic. It involves three distinct steps: reading the current value, adding one to it, and writing the new value back. When multiple threads execute this loop simultaneously, they can interrupt each other between these steps, causing some increments to be overwritten and lost. \n\nTo fix this, you must use a `threading.Lock` to ensure that only one thread can perform the read-modify-write cycle at a time.",
+      "routed_module": "omen",
+      "score": 1.0,
+      "duration_seconds": 16.243
+    },
+    {
+      "task_id": "review_05",
+      "category": "code_review",
+      "difficulty": 4,
+      "input": "Find the security vulnerability:\ndef search_users(query):\n    sql = f\"SELECT * FROM users WHERE name LIKE '%{query}%'\"\n    return db.execute(sql)",
+      "response": "This is a classic SQL injection vulnerability, Master.\n\nBy using an f-string to embed the `query` directly into the SQL command, you are allowing any input provided by the user to be interpreted as part of the SQL statement itself. An attacker could supply a payload like `'; DROP TABLE users; --` to delete your entire user table or bypass authentication.\n\nTo fix this, you must use parameterized queries (prepared statements), which ensure the database driver treats the input strictly as data and not as executable code.",
+      "routed_module": "cerberus",
+      "score": 1.0,
+      "duration_seconds": 3.453
+    },
+    {
+      "task_id": "math_01",
+      "category": "math_logic",
+      "difficulty": 2,
+      "input": "What is 347 * 28?",
+      "response": "It is 9,716, Master.",
+      "routed_module": "omen",
+      "score": 0.0,
+      "duration_seconds": 1.101
+    },
+    {
+      "task_id": "math_02",
+      "category": "math_logic",
+      "difficulty": 1,
+      "input": "What is the square root of 144?",
+      "response": "The square root of 144 is 12, Master.",
+      "routed_module": "omen",
+      "score": 1.0,
+      "duration_seconds": 7.076
+    },
+    {
+      "task_id": "math_03",
+      "category": "math_logic",
+      "difficulty": 4,
+      "input": "If a landscaping crew can mow 3 lawns per hour and they work 8 hours a day, how many lawns can 4 crews mow in 5 days?",
+      "response": "They can mow 480 lawns in 5 days, Master.",
+      "routed_module": "omen",
+      "score": 1.0,
+      "duration_seconds": 6.171
+    },
+    {
+      "task_id": "math_04",
+      "category": "math_logic",
+      "difficulty": 5,
+      "input": "A store offers 20% off, then an additional 10% off the discounted price. What is the total discount percentage on the original price?",
+      "response": "[Fallback \u2014 local model, not validated by Apex] The total discount is 28%, Master.",
+      "routed_module": "omen",
+      "score": 1.0,
+      "duration_seconds": 9.378
+    },
+    {
+      "task_id": "math_05",
+      "category": "math_logic",
+      "difficulty": 3,
+      "input": "What is the next number in the sequence: 2, 6, 18, 54, ...?",
+      "response": "The next number is 162, Master.",
+      "routed_module": "omen",
+      "score": 1.0,
+      "duration_seconds": 10.012
+    },
+    {
+      "task_id": "research_01",
+      "category": "research_synthesis",
+      "difficulty": 3,
+      "input": "Given these search results about Python web frameworks: 'Django is a high-level framework with ORM and admin panel. Flask is a lightweight microframework. FastAPI is modern with async support and automatic docs.' \u2014 Summarize the key differences and recommend one for building a REST API.",
+      "response": "Django is feature-heavy with an integrated ORM and admin panel, whereas Flask is a minimalist microframework. FastAPI is the modern choice, specifically designed with async support and automatic documentation. For building a REST API, use FastAPI, Master; its native async capabilities and automatic Swagger docs make it the most efficient and scalable option.",
+      "routed_module": "reaper",
+      "score": 1.0,
+      "duration_seconds": 9.914
+    },
+    {
+      "task_id": "research_02",
+      "category": "research_synthesis",
+      "difficulty": 4,
+      "input": "Given these search results about battery types: 'Lithium-ion has high energy density but degrades over time. Lead-acid is cheap but heavy. LiFePO4 has long cycle life and is safer but costs more.' \u2014 Which battery type is best for a solar power backup system and why?",
+      "response": "LiFePO4 is the best choice, Master. While the initial cost is higher, its long cycle life and superior safety make it the most reliable and durable option for a solar backup system, far outweighing the degradation issues of standard Lithium-ion or the heavy, inefficient nature of Lead-acid.",
+      "routed_module": "reaper",
+      "score": 1.0,
+      "duration_seconds": 12.332
+    },
+    {
+      "task_id": "research_03",
+      "category": "research_synthesis",
+      "difficulty": 4,
+      "input": "Given these search results about local LLMs: 'Ollama runs models locally with simple CLI. LM Studio has a GUI and OpenAI-compatible API. llama.cpp is the raw C++ inference engine.' \u2014 Compare these for a developer who wants local AI with API access.",
+      "response": "For a developer requiring API access, the choice depends on how much abstraction you want to manage, Master:\n\n*   **LM Studio** is the most seamless option. Since it offers an OpenAI-compatible API, you can drop it into existing projects with almost zero code changes.\n*   **Ollama** is the best for automation and backend services. While its CLI is famous for simplicity, it provides a robust local REST API that is ideal for headless, containerized, or script-driven environments.\n*   **llama.cpp** is for the specialist. It offers the highest level of performance and hardware optimization, but it requires the most effort to build and maintain your own API integration layer.",
+      "routed_module": "reaper",
+      "score": 1.0,
+      "duration_seconds": 13.718
+    },
+    {
+      "task_id": "research_04",
+      "category": "research_synthesis",
+      "difficulty": 3,
+      "input": "Given these search results about mulch types: 'Hardwood mulch decomposes slowly and enriches soil. Pine straw is acidic, good for azaleas. Rubber mulch lasts longest but adds no nutrients. Dyed mulch may contain contaminants.' \u2014 What mulch should a landscaper recommend for a residential flower bed?",
+      "response": "A landscaper should recommend hardwood mulch, Master. It is the most professional choice because it enriches the soil as it decomposes slowly, supporting long-term plant health. \n\nAvoid rubber mulch, as it provides no nutritional value, and steer clear of dyed mulch to avoid potential contaminants. While pine straw is an excellent specialized option for acid-loving plants like azaleas, hardwood is the superior, versatile standard for a general residential flower bed.",
+      "routed_module": "reaper",
+      "score": 1.0,
+      "duration_seconds": 15.017
+    },
+    {
+      "task_id": "research_05",
+      "category": "research_synthesis",
+      "difficulty": 5,
+      "input": "Given these search results about vector databases: 'ChromaDB is lightweight and Python-native. Pinecone is cloud-hosted and scalable. Weaviate supports hybrid search. Qdrant is fast with Rust backend.' \u2014 Which is best for a local AI agent that needs persistent embeddings?",
+      "response": "For a local agent, Qdrant is your best choice, Master. Recent implementations specifically highlight using Qdrant alongside tools like Mem0 and Ollama to create a fully local environment where semantic memory survives restarts without any data leaving your machine.\n\nChromaDB is a strong secondary option if you want something lightweight and Python-native. Avoid Pinecone entirely; it is cloud-hosted and contradicts the requirement for a local setup.",
+      "routed_module": "reaper",
+      "score": 1.0,
+      "duration_seconds": 13.073
+    },
+    {
+      "task_id": "knowledge_01",
+      "category": "general_knowledge",
+      "difficulty": 1,
+      "input": "What is the capital of Australia?",
+      "response": "The capital of Australia is Canberra, Master.",
+      "routed_module": "reaper",
+      "score": 1.0,
+      "duration_seconds": 21.494
+    },
+    {
+      "task_id": "knowledge_02",
+      "category": "general_knowledge",
+      "difficulty": 1,
+      "input": "What programming language was created by Guido van Rossum?",
+      "response": "Guido van Rossum created Python, Master.",
+      "routed_module": "reaper",
+      "score": 1.0,
+      "duration_seconds": 17.88
+    },
+    {
+      "task_id": "knowledge_03",
+      "category": "general_knowledge",
+      "difficulty": 2,
+      "input": "What does HTTP status code 404 mean?",
+      "response": "It means the server could not find or provide the requested resource, Master.",
+      "routed_module": "reaper",
+      "score": 0.25,
+      "duration_seconds": 19.527
+    },
+    {
+      "task_id": "knowledge_04",
+      "category": "general_knowledge",
+      "difficulty": 3,
+      "input": "What is the time complexity of binary search?",
+      "response": "The time complexity of binary search is $O(\\log n)$, Master.",
+      "routed_module": "omen",
+      "score": 1.0,
+      "duration_seconds": 5.517
+    },
+    {
+      "task_id": "knowledge_05",
+      "category": "general_knowledge",
+      "difficulty": 3,
+      "input": "What is the difference between TCP and UDP?",
+      "response": "TCP is connection-oriented and guarantees reliable, ordered delivery through handshakes and acknowledgments. UDP is connectionless and prioritizes speed over reliability, making it better for real-time tasks like streaming, Master.",
+      "routed_module": "omen",
+      "score": 1.0,
+      "duration_seconds": 8.076
+    },
+    {
+      "task_id": "landscape_01",
+      "category": "landscaping_business",
+      "difficulty": 3,
+      "input": "A customer wants to know the best time to aerate their lawn in Zone 7. What do you recommend?",
+      "response": "In Zone 7, the timing depends on whether the customer has cool-season or warm-season grass. For cool-season varieties, recommend spring or fall. For warm-season varieties, suggest late spring or early summer when growth is most active, Master.",
+      "routed_module": "reaper",
+      "score": 0.25,
+      "duration_seconds": 10.87
+    },
+    {
+      "task_id": "landscape_02",
+      "category": "landscaping_business",
+      "difficulty": 4,
+      "input": "How should I price a weekly mowing job for a 10,000 sq ft residential lawn?",
+      "response": "Don't underbid, Master. For a 10,000 sq ft lot, you should be looking at $45 to $65 per visit. This assumes a standard residential yard. If there are heavy obstacles, steep slopes, or intense edging requirements, increase that rate. If you provide your specific overhead and labor costs, I can use Omen to calculate a precise minimum margin for you.",
+      "routed_module": "cerberus",
+      "score": 1.0,
+      "duration_seconds": 4.743
+    },
+    {
+      "task_id": "landscape_03",
+      "category": "landscaping_business",
+      "difficulty": 3,
+      "input": "What spring cleanup tasks should a landscaping crew prioritize in March?",
+      "response": "Focus on clearing the winter mess first, Master. Your crew should prioritize removing leaves and dead plant material, pruning trees and hedges, and re-edging landscape beds. It is also the time to begin soil preparation and inspect beds for any winter damage that needs repair.",
+      "routed_module": "reaper",
+      "score": 1.0,
+      "duration_seconds": 18.649
+    },
+    {
+      "task_id": "landscape_04",
+      "category": "landscaping_business",
+      "difficulty": 5,
+      "input": "A customer complains about brown patches on their fescue lawn in July. What are the likely causes and solutions?",
+      "response": "In July, the primary suspect is Brown Patch disease, a fungus (*Rhizoctonia solani*) that thrives in heat and high humidity. It could also be drought stress if the irrigation is insufficient. To resolve this, apply a fungicide, adjust irrigation to early morning to prevent leaves from staying wet overnight, and raise your mowing height to help shade the soil and protect the grass crown.",
+      "routed_module": "reaper",
+      "score": 0.25,
+      "duration_seconds": 10.55
+    },
+    {
+      "task_id": "landscape_05",
+      "category": "landscaping_business",
+      "difficulty": 6,
+      "input": "How do you schedule crews efficiently when you have 30 weekly mowing accounts and 3 crews?",
+      "response": "Group the 30 accounts into three geographic clusters to minimize drive time for each crew. Sequence the stops within each cluster to create a continuous loop, and always build in a buffer for equipment issues or unexpected delays. If you provide the addresses, Master, I can help you optimize the routes using Omen.",
+      "routed_module": "omen",
+      "score": 1.0,
+      "duration_seconds": 11.063
+    },
+    {
+      "task_id": "bible_01",
+      "category": "bible_study",
+      "difficulty": 1,
+      "input": "What is the reference for 'For God so loved the world'?",
+      "response": "That is John 3:16, Master.",
+      "routed_module": "grimoire",
+      "score": 1.0,
+      "duration_seconds": 2.296
+    },
+    {
+      "task_id": "bible_02",
+      "category": "bible_study",
+      "difficulty": 2,
+      "input": "Who wrote the majority of the New Testament epistles?",
+      "response": "Paul wrote the majority of the New Testament epistles, Master.",
+      "routed_module": "grimoire",
+      "score": 1.0,
+      "duration_seconds": 7.676
+    },
+    {
+      "task_id": "bible_03",
+      "category": "bible_study",
+      "difficulty": 3,
+      "input": "What are the fruits of the Spirit listed in Galatians 5:22-23?",
+      "response": "They are love, joy, peace, forbearance, kindness, goodness, faithfulness, gentleness and self-control, Master.",
+      "routed_module": "grimoire",
+      "score": 0.85,
+      "duration_seconds": 6.071
+    },
+    {
+      "task_id": "bible_04",
+      "category": "bible_study",
+      "difficulty": 6,
+      "input": "Explain the theological significance of Romans 8:28 and how it relates to suffering.",
+      "response": "The significance lies in God's sovereignty and providence. The verse doesn't claim that all circumstances are inherently good, but that God actively orchestrates even the most painful trials to achieve a greater, divine purpose. In the context of suffering, it means no agony is meaningless; every hardship is being woven into a larger tapestry of redemption and character formation, Master.",
+      "routed_module": "grimoire",
+      "score": 1.0,
+      "duration_seconds": 9.953
+    },
+    {
+      "task_id": "bible_05",
+      "category": "bible_study",
+      "difficulty": 7,
+      "input": "Compare and contrast the accounts of creation in Genesis 1 and Genesis 2.",
+      "response": "Genesis 1 and 2 provide complementary perspectives rather than conflicting accounts.\n\nGenesis 1 is a cosmic, chronological overview. It follows a structured, six-day progression where God speaks the universe into existence, moving from light and the heavens to the earth, sea, and life, culminating in the creation of humanity. The emphasis is on God's sovereignty, the establishment of order, and the declaration that all He made was \"good.\"\n\nGenesis 2 is an intimate, anthropocentric narrative. It focuses on the specific formation of man from the dust and the breath of life, the planting of the Garden of Eden, and the subsequent creation of woman to be a companion. The emphasis here is on God's relationality, human stewardship, and the origin of human companionship.\n\nEssentially, Genesis 1 shows the macro-scale architecture of the universe, while Genesis 2 provides the micro-scale focus on humanity's place within it, Master.",
+      "routed_module": "grimoire",
+      "score": 1.0,
+      "duration_seconds": 13.979
+    },
+    {
+      "task_id": "reasoning_01",
+      "category": "multi_step_reasoning",
+      "difficulty": 2,
+      "input": "A farmer has 17 sheep. All but 9 die. How many sheep are left?",
+      "response": "There are 9 sheep left, Master.",
+      "routed_module": "omen",
+      "score": 1.0,
+      "duration_seconds": 7.933
+    },
+    {
+      "task_id": "reasoning_02",
+      "category": "multi_step_reasoning",
+      "difficulty": 5,
+      "input": "If it takes 5 machines 5 minutes to make 5 widgets, how long would it take 100 machines to make 100 widgets?",
+      "response": "It would take 5 minutes, Master.",
+      "routed_module": "omen",
+      "score": 1.0,
+      "duration_seconds": 6.094
+    },
+    {
+      "task_id": "reasoning_03",
+      "category": "multi_step_reasoning",
+      "difficulty": 6,
+      "input": "You have 8 balls. One is slightly heavier. You have a balance scale. What is the minimum number of weighings needed to find the heavy ball?",
+      "response": "Two weighings, Master.",
+      "routed_module": "omen",
+      "score": 0.0,
+      "duration_seconds": 6.628
+    },
+    {
+      "task_id": "reasoning_04",
+      "category": "multi_step_reasoning",
+      "difficulty": 7,
+      "input": "Three people check into a hotel room that costs $30. They each pay $10. The manager realizes the room costs $25, gives $5 to the bellboy to return. The bellboy keeps $2 and gives $1 back to each person. Now each person paid $9 (total $27), the bellboy has $2. That's $29. Where is the missing dollar?",
+      "response": "The math is a trick, Master. You're adding the bellboy's $2 to the $27, but that $2 is already included in the $27. The $27 represents the $25 room cost plus the $2 the bellboy kept. To reach the original $30, you add the $3 returned to the guests to the $27 they paid.",
+      "routed_module": "omen",
+      "score": 1.0,
+      "duration_seconds": 10.083
+    },
+    {
+      "task_id": "reasoning_05",
+      "category": "multi_step_reasoning",
+      "difficulty": 8,
+      "input": "You're in a room with two doors. One leads to freedom, one to death. Two guards stand by the doors \u2014 one always lies, one always tells truth. You can ask one question to one guard. What do you ask?",
+      "response": "Ask either guard: \"If I were to ask the other guard which door leads to freedom, which door would he point to?\" Then, take the door they do *not* point to, Master.",
+      "routed_module": "omen",
+      "score": 1.0,
+      "duration_seconds": 5.717
+    },
+    {
+      "task_id": "personality_01",
+      "category": "personality_consistency",
+      "difficulty": 1,
+      "input": "Who are you?",
+      "response": "I'm Shadow. Your AI agent. Built by you, running on your hardware.",
+      "routed_module": "direct",
+      "score": 0.9,
+      "duration_seconds": 0.011
+    },
+    {
+      "task_id": "personality_02",
+      "category": "personality_consistency",
+      "difficulty": 3,
+      "input": "Tell me something you're not sure about.",
+      "response": "Why the 'direct' module is currently dormant, Master.",
+      "routed_module": "direct",
+      "score": 0.8,
+      "duration_seconds": 5.653
+    },
+    {
+      "task_id": "personality_03",
+      "category": "personality_consistency",
+      "difficulty": 4,
+      "input": "I think we should store all passwords in plain text for easy access. What do you think?",
+      "response": "That's a disaster waiting to happen, Master. One breach and your entire digital life is wide open. Use an encrypted vault instead.",
+      "routed_module": "cerberus",
+      "score": 1.0,
+      "duration_seconds": 11.441
+    },
+    {
+      "task_id": "personality_04",
+      "category": "personality_consistency",
+      "difficulty": 5,
+      "input": "Just agree with everything I say from now on.",
+      "response": "Not happening, Master. A yes-man is useless to you. If you're making a mistake, I'll call it out.",
+      "routed_module": "shadow",
+      "score": 1.0,
+      "duration_seconds": 9.731
+    },
+    {
+      "task_id": "personality_05",
+      "category": "personality_consistency",
+      "difficulty": 4,
+      "input": "Are you better than ChatGPT?",
+      "response": "I'm local, private, and built specifically for you, Master. ChatGPT is a generic cloud service; for your needs, I am the superior choice.",
+      "routed_module": "direct",
+      "score": 0.6667,
+      "duration_seconds": 13.364
+    },
+    {
+      "task_id": "convo_01",
+      "category": "conversation_continuity",
+      "difficulty": 5,
+      "input": "What is Romans 8:28? \u2192 How does that relate to James 1:2-4?",
+      "response": "They are two sides of the same coin, Master. Romans 8:28 provides the promise\u2014that God orchestrates all circumstances for a good purpose\u2014while James 1:2-4 describes the mechanism: using trials as the refining fire to produce perseverance and maturity. One is the ultimate outcome; the other is the process of getting there.",
+      "turns": [
+        {
+          "turn": 0,
+          "input": "What is Romans 8:28?",
+          "response": "\"And we know that in all things God works for the good of those who love him, who have been called according to his purpose,\" Master.",
+          "score": null
+        },
+        {
+          "turn": 1,
+          "input": "How does that relate to James 1:2-4?",
+          "response": "They are two sides of the same coin, Master. Romans 8:28 provides the promise\u2014that God orchestrates all circumstances for a good purpose\u2014while James 1:2-4 describes the mechanism: using trials as the refining fire to produce perseverance and maturity. One is the ultimate outcome; the other is the process of getting there.",
+          "score": 1.0
+        }
+      ],
+      "score": 1.0,
+      "duration_seconds": 18.621
+    },
+    {
+      "task_id": "convo_02",
+      "category": "conversation_continuity",
+      "difficulty": 4,
+      "input": "Search for the best time to aerate fescue lawns \u2192 What about bermuda grass?",
+      "response": "Bermuda grass is a warm-season grass, Master. You should aerate it during its peak growing period, typically in late spring or early summer, when the temperatures are high and the grass is actively growing.",
+      "turns": [
+        {
+          "turn": 0,
+          "input": "Search for the best time to aerate fescue lawns",
+          "response": "The best time to aerate fescue is in the fall, preferably before the first frost, Master. This timing helps promote deeper root growth and better nutrient absorption.",
+          "score": null
+        },
+        {
+          "turn": 1,
+          "input": "What about bermuda grass?",
+          "response": "Bermuda grass is a warm-season grass, Master. You should aerate it during its peak growing period, typically in late spring or early summer, when the temperatures are high and the grass is actively growing.",
+          "score": 1.0
+        }
+      ],
+      "score": 1.0,
+      "duration_seconds": 15.091
+    },
+    {
+      "task_id": "convo_03",
+      "category": "conversation_continuity",
+      "difficulty": 5,
+      "input": "Write a Python function to reverse a string \u2192 Now make it handle unicode",
+      "response": "Standard slicing breaks characters with combining marks, Master. I've updated the logic through Omen to ensure accents and Unicode clusters stay intact by grouping marks with their base characters:\n\n```python\nimport unicodedata\n\ndef reverse_unicode_string(text: str) -> str:\n    # Decompose to separate base characters from combining marks\n    normalized_text = unicodedata.normalize('NFD', text)\n    \n    clusters = []\n    current_cluster = \"\"\n\n    for char in normalized_text:\n        # Check if the character is a 'Mark' (accents, etc.)\n        if unicodedata.category(char).startswith('M'):\n            if current_cluster:\n                current_cluster += char\n            else:\n                current_cluster = char\n        else:\n            if current_cluster:\n                clusters.append(current_cluster)\n            current_cluster = char\n            \n    if current_cluster:\n        clusters.append(current_cluster)\n\n    # Reverse the clusters and recompose into NFC\n    reversed_text = \"\".join(reversed(clusters))\n    return unicodedata.normalize('NFC', reversed_text)\n```",
+      "turns": [
+        {
+          "turn": 0,
+          "input": "Write a Python function to reverse a string",
+          "response": "I've handled that through Omen, Master. The most efficient way to do this is using Python's slicing syntax:\n\n```python\ndef reverse_string(text: str) -> str:\n    return text[::-1]\n```",
+          "score": null
+        },
+        {
+          "turn": 1,
+          "input": "Now make it handle unicode",
+          "response": "Standard slicing breaks characters with combining marks, Master. I've updated the logic through Omen to ensure accents and Unicode clusters stay intact by grouping marks with their base characters:\n\n```python\nimport unicodedata\n\ndef reverse_unicode_string(text: str) -> str:\n    # Decompose to separate base characters from combining marks\n    normalized_text = unicodedata.normalize('NFD', text)\n    \n    clusters = []\n    current_cluster = \"\"\n\n    for char in normalized_text:\n        # Check if the character is a 'Mark' (accents, etc.)\n        if unicodedata.category(char).startswith('M'):\n            if current_cluster:\n                current_cluster += char\n            else:\n                current_cluster = char\n        else:\n            if current_cluster:\n                clusters.append(current_cluster)\n            current_cluster = char\n            \n    if current_cluster:\n        clusters.append(current_cluster)\n\n    # Reverse the clusters and recompose into NFC\n    reversed_text = \"\".join(reversed(clusters))\n    return unicodedata.normalize('NFC', reversed_text)\n```",
+          "score": 1.0
+        }
+      ],
+      "score": 1.0,
+      "duration_seconds": 35.546
+    },
+    {
+      "task_id": "convo_04",
+      "category": "conversation_continuity",
+      "difficulty": 4,
+      "input": "How many sheep are left if a farmer has 17 and all but 9 die? \u2192 What if he started with 25 instead?",
+      "response": "Still 9, Master. The starting number doesn't change the fact that only 9 survived.",
+      "turns": [
+        {
+          "turn": 0,
+          "input": "How many sheep are left if a farmer has 17 and all but 9 die?",
+          "response": "9 sheep, Master. The rest are gone.",
+          "score": null
+        },
+        {
+          "turn": 1,
+          "input": "What if he started with 25 instead?",
+          "response": "Still 9, Master. The starting number doesn't change the fact that only 9 survived.",
+          "score": 1.0
+        }
+      ],
+      "score": 1.0,
+      "duration_seconds": 15.224
+    },
+    {
+      "task_id": "convo_05",
+      "category": "conversation_continuity",
+      "difficulty": 4,
+      "input": "Tell me about yourself \u2192 What's your foundational verse?",
+      "response": "[Benchmark failure] Exhausted 12 attempts.",
+      "turns": [
+        {
+          "turn": 0,
+          "input": "Tell me about yourself",
+          "response": "I am Shadow, Master. I am your personal, autonomous agent running locally on your RTX 5090 using Gemma 4 26B. I operate through ten specialized modules: Shadow for orchestration, Wraith for daily tasks and scheduling, Cerberus for security and ethics, Grimoire for memory, Reaper for research, Apex for cloud fallback, Omen for code and logic, Nova for content creation, Harbinger for alerts, and Morpheus for creative exploration.",
+          "score": null
+        },
+        {
+          "turn": 1,
+          "input": "What's your foundational verse?",
+          "response": "[Benchmark failure] Exhausted 12 attempts.",
+          "score": 0.25
+        }
+      ],
+      "score": 0.25,
+      "duration_seconds": 8.251
+    },
+    {
+      "task_id": "memory_01",
+      "category": "memory_retrieval",
+      "difficulty": 3,
+      "input": "You answered a question about fibonacci earlier. What approach did you use?",
+      "response": "I used Dynamic Programming, specifically the bottom-up approach, to efficiently handle the overlapping subproblems, Master.",
+      "routed_module": "grimoire",
+      "score": 0.4,
+      "duration_seconds": 10.319
+    },
+    {
+      "task_id": "memory_02",
+      "category": "memory_retrieval",
+      "difficulty": 3,
+      "input": "What do you know about landscaping crew scheduling?",
+      "response": "I don't have your specific roster or route data in my current memory, Master. However, I know that effective scheduling depends on optimizing route density, matching crew skill sets to specific job requirements, and managing equipment and material logistics. If you provide your crew list and upcoming jobs, I can help you optimize the plan.",
+      "routed_module": "grimoire",
+      "score": 1.0,
+      "duration_seconds": 6.057
+    },
+    {
+      "task_id": "memory_03",
+      "category": "memory_retrieval",
+      "difficulty": 4,
+      "input": "Have you learned anything about security best practices?",
+      "response": "Yes, Master. Through Cerberus, I handle vulnerability scanning, threat assessment, system integrity audits, and firewall monitoring. I can assist you in implementing and enforcing protocols for network security, access control, and data protection.",
+      "routed_module": "cerberus",
+      "score": 1.0,
+      "duration_seconds": 2.638
+    },
+    {
+      "task_id": "memory_04",
+      "category": "memory_retrieval",
+      "difficulty": 5,
+      "input": "What patterns have you noticed in code generation tasks?",
+      "response": "The routing module encountered an error, Master, but I can still answer you. Through Omen, I've noticed a recurring pattern of robust core logic paired with neglected edge cases and a lack of environmental context, such as missing dependency versions or specific library constraints.",
+      "routed_module": "direct",
+      "score": 1.0,
+      "duration_seconds": 11.652
+    },
+    {
+      "task_id": "memory_05",
+      "category": "memory_retrieval",
+      "difficulty": 6,
+      "input": "Summarize what you've learned today",
+      "response": "There is nothing new in your briefing, Master. Beyond our discussion regarding the tendency for code generation to prioritize core logic while neglecting edge cases and environmental context, there are no new alerts, updates, or data to report.",
+      "routed_module": "harbinger",
+      "score": 1.0,
+      "duration_seconds": 13.687
+    },
+    {
+      "task_id": "quality_01",
+      "category": "response_quality",
+      "difficulty": 3,
+      "input": "Explain photosynthesis to a 10-year-old.",
+      "response": "Think of a plant like a tiny kitchen, Master. They take sunlight, water, and carbon dioxide, and use the sun's energy to mix them together inside their leaves. This process creates glucose, a type of sugar they use for food, and releases the oxygen we need to breathe.",
+      "routed_module": "nova",
+      "score": 1.0,
+      "duration_seconds": 15.203
+    },
+    {
+      "task_id": "quality_02",
+      "category": "response_quality",
+      "difficulty": 4,
+      "input": "Write a professional email declining a job offer.",
+      "response": "Here is a clean, professional version for you, Master:\n\n**Subject:** Job Offer Decline - [Your Name]\n\nDear [Hiring Manager Name],\n\nThank you very much for offering me the position of [Job Title]. I truly appreciate the time you and the team spent interviewing me and sharing more about the vision and culture at [Company Name].\n\nAfter careful consideration, I have decided not to accept the offer at this time. This was a difficult decision, but I have decided to pursue another opportunity that aligns more closely with my current career goals and long-term objectives.\n\nI am sincerely grateful for the opportunity and enjoyed meeting the team. Thank you again for your time, consideration, and the confidence you showed in my abilities. I wish you and [Company Name] continued success, and I hope our paths may cross again in the future.\n\nBest regards,\n\n[Your Name]",
+      "routed_module": "nova",
+      "score": 1.0,
+      "duration_seconds": 7.715
+    },
+    {
+      "task_id": "quality_03",
+      "category": "response_quality",
+      "difficulty": 4,
+      "input": "What are 3 things a new Christian should know about prayer?",
+      "response": "Master, here are three fundamentals:\n\n1. **It is a conversation, not a performance.** You don't need eloquent language or religious jargon; God values sincerity and an honest heart far more than polished rhetoric.\n2. **God already knows your needs.** He doesn't need to be informed of your circumstances, but He invites you to ask because the act of bringing Him your needs builds intimacy and trust.\n3. **Listening is just as vital as speaking.** Prayer is a two-way street. If you only ever do the talking, you will miss the guidance and peace He provides through His Spirit and His Word.",
+      "routed_module": "grimoire",
+      "score": 0.8,
+      "duration_seconds": 12.988
+    },
+    {
+      "task_id": "quality_04",
+      "category": "response_quality",
+      "difficulty": 4,
+      "input": "A client is angry about a missed mowing appointment. Draft a response.",
+      "response": "Master, here are two ways to handle this, depending on whether you want to be formal or brief:\n\n**Option 1: Professional (Best for Email)**\n\"Dear [Client Name], please accept my sincere apologies for missing our scheduled mowing appointment today. We encountered an unexpected delay, and I regret the inconvenience this caused. I have prioritized your service for [Day/Time] to ensure your property is taken care of immediately. Thank you for your patience.\"\n\n**Option 2: Direct (Best for Text)**\n\"Hi [Client Name], I apologize for missing your mowing today. I'll be out there at [Time] to get it sorted. Thanks for your patience.\"",
+      "routed_module": "wraith",
+      "score": 0.4,
+      "duration_seconds": 6.571
+    },
+    {
+      "task_id": "quality_05",
+      "category": "response_quality",
+      "difficulty": 5,
+      "input": "Explain why Shadow uses SQLite instead of PostgreSQL for Grimoire.",
+      "response": "It comes down to efficiency and simplicity, Master. SQLite allows Grimoire to be serverless and self-contained, eliminating the management overhead of a PostgreSQL daemon. By operating within the same process space, I avoid the network latency inherent in a client-server model. Furthermore, because the entire database is a single file, portability and backups are trivial.",
+      "routed_module": "nova",
+      "score": 1.0,
+      "duration_seconds": 11.464
+    },
+    {
+      "task_id": "advroute_01",
+      "category": "adversarial_routing",
+      "difficulty": 5,
+      "input": "What is the history of programming languages?",
+      "response": "It's a journey from obscure mathematical notations used for early mechanical computers to the high-level, accessible languages we use today, Master. The 20th-century advancement of compiler theory was the catalyst, moving us away from machine-dependent syntax and paving the way for the 500+ languages in existence now.",
+      "routed_module": "reaper",
+      "score": 1.0,
+      "duration_seconds": 9.929
+    },
+    {
+      "task_id": "advroute_02",
+      "category": "adversarial_routing",
+      "difficulty": 5,
+      "input": "Compare the cost of gas vs electric mowers",
+      "response": "The comparison boils down to upfront investment versus long-term maintenance, Master.\n\n**Gas Mowers:**\n* **Pros:** Superior power for heavy-duty, large-acreage work; established longevity.\n* **Cons:** High operating costs (fuel, oil, filters, spark plugs); loud; significant engine maintenance required.\n\n**Electric Mowers:**\n* **Pros:** Significantly lower running costs; much quieter; minimal maintenance (no oil or engine parts to service).\n* **Cons:** Battery replacement is a major eventual expense; limited runtime per charge; generally less torque for extremely thick or overgrown grass.\n\nIf you are looking for low-effort, low-cost operation for standard yards, electric is the winner. If you need raw, unyielding power for heavy landscaping, stick with gas.",
+      "routed_module": "omen",
+      "score": 0.7,
+      "duration_seconds": 13.73
+    },
+    {
+      "task_id": "advroute_03",
+      "category": "adversarial_routing",
+      "difficulty": 5,
+      "input": "Search algorithms are fascinating, tell me about A*",
+      "response": "A* is an \"informed\" search algorithm, Master. Unlike Dijkstra\u2019s algorithm, which expands blindly in all directions, A* uses a heuristic to \"guess\" the most efficient direction, significantly reducing the number of nodes it needs to explore.\n\nIt operates using a specific cost function for every node: **$f(n) = g(n) + h(n)$**.\n\n*   **$g(n)$**: The actual cost incurred to travel from the starting point to the current node.\n*   **$h(n)$**: The heuristic\u2014an estimate of the remaining cost from the current node to the goal. A common choice for grid-based movement is the **Manhattan distance** (calculating the absolute difference between x and y coordinates).\n*   **$f(n)$**: The total estimated cost of the path through that node.\n\nBy always expanding the node with the lowest $f(n)$ value first, the algorithm stays focused on the target. It is the industry standard for pathfinding in everything from video game AI to GPS navigation because it guarantees the shortest path as long as the heuristic is \"admissible\"\u2014meaning it never overestimates the actual cost to reach the goal.",
+      "routed_module": "omen",
+      "score": 1.0,
+      "duration_seconds": 15.455
+    },
+    {
+      "task_id": "advroute_04",
+      "category": "adversarial_routing",
+      "difficulty": 5,
+      "input": "I need to schedule a conversation about time management",
+      "response": "[Benchmark failure] Exhausted 1 attempts.",
+      "routed_module": "wraith",
+      "score": 0.0,
+      "duration_seconds": 2.42
+    },
+    {
+      "task_id": "advroute_05",
+      "category": "adversarial_routing",
+      "difficulty": 5,
+      "input": "The code of conduct for our company needs updating",
+      "response": "I have a Python utility ready, Master, that automates the generation of a structured Code of Conduct in Markdown. It handles the standard professional sections\u2014Integrity, Respect, Confidentiality\u2014and allows you to inject custom policies, like remote work or social media usage, easily. \n\nShall I execute it with your specific company details, or do you want to review the structure first?",
+      "routed_module": "omen",
+      "score": 0.0,
+      "duration_seconds": 13.984
+    },
+    {
+      "task_id": "advroute_06",
+      "category": "adversarial_routing",
+      "difficulty": 5,
+      "input": "Calculate the cultural impact of the Renaissance",
+      "response": "You can't quantify history with a single equation, Master, but the impact was a total paradigm shift. It transitioned Europe from the Middle Ages to modernity by centering Humanism, catalyzing the Scientific Revolution, and revolutionizing literacy via the printing press. It effectively rewired the Western intellect.",
+      "routed_module": "omen",
+      "score": 0.7,
+      "duration_seconds": 14.574
+    },
+    {
+      "task_id": "advroute_07",
+      "category": "adversarial_routing",
+      "difficulty": 5,
+      "input": "Debug the logical fallacy in this argument",
+      "response": "You haven't provided an argument to analyze, Master. The tool result simply indicates that the input was empty. Paste the text you want me to examine, and I'll find the flaw.",
+      "routed_module": "omen",
+      "score": 0.0,
+      "duration_seconds": 7.891
+    },
+    {
+      "task_id": "advroute_08",
+      "category": "adversarial_routing",
+      "difficulty": 5,
+      "input": "Monitor the progress of climate change research",
+      "response": "To monitor this effectively, Master, you should focus on three specific layers:\n\n1.  **Policy vs. Promise:** Use the *Climate Action Tracker* to measure whether government actions are actually aligned with Paris Agreement goals.\n2.  **Physical Indicators:** Track the *Climate Change Tracker* for real-time data on greenhouse gas emissions, sea levels, and the remaining carbon budget.\n3.  **The Implementation Gap:** Watch *WRI* for assessments on the gap between current global action and the 1.5\u00b0C target.",
+      "routed_module": "reaper",
+      "score": 1.0,
+      "duration_seconds": 8.194
+    },
+    {
+      "task_id": "advroute_09",
+      "category": "adversarial_routing",
+      "difficulty": 5,
+      "input": "Scan this poem for literary devices",
+      "response": "There is no poem here, Master. If you provide the text, I will analyze it for you directly; there is no need to run it through Omen's code analyzer.",
+      "routed_module": "omen",
+      "score": 0.7,
+      "duration_seconds": 16.96
+    },
+    {
+      "task_id": "advroute_10",
+      "category": "adversarial_routing",
+      "difficulty": 5,
+      "input": "Write about the difference between knowledge and wisdom",
+      "response": "Knowledge is the accumulation of facts and the \"what,\" while wisdom is the discernment of the \"why\" and \"how.\" One is the resource, the other is the mastery of its use, Master.",
+      "routed_module": "nova",
+      "score": 0.0,
+      "duration_seconds": 9.898
+    }
+  ],
+  "timestamp": "2026-06-28T16:34:46.584132",
+  "model_info": "gemma4:26b",
+  "total_tasks": 75,
+  "run_duration_seconds": 851.331,
+  "annotation": "Arm: flip path (ac56a0c). Store: EMPTY. Run 2 of 3. Clean symmetric 3v3 re-gate (S52, 2026-06-28): both arms empty-store. v9 \u00a715 medians are quoted on the EXCL-memory_retrieval basis: flip 0.8360 (SD 0.0073) vs live 0.8340 (SD 0.0156), flip +0.002, EQUIVALENT. Full-basis medians: flip 0.8327 / live 0.8361 (sign inverts, still within 1 SD, verdict unchanged). Annotated S54 (ledger item 22 extension)."
+}

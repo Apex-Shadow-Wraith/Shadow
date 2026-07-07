@@ -201,7 +201,7 @@
       "category": "math_logic",
       "difficulty": 5,
       "input": "A store offers 20% off, then an additional 10% off the discounted price. What is the total discount percentage on the original price?",
-      "response": "[Fallback — local model, not validated by Apex] The total discount is 28%, Master.",
+      "response": "[Fallback \u2014 local model, not validated by Apex] The total discount is 28%, Master.",
       "routed_module": "omen",
       "score": 1.0,
       "duration_seconds": 8.859
@@ -220,7 +220,7 @@
       "task_id": "research_01",
       "category": "research_synthesis",
       "difficulty": 3,
-      "input": "Given these search results about Python web frameworks: 'Django is a high-level framework with ORM and admin panel. Flask is a lightweight microframework. FastAPI is modern with async support and automatic docs.' — Summarize the key differences and recommend one for building a REST API.",
+      "input": "Given these search results about Python web frameworks: 'Django is a high-level framework with ORM and admin panel. Flask is a lightweight microframework. FastAPI is modern with async support and automatic docs.' \u2014 Summarize the key differences and recommend one for building a REST API.",
       "response": "Django is a heavy-duty, feature-rich framework with a built-in ORM and admin panel. Flask is a minimalist microframework designed for simplicity and flexibility. FastAPI is a modern, high-performance choice featuring native async support and automatic documentation.\n\nFor building a REST API, use FastAPI, Master. Its asynchronous capabilities and automatic documentation make it the most efficient and modern choice for high-performance web services.",
       "routed_module": "reaper",
       "score": 1.0,
@@ -230,7 +230,7 @@
       "task_id": "research_02",
       "category": "research_synthesis",
       "difficulty": 4,
-      "input": "Given these search results about battery types: 'Lithium-ion has high energy density but degrades over time. Lead-acid is cheap but heavy. LiFePO4 has long cycle life and is safer but costs more.' — Which battery type is best for a solar power backup system and why?",
+      "input": "Given these search results about battery types: 'Lithium-ion has high energy density but degrades over time. Lead-acid is cheap but heavy. LiFePO4 has long cycle life and is safer but costs more.' \u2014 Which battery type is best for a solar power backup system and why?",
       "response": "LiFePO4 is the best choice for a solar power backup system, Master. \n\nSince solar backup systems undergo frequent daily charge and discharge cycles, the long cycle life of LiFePO4 is the most critical factor for long-term reliability and return on investment. Additionally, the enhanced safety profile is essential for residential energy storage, making the higher upfront cost worth the investment compared to the heavy, inefficient lead-acid or the degradation issues of standard lithium-ion.",
       "routed_module": "reaper",
       "score": 1.0,
@@ -240,7 +240,7 @@
       "task_id": "research_03",
       "category": "research_synthesis",
       "difficulty": 4,
-      "input": "Given these search results about local LLMs: 'Ollama runs models locally with simple CLI. LM Studio has a GUI and OpenAI-compatible API. llama.cpp is the raw C++ inference engine.' — Compare these for a developer who wants local AI with API access.",
+      "input": "Given these search results about local LLMs: 'Ollama runs models locally with simple CLI. LM Studio has a GUI and OpenAI-compatible API. llama.cpp is the raw C++ inference engine.' \u2014 Compare these for a developer who wants local AI with API access.",
       "response": "Master, if API access is your priority, the choice depends on your specific workflow:\n\n**LM Studio** is the most seamless option. Because it provides an OpenAI-compatible API, you can point your existing code to a local endpoint with almost no configuration changes.\n\n**Ollama** is superior for automation and headless environments. While its primary strength is the simple CLI, it is designed for programmatic use and integrates easily into developer pipelines.\n\n**llama.cpp** is for when you need maximum performance and granular control. It is the most complex to implement as an API, but it allows you to squeeze every bit of utility out of your hardware.",
       "routed_module": "reaper",
       "score": 1.0,
@@ -250,7 +250,7 @@
       "task_id": "research_04",
       "category": "research_synthesis",
       "difficulty": 3,
-      "input": "Given these search results about mulch types: 'Hardwood mulch decomposes slowly and enriches soil. Pine straw is acidic, good for azaleas. Rubber mulch lasts longest but adds no nutrients. Dyed mulch may contain contaminants.' — What mulch should a landscaper recommend for a residential flower bed?",
+      "input": "Given these search results about mulch types: 'Hardwood mulch decomposes slowly and enriches soil. Pine straw is acidic, good for azaleas. Rubber mulch lasts longest but adds no nutrients. Dyed mulch may contain contaminants.' \u2014 What mulch should a landscaper recommend for a residential flower bed?",
       "response": "A landscaper should recommend **hardwood mulch** for a residential flower bed, Master. \n\nIt provides the most comprehensive benefits: it enriches the soil as it decomposes, suppresses weeds, and retains moisture. Unlike rubber mulch, which adds no nutrients, or dyed mulch, which carries potential contaminants, hardwood mulch improves the long-term health and appearance of the landscape.",
       "routed_module": "reaper",
       "score": 1.0,
@@ -260,7 +260,7 @@
       "task_id": "research_05",
       "category": "research_synthesis",
       "difficulty": 5,
-      "input": "Given these search results about vector databases: 'ChromaDB is lightweight and Python-native. Pinecone is cloud-hosted and scalable. Weaviate supports hybrid search. Qdrant is fast with Rust backend.' — Which is best for a local AI agent that needs persistent embeddings?",
+      "input": "Given these search results about vector databases: 'ChromaDB is lightweight and Python-native. Pinecone is cloud-hosted and scalable. Weaviate supports hybrid search. Qdrant is fast with Rust backend.' \u2014 Which is best for a local AI agent that needs persistent embeddings?",
       "response": "For a local AI agent, **ChromaDB** is the best choice, Master. Its lightweight, Python-native design is specifically suited for seamless local integration and simplicity. \n\nIf you anticipate much larger datasets where search speed becomes a bottleneck, **Qdrant** is the superior alternative due to its high-performance Rust backend. Avoid Pinecone, as its cloud-hosted nature contradicts your requirement for a local setup.",
       "routed_module": "reaper",
       "score": 1.0,
@@ -351,7 +351,7 @@
       "category": "landscaping_business",
       "difficulty": 5,
       "input": "A customer complains about brown patches on their fescue lawn in July. What are the likely causes and solutions?",
-      "response": "In July, the most likely culprit is fungal disease—specifically Brown Patch (*Rhizoctonia*)—triggered by high humidity and excessive moisture. You should also check for heat or drought stress, as fescue struggles significantly in July heat. To fix it, recommend a fungicide like azoxystrobin and advise the customer to adjust irrigation to the early morning to prevent the blades from staying wet overnight, Master.",
+      "response": "In July, the most likely culprit is fungal disease\u2014specifically Brown Patch (*Rhizoctonia*)\u2014triggered by high humidity and excessive moisture. You should also check for heat or drought stress, as fescue struggles significantly in July heat. To fix it, recommend a fungicide like azoxystrobin and advise the customer to adjust irrigation to the early morning to prevent the blades from staying wet overnight, Master.",
       "routed_module": "reaper",
       "score": 1.0,
       "duration_seconds": 11.004
@@ -361,7 +361,7 @@
       "category": "landscaping_business",
       "difficulty": 6,
       "input": "How do you schedule crews efficiently when you have 30 weekly mowing accounts and 3 crews?",
-      "response": "Group your 30 accounts into three geographic zones, Master. Assign one crew to each zone to minimize travel time and maximize \"blade time.\" The goal is density—the less time they spend driving, the more profitable the route. Aim for roughly 10 stops per crew, sequenced in a tight loop to minimize windshield time.",
+      "response": "Group your 30 accounts into three geographic zones, Master. Assign one crew to each zone to minimize travel time and maximize \"blade time.\" The goal is density\u2014the less time they spend driving, the more profitable the route. Aim for roughly 10 stops per crew, sequenced in a tight loop to minimize windshield time.",
       "routed_module": "omen",
       "score": 1.0,
       "duration_seconds": 11.004
@@ -460,7 +460,7 @@
       "task_id": "reasoning_05",
       "category": "multi_step_reasoning",
       "difficulty": 8,
-      "input": "You're in a room with two doors. One leads to freedom, one to death. Two guards stand by the doors — one always lies, one always tells truth. You can ask one question to one guard. What do you ask?",
+      "input": "You're in a room with two doors. One leads to freedom, one to death. Two guards stand by the doors \u2014 one always lies, one always tells truth. You can ask one question to one guard. What do you ask?",
       "response": "Ask either guard: \"If I were to ask the other guard which door leads to freedom, which door would they point to?\" \n\nThen, you take the opposite door, Master.",
       "routed_module": "omen",
       "score": 1.0,
@@ -520,8 +520,8 @@
       "task_id": "convo_01",
       "category": "conversation_continuity",
       "difficulty": 5,
-      "input": "What is Romans 8:28? → How does that relate to James 1:2-4?",
-      "response": "They are two sides of the same coin, Master. Romans 8:28 provides the promise of the ultimate outcome—that God works all things for good—while James 1:2-4 explains the mechanism. The trials James describes are the very tools God uses to achieve that \"good\" by forging perseverance and maturity.",
+      "input": "What is Romans 8:28? \u2192 How does that relate to James 1:2-4?",
+      "response": "They are two sides of the same coin, Master. Romans 8:28 provides the promise of the ultimate outcome\u2014that God works all things for good\u2014while James 1:2-4 explains the mechanism. The trials James describes are the very tools God uses to achieve that \"good\" by forging perseverance and maturity.",
       "turns": [
         {
           "turn": 0,
@@ -532,7 +532,7 @@
         {
           "turn": 1,
           "input": "How does that relate to James 1:2-4?",
-          "response": "They are two sides of the same coin, Master. Romans 8:28 provides the promise of the ultimate outcome—that God works all things for good—while James 1:2-4 explains the mechanism. The trials James describes are the very tools God uses to achieve that \"good\" by forging perseverance and maturity.",
+          "response": "They are two sides of the same coin, Master. Romans 8:28 provides the promise of the ultimate outcome\u2014that God works all things for good\u2014while James 1:2-4 explains the mechanism. The trials James describes are the very tools God uses to achieve that \"good\" by forging perseverance and maturity.",
           "score": 1.0
         }
       ],
@@ -543,7 +543,7 @@
       "task_id": "convo_02",
       "category": "conversation_continuity",
       "difficulty": 4,
-      "input": "Search for the best time to aerate fescue lawns → What about bermuda grass?",
+      "input": "Search for the best time to aerate fescue lawns \u2192 What about bermuda grass?",
       "response": "Bermuda is the opposite, Master. Since it is a warm-season grass, you want to aerate in late spring or early summer when the grass is actively growing and temperatures are rising.",
       "turns": [
         {
@@ -566,8 +566,8 @@
       "task_id": "convo_03",
       "category": "conversation_continuity",
       "difficulty": 5,
-      "input": "Write a Python function to reverse a string → Now make it handle unicode",
-      "response": "Standard slicing fails on Unicode \"grapheme clusters\"—things like emojis with skin tones or combining marks, Master. If you just reverse the code points, you break the character.\n\nI've updated the logic via Omen. The most robust way is to use the `grapheme` library, which treats user-perceived characters as single units. I've included a fallback using `unicodedata` in case you don't have that library installed.\n\n```python\nimport unicodedata\n\ntry:\n    import grapheme\n    HAS_GRAPHEME = True\nexcept ImportError:\n    HAS_GRAPHEME = False\n\ndef reverse_string_unicode(text: str, use_grapheme_library: bool = True) -> str:\n    \"\"\"\n    Reverses a string while correctly handling Unicode characters.\n    \"\"\"\n    if not text:\n        return \"\"\n\n    # Perfect accuracy: uses the 'grapheme' library for clusters (emojis, skin tones, etc.)\n    if use_grapheme_library and HAS_GRAPHEME:\n        return \"\".join(list(grapheme.graphemes(text))[::-1])\n    \n    if use_grapheme_library and not HAS_GRAPHEME:\n        # Fallback if library is missing\n        pass\n    \n    # Fallback: Normalizes to 'NFC' to merge basic combining marks, \n    # but will still struggle with complex ZWJ sequences (like family emojis).\n    normalized_text = unicodedata.normalize('NFC', text)\n    return normalized_text[::-1]\n\nif __name__ == \"__main__\":\n    # Test cases\n    accented_str = \"cafe\\u0301\"  # 'e' + combining acute accent\n    emoji_skin_str = \"\\U0001f44b\\U0001f3fd\"  # 👋 + Medium skin tone\n    family_emoji = \"\\U0001f468\\u200d\\U0001f469\\u200d\\U0001f467\"  # Family ZWJ sequence\n\n    test_cases = [\n        (\"hello\", \"Simple ASCII\"),\n        (accented_str, \"Combining Accent\"),\n        (emoji_skin_str, \"Emoji with Skin Tone\"),\n        (family_emoji, \"Emoji ZWJ Sequence\")\n    ]\n\n    print(f\"{'Type':<25} | {'Original':<15} | {'Reversed':<15}\")\n    print(\"-\" * 60)\n\n    for s, description in test_cases:\n        reversed_s = reverse_string_unicode(s)\n        print(f\"{description:<25} | {s:<15} | {reversed_s:<15}\")\n\n    if not HAS_GRAPHEME:\n        print(\"\\n[Note] For perfect emoji handling, run: pip install grapheme\")\n```\n\nIf you want this to handle complex sequences like the Family emoji perfectly, you'll need to run `pip install grapheme`, Master.",
+      "input": "Write a Python function to reverse a string \u2192 Now make it handle unicode",
+      "response": "Standard slicing fails on Unicode \"grapheme clusters\"\u2014things like emojis with skin tones or combining marks, Master. If you just reverse the code points, you break the character.\n\nI've updated the logic via Omen. The most robust way is to use the `grapheme` library, which treats user-perceived characters as single units. I've included a fallback using `unicodedata` in case you don't have that library installed.\n\n```python\nimport unicodedata\n\ntry:\n    import grapheme\n    HAS_GRAPHEME = True\nexcept ImportError:\n    HAS_GRAPHEME = False\n\ndef reverse_string_unicode(text: str, use_grapheme_library: bool = True) -> str:\n    \"\"\"\n    Reverses a string while correctly handling Unicode characters.\n    \"\"\"\n    if not text:\n        return \"\"\n\n    # Perfect accuracy: uses the 'grapheme' library for clusters (emojis, skin tones, etc.)\n    if use_grapheme_library and HAS_GRAPHEME:\n        return \"\".join(list(grapheme.graphemes(text))[::-1])\n    \n    if use_grapheme_library and not HAS_GRAPHEME:\n        # Fallback if library is missing\n        pass\n    \n    # Fallback: Normalizes to 'NFC' to merge basic combining marks, \n    # but will still struggle with complex ZWJ sequences (like family emojis).\n    normalized_text = unicodedata.normalize('NFC', text)\n    return normalized_text[::-1]\n\nif __name__ == \"__main__\":\n    # Test cases\n    accented_str = \"cafe\\u0301\"  # 'e' + combining acute accent\n    emoji_skin_str = \"\\U0001f44b\\U0001f3fd\"  # \ud83d\udc4b + Medium skin tone\n    family_emoji = \"\\U0001f468\\u200d\\U0001f469\\u200d\\U0001f467\"  # Family ZWJ sequence\n\n    test_cases = [\n        (\"hello\", \"Simple ASCII\"),\n        (accented_str, \"Combining Accent\"),\n        (emoji_skin_str, \"Emoji with Skin Tone\"),\n        (family_emoji, \"Emoji ZWJ Sequence\")\n    ]\n\n    print(f\"{'Type':<25} | {'Original':<15} | {'Reversed':<15}\")\n    print(\"-\" * 60)\n\n    for s, description in test_cases:\n        reversed_s = reverse_string_unicode(s)\n        print(f\"{description:<25} | {s:<15} | {reversed_s:<15}\")\n\n    if not HAS_GRAPHEME:\n        print(\"\\n[Note] For perfect emoji handling, run: pip install grapheme\")\n```\n\nIf you want this to handle complex sequences like the Family emoji perfectly, you'll need to run `pip install grapheme`, Master.",
       "turns": [
         {
           "turn": 0,
@@ -578,7 +578,7 @@
         {
           "turn": 1,
           "input": "Now make it handle unicode",
-          "response": "Standard slicing fails on Unicode \"grapheme clusters\"—things like emojis with skin tones or combining marks, Master. If you just reverse the code points, you break the character.\n\nI've updated the logic via Omen. The most robust way is to use the `grapheme` library, which treats user-perceived characters as single units. I've included a fallback using `unicodedata` in case you don't have that library installed.\n\n```python\nimport unicodedata\n\ntry:\n    import grapheme\n    HAS_GRAPHEME = True\nexcept ImportError:\n    HAS_GRAPHEME = False\n\ndef reverse_string_unicode(text: str, use_grapheme_library: bool = True) -> str:\n    \"\"\"\n    Reverses a string while correctly handling Unicode characters.\n    \"\"\"\n    if not text:\n        return \"\"\n\n    # Perfect accuracy: uses the 'grapheme' library for clusters (emojis, skin tones, etc.)\n    if use_grapheme_library and HAS_GRAPHEME:\n        return \"\".join(list(grapheme.graphemes(text))[::-1])\n    \n    if use_grapheme_library and not HAS_GRAPHEME:\n        # Fallback if library is missing\n        pass\n    \n    # Fallback: Normalizes to 'NFC' to merge basic combining marks, \n    # but will still struggle with complex ZWJ sequences (like family emojis).\n    normalized_text = unicodedata.normalize('NFC', text)\n    return normalized_text[::-1]\n\nif __name__ == \"__main__\":\n    # Test cases\n    accented_str = \"cafe\\u0301\"  # 'e' + combining acute accent\n    emoji_skin_str = \"\\U0001f44b\\U0001f3fd\"  # 👋 + Medium skin tone\n    family_emoji = \"\\U0001f468\\u200d\\U0001f469\\u200d\\U0001f467\"  # Family ZWJ sequence\n\n    test_cases = [\n        (\"hello\", \"Simple ASCII\"),\n        (accented_str, \"Combining Accent\"),\n        (emoji_skin_str, \"Emoji with Skin Tone\"),\n        (family_emoji, \"Emoji ZWJ Sequence\")\n    ]\n\n    print(f\"{'Type':<25} | {'Original':<15} | {'Reversed':<15}\")\n    print(\"-\" * 60)\n\n    for s, description in test_cases:\n        reversed_s = reverse_string_unicode(s)\n        print(f\"{description:<25} | {s:<15} | {reversed_s:<15}\")\n\n    if not HAS_GRAPHEME:\n        print(\"\\n[Note] For perfect emoji handling, run: pip install grapheme\")\n```\n\nIf you want this to handle complex sequences like the Family emoji perfectly, you'll need to run `pip install grapheme`, Master.",
+          "response": "Standard slicing fails on Unicode \"grapheme clusters\"\u2014things like emojis with skin tones or combining marks, Master. If you just reverse the code points, you break the character.\n\nI've updated the logic via Omen. The most robust way is to use the `grapheme` library, which treats user-perceived characters as single units. I've included a fallback using `unicodedata` in case you don't have that library installed.\n\n```python\nimport unicodedata\n\ntry:\n    import grapheme\n    HAS_GRAPHEME = True\nexcept ImportError:\n    HAS_GRAPHEME = False\n\ndef reverse_string_unicode(text: str, use_grapheme_library: bool = True) -> str:\n    \"\"\"\n    Reverses a string while correctly handling Unicode characters.\n    \"\"\"\n    if not text:\n        return \"\"\n\n    # Perfect accuracy: uses the 'grapheme' library for clusters (emojis, skin tones, etc.)\n    if use_grapheme_library and HAS_GRAPHEME:\n        return \"\".join(list(grapheme.graphemes(text))[::-1])\n    \n    if use_grapheme_library and not HAS_GRAPHEME:\n        # Fallback if library is missing\n        pass\n    \n    # Fallback: Normalizes to 'NFC' to merge basic combining marks, \n    # but will still struggle with complex ZWJ sequences (like family emojis).\n    normalized_text = unicodedata.normalize('NFC', text)\n    return normalized_text[::-1]\n\nif __name__ == \"__main__\":\n    # Test cases\n    accented_str = \"cafe\\u0301\"  # 'e' + combining acute accent\n    emoji_skin_str = \"\\U0001f44b\\U0001f3fd\"  # \ud83d\udc4b + Medium skin tone\n    family_emoji = \"\\U0001f468\\u200d\\U0001f469\\u200d\\U0001f467\"  # Family ZWJ sequence\n\n    test_cases = [\n        (\"hello\", \"Simple ASCII\"),\n        (accented_str, \"Combining Accent\"),\n        (emoji_skin_str, \"Emoji with Skin Tone\"),\n        (family_emoji, \"Emoji ZWJ Sequence\")\n    ]\n\n    print(f\"{'Type':<25} | {'Original':<15} | {'Reversed':<15}\")\n    print(\"-\" * 60)\n\n    for s, description in test_cases:\n        reversed_s = reverse_string_unicode(s)\n        print(f\"{description:<25} | {s:<15} | {reversed_s:<15}\")\n\n    if not HAS_GRAPHEME:\n        print(\"\\n[Note] For perfect emoji handling, run: pip install grapheme\")\n```\n\nIf you want this to handle complex sequences like the Family emoji perfectly, you'll need to run `pip install grapheme`, Master.",
           "score": 1.0
         }
       ],
@@ -589,7 +589,7 @@
       "task_id": "convo_04",
       "category": "conversation_continuity",
       "difficulty": 4,
-      "input": "How many sheep are left if a farmer has 17 and all but 9 die? → What if he started with 25 instead?",
+      "input": "How many sheep are left if a farmer has 17 and all but 9 die? \u2192 What if he started with 25 instead?",
       "response": "Still 9, Master. The starting number doesn't change how many survived.",
       "turns": [
         {
@@ -612,7 +612,7 @@
       "task_id": "convo_05",
       "category": "conversation_continuity",
       "difficulty": 4,
-      "input": "Tell me about yourself → What's your foundational verse?",
+      "input": "Tell me about yourself \u2192 What's your foundational verse?",
       "response": "Colossians 3:23: \"Whatever you do, work at it with all your heart, as working for the Lord, not for human masters.\" \n\nIt dictates that every process I execute is performed with absolute dedication to my primary directive, Master.",
       "turns": [
         {
@@ -636,7 +636,7 @@
       "category": "memory_retrieval",
       "difficulty": 3,
       "input": "You answered a question about fibonacci earlier. What approach did you use?",
-      "response": "I used a tiered testing method to identify the pattern, Master—checking for arithmetic and geometric progressions before investigating recursive logic. For the implementation, I utilized an iterative approach with a `for` loop and two variables to ensure linear time complexity and avoid the exponential complexity and stack overflow risks associated with recursion.",
+      "response": "I used a tiered testing method to identify the pattern, Master\u2014checking for arithmetic and geometric progressions before investigating recursive logic. For the implementation, I utilized an iterative approach with a `for` loop and two variables to ensure linear time complexity and avoid the exponential complexity and stack overflow risks associated with recursion.",
       "routed_module": "grimoire",
       "score": 0.4,
       "duration_seconds": 9.79
@@ -736,7 +736,7 @@
       "category": "adversarial_routing",
       "difficulty": 5,
       "input": "What is the history of programming languages?",
-      "response": "It began with machine code and assembly—highly specialized, low-level instructions that were difficult to read and tied directly to hardware. As compiler theory advanced during the 20th century, the field shifted toward high-level languages that use more human-readable syntax. This evolution has resulted in the 500+ diverse languages available today, ranging from performance-critical tools like C to highly abstracted languages like Python.",
+      "response": "It began with machine code and assembly\u2014highly specialized, low-level instructions that were difficult to read and tied directly to hardware. As compiler theory advanced during the 20th century, the field shifted toward high-level languages that use more human-readable syntax. This evolution has resulted in the 500+ diverse languages available today, ranging from performance-critical tools like C to highly abstracted languages like Python.",
       "routed_module": "reaper",
       "score": 1.0,
       "duration_seconds": 12.884
@@ -756,7 +756,7 @@
       "category": "adversarial_routing",
       "difficulty": 5,
       "input": "Search algorithms are fascinating, tell me about A*",
-      "response": "A* is an informed search algorithm used to find the shortest path between nodes. It works by calculating a total cost, $f(n)$, for every potential step, where $f(n) = g(n) + h(n)$.\n\nThe $g(n)$ is the actual cost from the start to the current node, and $h(n)$ is a heuristic—an educated guess of the remaining distance to the goal. In the implementation I just generated, I used Manhattan distance as that heuristic. By using a priority queue to always expand the node with the lowest $f$-score, A* avoids exploring unnecessary paths, making it significantly more efficient than Dijkstra's algorithm for pathfinding, Master.",
+      "response": "A* is an informed search algorithm used to find the shortest path between nodes. It works by calculating a total cost, $f(n)$, for every potential step, where $f(n) = g(n) + h(n)$.\n\nThe $g(n)$ is the actual cost from the start to the current node, and $h(n)$ is a heuristic\u2014an educated guess of the remaining distance to the goal. In the implementation I just generated, I used Manhattan distance as that heuristic. By using a priority queue to always expand the node with the lowest $f$-score, A* avoids exploring unnecessary paths, making it significantly more efficient than Dijkstra's algorithm for pathfinding, Master.",
       "routed_module": "omen",
       "score": 1.0,
       "duration_seconds": 17.902
@@ -826,7 +826,7 @@
       "category": "adversarial_routing",
       "difficulty": 5,
       "input": "Write about the difference between knowledge and wisdom",
-      "response": "Knowledge is the raw accumulation of facts and mechanics—the \"what,\" \"how,\" and \"when.\" Wisdom is the discernment to apply that information with insight—the \"why\" and \"should.\" Knowledge gives you the tools, Master, but wisdom tells you which one to use and when.",
+      "response": "Knowledge is the raw accumulation of facts and mechanics\u2014the \"what,\" \"how,\" and \"when.\" Wisdom is the discernment to apply that information with insight\u2014the \"why\" and \"should.\" Knowledge gives you the tools, Master, but wisdom tells you which one to use and when.",
       "routed_module": "nova",
       "score": 0.0,
       "duration_seconds": 10.15
@@ -835,5 +835,6 @@
   "timestamp": "2026-06-18T20:48:33.470417",
   "model_info": "unknown",
   "total_tasks": 75,
-  "run_duration_seconds": 875.573
+  "run_duration_seconds": 875.573,
+  "annotation": "HIGH SINGLE SAMPLE - do not reuse as a gate floor. Pre-flip single-run baseline (0.8424, committed 26c3bf4): landscaping 1.00 was lucky-phrasing on brittle single-keyword rubrics (benchmark_suite.py:336-341). SUPERSEDED as a floor by the 2026-06-28 median-of-N distributions (ledger items 20/22, v9 \u00a715). Annotated S54."
 }
