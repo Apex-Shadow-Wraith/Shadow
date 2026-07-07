@@ -309,6 +309,63 @@ class TestToolResultPersistence:
         assert orch._last_tool_results[0]["tool_name"] == "code_analyze_self"
         assert orch._last_tool_results[0]["content"] == {"analysis": "13 modules, 121 tools"}
 
+    @pytest.mark.asyncio
+    async def test_process_input_persists_results_end_to_end(self, orch: Orchestrator):
+        """F-4 (S54): the REAL request path persists tool results.
+
+        The pre-existing test above simulates the persist inline, which is
+        exactly how the dead wiring went unnoticed post-flip (green test over
+        a bypassed path). This one drives ``process_input`` through the
+        compiled graph: the retry node accumulates ToolResults into graph
+        state, the caller surfaces them into ``results``, the persist block
+        writes ``_last_tool_results``, and ``_build_apex_context`` enriches a
+        follow-up escalation prompt.
+        """
+        from unittest.mock import MagicMock
+        from modules.base import BaseModule
+
+        class _MathOmen(BaseModule):
+            def __init__(self):
+                super().__init__(name="omen", description="Mock Omen")
+
+            async def initialize(self) -> None:
+                self.status = ModuleStatus.ONLINE
+
+            async def execute(self, tool_name: str, params: dict) -> ToolResult:
+                return ToolResult(
+                    success=True,
+                    content={"result": 862.0, "expression": "15 + 847"},
+                    tool_name=tool_name, module=self.name,
+                )
+
+            async def shutdown(self) -> None:
+                self.status = ModuleStatus.OFFLINE
+
+            def get_tools(self) -> list[dict]:
+                return [{"name": "calculate", "description": "Calculate",
+                         "parameters": {}, "permission_level": "autonomous"}]
+
+        omen = _MathOmen()
+        await omen.initialize()
+        orch.registry.register(omen)
+        orch._ollama_chat = MagicMock(return_value="15 + 847 is 862.")
+
+        response = await orch.process_input("what is 15 + 847")
+        assert response
+
+        # The real persist fired: successful results with content survive.
+        assert orch._last_tool_results, (
+            "_last_tool_results empty after a tool-using request — "
+            "the F-4 persist wiring regressed"
+        )
+        assert all(tr["success"] and tr["content"]
+                   for tr in orch._last_tool_results)
+
+        # And the escalation enrichment consumer sees real prior-tool data.
+        enriched = orch._build_apex_context("escalate this to Apex")
+        assert enriched != "escalate this to Apex"
+        assert "862" in enriched
+
     def test_failed_results_not_persisted(self, orch: Orchestrator):
         """Only successful results with content are persisted."""
         results = [

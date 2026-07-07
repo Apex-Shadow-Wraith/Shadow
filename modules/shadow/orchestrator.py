@@ -1553,6 +1553,12 @@ class Orchestrator:
                     module=classification.target_module,
                 ) as dispatch_span:
                     seg3 = await graph.ainvoke(None, graph_config)
+                    # F-4: surface the graph's accumulated ToolResults into the
+                    # caller-side ``results`` local the pre-flip loop populated
+                    # directly. The _last_tool_results persist below (Apex
+                    # escalation context, _build_apex_context) went dead at the
+                    # flip because nothing wrote this local anymore.
+                    results = seg3.get("tool_results", []) or []
                     retry_result = seg3.get("retry_result")
                     if retry_result is not None:
                         # Approved → retry ran. Resolve via the shared Unit-C
@@ -1573,7 +1579,7 @@ class Orchestrator:
                         # denial envelope into a response (single-attempt-style).
                         response = await self._step6_evaluate(
                             user_input, classification,
-                            seg3.get("tool_results", []), context,
+                            results, context,
                         )
 
                     if dispatch_span is not None:
