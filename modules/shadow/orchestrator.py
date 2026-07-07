@@ -1105,10 +1105,12 @@ class Orchestrator:
 
         The async ``AsyncSqliteSaver`` (design §6.5: async graphs require the
         async saver) is held for the orchestrator lifetime and closed in
-        :meth:`shutdown`. Default conn-string ``:memory:`` gives process-lifetime
-        route memory matching the former ``self._last_route``; a configured path
-        enables cross-process persistence. ``interrupt_after=["router", "plan"]``
-        yields the three honest segment boundaries the spans wrap.
+        :meth:`shutdown`. Checkpoints are per-request scratch state: each call
+        gets a fresh ``thread_id`` and deletes its thread on exit (F-2), so the
+        default ``:memory:`` conn-string stays bounded. Cross-turn route memory
+        lives in ``self._last_route_by_conversation``, not in checkpoints.
+        ``interrupt_after=["router", "plan"]`` yields the three honest segment
+        boundaries the spans wrap.
         """
         if self._compiled_graph is not None:
             return self._compiled_graph
@@ -1148,10 +1150,23 @@ class Orchestrator:
             self._worker_graph = self._graph_builder.compile(
                 checkpointer=self._graph_saver
             )
-        config = {"configurable": {"thread_id": f"async:{uuid.uuid4().hex}"}}
-        return await self._worker_graph.ainvoke(
-            {"user_input": description, "source": source}, config
-        )
+        worker_thread_id = f"async:{uuid.uuid4().hex}"
+        config = {"configurable": {"thread_id": worker_thread_id}}
+        try:
+            return await self._worker_graph.ainvoke(
+                {"user_input": description, "source": source}, config
+            )
+        finally:
+            # Per-task checkpoint cleanup (F-2) — same rationale as
+            # process_input: fresh thread_id per deferred task, shared
+            # process-lifetime saver, so delete on every exit path.
+            try:
+                await self._graph_saver.adelete_thread(worker_thread_id)
+            except Exception as cleanup_err:
+                logger.debug(
+                    "Worker checkpoint cleanup failed for %s: %s",
+                    worker_thread_id, cleanup_err,
+                )
 
     @trace_interaction
     async def process_input(self, user_input: str, source: str = "user") -> str:
@@ -1169,6 +1184,12 @@ class Orchestrator:
         loop_start = time.time()
         self._state.interaction_count += 1
         self._state.last_interaction = datetime.now().isoformat()
+
+        # Set when the graph thread is created (segment 1). Read by the
+        # finally-block below to delete this request's checkpoints — a fresh
+        # thread_id per call on a process-lifetime saver otherwise accumulates
+        # checkpoints unbounded on a 24/7 daemon (S54 ledger, F-2).
+        graph_thread_id: str | None = None
 
         try:
             # Step 1 — Receive Input
@@ -1298,9 +1319,8 @@ class Orchestrator:
             # call keeps per-turn graph state clean — the tool_results ``add``
             # reducer would otherwise accumulate across turns on a stable thread.
             graph = await self._ensure_graph()
-            graph_config = {
-                "configurable": {"thread_id": f"{source}:{uuid.uuid4().hex}"}
-            }
+            graph_thread_id = f"{source}:{uuid.uuid4().hex}"
+            graph_config = {"configurable": {"thread_id": graph_thread_id}}
             seed_route = self._last_route_by_conversation.get(source)
             results: list[ToolResult] = []
 
@@ -1954,6 +1974,23 @@ class Orchestrator:
         except Exception as e:
             logger.error("Decision loop error: %s", e, exc_info=True)
             return f"Shadow encountered an error: {e}"
+
+        finally:
+            # Per-request checkpoint cleanup (F-2). Every request gets a fresh
+            # thread_id, so its checkpoints are scratch state — delete them on
+            # every exit path (normal return, fast-path early returns after
+            # segment 1, and exceptions). Cross-turn route memory does NOT live
+            # here (it lives in _last_route_by_conversation), so deletion is
+            # behavior-neutral. Best-effort: a failed cleanup never masks the
+            # request's own outcome.
+            if graph_thread_id is not None and self._graph_saver is not None:
+                try:
+                    await self._graph_saver.adelete_thread(graph_thread_id)
+                except Exception as cleanup_err:
+                    logger.debug(
+                        "Checkpoint cleanup failed for %s: %s",
+                        graph_thread_id, cleanup_err,
+                    )
 
     # --- Step 1.5: Injection Screen ---
 
