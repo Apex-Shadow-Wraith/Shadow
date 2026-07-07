@@ -83,11 +83,28 @@ def collect_backup_freshness(
         "backup_target": None,
         "backup_error": None,
     }
-    if not link.is_symlink():
+    try:
+        is_link = link.is_symlink()
+    except OSError:
+        # Probing the symlink itself raised — the backup mount point is a
+        # dead/stale mount (ENODEV "No such device") or otherwise
+        # unreachable. pathlib only swallows ENOENT/ENOTDIR/EBADF/ELOOP, so
+        # a detached 8TB HDD surfaces here as a raised OSError rather than a
+        # False return. Treat it exactly like an unattached backup HDD so a
+        # single dead mount never aborts the whole metrics snapshot.
+        base["backup_status"] = "not_configured"
+        return base
+
+    if not is_link:
         # Distinguish "backup mount missing entirely" from "symlink missing"
         # so callers can warn appropriately (or stay silent on a system
-        # where the backup HDD just isn't attached).
-        if not link.parent.exists():
+        # where the backup HDD just isn't attached). The parent probe can
+        # raise for the same dead-mount reason — treat that as absent too.
+        try:
+            parent_exists = link.parent.exists()
+        except OSError:
+            parent_exists = False
+        if not parent_exists:
             base["backup_status"] = "not_configured"
         return base
     try:
@@ -107,8 +124,16 @@ def collect_backup_freshness(
         return base
 
 
-def collect_snapshot() -> dict[str, Any]:
-    """Collect CPU / RAM / disk / process / GPU metrics in a single snapshot."""
+def collect_snapshot(
+    backup_link: Path = _TRAINING_BACKUP_LINK,
+    backup_stale_hours: float = _TRAINING_BACKUP_STALE_HOURS,
+) -> dict[str, Any]:
+    """Collect CPU / RAM / disk / process / GPU metrics in a single snapshot.
+
+    ``backup_link`` / ``backup_stale_hours`` let the daemon inject the
+    configured training-backup location instead of the module default, so
+    the path lives in ``VoidDaemonSettings`` rather than being hardcoded.
+    """
     import psutil
 
     timestamp = datetime.now().isoformat()
@@ -121,7 +146,7 @@ def collect_snapshot() -> dict[str, Any]:
     proc_mem_mb = proc_mem.rss / (1024 ** 2)
 
     gpu_data = query_gpu()
-    backup = collect_backup_freshness()
+    backup = collect_backup_freshness(backup_link, backup_stale_hours)
 
     return {
         "cpu_percent": cpu,

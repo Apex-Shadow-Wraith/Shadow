@@ -35,7 +35,10 @@ _SEVERITY_LOG_LEVEL = {
 
 async def _tick(settings: VoidDaemonSettings, store: MetricStore) -> dict:
     """Run a single collection tick. Returns the snapshot dict."""
-    snapshot = collect_snapshot()
+    snapshot = collect_snapshot(
+        settings.training_backup_link,
+        settings.training_backup_stale_hours,
+    )
     store.insert_metrics(snapshot_to_metric_rows(snapshot))
     write_latest_snapshot(settings.latest_snapshot_path, snapshot)
 

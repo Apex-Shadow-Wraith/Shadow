@@ -25,6 +25,10 @@ logger = logging.getLogger("shadow.omen.test_gate")
 class TestResult:
     """Result of a test suite run."""
 
+    # Tell pytest this is NOT a test class despite the ``Test`` prefix — it is
+    # a feature dataclass. Unannotated, so ``@dataclass`` ignores it as a field.
+    __test__ = False
+
     passed: int
     failed: int
     errors: int
@@ -72,6 +76,10 @@ class TestGate:
         test_command: Command to run tests. Defaults to pytest.
         test_timeout: Timeout in seconds for test runs.
     """
+
+    # Not a pytest test class despite the ``Test`` prefix — it is Omen's
+    # test-gate feature. Prevents a PytestCollectionWarning on its ``__init__``.
+    __test__ = False
 
     def __init__(
         self,

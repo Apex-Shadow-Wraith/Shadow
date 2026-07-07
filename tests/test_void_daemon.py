@@ -14,6 +14,7 @@ loop's most important invariants:
 from __future__ import annotations
 
 import asyncio
+import errno
 import json
 import os
 import sqlite3
@@ -73,7 +74,7 @@ def _stub_backup_freshness(monkeypatch, status: str = "not_configured"):
     """
     monkeypatch.setattr(
         "daemons.void.metrics.collect_backup_freshness",
-        lambda: {
+        lambda *_args, **_kwargs: {
             "backup_status": status,
             "backup_age_hours": None,
             "backup_target": None,
@@ -188,6 +189,49 @@ def test_backup_freshness_dangling_link(tmp_path: Path):
 
     out = collect_backup_freshness(link=link)
     assert out["backup_status"] == "no_target"
+
+
+def test_backup_freshness_dead_mount_does_not_raise(monkeypatch):
+    """A dead/stale mount (ENODEV) must degrade, never propagate an OSError.
+
+    Regression: on a detached 8TB HDD, ``Path.is_symlink()`` /
+    ``Path.parent.exists()`` raise ``OSError(errno 19, 'No such device')``
+    because pathlib does not swallow ENODEV. Before the fix that exception
+    escaped ``collect_backup_freshness`` → ``collect_snapshot`` and aborted
+    every Void tick, leaving ``void_latest.json`` stale.
+    """
+    from daemons.void import metrics
+
+    def _raise_enodev(*_args, **_kwargs):
+        raise OSError(errno.ENODEV, "No such device")
+
+    # Both probes on the dead-mount path raise ENODEV.
+    monkeypatch.setattr(Path, "is_symlink", _raise_enodev)
+    monkeypatch.setattr(Path, "exists", _raise_enodev)
+
+    link = Path("/mnt/storage/backup/training-data/current")
+    out = metrics.collect_backup_freshness(link=link)
+    assert out["backup_status"] == "not_configured"
+    assert out["backup_age_hours"] is None
+    assert out["backup_error"] is None
+
+
+def test_collect_snapshot_survives_dead_backup_mount(monkeypatch):
+    """collect_snapshot completes even when the backup probe hits a dead mount."""
+    from daemons.void import metrics
+
+    def _raise_enodev(*_args, **_kwargs):
+        raise OSError(errno.ENODEV, "No such device")
+
+    monkeypatch.setattr(Path, "is_symlink", _raise_enodev)
+    monkeypatch.setattr(Path, "exists", _raise_enodev)
+
+    snap = metrics.collect_snapshot(
+        backup_link=Path("/mnt/storage/backup/training-data/current"),
+    )
+    # Core metrics still collected; backup just reports degraded status.
+    assert "cpu_percent" in snap
+    assert snap["backup_status"] == "not_configured"
 
 
 # ---------------------------------------------------------------------------

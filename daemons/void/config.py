@@ -30,4 +30,10 @@ class VoidDaemonSettings(BaseModel):
     db_path: Path = Path("data/void_metrics.db")
     latest_snapshot_path: Path = Path("data/void_latest.json")
     retention_days: int = Field(default=30, ge=1)
+    # Nightly training-backup symlink the rsync timer advances. Kept in config
+    # (not hardcoded in metrics.py) so a machine without the 8TB HDD mounted
+    # can point it elsewhere or leave it — a detached mount degrades to
+    # "not_configured" rather than aborting the snapshot.
+    training_backup_link: Path = Path("/mnt/storage/backup/training-data/current")
+    training_backup_stale_hours: float = Field(default=48.0, gt=0)
     thresholds: VoidThresholds = Field(default_factory=VoidThresholds)
