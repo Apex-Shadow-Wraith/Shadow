@@ -28,6 +28,7 @@ import json
 import logging
 import re
 import time
+import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
@@ -46,6 +47,13 @@ logger = logging.getLogger("shadow.orchestrator")
 # lookup for these, otherwise the loader warns about missing modules on
 # every fast-path conversational query.
 NON_MODULE_TARGETS = {"direct", "conversation"}
+
+# Sentinel distinguishing "caller did not pass last_route" (fall back to the
+# instance attribute — legacy/single-threaded callers + direct-classify tests)
+# from "caller explicitly passed last_route" (use it verbatim, even if None —
+# the graph router node, which routes per-thread state and must NEVER read the
+# shared self._last_route, closing the item-9 cross-thread leak).
+_LAST_ROUTE_UNSET: Any = object()
 
 # Adversarial-input guard: leading bracketed tags like
 # "[Previous conversation about omen]" can leak module names into
@@ -358,6 +366,10 @@ class Orchestrator:
         self._router_model = config["models"]["router"]["name"]
         self._fast_brain = config["models"]["fast_brain"]["name"]
         self._smart_brain = config["models"]["smart_brain"]["name"]
+        # Generation model under benchmark (item-11 provenance). Stamped into the
+        # benchmark run record so it reads the real model (e.g. "gemma4:26b"),
+        # never "unknown". Config-driven — never hardcoded.
+        self._model_name = self._smart_brain
         self._state_file = Path(config["system"].get("state_file", "data/shadow_state.json"))
         self._conversation_history: list[dict[str, str]] = []
         self._max_history = 10  # Keep last 10 turns (user+assistant pairs) in working memory
@@ -368,6 +380,23 @@ class Orchestrator:
         self._pending_escalation: dict[str, Any] | None = None
         # Last routing decision — used by fast-path to handle contextual references
         self._last_route: TaskClassification | None = None
+        # Per-conversation route memory keyed by ``source``. Seeded into the
+        # graph's initial ``state["last_route"]`` each call so cross-turn
+        # contextual routing ("do that") survives without the single shared
+        # ``_last_route`` that caused the cross-conversation leak (item 9):
+        # distinct sources have distinct keys, so they cannot bleed.
+        self._last_route_by_conversation: dict[str, TaskClassification] = {}
+        # Lazily-built parent-graph builder + compiled graph + async checkpoint
+        # saver. process_input drives the compiled graph via segmented invoke;
+        # held for the orchestrator lifetime and closed in shutdown().
+        self._graph_builder: Any = None
+        self._compiled_graph: Any = None
+        self._worker_graph: Any = None
+        self._graph_saver: Any = None
+        self._graph_saver_cm: Any = None
+        self._graph_checkpoint_db: str = config.get("graph", {}).get(
+            "checkpoint_db", ":memory:"
+        )
         self._max_response_tokens = config.get("decision_loop", {}).get("max_response_tokens", 2048)
 
         # Personality settings
@@ -644,6 +673,7 @@ class Orchestrator:
                     task_queue=self._task_queue,
                     task_tracker=self._task_tracker,
                     registry=self.registry,
+                    orchestrator=self,
                 )
                 await self._async_task_queue.start()
                 logger.info("AsyncTaskQueue initialized and worker started")
@@ -752,6 +782,19 @@ class Orchestrator:
             self._confidence_scorer.close()
         if self._confidence_calibrator is not None:
             self._confidence_calibrator.close()
+
+        # Close the parent-graph checkpoint saver (async context manager held
+        # open across the orchestrator lifetime by _ensure_graph).
+        if self._graph_saver_cm is not None:
+            try:
+                await self._graph_saver_cm.__aexit__(None, None, None)
+            except Exception as e:
+                logger.debug("Graph saver close failed: %s", e)
+            self._graph_saver_cm = None
+            self._graph_saver = None
+            self._compiled_graph = None
+            self._worker_graph = None
+            self._graph_builder = None
 
         for module_info in self.registry.list_modules():
             module = self.registry.get_module(module_info["name"])
@@ -1050,6 +1093,66 @@ class Orchestrator:
     # THE SEVEN-STEP DECISION LOOP
     # ================================================================
 
+    async def _ensure_graph(self):
+        """Lazily build + compile the parent graph with its async checkpointer.
+
+        The compiled graph IS the decision loop's core (router → routable_gate →
+        plan → plan_gate → retry); ``process_input`` drives it via segmented
+        invoke. Imports are local to avoid an import cycle (``graph.parent``
+        imports ``Orchestrator`` at module load). The single public entry point is
+        ``modules.shadow.graph.parent`` (item-11 invariant): the live path imports
+        the assembler from there and nowhere scatters graph imports.
+
+        The async ``AsyncSqliteSaver`` (design §6.5: async graphs require the
+        async saver) is held for the orchestrator lifetime and closed in
+        :meth:`shutdown`. Default conn-string ``:memory:`` gives process-lifetime
+        route memory matching the former ``self._last_route``; a configured path
+        enables cross-process persistence. ``interrupt_after=["router", "plan"]``
+        yields the three honest segment boundaries the spans wrap.
+        """
+        if self._compiled_graph is not None:
+            return self._compiled_graph
+
+        from modules.shadow.graph.parent import build_parent_graph
+        from modules.shadow.graph.serde import open_async_sqlite_saver
+
+        self._graph_saver_cm = open_async_sqlite_saver(self._graph_checkpoint_db)
+        self._graph_saver = await self._graph_saver_cm.__aenter__()
+        self._graph_builder = build_parent_graph(self)
+        self._compiled_graph = self._graph_builder.compile(
+            checkpointer=self._graph_saver,
+            interrupt_after=["router", "plan"],
+        )
+        return self._compiled_graph
+
+    async def run_deferred_through_graph(
+        self, description: str, source: str = "autonomous"
+    ) -> dict[str, Any]:
+        """Run a deferred task end-to-end through the compiled parent graph (item 13).
+
+        The async worker delegates here instead of calling ``module.execute``
+        directly, so a deferred task traverses the dormancy gate and the Cerberus
+        plan-gate: a denied plan reaches the terminal ``blocked`` node and a
+        dormant target the terminal ``dormant`` node — neither reaches a module.
+        ``cerberus_approved`` is computed by the real ``_step4_plan`` inside the
+        plan node, never hardcoded.
+
+        Uses a non-interrupting compile of the *same* parent-graph builder (the
+        worker needs no segment spans / escape hatches), sharing the orchestrator's
+        saver on a distinct ``thread_id``. Returns the final graph state. Keeping
+        the graph entirely inside the orchestrator preserves the item-11 invariant
+        — the worker file never imports ``graph.parent``.
+        """
+        await self._ensure_graph()  # builds the shared builder + saver
+        if self._worker_graph is None:
+            self._worker_graph = self._graph_builder.compile(
+                checkpointer=self._graph_saver
+            )
+        config = {"configurable": {"thread_id": f"async:{uuid.uuid4().hex}"}}
+        return await self._worker_graph.ainvoke(
+            {"user_input": description, "source": source}, config
+        )
+
     @trace_interaction
     async def process_input(self, user_input: str, source: str = "user") -> str:
         """Process a single user input through the full decision loop.
@@ -1189,15 +1292,38 @@ class Orchestrator:
                 self._save_state()
                 return "Fatigue counter reset."
 
-            # Step 2 — Classify & Route
+            # Step 2 — Classify & Route (graph segment 1: run to the router
+            # interrupt). The compiled parent graph IS the decision-loop core now;
+            # process_input drives it via segmented invoke. A fresh thread_id per
+            # call keeps per-turn graph state clean — the tool_results ``add``
+            # reducer would otherwise accumulate across turns on a stable thread.
+            graph = await self._ensure_graph()
+            graph_config = {
+                "configurable": {"thread_id": f"{source}:{uuid.uuid4().hex}"}
+            }
+            seed_route = self._last_route_by_conversation.get(source)
+            results: list[ToolResult] = []
+
             with observed_span("shadow.router_decision") as router_span:
-                classification = await self._step2_classify(user_input)
+                graph_state = await graph.ainvoke(
+                    {
+                        "user_input": user_input,
+                        "source": source,
+                        "last_route": seed_route,
+                    },
+                    graph_config,
+                )
+                classification = graph_state["classification"]
 
                 # Apply injection warning flag to classification
                 if injection_result is not None and injection_result.action == "warn":
                     classification.safety_flag = True
 
-                # Store routing decision for contextual reference resolution
+                # Cross-turn route memory, per-conversation (closes the
+                # cross-conversation leak — item 9). ``self._last_route`` is kept
+                # only as a legacy mirror for non-graph readers/tests; the graph
+                # router reads the seeded ``state["last_route"]``, never the attr.
+                self._last_route_by_conversation[source] = classification
                 self._last_route = classification
 
                 # Confidence band → classify_path inference:
@@ -1352,56 +1478,80 @@ class Orchestrator:
                     fast_response = "\n".join(reminder_lines) + "\n\n" + fast_response
                 return fast_response
 
-            # Step 3 — Load Context
+            # Step 3 — Load Context (caller-side), then inject into graph state so
+            # the retry node builds its closures from it (graph segments 2/3).
             context = await self._step3_load_context(user_input, classification)
             logger.info("Step 3 — Context loaded: %d items", len(context))
+            await graph.aupdate_state(graph_config, {"context": context})
 
-            # Step 4 — Plan (includes Cerberus check)
-            plan = await self._step4_plan(user_input, classification, context)
-            logger.info(
-                "Step 4 — Plan: %d steps, cerberus=%s",
-                len(plan.steps),
-                plan.cerberus_approved,
-            )
+            # Step 4 — Plan (graph segment 2: resume to the plan interrupt). The
+            # routable_gate may short-circuit a dormant target to END before the
+            # planner — detected by an empty ``next``. Planning is unspanned, as in
+            # the live loop (only Step 5 dispatch carries the module_dispatch span).
+            await graph.ainvoke(None, graph_config)
+            seg2 = await graph.aget_state(graph_config)
 
-            # Step 5 — Execute with Retry Engine (12-attempt strategy rotation)
-            results = []
-            with observed_span(
-                "shadow.module_dispatch",
-                module=classification.target_module,
-            ) as dispatch_span:
-                if self._retry_engine is not None:
-                    response = await self._step5_with_retry(
-                        user_input, plan, classification, context, source,
-                    )
-                else:
-                    # Fallback: single-attempt execution (original behavior)
-                    results = await self._step5_execute(plan, classification, source)
-                    response = await self._step6_evaluate(
-                        user_input, classification, results, context
-                    )
+            if not seg2.next:
+                # Dormant terminal: a non-routable target never reached the planner
+                # or a module. Evaluate the denial envelope into a response exactly
+                # as the single-attempt path evaluates a ToolResult list.
+                plan = None
+                response = await self._step6_evaluate(
+                    user_input, classification,
+                    seg2.values.get("tool_results", []), context,
+                )
+            else:
+                plan = seg2.values["plan"]
+                logger.info(
+                    "Step 4 — Plan: %d steps, cerberus=%s",
+                    len(plan.steps),
+                    plan.cerberus_approved,
+                )
 
-                if dispatch_span is not None:
-                    try:
-                        # Tool count: prefer actual results when single-attempt
-                        # path ran (results populated); fall back to plan step
-                        # count when retry engine owned the inner execution.
-                        if results:
-                            _tool_count = len(results)
-                            _tools_succeeded = sum(1 for r in results if r.success)
-                        else:
-                            _tool_count = len(plan.steps)
-                            _tools_succeeded = None
-                        dispatch_span.update(metadata={
-                            "module": classification.target_module,
-                            "tool_count": _tool_count,
-                            "tools_succeeded": _tools_succeeded,
-                            "plan_steps": len(plan.steps),
-                            "retry_engine_used": self._retry_engine is not None,
-                            "response_length": len(response),
-                        })
-                    except Exception as _span_err:
-                        logger.debug("dispatch_span update failed: %s", _span_err)
+                # Step 5 — Dispatch (graph segment 3: plan_gate → retry | blocked
+                # → END). module_dispatch wraps ONLY this phase (honest placement).
+                with observed_span(
+                    "shadow.module_dispatch",
+                    module=classification.target_module,
+                ) as dispatch_span:
+                    seg3 = await graph.ainvoke(None, graph_config)
+                    retry_result = seg3.get("retry_result")
+                    if retry_result is not None:
+                        # Approved → retry ran. Resolve via the shared Unit-C
+                        # method, rebuilding the SAME execute_fn from identical
+                        # inputs as the retry node (byte-identical escalation path).
+                        execute_fn, _ev_fn, _gs_fn, _nt_fn = (
+                            self._build_retry_closures(
+                                plan, classification, context, source
+                            )
+                        )
+                        response = await self._resolve_retry_outcome(
+                            retry_result, user_input, classification,
+                            context, source, execute_fn,
+                        )
+                    else:
+                        # Blocked terminal: a Cerberus-denied plan short-circuited
+                        # before retry and never reached a module. Evaluate the
+                        # denial envelope into a response (single-attempt-style).
+                        response = await self._step6_evaluate(
+                            user_input, classification,
+                            seg3.get("tool_results", []), context,
+                        )
+
+                    if dispatch_span is not None:
+                        try:
+                            # Retry engine owns inner execution, so the caller has
+                            # no per-tool results list; report plan step count.
+                            dispatch_span.update(metadata={
+                                "module": classification.target_module,
+                                "tool_count": len(plan.steps),
+                                "tools_succeeded": None,
+                                "plan_steps": len(plan.steps),
+                                "retry_engine_used": self._retry_engine is not None,
+                                "response_length": len(response),
+                            })
+                        except Exception as _span_err:
+                            logger.debug("dispatch_span update failed: %s", _span_err)
 
             # Persist tool results for cross-interaction context (e.g. Apex escalation).
             # Stored so that a follow-up "escalate to Apex" can include the data
@@ -1919,7 +2069,9 @@ class Orchestrator:
 
     # --- Step 2: Classify & Route ---
 
-    async def _step2_classify(self, user_input: str) -> TaskClassification:
+    async def _step2_classify(
+        self, user_input: str, last_route: Any = _LAST_ROUTE_UNSET
+    ) -> TaskClassification:
         """Classify the input and decide where it goes.
 
         Architecture: 'The router examines the input and makes fast
@@ -1927,9 +2079,18 @@ class Orchestrator:
         keyword matching.'
 
         Phase 1: LLM classification via phi4-mini with keyword fallback.
+
+        Args:
+            user_input: The text to classify.
+            last_route: Prior route for contextual-reference re-routing. When the
+                caller passes it explicitly (the graph router node passes the
+                per-``thread_id`` ``state["last_route"]``), that value is used and
+                the shared ``self._last_route`` is never read — closing the
+                cross-``thread_id`` leak (item 9). Omitted → legacy fallback to
+                ``self._last_route``.
         """
         # Fast-path: skip LLM for obvious inputs
-        fast = self._fast_path_classify(user_input)
+        fast = self._fast_path_classify(user_input, last_route)
         if fast is not None:
             logger.info(
                 "Fast-path classified: '%s' → %s (%s, conf=%.2f, input_len=%d, skipped LLM router)",
@@ -2150,7 +2311,9 @@ User input: {user_input}"""
 
         return user_input.strip()
 
-    def _fast_path_classify(self, user_input: str) -> TaskClassification | None:
+    def _fast_path_classify(
+        self, user_input: str, last_route: Any = _LAST_ROUTE_UNSET
+    ) -> TaskClassification | None:
         """Try to classify without calling the LLM router.
 
         Returns a TaskClassification if the input is obvious,
@@ -2158,9 +2321,23 @@ User input: {user_input}"""
 
         This saves ~6 seconds per input on phi4-mini for cases
         where keyword matching is unambiguous.
+
+        Args:
+            user_input: The text to classify.
+            last_route: Prior route for contextual-reference re-routing. Explicit
+                value (including ``None``) is used verbatim and the shared
+                ``self._last_route`` is never read (item-9 leak closed); omitted →
+                fall back to ``self._last_route``.
         """
         stripped = user_input.strip()
         lower = stripped.lower()
+
+        # Resolve the route memory: explicit param (graph path, per-thread state)
+        # wins; the sentinel means "not passed" → legacy fallback to the instance
+        # attribute. The contextual branch below reads ONLY ``effective_last_route``.
+        effective_last_route = (
+            self._last_route if last_route is _LAST_ROUTE_UNSET else last_route
+        )
 
         # --- Contextual reference detection ---
         # If the user says "do that", "yes proceed", etc., they're referring to the
@@ -2170,21 +2347,21 @@ User input: {user_input}"""
             "ok do it", "yeah", "yep", "sure", "please do", "go for it",
             "make it so", "run it", "execute that", "ok go ahead",
         )
-        if self._last_route is not None:
+        if effective_last_route is not None:
             # Check if the input starts with a contextual reference
             for prefix in _CONTEXTUAL_PREFIXES:
                 if lower == prefix or lower.startswith(prefix + " ") or lower.startswith(prefix + ",") or lower.startswith(prefix + "."):
                     logger.info(
                         "Contextual reference '%s' detected — re-routing to previous module: %s",
-                        prefix, self._last_route.target_module,
+                        prefix, effective_last_route.target_module,
                     )
                     return TaskClassification(
-                        task_type=self._last_route.task_type,
-                        complexity=self._last_route.complexity,
-                        target_module=self._last_route.target_module,
-                        brain=self._last_route.brain,
-                        safety_flag=self._last_route.safety_flag,
-                        priority=self._last_route.priority,
+                        task_type=effective_last_route.task_type,
+                        complexity=effective_last_route.complexity,
+                        target_module=effective_last_route.target_module,
+                        brain=effective_last_route.brain,
+                        safety_flag=effective_last_route.safety_flag,
+                        priority=effective_last_route.priority,
                         confidence=0.90,
                     )
 
@@ -4512,6 +4689,57 @@ User input: {user_input}"""
             len(user_input), classification.target_module,
         )
 
+        # Unit A: build the four retry closures (state-driven at the graph layer,
+        # locals here). Both the live path and the graph retry node call this same
+        # method, so the closures are byte-identical given identical inputs.
+        execute_fn, evaluate_fn, grimoire_search_fn, notify_fn = (
+            self._build_retry_closures(plan, classification, context, source)
+        )
+
+        # Unit B: delegate the whole 12-attempt loop to the engine (unchanged).
+        retry_result = await self._retry_engine.attempt_task(
+            task=user_input,
+            module=classification.target_module,
+            context={
+                "task_type": classification.task_type.value,
+                "tools": [s.get("tool", "") for s in plan.steps if s.get("tool")],
+            },
+            evaluate_fn=evaluate_fn,
+            execute_fn=execute_fn,
+            grimoire_search_fn=grimoire_search_fn,
+            notify_fn=notify_fn,
+        )
+
+        # Unit C: resolve the session into the final response string. Shared with
+        # the graph response leg; the same execute_fn rebuilt from identical inputs
+        # drives the escalation path byte-identically.
+        return await self._resolve_retry_outcome(
+            retry_result, user_input, classification, context, source, execute_fn
+        )
+
+    def _build_retry_closures(
+        self,
+        plan: ExecutionPlan,
+        classification: TaskClassification,
+        context: list[dict[str, Any]],
+        source: str,
+    ) -> tuple:
+        """Build the four retry closures (Unit A — extracted verbatim).
+
+        Returns ``(execute_fn, evaluate_fn, grimoire_search_fn, notify_fn)`` — the
+        exact closures the former inline body of ``_step5_with_retry`` built and
+        handed to ``RetryEngine.attempt_task``. Extracted so the live path AND the
+        graph retry node construct byte-identical closures from the same inputs
+        (``plan`` / ``classification`` / ``context`` / ``source``); no behavior is
+        reimplemented.
+
+        Args:
+            plan: Execution plan from Step 4.
+            classification: Task classification from Step 2.
+            context: Loaded context from Step 3.
+            source: Input source ("user", "telegram", "autonomous", etc).
+        """
+
         async def execute_fn(task: str, strategy_context: dict) -> dict:
             """Execute one attempt using the plan + evaluate pipeline."""
             # Check tool_loader before executing — truly empty index means
@@ -4694,20 +4922,36 @@ User input: {user_input}"""
             async def notify_fn(msg: str) -> None:
                 logger.info("Retry progress: %s", msg)
 
-        # Run the retry engine
-        retry_result = await self._retry_engine.attempt_task(
-            task=user_input,
-            module=classification.target_module,
-            context={
-                "task_type": classification.task_type.value,
-                "tools": [s.get("tool", "") for s in plan.steps if s.get("tool")],
-            },
-            evaluate_fn=evaluate_fn,
-            execute_fn=execute_fn,
-            grimoire_search_fn=grimoire_search_fn,
-            notify_fn=notify_fn,
-        )
+        return execute_fn, evaluate_fn, grimoire_search_fn, notify_fn
 
+    async def _resolve_retry_outcome(
+        self,
+        retry_result: dict[str, Any],
+        user_input: str,
+        classification: TaskClassification,
+        context: list[dict[str, Any]],
+        source: str,
+        execute_fn,
+    ) -> str:
+        """Resolve a completed retry session into the final response (Unit C).
+
+        Extracted verbatim from the former tail of ``_step5_with_retry`` so the
+        live path AND the graph response leg resolve byte-identically. May write
+        ``self._pending_escalation`` on the live-conversation escalation-offer path.
+        ``execute_fn`` is threaded in because the autonomous escalation call and the
+        stored ``_pending_escalation`` both need it.
+
+        Args:
+            retry_result: The completed ``attempt_task`` session dict.
+            user_input: The original user input.
+            classification: Task classification from Step 2.
+            context: Loaded context from Step 3.
+            source: Input source ("user", "telegram", "autonomous", etc).
+            execute_fn: The same attempt closure built by ``_build_retry_closures``.
+
+        Returns:
+            Final response string.
+        """
         # Succeeded — return the response
         if retry_result.get("status") == "succeeded" and retry_result.get("final_result"):
             return retry_result["final_result"].get("response", "")

@@ -288,6 +288,7 @@ async def startup(config: dict, logger: logging.Logger) -> Orchestrator:
                 task_queue=orchestrator._task_queue,
                 task_tracker=orchestrator._task_tracker,
                 registry=orchestrator.registry,
+                orchestrator=orchestrator,
             )
             await orchestrator._async_task_queue.start()
             logger.info("AsyncTaskQueue initialized and worker started")
