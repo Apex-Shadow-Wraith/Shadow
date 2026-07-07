@@ -111,7 +111,9 @@ Linux transition; that transition is complete.
 - **Web Automation:** Playwright + stealth layer
 - **Git:** Initialized, commits on `main` branch
 - **APIs:** Anthropic, OpenAI, Telegram bot, Discord bot — secrets in
-  `config/.env`
+  `.env` at the **repo root** (`~/dev/Shadow/.env`), not `config/`.
+  `shadow.config` loads it from `REPO_ROOT / ".env"`
+  (`shadow/config/__init__.py`). `config/` holds only `.env.example`.
 
 ## Virtual Environment — CRITICAL
 Always use the existing venv at `~/dev/Shadow/shadow_env` — **never create
@@ -130,7 +132,8 @@ Post-S41, config is centralized.
 - **Config files:**
   - `config/config.yaml` — checked-in defaults
   - `config/config.local.yaml` — gitignored per-machine overrides
-  - `.env` — secrets only, loaded once at import time
+  - `.env` — secrets only, at the **repo root** (not `config/`); loaded
+    once at import time from `REPO_ROOT / ".env"`
 - **Precedence (high → low):** init kwargs > OS env > `.env` >
   `config.local.yaml` > `config.yaml` > defaults.
 - **Secret handling:** all API keys/tokens typed as `SecretStr | None`.
@@ -240,7 +243,7 @@ high-risk; final typed-subclass refactor is scheduled for Phase D.
 │   ├── void_metrics.db    # Void daemon metrics
 │   └── void_latest.json   # Void daemon latest snapshot
 ├── config/
-│   ├── .env                         # API credentials (secrets only)
+│   ├── .env.example                 # Template for secrets (real .env is at repo root)
 │   ├── config.yaml                  # Checked-in defaults
 │   ├── config.local.yaml.example    # Template for per-machine overrides
 │   └── cerberus_limits.yaml
@@ -252,6 +255,7 @@ high-risk; final typed-subclass refactor is scheduled for Phase D.
 ├── tests/                 # 4163 tests (see Current Status for the live figures)
 ├── main.py                # CLI entry point
 ├── pyproject.toml         # Pytest config (testpaths=["tests"] since S54 closeout)
+├── .env                   # API credentials (secrets only) — loaded by shadow.config
 ├── CLAUDE.md              # This file
 └── .gitignore
 ```
