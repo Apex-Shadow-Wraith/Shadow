@@ -1,6 +1,9 @@
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 pythonpath = ["."]
+# Without testpaths, bare `pytest` walked the whole rootdir and hit
+# root-owned deploy/ dirs (8 PermissionErrors, collection aborted).
+testpaths = ["tests"]
 markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
 ]

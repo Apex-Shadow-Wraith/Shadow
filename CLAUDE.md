@@ -251,7 +251,7 @@ high-risk; final typed-subclass refactor is scheduled for Phase D.
 │   └── dual_pattern_investigation.md
 ├── tests/                 # 4163 tests (see Current Status for the live figures)
 ├── main.py                # CLI entry point
-├── pyproject.toml         # Pytest config (no testpaths — run `pytest tests/`, not bare)
+├── pyproject.toml         # Pytest config (testpaths=["tests"] since S54 closeout)
 ├── CLAUDE.md              # This file
 └── .gitignore
 ```
@@ -305,14 +305,15 @@ state (verified June 2026 via `scripts/dump_tools.py`).
 
 ## Current Status
 - **Git:** commits on `main`
-- **Tests:** 4163 collected, 0 collection errors. S54 post-fix full run
-  (2026-07-07): **4160 passed / 0 failed / 3 skipped** (skips are
-  env-gated, Ollama-dependent). Known flake: `test_greeting_uses_fast_path`
+- **Tests:** 4169 collected, 0 collection errors. S54 post-fix full run
+  (2026-07-07): **4160 passed / 0 failed / 3 skipped** at 4163 collected;
+  closeout added 6 fail-loud pins (skips are env-gated,
+  Ollama-dependent). Known flake: `test_greeting_uses_fast_path`
   asserts <100ms and can trip under full-suite load (failed the S54
   baseline run at 111ms, passes in isolation and passed post-fix).
-  NOTE: run `pytest tests/`, never bare `pytest` — pyproject sets no
-  testpaths and bare invocation collects root-owned `deploy/` dirs →
-  8 PermissionErrors.
+  Bare `pytest` is safe since S54 closeout (`testpaths = ["tests"]` in
+  pyproject.toml); historically it collected root-owned `deploy/` dirs
+  → 8 PermissionErrors.
 - **Tools:** ~155 tools across 10 modules (verified June 2026 via
   `scripts/dump_tools.py`):
   - All registered through the internal module registry via `get_tools()`
