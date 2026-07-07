@@ -196,17 +196,37 @@ class Cerberus(BaseModule):
             self._config_hash = hashlib.sha256(raw_content.encode()).hexdigest()
             self._limits = yaml.safe_load(raw_content)
 
-            # Load ethical topics (graceful — empty list if missing)
+            # Load ethical topics. The file is deploy-provisioned and
+            # gitignored (see CLAUDE.md "Ethical Topics Provisioning") —
+            # missing/empty is a prominent ERROR, never a crash: boot
+            # continues with fast-path ethical lookup degraded.
             ethics_path = Path(self._config.get(
                 "ethical_topics_file", "config/ethical_topics.yaml"
             ))
             if ethics_path.exists():
                 with open(ethics_path, "r", encoding="utf-8") as ef:
                     ethics_data = yaml.safe_load(ef)
-                self._ethical_topics = ethics_data.get("topics", [])
+                self._ethical_topics = (ethics_data or {}).get("topics", []) or []
+                degraded_reason = (
+                    f"{ethics_path} loaded 0 topics (empty file or schema "
+                    f"mismatch — loader expects a top-level 'topics' list)"
+                )
+            else:
+                self._ethical_topics = []
+                degraded_reason = f"{ethics_path} not found"
+            if self._ethical_topics:
                 logger.info("Loaded %d ethical topics", len(self._ethical_topics))
             else:
-                logger.warning("Ethical topics file not found: %s", ethics_path)
+                logger.error(
+                    "ETHICAL TOPICS UNAVAILABLE — %s. Fast-path ethical "
+                    "lookup (ethical_guidance) is DEGRADED: 0 curated topics "
+                    "loaded, every concept lookup returns empty. This file is "
+                    "deploy-provisioned per machine (gitignored): convert "
+                    "~/dev/shadow-training-data/ethics/ethical_topics.yaml to "
+                    "the loader schema — see CLAUDE.md 'Ethical Topics "
+                    "Provisioning (deploy-time)'.",
+                    degraded_reason,
+                )
 
             # Initialize the absorbed security surface: load file
             # integrity baseline + ensure quarantine dir exists.

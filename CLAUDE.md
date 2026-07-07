@@ -143,6 +143,21 @@ Post-S41, config is centralized.
   failure with named field + remediation message. Never silently degrade
   to dry-run.
 
+### Ethical Topics Provisioning (deploy-time)
+`config/ethical_topics.yaml` is **gitignored by design** — deployed
+per-machine, never committed. Any fresh clone or wiped `config/` dir
+must re-provision it:
+- **Source of truth:** `~/dev/shadow-training-data/ethics/ethical_topics.yaml`
+  (separate training-data repo — never pushed to GitHub).
+- **Schema conversion is REQUIRED:** the source file is concept-keyed
+  with `passages`; both loaders (`modules/cerberus/cerberus.py` init,
+  `modules/cerberus/ethics_engine.py::load_ethical_topics`) expect
+  `{topics: [{name, description, keywords?, references: [{ref, summary,
+  weight}]}]}`. A straight copy parses but loads **0 topics**.
+- Deployed on Citadel S54 (16 topics, 97 references). A missing or
+  0-topic file logs an ERROR-level `ETHICAL TOPICS UNAVAILABLE` line at
+  boot (fast-path ethical lookup degraded); boot still continues.
+
 ## Benchmark Baseline
 **Phase 0 Citadel baseline (committed `be2842e`):**
 - **Overall:** 78.18% (75 tasks, 939s total, 12.5s/task avg)

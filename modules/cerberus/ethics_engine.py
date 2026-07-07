@@ -88,19 +88,40 @@ class EthicsEngine:
         self._init_chromadb()
 
     def load_ethical_topics(self, path: Path) -> None:
-        """Read ethical topics from YAML config."""
+        """Read ethical topics from YAML config.
+
+        The file is deploy-provisioned and gitignored (see CLAUDE.md
+        "Ethical Topics Provisioning"). Missing, empty, or unparseable
+        file escalates to a prominent ERROR — fast-path lookup is
+        degraded — but never blocks boot.
+        """
         try:
             if path.exists():
                 with open(path, "r", encoding="utf-8") as f:
                     data = yaml.safe_load(f)
-                self._topics = data.get("topics", [])
-                logger.info("EthicsEngine loaded %d ethical topics", len(self._topics))
+                self._topics = (data or {}).get("topics", []) or []
+                degraded_reason = (
+                    f"{path} loaded 0 topics (empty file or schema mismatch "
+                    f"— loader expects a top-level 'topics' list)"
+                )
             else:
-                logger.warning("Ethical topics file not found: %s", path)
                 self._topics = []
+                degraded_reason = f"{path} not found"
         except Exception as e:
-            logger.error("Failed to load ethical topics: %s", e)
             self._topics = []
+            degraded_reason = f"failed to load {path}: {e}"
+        if self._topics:
+            logger.info("EthicsEngine loaded %d ethical topics", len(self._topics))
+        else:
+            logger.error(
+                "ETHICAL TOPICS UNAVAILABLE — %s. EthicsEngine fast-path "
+                "lookup is DEGRADED to semantic ESV search only. This file is "
+                "deploy-provisioned per machine (gitignored): convert "
+                "~/dev/shadow-training-data/ethics/ethical_topics.yaml to the "
+                "loader schema — see CLAUDE.md 'Ethical Topics Provisioning "
+                "(deploy-time)'.",
+                degraded_reason,
+            )
 
     def _init_chromadb(self) -> None:
         """Initialize ChromaDB client and get ESV collections."""
