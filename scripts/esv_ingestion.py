@@ -2,35 +2,60 @@
 ESV Study Bible Ingestion Script
 Loads parsed ESV JSON files into Grimoire's SQLite and ChromaDB storage.
 
+Ported S54 (F-5): the original carried Windows-era ``C:\\Shadow`` literals and
+could never have run on Citadel. DB/vector/Ollama settings now come from the
+``shadow.config`` singleton (same source Grimoire reads); the JSON source dir
+defaults to the training-data repo and is overridable via ``--json-dir``.
+
 Prerequisites:
     - Run esv_processor.py first to generate the JSON files
     - Ollama must be running with nomic-embed-text pulled
-    - ChromaDB data dir at C:/Shadow/data/vectors/ must exist
 
 Usage:
-    python scripts/esv_ingestion.py
+    python scripts/esv_ingestion.py [--json-dir DIR] [--check]
+
+    --check resolves every path, loads and counts both JSON files, and exits
+    without writing anything (no SQLite, no Chroma, no Ollama).
 """
 
+import argparse
 import json
 import sqlite3
+import sys
 import time
 from pathlib import Path
 
 import chromadb
 import requests
 
-# ── Paths ──
-JSON_DIR = Path(r"C:\Shadow\training_data\esv")
+# Script lives at scripts/esv_ingestion.py; ensure repo root is on sys.path
+# so `import shadow.config` works regardless of invocation cwd (same pattern
+# as scripts/dump_tools.py).
+REPO_ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(REPO_ROOT))
+
+from shadow.config import config  # noqa: E402  (needs sys.path fix above)
+
+# ── Paths (config-driven; relative paths anchor at the repo root) ──
+JSON_DIR = Path.home() / "dev" / "shadow-training-data" / "esv"
 PERICOPES_JSON = JSON_DIR / "esv_pericopes.json"
 STUDYNOTES_JSON = JSON_DIR / "esv_studynotes.json"
-SQLITE_DB = Path(r"C:\Shadow\data\memory\shadow_memory.db")
-VECTOR_DIR = Path(r"C:\Shadow\data\vectors")
+SQLITE_DB = REPO_ROOT / config.grimoire.db_path
+VECTOR_DIR = REPO_ROOT / config.grimoire.vector_path
 
-# ── Ollama config (matches Grimoire) ──
-OLLAMA_URL = "http://localhost:11434"
-EMBED_MODEL = "nomic-embed-text"
+# ── Ollama config (same source Grimoire reads) ──
+OLLAMA_URL = config.models.ollama_base_url
+EMBED_MODEL = config.models.embedding.name
 EMBED_TRUNCATE = 2000  # chars, matching Grimoire's limit
 MAX_RETRIES = 3
+
+
+def _apply_json_dir(json_dir: Path) -> None:
+    """Repoint the module-level JSON paths (default: training-data repo)."""
+    global JSON_DIR, PERICOPES_JSON, STUDYNOTES_JSON
+    JSON_DIR = json_dir
+    PERICOPES_JSON = JSON_DIR / "esv_pericopes.json"
+    STUDYNOTES_JSON = JSON_DIR / "esv_studynotes.json"
 
 
 def get_embedding(text):
@@ -222,6 +247,19 @@ def ingest_chromadb_studynotes(collection, studynotes):
 
 
 def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--json-dir", type=Path, default=JSON_DIR,
+        help=f"Directory holding esv_pericopes.json / esv_studynotes.json "
+             f"(default: {JSON_DIR})",
+    )
+    parser.add_argument(
+        "--check", action="store_true",
+        help="Resolve paths and count records, then exit without writing.",
+    )
+    args = parser.parse_args()
+    _apply_json_dir(args.json_dir)
+
     # Load JSON files
     print(f"Loading {PERICOPES_JSON}...")
     if not PERICOPES_JSON.exists():
@@ -238,6 +276,16 @@ def main():
     with open(STUDYNOTES_JSON, "r", encoding="utf-8") as f:
         studynotes = json.load(f)
     print(f"  Loaded {len(studynotes)} study notes")
+
+    if args.check:
+        print(f"\n--check: paths resolved, nothing written.")
+        print(f"  SQLite DB:    {SQLITE_DB} (exists: {SQLITE_DB.exists()})")
+        print(f"  ChromaDB dir: {VECTOR_DIR} (exists: {VECTOR_DIR.exists()})")
+        print(f"  Ollama:       {OLLAMA_URL} (embed model: {EMBED_MODEL})")
+        print(f"  Would ingest: {len(pericopes)} pericopes + "
+              f"{len(studynotes)} study notes = "
+              f"{len(pericopes) + len(studynotes)} entries")
+        return
 
     # SQLite ingestion
     print("\n" + "=" * 50)
