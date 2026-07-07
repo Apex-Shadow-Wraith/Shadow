@@ -4745,6 +4745,18 @@ User input: {user_input}"""
         Wraps _step5_execute + _step6_evaluate in the RetryEngine's
         attempt loop. If all 12 strategies fail, offers Apex escalation.
 
+        .. note:: **Byte-equivalence reference — zero production callers**
+           (S54 ledger item 35). Post-flip, the graph retry node
+           (``make_orchestrator_retry_node``) replicates this method's
+           A/B/C structure by calling the same ``_build_retry_closures`` /
+           ``attempt_task`` / ``_resolve_retry_outcome`` units directly;
+           it deliberately does NOT call this method (see
+           ``retry_graph.py`` "Delegation boundary"). This method is kept
+           as the pinned live-path reference for the equivalence proof —
+           9 tests call it directly (test_retry_extraction_equivalence,
+           test_orchestrator, test_benchmark_guards). Do not call it from
+           production code; do not delete it without retiring those pins.
+
         Args:
             user_input: The original user input.
             plan: Execution plan from Step 4.
