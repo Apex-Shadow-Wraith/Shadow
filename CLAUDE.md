@@ -44,9 +44,15 @@ router opt-out) and Cipher stem over-matching.
 **Module count trajectory:** 13 → 10 (Phase A, done) → 7 (Phase D).
 
 **Phase B (current):**
+- LangGraph cutover — **COMPLETE** (merged to `main` @ `e44f16e`,
+  2026-07-07, `--no-ff`). `process_input` drives the compiled parent
+  graph (`modules/shadow/graph/parent.py`) via segmented invoke; graph
+  nodes delegate to the orchestrator's `_step*` methods (the source of
+  truth). Open items live in the ledger
+  (`docs/phase-b/track-b/cutover-backlog.md`).
 - Wraith → Shadow merge.
-- LangGraph cutover.
-- PostgreSQL migration (16.14 installed and running, not yet wired).
+- PostgreSQL migration (16.14 installed and running, not yet wired;
+  Contextual Retrieval is hard-ordered first).
 - Cerberus watchdog daemon promotion (already landed in commit `ff0dc0f`,
   living at `daemons/cerberus_watchdog/`).
 
@@ -70,9 +76,13 @@ modules, sequential).
 - **OS:** Ubuntu 24.04 LTS
 - **CPU:** AMD Ryzen 9 9950X3D
 - **GPU:** ASUS TUF RTX 5090 32GB
-- **RAM:** 128GB DDR5-5600
-- **Storage:** NVMe 990 Pro (primary), 8TB HDD at `/mnt/storage` (backups)
-- **NVIDIA Driver:** 580 + CUDA 13.0
+- **RAM:** 128GB DDR5-5600 modules — running at 3600 MT/s JEDEC, EXPO
+  OFF (validated-stable config after the June freeze diagnosis; do not
+  re-enable EXPO before memtest86+ closes the RAM hypothesis)
+- **Storage:** NVMe 990 Pro (primary), 8TB HDD at `/mnt/storage`
+  (backups) — currently OFFLINE, SATA reseat pending (ledger item 18)
+- **NVIDIA Driver:** 595.71.05 + CUDA 13.0 (part of the validated-stable
+  config)
 - **Cooling:** Noctua NH-D15 G2 air, O11 Dynamic EVO XL case
 - **Python:** 3.12.3 (system); venv at `~/dev/Shadow/shadow_env`
 - **Primary inference:** Ollama + Gemma 4 26B (stock — abliteration pending; Heretic run deferred to Phase B) + `nomic-embed-text`
@@ -151,7 +161,10 @@ proceeds. Weak-tier movement is expected and not an automatic failure.
 ## Codebase Architecture Reference
 Before multi-file changes, read `graphify-out/GRAPH_REPORT.md` for
 structure, god nodes, and module communities. Maps import relationships
-and dependency chains across 112+ files.
+and dependency chains across 112+ files. **Staleness caveat:** generated
+2026-04-28 — predates the entire `modules/shadow/graph/` package and the
+LangGraph cutover; regeneration is ledger item 33. Trust it for the
+module layer, not for the graph layer.
 
 **Key architectural constraint:** `ToolResult` (1,815 edges, 0.310
 betweenness centrality) bridges all modules. Any changes to `ToolResult`
@@ -193,9 +206,13 @@ high-risk; final typed-subclass refactor is scheduled for Phase D.
 │   └── searxng/           # SearXNG meta-search for Reaper (Track D, staged)
 ├── scripts/
 │   ├── esv_processor.py   # Parse ESV Study Bible epub → JSON
-│   ├── esv_ingestion.py   # Load parsed ESV into Grimoire
+│   ├── esv_ingestion.py   # Load parsed ESV into Grimoire (ported to Citadel paths S54; run pending)
 │   └── dump_tools.py      # Tool inventory snapshot (per-merge zero-loss check)
-├── training_data/         # Separate git repo — NEVER push to GitHub
+├── training_data/         # In-repo, GITIGNORED (apex_sessions only). Curated
+│                          #   datasets live in ~/dev/shadow-training-data
+│                          #   (separate git repo) — NEVER push either to GitHub
+├── benchmarks/            # Benchmark snapshots (floor evidence committed + annotated S54)
+├── archive/               # Superseded exploration (LangGraph spike moved here S54)
 ├── data/
 │   ├── memory/            # shadow_memory.db (SQLite)
 │   ├── vectors/           # ChromaDB persistent storage
@@ -214,10 +231,12 @@ high-risk; final typed-subclass refactor is scheduled for Phase D.
 │   └── cerberus_limits.yaml
 ├── docs/
 │   ├── phase-a/           # Phase A merge artifacts (cipher-omen, sentinel-cerberus, void)
+│   ├── phase-b/track-b/   # LangGraph cutover design + THE LEDGER (cutover-backlog.md)
+│   ├── archive/           # Retired planning docs (plan.md moved here S54)
 │   └── dual_pattern_investigation.md
-├── identity/              # Shadow's identity file, system prompts
-├── tests/                 # 4004 tests across all modules (3985 passing)
+├── tests/                 # 4163 tests (see Current Status for the live figures)
 ├── main.py                # CLI entry point
+├── pyproject.toml         # Pytest config (no testpaths — run `pytest tests/`, not bare)
 ├── CLAUDE.md              # This file
 └── .gitignore
 ```
@@ -226,9 +245,13 @@ high-risk; final typed-subclass refactor is scheduled for Phase D.
 These names are Shadow's identity. Counts reflect current post-Phase-A
 state (verified June 2026 via `scripts/dump_tools.py`).
 
-1. **Shadow** — Master orchestrator/router, 7-step decision loop,
-   Langfuse observability. The orchestrator IS the agent and does not
-   register routable tools itself.
+1. **Shadow** — Master orchestrator/router. Post-cutover (`e44f16e`),
+   `process_input` drives the compiled LangGraph parent graph via
+   segmented invoke (router/plan interrupts); graph nodes delegate to
+   the orchestrator's `_step*` methods, which remain the source of
+   truth for the historical 7-step semantics. Langfuse observability
+   (three caller-emitted child spans). The orchestrator IS the agent
+   and does not register routable tools itself.
 2. **Wraith** — Fast brain, daily tasks, reminders, task classification,
    temporal patterns (12 tools)
 3. **Cerberus** — Ethics, safety, approvals, injection detection,
@@ -267,8 +290,14 @@ state (verified June 2026 via `scripts/dump_tools.py`).
 
 ## Current Status
 - **Git:** commits on `main`
-- **Tests:** 4004 collected, 3985 passing, 17 failing + 2 errors under
-  triage (June 2026 full-suite run).
+- **Tests:** 4163 collected, 0 collection errors. S54 post-fix full run
+  (2026-07-07): **4160 passed / 0 failed / 3 skipped** (skips are
+  env-gated, Ollama-dependent). Known flake: `test_greeting_uses_fast_path`
+  asserts <100ms and can trip under full-suite load (failed the S54
+  baseline run at 111ms, passes in isolation and passed post-fix).
+  NOTE: run `pytest tests/`, never bare `pytest` — pyproject sets no
+  testpaths and bare invocation collects root-owned `deploy/` dirs →
+  8 PermissionErrors.
 - **Tools:** ~155 tools across 10 modules (verified June 2026 via
   `scripts/dump_tools.py`):
   - All registered through the internal module registry via `get_tools()`
@@ -291,12 +320,22 @@ state (verified June 2026 via `scripts/dump_tools.py`).
   spans for router/dispatch/assembly and per-attempt retry spans.
   Degrades gracefully if Langfuse is unreachable.
 - **Phase A benchmark gate:** Passed at 83.69% (exceeds 78.18% Phase 0
-  baseline). Snapshot pending commit.
+  baseline). Benchmark trail committed (`26c3bf4` + S54 floor-evidence
+  commit). **Current floor doctrine (S52, verified S54):** live-path
+  empty-store median-of-N — 0.834 excl-memory / 0.836 full basis. The
+  0.8424 single-run baseline is SUPERSEDED as a floor (high single
+  sample, brittle-rubric-inflated; annotated in the JSON itself).
+  Floors are distributions, never single numbers.
 - **Grimoire:** Fresh on Linux — RunPod Grimoire DB was intentionally NOT
   restored due to benchmark pollution. `training_data/` and `benchmarks/`
   **were** preserved.
 - **ESV Bible:** Processor tested (2,392 pericopes, 16,218 study notes
-  extracted), ingestion ready to run.
+  extracted = 18,610 entries). Ingestion script ported to Citadel paths
+  (S54, F-5 — it carried Windows `C:\` literals and had never run);
+  the ingestion run itself is pending (ledger item 36). NOT yet in
+  Grimoire — do not assume ESV data is queryable. `config/
+  ethical_topics.yaml` is gitignored by design and deployed per-machine
+  from the training-data repo (16 topics, deployed on Citadel S54).
 
 ## Tool Registration: Internal Registry and External MCP Servers
 
@@ -408,8 +447,9 @@ masks the real issue.
 - All downloads land in `data/research/quarantine/` — never directly in
   working files
 - Reddit data is labeled **"research context"** — NEVER "training data"
-- Training data stays in local git repo (`training_data/`) — never pushed
-  to GitHub
+- Training data stays local — never pushed to GitHub. Curated datasets
+  live in `~/dev/shadow-training-data` (separate git repo); the in-repo
+  `training_data/` dir is gitignored (apex_sessions captures only)
 - Architecture decisions happen in Opus sessions, not Claude Code sessions
 - Live test after every 3–4 Claude Code prompts to prevent bug compounding
 - No bugs deferred without explicit documentation and a plan
