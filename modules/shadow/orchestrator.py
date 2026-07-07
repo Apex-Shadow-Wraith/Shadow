@@ -1353,7 +1353,17 @@ class Orchestrator:
                 )
                 classification = graph_state["classification"]
 
-                # Apply injection warning flag to classification
+                # Apply injection warning flag to classification.
+                #
+                # KNOWN TRAP (S54 ledger item 25): this mutates the CALLER'S
+                # deserialized copy only. The checkpointed graph state keeps
+                # safety_flag=False — seg2/seg3 nodes reading
+                # state["classification"] never see this write. Harmless today
+                # because safety_flag is informational by design (ledger item
+                # 6: Cerberus gates on module presence, nothing in graph code
+                # reads the flag; caller-side spans/logs use this mutated
+                # copy). Do NOT key graph-node behavior on safety_flag without
+                # first writing it back via graph.aupdate_state.
                 if injection_result is not None and injection_result.action == "warn":
                     classification.safety_flag = True
 
