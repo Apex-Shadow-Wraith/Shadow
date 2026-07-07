@@ -450,3 +450,39 @@ the grep, going forward.
 38. **`modules/omen/test_gate.py:24,60` `Test*` class rename** to silence the
     PytestCollectionWarnings (`TestResult` dataclass + `TestGate` — pytest
     tries to collect them via `tests/test_test_gate.py`). (S54)
+
+## S54 closeout appends (2026-07-07, same-day batch)
+
+39. **`test_greeting_uses_fast_path` timing flake — deferred.** The <100ms
+    wall-clock assertion hit 111.1ms under full-suite load in the S54
+    baseline run; passes in isolation and passed the post-fix run. Fix
+    options: loosen the threshold, or mark it perf-excluded from the
+    default run. (S54 closeout)
+
+40. **Void daemon staleness — DIAGNOSED, awaiting hardware.** The daemon is
+    NOT stopped: `shadow-void.service` (user unit) is active with
+    NRestarts=0, but every 60s tick since 2026-06-26 21:00:48 dies on
+    `OSError: [Errno 19] No such device` from the dead 8TB `/mnt/storage`
+    autofs mount — `daemons/void/metrics.py:86` calls `is_symlink()` on the
+    backup symlink OUTSIDE the graceful `except OSError` at :104, aborting
+    `collect_snapshot()` before the `write_latest_snapshot` call
+    (`monitor.py:40`); 6,254 errors journaled, systemd sees a healthy
+    process. Disposition: Master to reseat the 8TB SATA (item 18) and
+    restart per the S54 closeout Task 3 commands; hardening candidate for a
+    future batch — move the symlink check inside its own try so a dead
+    backup mount degrades `backup_status` to "error" instead of starving
+    ALL metrics. (S54 closeout)
+
+41. **Wargame deliverable convention — ADOPTED.** Wargame sessions commit
+    their own deliverables; untracked work product does not accumulate.
+    The Morpheus wargame self-committed (`1034c88`); the parallel
+    Sentinel/stealth/Omen/Reaper trees were swept into the S54 closeout
+    batch as a one-time catch-up. (S54 closeout)
+
+42. **Harbinger Tier 1 spec addition — S55 INPUT.** The morning-briefing
+    health section must include Void staleness (age of
+    `data/void_latest.json` vs threshold). Item 40's failure class is a
+    dead-man's-switch problem: a "healthy" systemd unit writing nothing was
+    invisible for 10.9 days because the only detector was a Shadow boot
+    warning — this signal belongs in Telegram, not boot logs. (S54
+    closeout)
