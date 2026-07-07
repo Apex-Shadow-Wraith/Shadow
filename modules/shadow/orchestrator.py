@@ -397,6 +397,12 @@ class Orchestrator:
         self._graph_checkpoint_db: str = config.get("graph", {}).get(
             "checkpoint_db", ":memory:"
         )
+        # Guards BOTH lazy inits (_ensure_graph and the worker compile in
+        # run_deferred_through_graph). Without it, two concurrent first calls
+        # race the check-then-init: each opens its own saver __aenter__, one
+        # context leaks unclosed (F-3). Double-checked: lock-free fast path
+        # when already built, re-check under the lock before building.
+        self._graph_init_lock = asyncio.Lock()
         self._max_response_tokens = config.get("decision_loop", {}).get("max_response_tokens", 2048)
 
         # Personality settings
@@ -1115,17 +1121,25 @@ class Orchestrator:
         if self._compiled_graph is not None:
             return self._compiled_graph
 
-        from modules.shadow.graph.parent import build_parent_graph
-        from modules.shadow.graph.serde import open_async_sqlite_saver
+        async with self._graph_init_lock:
+            # Re-check under the lock: a concurrent first caller may have
+            # finished the init while this one awaited the lock (F-3).
+            if self._compiled_graph is not None:
+                return self._compiled_graph
 
-        self._graph_saver_cm = open_async_sqlite_saver(self._graph_checkpoint_db)
-        self._graph_saver = await self._graph_saver_cm.__aenter__()
-        self._graph_builder = build_parent_graph(self)
-        self._compiled_graph = self._graph_builder.compile(
-            checkpointer=self._graph_saver,
-            interrupt_after=["router", "plan"],
-        )
-        return self._compiled_graph
+            from modules.shadow.graph.parent import build_parent_graph
+            from modules.shadow.graph.serde import open_async_sqlite_saver
+
+            saver_cm = open_async_sqlite_saver(self._graph_checkpoint_db)
+            saver = await saver_cm.__aenter__()
+            self._graph_saver_cm = saver_cm
+            self._graph_saver = saver
+            self._graph_builder = build_parent_graph(self)
+            self._compiled_graph = self._graph_builder.compile(
+                checkpointer=self._graph_saver,
+                interrupt_after=["router", "plan"],
+            )
+            return self._compiled_graph
 
     async def run_deferred_through_graph(
         self, description: str, source: str = "autonomous"
@@ -1147,9 +1161,13 @@ class Orchestrator:
         """
         await self._ensure_graph()  # builds the shared builder + saver
         if self._worker_graph is None:
-            self._worker_graph = self._graph_builder.compile(
-                checkpointer=self._graph_saver
-            )
+            async with self._graph_init_lock:
+                # Re-check under the lock (F-3): concurrent first deferred
+                # tasks must not compile two worker graphs.
+                if self._worker_graph is None:
+                    self._worker_graph = self._graph_builder.compile(
+                        checkpointer=self._graph_saver
+                    )
         worker_thread_id = f"async:{uuid.uuid4().hex}"
         config = {"configurable": {"thread_id": worker_thread_id}}
         try:
