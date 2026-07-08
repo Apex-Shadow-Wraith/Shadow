@@ -754,3 +754,99 @@ a module designed to switch on safely, plus the 9-item owned checklist that gove
 No-split justification (unchanged): one threat model (speculation contaminating verified knowledge),
 one owned code area (modules/morpheus/* + the Grimoire retrieval boundary); the firewall is the spine
 binding the dream pipeline, the improvement loop, and activation. Kept as one plan.
+
+### sentinel-p1-auth-approval — PATCHED (mechanism converged) + SCOPE RESIDUAL escalated — 3 passes — 2026-07-07
+
+Plan:      wargames/plans/sentinel-p1-auth-approval.md
+Red-team:  wargames/red-team/sentinel-p1-auth-approval.md (pass 1) · ...-pass2.md · ...-pass3.md
+
+Mission: build the authenticated approval channel resolving AR-P1-1 (approval authority) +
+AR-P1-2 (secret-reachability boundary) — the two items the prior Sentinel wargame booked
+BLOCKED-on-Master/Opus. Spec-supplied seam (local-token authority made sound by an enforced
+unreachability boundary; verify_approval() as a swap seam for a future off-box Ed25519 upgrade).
+
+Enforcement-point correction (phantom-count doctrine, as the spec instructed): the spec's
+"cerberus.py:488" is a PHANTOM (a return-statement line). The real dangerous-action funnel is
+shutil.move at security/core.py:571, reached only via cerberus.py:504-508. The gate was planned
+at the real funnel, not the phantom.
+
+State change since the prior Sentinel wargame: CREATOR_AUTH_TOKEN is now SET and loads into the
+live singleton (pass-1 attacker ran the check → True). That clears one of the two prior BLOCKED
+items. The other (the authenticated approval channel itself) is what this mission designs.
+
+Three fresh red-team passes, each landed real breaks; each fix HELD under the next pass:
+  - Pass 1 CRITICAL — credential had no delivery wire except the planner-visible params dict.
+    Fixed: Cerberus-private pending-ACTION store + enqueue-defer funnel + poll-loop re-invoke.
+    Plus HIGH×3 (pre-hook can't read config lists; graph plan-gate is a log-only stub; mint→use
+    untested / fail-to-hang), MEDIUM×2 (_action_category planner field; R3 scope), LOW (vacuous
+    NEG-spoof). All patched.
+  - Pass 2 CRITICAL — the pass-1 fix RELOCATED the hole: re-invoking the shared SecuritySurface.handle
+    routed the authorized move back through the planner's door; handle is caller-blind and the store
+    lookup was descriptor-keyed (planner-controlled), so a planner could ride a genuine approval
+    (confused deputy + consume race). Fixed: two-method split — the planner-facing funnel ONLY
+    enqueues (never moves); the move is _execute_approved(approval_id), poll-loop-private, not
+    routable, keyed on the opaque id. New abort #9; four new NEG/POS tests.
+  - Pass 3 — attacked the two-method design HARDEST and COULD NOT BREAK the mechanism (hardcoded
+    dict dispatch/no getattr; MCP servers hardcoded; scaffold_test import shape-locked; chat_id
+    transport-bound; nonce/credential confidential). The mechanism has CONVERGED. But pass 3 landed
+    a NEW CRITICAL of SCOPE: my recon claim "quarantine_file is the only live host-mutating op" is
+    FALSE — code_edit (autonomous, arbitrary write_text, omen.py:1606, PROTECTED_PATHS only guards
+    config/.git/.env so modules/, main.py, data/, and the gate's own source are writable) and
+    sandbox_to_production (sandbox.py:1126) mutate arbitrary paths WITHOUT touching the funnel this
+    mission gates. Trips the plan's own abort #1. Plus HIGH (planner controls the alert reason
+    free-text on a parse_mode:HTML channel with no escape + can flood competing notification_send —
+    Master can be steered to approve the wrong id).
+
+Self-grade vs SUCCESS.md (1–9):
+  1 expected observations   PASS — every buildable move has a concrete observable / named test /
+                            filesystem-state assertion. The certifying tests assert behavior at the
+                            live shutil.move, never a trust tag.
+  2 failure branches        PASS — each move carries most-likely-failure + cause + counter.
+  3 fork triggers           PASS — the swap-seam fork, the R4 token-wiring fork, the display-dedupe
+                            option all carry explicit triggers; no judgment left to the executor.
+  4 RECON NEEDED marks      PASS — R1 (token loads), R2 (software_install body), R3 (MANDATORY
+                            host-write enumeration), R4 (poll-loop creds), R5 (funnel line), plus
+                            documented residuals R6 (target-selection human limit) and R7 (competing
+                            messages). Nothing confident leans on an unsettled item.
+  5 abort conditions        PASS — 9 aborts incl. #1 (ungated funnel, ALREADY FIRED by pass-3),
+                            #7 (credential-on-params), #9 (authorized move reachable off the poll loop).
+  6 verification runs       PASS for the mechanism — V0 (must-fail-today red) → V1–V4 green → V5
+                            live-once; test_handle_never_moves + test_planner_cannot_ride_approved_entry
+                            are the pass-2-hole certifiers. HONEST GAP: the mechanism verifies; the
+                            WHOLE-host-write-surface verification is explicitly out of scope (G7).
+  7 survived red-team       HONEST: mechanism SURVIVED pass 3 (attacker could not break it → converged).
+                            Passes 1 and 2 each landed a CRITICAL that was fixed and HELD. Pass 3's
+                            scope CRITICAL is not a mechanism bug — it is booked as a documented SCOPE
+                            BOUNDARY + follow-on mission, not paper-patched. This is the point-7 record:
+                            the attack that failed (pass-3 on the mechanism) and the attacks that landed
+                            (pass-1/2 credential path; pass-3 scope) with their patches/escalations.
+  8 executable blind        PASS for buildable scope — B1/B2 pseudocode, named tests, the R3 sweep
+                            command, and the fail-closed rules remove hidden judgment calls. The
+                            out-of-scope items are explicitly flagged, not smuggled.
+  9 gates & autonomy        PASS as a CONTRACT — G1–G7. Capability planned in full (the seam supports
+                            quarantine now + the descriptor ops later + the off-box Ed25519 repoint);
+                            every dangerous edge wears its gate; security-before-autonomy is the column
+                            (M7 boundary + M4 funnel built BEFORE M5/M6 open them). G7 states plainly
+                            that the abliteration/Heretic host-write precondition is the WHOLE surface
+                            gated, NOT this funnel alone.
+
+NOT-DONE-as-a-whole, DONE-as-scoped (honest status): the approval-CHANNEL mechanism is wargamed,
+three-pass-converged, and buildable. It is DONE for its funnel. The mission does NOT make Shadow's
+full host-write surface safe — code_edit / sandbox_to_production / the R3 set bypass this funnel and
+are escalated to a named follow-on host-write mission (overlaps omen-part3-selfmod.md), with code_edit
+(can edit the gate's own source) ranked first. Claiming the whole surface DONE here would be exactly
+the self-generous grading this ledger exists to catch.
+
+Why the loop STOPS at 3 passes (not abandoned, not inflated): pass 3 could not break the mechanism —
+a 4th mechanism-attack would re-confirm convergence, not find new ground. Pass 3's scope CRITICAL is
+handled by honest re-scoping + escalation (the correct move for a boundary finding), not by a mechanism
+change that would need re-attack. Matches the established project pattern (prior sentinel/morpheus:
+stop when the mechanism converges and the remaining items are named escalations, not paper-patchable
+plan bugs).
+
+No-split justification: AR-P1-1 (authority) and AR-P1-2 (boundary) are one mission — the local-token
+authority is sound IFF the planner provably cannot reach the token, which only AR-P1-2 makes provable.
+Splitting would sever the dependency the whole design rests on. The host-write-surface work is a
+SEPARATE follow-on mission (not a split of this one) — its seam falls where the risk cliff does:
+this mission gates one funnel with an authenticated channel; the follow-on gates the remaining
+routed host-writes. Kept the approval channel as one plan; named the follow-on rather than absorbing it.
